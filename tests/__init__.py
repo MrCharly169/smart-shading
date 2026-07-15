@@ -1,0 +1,1 @@
+# Smart Shading package tests.

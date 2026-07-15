@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+.DS_Store
+.vscode/
+.idea/
+
+# Local import artifacts
+smart-shading-verified.bundle

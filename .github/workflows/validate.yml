@@ -1,0 +1,38 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile integration
+        run: python -m compileall custom_components/smart_shading
+      - name: Validate frontend syntax
+        run: node --check custom_components/smart_shading/frontend/smart-shading-card.js
+      - name: Frontend runtime regression test
+        run: node tests/test_card_runtime.js
+      - name: Validate release structure
+        run: python scripts/build_release.py --check
+      - name: Build installable archive
+        run: python scripts/build_release.py --output dist/smart_shading.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smart-shading-${{ github.sha }}
+          path: dist/smart_shading.zip

@@ -1,0 +1,2235 @@
+from __future__ import annotations
+
+import asyncio
+from collections import deque
+from collections.abc import Callable
+from datetime import datetime, timedelta
+import logging
+from typing import Any
+
+from homeassistant.const import STATE_OFF, STATE_ON
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
+from homeassistant.util import dt as dt_util
+
+from .const import (
+    CARD_RESOURCE,
+    CONF_ADVANCED_MODE,
+    CONF_DIAGNOSTIC_LEVEL,
+    CONF_EVALUATION_INTERVAL,
+    CONF_ROOMS,
+    CONF_SUN_ENTITY,
+    CONF_TEST_MODE,
+    DAY_WINDOW_ALL_DAY,
+    DAY_WINDOW_FIXED,
+    DEFAULT_COMMAND_COOLDOWN,
+    DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_POSITION_TOLERANCE,
+    DEFAULT_TILT_TOLERANCE,
+    DIAGNOSTIC_EVENTS,
+    DIAGNOSTIC_FULL,
+    DIAGNOSTIC_OFF,
+    DEVICE_AWNING,
+    DEVICE_BINARY,
+    DEVICE_CURTAIN,
+    DEVICE_VERTICAL,
+    DEVICE_VENETIAN,
+    DOMAIN,
+    MODE_COMFORT,
+    MODE_DISABLED,
+    MODE_FINISHED,
+    MODE_HEAT,
+    MODE_IDLE,
+    MODE_OPEN,
+    MODE_PAUSED,
+    MODE_SAFETY,
+    MODE_SOLAR,
+    OUTSIDE_OPEN,
+    PAUSE_AUTO,
+    PAUSE_MANUAL,
+    PAUSE_NEXT_SUNRISE,
+    PAUSE_NEXT_SUNSET,
+    PAUSE_TIMED,
+    PRESET_CUSTOM,
+    PRESET_MEDIUM,
+    PROFILE_DEFAULTS,
+    SUN_PRESETS,
+    VERSION,
+    WINDOW_POLICY_BLOCK_ALL,
+    WINDOW_POLICY_BLOCK_CLOSING,
+)
+from .logic import (
+    adaptive_tilt,
+    azimuth_inside,
+    clamp_percent,
+    classify_cover_feedback,
+    parse_numeric_value,
+    sun_presence_step,
+)
+from .models import CommandMemory, CoverPauseRuntime, RoomRuntime, SectorSunRuntime
+from .storage import RuntimeStore
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return dt_util.parse_datetime(value)
+    return None
+
+
+def _serialize_datetime(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _state_valid(hass: HomeAssistant, entity_id: str) -> bool:
+    state = hass.states.get(entity_id) if entity_id else None
+    return state is not None and state.state not in {
+        "unknown",
+        "unavailable",
+        "none",
+        "",
+    }
+
+
+def _state_number(hass: HomeAssistant, entity_id: str) -> float | None:
+    """Return a numeric entity state, or None when it cannot be parsed."""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None:
+        return None
+    return parse_numeric_value(state.state)
+
+
+def _is_on(hass: HomeAssistant, entity_id: str) -> bool:
+    return bool(entity_id) and hass.states.is_state(entity_id, STATE_ON)
+
+
+def _friendly_state_name(hass: HomeAssistant, entity_id: str, fallback: str) -> str:
+    state = hass.states.get(entity_id) if entity_id else None
+    if state:
+        return str(state.attributes.get("friendly_name") or fallback)
+    return fallback
+
+
+async def _async_set_boolean_entity(
+    hass: HomeAssistant, entity_id: str, enabled: bool
+) -> None:
+    """Turn a configured switch or input_boolean on/off."""
+    if not entity_id or "." not in entity_id:
+        return
+    domain = entity_id.split(".", 1)[0]
+    if domain not in {"switch", "input_boolean"}:
+        _LOGGER.warning("Unsupported manual lock entity domain for %s", entity_id)
+        return
+    await hass.services.async_call(
+        domain,
+        "turn_on" if enabled else "turn_off",
+        {"entity_id": entity_id},
+        blocking=False,
+    )
+
+
+class SmartShadingEngine:
+    """House-level adaptive shading controller."""
+
+    def __init__(self, hass: HomeAssistant, entry) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.store = RuntimeStore(hass, entry.entry_id)
+        self.config: dict[str, Any] = {}
+        self.rooms: dict[str, RoomRuntime] = {}
+        self.sun_runtime: dict[str, SectorSunRuntime] = {}
+        self.command_memory: dict[str, CommandMemory] = {}
+        self.cover_pauses: dict[str, CoverPauseRuntime] = {}
+        self._cover_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
+        self._room_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
+        self._owned_lock_changes: dict[str, tuple[str, datetime]] = {}
+        self.diagnostic_journal: deque[dict[str, Any]] = deque(maxlen=1000)
+        self._last_logged_mode: dict[str, str] = {}
+        self._current_trigger = "startup"
+        self._listeners: list[Callable[[], None]] = []
+        self._last_diag_signature: dict[str, datetime] = {}
+        self._unsubs: list[Callable[[], None]] = []
+        self._sun_timer_unsubs: dict[str, Callable[[], None]] = {}
+        self._evaluate_lock = asyncio.Lock()
+        self._day_key: str | None = None
+        self.reload_config()
+
+    def _entity_display_name(self, entity_id: str, fallback: str) -> str:
+        return _friendly_state_name(self.hass, entity_id, fallback)
+
+    async def async_initialize(self) -> None:
+        await self.store.async_load()
+        self._day_key = self.store.day_key()
+        self._rebuild_runtime()
+
+    def reload_config(self) -> None:
+        self.config = {**self.entry.data, **self.entry.options}
+
+    def _rebuild_runtime(self) -> None:
+        configured_room_ids: set[str] = set()
+        configured_sector_ids: set[str] = set()
+
+        for room in self.config.get(CONF_ROOMS, []):
+            room_id = room["id"]
+            configured_room_ids.add(room_id)
+            saved = self.store.room_runtime(room_id)
+            runtime = self.rooms.get(room_id) or RoomRuntime(
+                room_id=room_id, name=room["name"]
+            )
+            runtime.name = room["name"]
+            runtime.enabled = bool(saved.get("enabled", room.get("enabled", True)))
+            legacy_pause_modes = {
+                "Auto": PAUSE_AUTO,
+                "Today": PAUSE_NEXT_SUNRISE,
+                "Timed": PAUSE_TIMED,
+                "Manual": PAUSE_MANUAL,
+            }
+            saved_pause_mode = saved.get("pause_mode", PAUSE_AUTO)
+            runtime.pause_mode = legacy_pause_modes.get(saved_pause_mode, saved_pause_mode)
+            runtime.pause_hours = float(saved.get("pause_hours", room.get("pause_duration_hours", 2.0)))
+            runtime.pause_until = _parse_datetime(saved.get("pause_until"))
+            runtime.heat_active = bool(saved.get("heat_active", False))
+            runtime.shading_active = bool(saved.get("shading_active", False))
+            runtime.finished_today = bool(saved.get("finished_today", False))
+            runtime.sent_commands = int(saved.get("sent_commands", 0))
+            runtime.suppressed_commands = int(
+                saved.get("suppressed_commands", 0)
+            )
+            self.rooms[room_id] = runtime
+            if (
+                runtime.pause_mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED}
+                and runtime.pause_until
+            ):
+                if runtime.pause_until > dt_util.now():
+                    self._schedule_room_pause_timer(room_id, runtime.pause_until)
+                else:
+                    runtime.pause_mode = PAUSE_AUTO
+                    runtime.pause_until = None
+
+            for sector in room.get("sectors", []):
+                sector_id = sector["id"]
+                configured_sector_ids.add(sector_id)
+                saved_sun = self.store.sun_runtime(sector_id)
+                sun = self.sun_runtime.get(sector_id) or SectorSunRuntime(
+                    sector_id=sector_id
+                )
+                sun.is_on = bool(saved_sun.get("is_on", False))
+                sun.pending_target = saved_sun.get("pending_target")
+                sun.pending_since = _parse_datetime(saved_sun.get("pending_since"))
+                sun.pending_until = _parse_datetime(saved_sun.get("pending_until"))
+                sun.last_transition = _parse_datetime(
+                    saved_sun.get("last_transition")
+                )
+                sun.reason = saved_sun.get("reason", "Not evaluated")
+                sun.status = saved_sun.get("status", "not_evaluated")
+                sun.status_reason = saved_sun.get("status_reason", sun.reason)
+                sun.geometry_active = bool(saved_sun.get("geometry_active", False))
+                sun.shading_active = bool(saved_sun.get("shading_active", False))
+                sun.mode = saved_sun.get("mode", "idle")
+                self.sun_runtime[sector_id] = sun
+
+        for room_id in list(self.rooms):
+            if room_id not in configured_room_ids:
+                self.rooms.pop(room_id)
+        for sector_id in list(self.sun_runtime):
+            if sector_id not in configured_sector_ids:
+                self.sun_runtime.pop(sector_id)
+        configured_cover_ids: set[str] = set()
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                for layer in sector.get("layers", []):
+                    for cover in layer.get("covers", []):
+                        cover_id = cover.get("id") or cover.get("entity")
+                        configured_cover_ids.add(cover_id)
+                        saved_cover = self.store.cover_runtime(cover_id)
+                        pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
+                            cover_id=cover_id, entity_id=cover.get("entity", ""), room_id=room["id"]
+                        )
+                        pause.entity_id = cover.get("entity", "")
+                        pause.room_id = room["id"]
+                        pause.active = bool(saved_cover.get("active", False))
+                        pause.until = _parse_datetime(saved_cover.get("until"))
+                        pause.reason = str(saved_cover.get("reason", ""))
+                        pause.lock_owned = bool(saved_cover.get("lock_owned", False))
+                        pause.started_at = _parse_datetime(saved_cover.get("started_at"))
+                        self.cover_pauses[cover_id] = pause
+                        if pause.active and pause.until:
+                            self._schedule_cover_pause_timer(cover_id, pause.until)
+        for cover_id in list(self.cover_pauses):
+            if cover_id not in configured_cover_ids:
+                self.cover_pauses.pop(cover_id, None)
+
+    async def async_start(self) -> None:
+        self.async_stop()
+        self.reload_config()
+        self._rebuild_runtime()
+        await self._async_sync_sun_requirement_notification()
+
+        entities = sorted(self.referenced_entities())
+        if entities:
+            self._unsubs.append(
+                async_track_state_change_event(
+                    self.hass, entities, self._async_state_changed
+                )
+            )
+
+        interval = max(
+            30,
+            int(
+                self.config.get(
+                    CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL
+                )
+            ),
+        )
+        self._unsubs.append(
+            async_track_time_interval(
+                self.hass,
+                self._async_interval,
+                timedelta(seconds=interval),
+            )
+        )
+        await self._async_sync_configured_locks()
+        await self.async_evaluate_all("startup")
+        notifications_ready = await self.async_sync_card_notifications()
+        if not notifications_ready:
+            self._schedule_card_notification_retry(1)
+
+    async def _async_sync_sun_requirement_notification(self) -> None:
+        entity_id = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        state = self.hass.states.get(entity_id)
+        notification_id = f"smart_shading_sun_{self.entry.entry_id}"
+        invalid = state is None or state.state in {"unknown", "unavailable"}
+        if invalid:
+            german = (getattr(self.hass.config, "language", "en") or "en").lower().startswith("de")
+            title = "Smart Shading – Sonnenentität fehlt" if german else "Smart Shading – Sun entity unavailable"
+            message = (
+                "`sun.sun` fehlt oder ist nicht verfügbar. Prüfen Sie Standort, Zeitzone und Sonnenintegration. Sektorbasierte Beschattung bleibt bis zur Behebung inaktiv."
+                if german else
+                "`sun.sun` is missing or unavailable. Check location, time zone and the Sun integration. Sector-based shading remains inactive until this is fixed."
+            )
+            await self.hass.services.async_call(
+                "persistent_notification", "create",
+                {"title": title, "message": message, "notification_id": notification_id},
+                blocking=False,
+            )
+        else:
+            await self.hass.services.async_call(
+                "persistent_notification", "dismiss",
+                {"notification_id": notification_id}, blocking=False,
+            )
+
+    def _schedule_card_notification_retry(self, attempt: int) -> None:
+        """Retry notification generation until room entities are registered."""
+        delays = (1, 3, 10, 30)
+        if attempt > len(delays):
+            return
+
+        async def _retry(_now) -> None:
+            ready = await self.async_sync_card_notifications()
+            if not ready:
+                self._schedule_card_notification_retry(attempt + 1)
+
+        self._unsubs.append(async_call_later(self.hass, delays[attempt - 1], _retry))
+
+    async def async_sync_card_notifications(self) -> bool:
+        """Create/update one persistent card-code notification per room.
+
+        Return True when every configured room status entity was available.
+        """
+        registry = er.async_get(self.hass)
+        current_ids: set[str] = set()
+        missing_entities = 0
+        german = (getattr(self.hass.config, "language", "en") or "en").lower().startswith("de")
+
+        for room in self.config.get(CONF_ROOMS, []):
+            room_id = room["id"]
+            notification_id = f"smart_shading_card_{self.entry.entry_id}_{room_id}"
+            current_ids.add(notification_id)
+            unique_id = f"{self.entry.entry_id}_{room_id}_status"
+            entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+            if entity_id is None:
+                missing_entities += 1
+                _LOGGER.debug("Room status entity not yet registered for %s", room.get("name"))
+                continue
+
+            card_yaml = (
+                "type: custom:smart-shading-card\n"
+                f"entity: {entity_id}\n"
+                "advanced_mode: false\n"
+            )
+            if german:
+                title = f"Smart Shading – Dashboard-Karte für {room['name']}"
+                message = (
+                    "Der Raum wurde erstellt oder geändert. Der folgende Code ist "
+                    "bereits auf die aktuelle Raumkonfiguration abgestimmt.\n\n"
+                    "```yaml\n"
+                    f"{card_yaml}"
+                    "```\n\n"
+                    "**So fügen Sie die Karte ein:** Dashboard bearbeiten → Karte "
+                    "hinzufügen → Manuell → Code einfügen → Speichern.\n\n"
+                    f"Falls die Karte noch nicht registriert ist, fügen Sie unter "
+                    f"Dashboard-Ressourcen `{CARD_RESOURCE}` als JavaScript-Modul hinzu.\n\n"
+                    f"Verwendete Raumstatus-Entität: `{entity_id}`"
+                )
+            else:
+                title = f"Smart Shading – Dashboard card for {room['name']}"
+                message = (
+                    "The room was created or changed. The following code matches "
+                    "the current room configuration.\n\n"
+                    "```yaml\n"
+                    f"{card_yaml}"
+                    "```\n\n"
+                    "**Add the card:** Edit dashboard → Add card → Manual → paste "
+                    "the code → Save.\n\n"
+                    f"If the card resource is not registered yet, add `{CARD_RESOURCE}` "
+                    "as a JavaScript module in Dashboard resources.\n\n"
+                    f"Room status entity: `{entity_id}`"
+                )
+            try:
+                await self.hass.services.async_call(
+                    "persistent_notification",
+                    "create",
+                    {
+                        "title": title,
+                        "message": message,
+                        "notification_id": notification_id,
+                    },
+                    blocking=True,
+                )
+            except Exception:
+                _LOGGER.exception("Could not create Smart Shading card notification")
+
+        previous_ids = set(self.store.card_notification_ids())
+        for stale_id in previous_ids - current_ids:
+            try:
+                await self.hass.services.async_call(
+                    "persistent_notification",
+                    "dismiss",
+                    {"notification_id": stale_id},
+                    blocking=True,
+                )
+            except Exception:
+                _LOGGER.exception("Could not dismiss stale Smart Shading notification")
+        await self.store.async_set_card_notification_ids(sorted(current_ids))
+        return missing_entities == 0
+
+    def async_stop(self) -> None:
+        for unsub in self._unsubs:
+            unsub()
+        self._unsubs.clear()
+        for unsub in self._sun_timer_unsubs.values():
+            unsub()
+        self._sun_timer_unsubs.clear()
+        for unsub in self._cover_pause_timer_unsubs.values():
+            unsub()
+        self._cover_pause_timer_unsubs.clear()
+        for unsub in self._room_pause_timer_unsubs.values():
+            unsub()
+        self._room_pause_timer_unsubs.clear()
+
+    def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        self._listeners.append(listener)
+
+        def remove() -> None:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return remove
+
+    def _notify(self) -> None:
+        for listener in list(self._listeners):
+            listener()
+
+    async def _async_state_changed(self, event) -> None:
+        entity_id = event.data.get("entity_id")
+        old_state = event.data.get("old_state")
+        new_state = event.data.get("new_state")
+        now = dt_util.now()
+
+        cover_match = self._find_cover_by_entity(entity_id)
+        if cover_match:
+            room, cover = cover_match
+            decision = self._classify_cover_state_change(entity_id, old_state, new_state, now)
+            if decision.expected:
+                self._diag(
+                    "own_cover_feedback",
+                    full=True,
+                    entity_id=entity_id,
+                    reason=decision.reason,
+                )
+                return
+            if decision.manual:
+                await self._activate_cover_pause(
+                    room, cover, "external_or_physical_control"
+                )
+                # Safety always overrides a local manual pause. If a user moves
+                # a cover while a safety blocker is active, immediately restore
+                # the configured safe position instead of waiting for the next
+                # 20-minute evaluation.
+                if self._room_safety_active(room):
+                    await self.async_evaluate_all(
+                        f"safety_manual_cover:{entity_id}"
+                    )
+            return
+
+        lock_match = self._find_cover_by_lock(entity_id)
+        if lock_match:
+            room, cover = lock_match
+            owned_change = self._owned_lock_changes.get(entity_id)
+            if owned_change:
+                expected_state, owned_at = owned_change
+                if (
+                    new_state
+                    and new_state.state == expected_state
+                    and (now - owned_at).total_seconds() < 10
+                ):
+                    self._owned_lock_changes.pop(entity_id, None)
+                    return
+                # A different state is a real user/external change, even when it
+                # happens immediately after our own service call.
+                self._owned_lock_changes.pop(entity_id, None)
+            if new_state and new_state.state == STATE_ON:
+                await self._activate_cover_pause(room, cover, "manual_lock_entity", set_lock=False)
+            elif new_state and new_state.state == STATE_OFF:
+                await self._clear_cover_pause(room, cover, unlock=False, evaluate=True)
+            return
+
+        if self._is_critical_entity(entity_id):
+            await self.async_evaluate_all(f"critical_state:{entity_id}")
+            return
+
+        sector = self._find_sector_by_lux(entity_id)
+        if sector:
+            runtime = self.sun_runtime[sector["id"]]
+            before = runtime.is_on
+            await self._update_sun_presence(sector, now)
+            if before != runtime.is_on:
+                self._diag(
+                    "sun_presence_transition_deferred_to_interval",
+                    sector_id=sector["id"],
+                    state="on" if runtime.is_on else "off",
+                )
+            self._notify()
+            return
+
+        # Normal sun, temperature and cover feedback are consolidated by the
+        # configured periodic evaluation (20 minutes by default).
+        self._diag("state_change_deferred", full=True, entity_id=entity_id)
+
+    async def _async_interval(self, now) -> None:
+        await self.async_evaluate_all("interval")
+
+    def _iter_covers(self):
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                for layer in sector.get("layers", []):
+                    for cover in layer.get("covers", []):
+                        yield room, sector, layer, cover
+
+    def _find_cover_by_entity(self, entity_id: str):
+        return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("entity") == entity_id), None)
+
+    def _find_cover_by_lock(self, entity_id: str):
+        return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("lock") == entity_id), None)
+
+    def _find_sector_by_lux(self, entity_id: str):
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                if sector.get("lux_sensor") == entity_id:
+                    return sector
+        return None
+
+    def _room_safety_active(self, room: dict[str, Any]) -> bool:
+        return any(
+            _is_on(self.hass, entity_id)
+            for entity_id in room.get("safety_blockers", [])
+        )
+
+    def _is_critical_entity(self, entity_id: str) -> bool:
+        if any(
+            entity_id in room.get("safety_blockers", [])
+            for room in self.config.get(CONF_ROOMS, [])
+        ):
+            return True
+        return any(
+            cover.get("window") == entity_id
+            for _room, _sector, _layer, cover in self._iter_covers()
+        )
+
+    @staticmethod
+    def _state_attribute_number(state, key: str) -> float | None:
+        if state is None:
+            return None
+        return parse_numeric_value(state.attributes.get(key))
+
+    def _classify_cover_state_change(
+        self, entity_id: str, old_state, new_state, now: datetime
+    ):
+        memory = self.command_memory.get(entity_id)
+        latest = None
+        if memory is not None:
+            latest = max(
+                [
+                    value
+                    for value in (
+                        memory.position_at,
+                        memory.tilt_at,
+                        memory.last_activity_at,
+                    )
+                    if value is not None
+                ],
+                default=None,
+            )
+        age = (now - latest).total_seconds() if latest is not None else None
+        return classify_cover_feedback(
+            old_position=self._state_attribute_number(old_state, "current_position"),
+            new_position=self._state_attribute_number(new_state, "current_position"),
+            old_tilt=self._state_attribute_number(old_state, "current_tilt_position"),
+            new_tilt=self._state_attribute_number(new_state, "current_tilt_position"),
+            old_state=getattr(old_state, "state", None),
+            new_state=getattr(new_state, "state", None),
+            target_position=memory.position if memory else None,
+            target_tilt=memory.tilt if memory else None,
+            command_age_seconds=age,
+            position_tolerance=float(
+                self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
+            ),
+            tilt_tolerance=float(
+                self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
+            ),
+            command_timeout_seconds=180.0,
+            position_change_threshold=max(
+                2.0,
+                float(self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)),
+            ),
+            tilt_change_threshold=max(
+                3.0,
+                float(self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)),
+            ),
+        )
+
+    def _cover_id(self, cover: dict[str, Any]) -> str:
+        return str(cover.get("id") or cover.get("entity"))
+
+    async def _activate_cover_pause(
+        self,
+        room: dict[str, Any],
+        cover: dict[str, Any],
+        reason: str,
+        *,
+        set_lock: bool = True,
+        notify: bool = True,
+    ) -> None:
+        cover_id = self._cover_id(cover)
+        pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
+            cover_id, cover.get("entity", ""), room["id"]
+        )
+        now = dt_util.now()
+        already_active = bool(
+            pause.active and (pause.until is None or pause.until > now)
+        )
+        if not already_active:
+            pause.active = True
+            pause.until = self._pause_until_from_sun(
+                room["id"], PAUSE_NEXT_SUNRISE, now
+            ) or (now + timedelta(hours=12))
+            pause.reason = reason
+            pause.started_at = now
+            pause.lock_owned = False
+
+        lock = cover.get("lock", "")
+        if set_lock and lock and not _is_on(self.hass, lock):
+            self._owned_lock_changes[lock] = (STATE_ON, now)
+            await _async_set_boolean_entity(self.hass, lock, True)
+            pause.lock_owned = True
+
+        self.cover_pauses[cover_id] = pause
+        await self._save_cover_pause(pause)
+        if pause.until:
+            self._schedule_cover_pause_timer(cover_id, pause.until)
+        if not already_active:
+            self._diag(
+                "cover_pause_started",
+                room_id=room["id"],
+                cover=cover.get("name", cover.get("entity")),
+                until=pause.until.isoformat() if pause.until else None,
+                reason=reason,
+            )
+        if notify:
+            self._notify()
+
+    async def _clear_cover_pause(self, room: dict[str, Any], cover: dict[str, Any], *, unlock: bool, evaluate: bool) -> None:
+        cover_id = self._cover_id(cover)
+        pause = self.cover_pauses.get(cover_id)
+        if not pause or not pause.active:
+            if evaluate:
+                await self.async_evaluate_all(f"cover_pause_clear:{cover_id}")
+            return
+        pause.active = False
+        pause.until = None
+        pause.reason = ""
+        pause.lock_owned = False
+        timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
+        if timer:
+            timer()
+        lock = cover.get("lock", "")
+        if unlock and lock and _is_on(self.hass, lock):
+            self._owned_lock_changes[lock] = (STATE_OFF, dt_util.now())
+            await _async_set_boolean_entity(self.hass, lock, False)
+        await self._save_cover_pause(pause)
+        self._diag("cover_pause_ended", room_id=room["id"], cover=cover.get("name", cover.get("entity")))
+        if evaluate:
+            await self.async_evaluate_all(f"cover_pause_ended:{cover_id}")
+        else:
+            self._notify()
+
+    async def _save_cover_pause(self, pause: CoverPauseRuntime) -> None:
+        await self.store.async_save_cover_runtime(pause.cover_id, {
+            "active": pause.active, "until": _serialize_datetime(pause.until), "reason": pause.reason,
+            "lock_owned": pause.lock_owned, "started_at": _serialize_datetime(pause.started_at),
+        })
+
+    def _schedule_cover_pause_timer(self, cover_id: str, due: datetime) -> None:
+        old = self._cover_pause_timer_unsubs.pop(cover_id, None)
+        if old:
+            old()
+        seconds = max(0.1, (due - dt_util.now()).total_seconds())
+        async def _expire(_now):
+            self._cover_pause_timer_unsubs.pop(cover_id, None)
+            for room, _sector, _layer, cover in self._iter_covers():
+                if self._cover_id(cover) == cover_id:
+                    await self._clear_cover_pause(room, cover, unlock=True, evaluate=True)
+                    return
+        self._cover_pause_timer_unsubs[cover_id] = async_call_later(self.hass, seconds, _expire)
+
+    async def _async_sync_configured_locks(self) -> None:
+        """Reconcile persisted local pauses with configured lock entities."""
+        now = dt_util.now()
+        for room, _sector, _layer, cover in self._iter_covers():
+            pause = self.cover_pauses.get(self._cover_id(cover))
+            lock = cover.get("lock", "")
+            if pause and pause.active and pause.until and pause.until <= now:
+                await self._clear_cover_pause(
+                    room, cover, unlock=True, evaluate=False
+                )
+                continue
+            lock_state = self.hass.states.get(lock) if lock else None
+            if lock_state and lock_state.state == STATE_ON:
+                if not pause or not pause.active:
+                    await self._activate_cover_pause(
+                        room,
+                        cover,
+                        "manual_lock_entity",
+                        set_lock=False,
+                        notify=False,
+                    )
+            elif lock_state and lock_state.state == STATE_OFF and pause and pause.active:
+                # The user removed the external lock while Home Assistant was
+                # offline; treat that as an early manual resume. Unknown or
+                # unavailable locks never clear a persisted pause.
+                await self._clear_cover_pause(
+                    room, cover, unlock=False, evaluate=False
+                )
+        self._notify()
+
+    def cover_pause_info(self, cover: dict[str, Any]) -> dict[str, Any]:
+        pause = self.cover_pauses.get(self._cover_id(cover))
+        active = bool(pause and pause.active and (pause.until is None or pause.until > dt_util.now()))
+        return {"active": active, "until": pause.until if active else None, "reason": pause.reason if active else ""}
+
+    def referenced_entities(self) -> set[str]:
+        result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
+        for room in self.config.get(CONF_ROOMS, []):
+            for key in (
+                "indoor_temperature",
+                "outdoor_temperature",
+                "irradiance_sensor",
+                "cloud_cover_sensor",
+                "weather_permission",
+                "glare_sensor",
+                "occupancy_sensor",
+            ):
+                if room.get(key):
+                    result.add(room[key])
+            result.update(room.get("safety_blockers", []))
+            for sector in room.get("sectors", []):
+                if sector.get("lux_sensor"):
+                    result.add(sector["lux_sensor"])
+                for layer in sector.get("layers", []):
+                    for cover in layer.get("covers", []):
+                        result.add(cover["entity"])
+                        for key in ("lock", "window"):
+                            if cover.get(key):
+                                result.add(cover[key])
+        return {entity for entity in result if entity}
+
+    @staticmethod
+    def _room_profiles(room: dict[str, Any]) -> set[str]:
+        return {
+            str(layer.get("profile", DEVICE_VENETIAN))
+            for sector in room.get("sectors", [])
+            for layer in sector.get("layers", [])
+        }
+
+    @classmethod
+    def _venetian_only(cls, room: dict[str, Any]) -> bool:
+        profiles = cls._room_profiles(room)
+        return not profiles or profiles == {DEVICE_VENETIAN}
+
+    def _mark_room_sectors(
+        self, room: dict[str, Any], *, status: str, reason: str, mode: str, active: bool
+    ) -> None:
+        for sector in room.get("sectors", []):
+            runtime = self.sun_runtime.get(sector["id"])
+            if runtime is None:
+                continue
+            runtime.status = status
+            runtime.status_reason = reason
+            runtime.mode = mode
+            runtime.shading_active = active
+
+    @property
+    def diagnostic_level(self) -> str:
+        default = str(
+            self.config.get(
+                CONF_DIAGNOSTIC_LEVEL,
+                DIAGNOSTIC_EVENTS if self.config.get(CONF_TEST_MODE, False) else DIAGNOSTIC_OFF,
+            )
+        )
+        value = str(
+            self.store.get_override(
+                "house", "house", CONF_DIAGNOSTIC_LEVEL, default
+            )
+        )
+        return value if value in {DIAGNOSTIC_OFF, DIAGNOSTIC_EVENTS, DIAGNOSTIC_FULL} else DIAGNOSTIC_OFF
+
+    @property
+    def test_mode(self) -> bool:
+        # Legacy compatibility for existing entities and diagnostics.
+        return self.diagnostic_level != DIAGNOSTIC_OFF
+
+    @property
+    def advanced_mode(self) -> bool:
+        return bool(self.config.get(CONF_ADVANCED_MODE, False))
+
+    async def async_set_diagnostic_level(self, level: str) -> None:
+        if level not in {DIAGNOSTIC_OFF, DIAGNOSTIC_EVENTS, DIAGNOSTIC_FULL}:
+            level = DIAGNOSTIC_OFF
+        await self.store.async_set_override(
+            "house", "house", CONF_DIAGNOSTIC_LEVEL, level
+        )
+        self._diag("diagnostic_level", level=level, force=True)
+        self._notify()
+
+    async def async_set_test_mode(self, enabled: bool) -> None:
+        await self.async_set_diagnostic_level(
+            DIAGNOSTIC_EVENTS if enabled else DIAGNOSTIC_OFF
+        )
+
+    def _diag(self, event: str, *, full: bool = False, force: bool = False, **data: Any) -> None:
+        level = self.diagnostic_level
+        if not force and (level == DIAGNOSTIC_OFF or (full and level != DIAGNOSTIC_FULL)):
+            return
+        now = dt_util.now()
+        signature = f"{event}|{data.get('room_id')}|{data.get('cover')}|{data.get('sector_id')}|{data.get('mode')}|{data.get('reasons')}|{data.get('state')}"
+        last = self._last_diag_signature.get(signature)
+        if not force and last is not None and (now - last).total_seconds() < 20:
+            return
+        self._last_diag_signature[signature] = now
+        record = {
+            "timestamp": now.isoformat(),
+            "event": event,
+            "trigger": self._current_trigger,
+            **data,
+        }
+        self.diagnostic_journal.append(record)
+        if full:
+            _LOGGER.debug("Smart Shading diagnostic: %s", record)
+        else:
+            _LOGGER.info("Smart Shading event: %s", record)
+
+    def recent_diagnostics(self, room_id: str | None = None, limit: int = 40) -> list[dict[str, Any]]:
+        records = list(self.diagnostic_journal)
+        if room_id:
+            records = [item for item in records if item.get("room_id") in {None, room_id}]
+        return records[-max(1, min(limit, 1000)):]
+
+
+    async def async_export_diagnostics(self, room_id: str | None = None) -> str:
+        """Export configuration, live inputs and the diagnostic journal."""
+        import json
+        from pathlib import Path
+
+        now = dt_util.now()
+        room_token = room_id or "house"
+        filename = (
+            f"smart_shading_{room_token}_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        target_dir = Path(self.hass.config.path("www")) / "smart_shading_logs"
+        await self.hass.async_add_executor_job(
+            lambda: target_dir.mkdir(parents=True, exist_ok=True)
+        )
+        path = target_dir / filename
+
+        selected_rooms = {
+            key: runtime
+            for key, runtime in self.rooms.items()
+            if room_id is None or key == room_id
+        }
+        selected_sector_ids = {
+            sector["id"]
+            for room in self.config.get(CONF_ROOMS, [])
+            if room_id is None or room.get("id") == room_id
+            for sector in room.get("sectors", [])
+        }
+        selected_cover_ids = {
+            self._cover_id(cover)
+            for room, _sector, _layer, cover in self._iter_covers()
+            if room_id is None or room.get("id") == room_id
+        }
+
+        input_states = {}
+        for entity_id in sorted(self.referenced_entities()):
+            state = self.hass.states.get(entity_id)
+            input_states[entity_id] = {
+                "state": state.state if state else None,
+                "unit": state.attributes.get("unit_of_measurement") if state else None,
+                "device_class": state.attributes.get("device_class") if state else None,
+                "current_position": state.attributes.get("current_position") if state else None,
+                "current_tilt_position": state.attributes.get("current_tilt_position") if state else None,
+            }
+
+        payload = {
+            "integration_version": VERSION,
+            "entry_id": self.entry.entry_id,
+            "room_id": room_id,
+            "exported_at": now.isoformat(),
+            "evaluation_interval_seconds": self.config.get(
+                CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL
+            ),
+            "configuration": self.config,
+            "input_states": input_states,
+            "rooms": {
+                key: {
+                    "name": runtime.name,
+                    "mode": runtime.mode,
+                    "reason": runtime.reason,
+                    "active_sectors": runtime.active_sectors,
+                    "targets": runtime.targets,
+                    "last_evaluation": _serialize_datetime(runtime.last_evaluation),
+                    "last_command": _serialize_datetime(runtime.last_command),
+                    "sent_commands": runtime.sent_commands,
+                    "suppressed_commands": runtime.suppressed_commands,
+                    "pause_mode": runtime.pause_mode,
+                    "pause_until": _serialize_datetime(runtime.pause_until),
+                    "manual_master_active": not runtime.enabled,
+                    "schedule_active": runtime.schedule_active,
+                    "schedule_reason": runtime.schedule_reason,
+                }
+                for key, runtime in selected_rooms.items()
+            },
+            "sun_presence": {
+                key: {
+                    "is_on": runtime.is_on,
+                    "current_lux": runtime.current_lux,
+                    "settings": self._sun_settings(key),
+                    "pending_target": runtime.pending_target,
+                    "pending_since": _serialize_datetime(runtime.pending_since),
+                    "pending_until": _serialize_datetime(runtime.pending_until),
+                    "last_transition": _serialize_datetime(runtime.last_transition),
+                    "reason": runtime.reason,
+                    "status": runtime.status,
+                    "geometry_active": runtime.geometry_active,
+                }
+                for key, runtime in self.sun_runtime.items()
+                if key in selected_sector_ids
+            },
+            "cover_pauses": {
+                key: {
+                    "entity_id": pause.entity_id,
+                    "room_id": pause.room_id,
+                    "active": pause.active,
+                    "until": _serialize_datetime(pause.until),
+                    "reason": pause.reason,
+                    "lock_owned": pause.lock_owned,
+                }
+                for key, pause in self.cover_pauses.items()
+                if key in selected_cover_ids
+            },
+            "events": self.recent_diagnostics(room_id, 500),
+        }
+
+        def _write() -> None:
+            path.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+                encoding="utf-8",
+            )
+
+        await self.hass.async_add_executor_job(_write)
+        return f"/local/smart_shading_logs/{filename}"
+
+    def room_config(self, room_id: str) -> dict[str, Any]:
+        return next(
+            room
+            for room in self.config.get(CONF_ROOMS, [])
+            if room["id"] == room_id
+        )
+
+    def sector_config(self, sector_id: str) -> dict[str, Any]:
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                if sector["id"] == sector_id:
+                    return sector
+        raise KeyError(sector_id)
+
+    def layer_config(self, layer_id: str) -> dict[str, Any]:
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                for layer in sector.get("layers", []):
+                    if layer["id"] == layer_id:
+                        return layer
+        raise KeyError(layer_id)
+
+    def room_value(self, room_id: str, key: str, default: Any = None) -> Any:
+        room = self.room_config(room_id)
+        return self.store.get_override(
+            "room", room_id, key, room.get(key, default)
+        )
+
+    def sector_value(self, sector_id: str, key: str, default: Any = None) -> Any:
+        sector = self.sector_config(sector_id)
+        return self.store.get_override(
+            "sector", sector_id, key, sector.get(key, default)
+        )
+
+    def layer_value(self, layer_id: str, key: str, default: Any = None) -> Any:
+        layer = self.layer_config(layer_id)
+        return self.store.get_override(
+            "layer", layer_id, key, layer.get(key, default)
+        )
+
+    async def async_set_room_value(
+        self, room_id: str, key: str, value: Any
+    ) -> None:
+        await self.store.async_set_override("room", room_id, key, value)
+        await self.async_evaluate_all(f"room_setting:{key}")
+
+    async def async_set_sector_value(
+        self, sector_id: str, key: str, value: Any, *, custom: bool = True
+    ) -> None:
+        values = {key: value}
+        if custom and key in {
+            "sun_on_lux",
+            "sun_off_lux",
+            "sun_on_delay",
+            "sun_off_delay",
+        }:
+            values["sun_preset"] = PRESET_CUSTOM
+        await self.store.async_set_many("sector", sector_id, values)
+        await self.async_evaluate_all(f"sector_setting:{key}")
+
+    async def async_set_sun_preset(self, sector_id: str, preset: str) -> None:
+        values: dict[str, Any] = {"sun_preset": preset}
+        if preset in SUN_PRESETS:
+            values.update(SUN_PRESETS[preset])
+        await self.store.async_set_many("sector", sector_id, values)
+        await self.async_evaluate_all("sun_preset")
+
+    async def async_set_layer_value(
+        self, layer_id: str, key: str, value: Any
+    ) -> None:
+        await self.store.async_set_override("layer", layer_id, key, value)
+        await self.async_evaluate_all(f"layer_setting:{key}")
+
+    async def async_set_room_enabled(self, room_id: str, enabled: bool) -> None:
+        runtime = self.rooms[room_id]
+        runtime.enabled = enabled
+        if not enabled:
+            runtime.mode = MODE_DISABLED
+            runtime.reason = "Manual master override active"
+            runtime.active_sectors = []
+            runtime.targets = []
+            self._mark_room_sectors(
+                self.room_config(room_id),
+                status="disabled",
+                reason=runtime.reason,
+                mode=MODE_DISABLED,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            self._notify()
+            return
+        await self._save_room_runtime(runtime)
+        await self.async_evaluate_all("manual_master_released")
+
+    def _pause_until_from_sun(self, room_id: str, mode: str, now: datetime) -> datetime | None:
+        room = self.room_config(room_id)
+        sun = self.hass.states.get(self.config.get(CONF_SUN_ENTITY, "sun.sun"))
+        attribute = "next_rising" if mode == PAUSE_NEXT_SUNRISE else "next_setting"
+        value = sun.attributes.get(attribute) if sun else None
+        candidate = dt_util.parse_datetime(value) if value else None
+        if candidate is None:
+            return None
+        candidate = dt_util.as_local(candidate)
+        if candidate <= now:
+            # A stale sun attribute should never shorten the requested pause.
+            candidate += timedelta(days=1)
+        return candidate + timedelta(minutes=float(self.room_value(room_id, "pause_sun_offset_minutes", room.get("pause_sun_offset_minutes", 0))))
+
+    def _cancel_room_pause_timer(self, room_id: str) -> None:
+        unsub = self._room_pause_timer_unsubs.pop(room_id, None)
+        if unsub:
+            unsub()
+
+    def _schedule_room_pause_timer(self, room_id: str, due: datetime) -> None:
+        self._cancel_room_pause_timer(room_id)
+        seconds = max(0.1, (due - dt_util.now()).total_seconds())
+
+        async def _expire(_now) -> None:
+            self._room_pause_timer_unsubs.pop(room_id, None)
+            runtime = self.rooms.get(room_id)
+            if runtime is None or runtime.pause_mode == PAUSE_MANUAL:
+                return
+            runtime.pause_mode = PAUSE_AUTO
+            runtime.pause_until = None
+            await self._save_room_runtime(runtime)
+            self._diag("room_pause_ended", room_id=room_id, reason="timer_expired")
+            await self.async_evaluate_all(f"room_pause_ended:{room_id}")
+
+        self._room_pause_timer_unsubs[room_id] = async_call_later(
+            self.hass, seconds, _expire
+        )
+
+    async def async_set_pause_mode(self, room_id: str, mode: str) -> None:
+        runtime = self.rooms[room_id]
+        runtime.pause_mode = mode
+        now = dt_util.now()
+        room = self.room_config(room_id)
+        self._cancel_room_pause_timer(room_id)
+        if mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET}:
+            runtime.pause_until = self._pause_until_from_sun(room_id, mode, now)
+            if runtime.pause_until is None:
+                runtime.pause_until = now + timedelta(hours=12)
+            self._schedule_room_pause_timer(room_id, runtime.pause_until)
+        elif mode == PAUSE_TIMED:
+            duration = float(runtime.pause_hours or room.get("pause_duration_hours", 2.0))
+            runtime.pause_hours = duration
+            runtime.pause_until = now + timedelta(hours=duration)
+            self._schedule_room_pause_timer(room_id, runtime.pause_until)
+        elif mode in {PAUSE_AUTO, PAUSE_MANUAL}:
+            runtime.pause_until = None
+        if mode != PAUSE_AUTO:
+            runtime.mode = MODE_PAUSED
+            runtime.reason = "Automatic shading is paused"
+            runtime.active_sectors = []
+            runtime.targets = []
+            self._mark_room_sectors(
+                room,
+                status="paused",
+                reason=runtime.reason,
+                mode=MODE_PAUSED,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            self._notify()
+        else:
+            await self._save_room_runtime(runtime)
+            await self.async_evaluate_all("pause_released")
+
+    async def async_pause_default(self, room_id: str) -> None:
+        room = self.room_config(room_id)
+        mode = str(room.get("default_pause_mode", PAUSE_NEXT_SUNRISE))
+        await self.async_set_pause_mode(room_id, mode)
+
+    async def async_set_pause_hours(self, room_id: str, hours: float) -> None:
+        runtime = self.rooms[room_id]
+        runtime.pause_hours = hours
+        if runtime.pause_mode == PAUSE_TIMED:
+            runtime.pause_until = dt_util.now() + timedelta(hours=hours)
+            self._schedule_room_pause_timer(room_id, runtime.pause_until)
+        await self._save_room_runtime(runtime)
+        self._notify()
+
+    async def async_resume_room(self, room_id: str) -> None:
+        self._cancel_room_pause_timer(room_id)
+        runtime = self.rooms[room_id]
+        runtime.pause_mode = PAUSE_AUTO
+        runtime.pause_until = None
+        await self._save_room_runtime(runtime)
+        await self.async_evaluate_all("resume")
+
+    async def async_reset_finished(self, room_id: str) -> None:
+        runtime = self.rooms[room_id]
+        runtime.finished_today = False
+        await self._save_room_runtime(runtime)
+        await self.async_evaluate_all("reset_finished")
+
+    async def async_reset_sun_presence(self, sector_id: str) -> None:
+        runtime = self.sun_runtime[sector_id]
+        runtime.is_on = False
+        runtime.pending_target = None
+        runtime.pending_since = None
+        runtime.pending_until = None
+        runtime.last_transition = dt_util.now()
+        runtime.reason = "Reset by user"
+        self._cancel_sun_timer(sector_id)
+        await self._save_sun_runtime(runtime)
+        await self.async_evaluate_all("reset_sun_presence")
+
+    async def async_evaluate_all(self, trigger: str) -> None:
+        async with self._evaluate_lock:
+            self._current_trigger = trigger
+            now = dt_util.now()
+            self._diag("evaluation_started", full=True, at=now.isoformat())
+            await self._daily_reset(now)
+            await self._update_all_sun_presence(now)
+            for room in self.config.get(CONF_ROOMS, []):
+                try:
+                    await self._evaluate_room(room, now)
+                except Exception:
+                    _LOGGER.exception(
+                        "Evaluation failed for Smart Shading room %s",
+                        room.get("name"),
+                    )
+            self._notify()
+
+    async def _daily_reset(self, now: datetime) -> None:
+        key = now.date().isoformat()
+        if self._day_key == key:
+            return
+        self._day_key = key
+        for runtime in self.rooms.values():
+            runtime.finished_today = False
+            if (
+                runtime.pause_mode not in {PAUSE_AUTO, PAUSE_MANUAL}
+                and runtime.pause_until
+                and runtime.pause_until <= now
+            ):
+                runtime.pause_mode = PAUSE_AUTO
+                runtime.pause_until = None
+            await self._save_room_runtime(runtime)
+        await self.store.async_set_day_key(key)
+
+    async def _update_all_sun_presence(self, now: datetime) -> None:
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                if sector.get("lux_sensor"):
+                    await self._update_sun_presence(sector, now)
+
+    def _sun_settings(self, sector_id: str) -> dict[str, float]:
+        """Return effective Sun Presence settings. Presets are authoritative."""
+        preset = str(self.sector_value(sector_id, "sun_preset", PRESET_MEDIUM))
+        if preset in SUN_PRESETS:
+            return {key: float(value) for key, value in SUN_PRESETS[preset].items()}
+        return {
+            "sun_on_lux": float(self.sector_value(sector_id, "sun_on_lux", 18000)),
+            "sun_off_lux": float(self.sector_value(sector_id, "sun_off_lux", 9000)),
+            "sun_on_delay": float(self.sector_value(sector_id, "sun_on_delay", 3)),
+            "sun_off_delay": float(self.sector_value(sector_id, "sun_off_delay", 12)),
+        }
+
+    async def _update_sun_presence(
+        self, sector: dict[str, Any], now: datetime
+    ) -> None:
+        sector_id = sector["id"]
+        runtime = self.sun_runtime[sector_id]
+        lux_entity = sector.get("lux_sensor", "")
+        lux_state = self.hass.states.get(lux_entity) if lux_entity else None
+        lux = _state_number(self.hass, lux_entity)
+        runtime.current_lux = lux
+        settings = self._sun_settings(sector_id)
+        configured_on_lux = settings["sun_on_lux"]
+        configured_off_lux = settings["sun_off_lux"]
+        effective_on_lux = max(configured_on_lux, configured_off_lux)
+        effective_off_lux = min(configured_on_lux, configured_off_lux)
+        step = sun_presence_step(
+            now=now,
+            lux=lux,
+            is_on=runtime.is_on,
+            pending_target=runtime.pending_target,
+            pending_since=runtime.pending_since,
+            on_lux=effective_on_lux,
+            off_lux=effective_off_lux,
+            on_delay_minutes=float(
+                settings["sun_on_delay"]
+            ),
+            off_delay_minutes=float(
+                settings["sun_off_delay"]
+            ),
+        )
+        runtime.is_on = step.is_on
+        runtime.pending_target = step.pending_target
+        runtime.pending_since = step.pending_since
+        runtime.pending_until = step.pending_until
+        runtime.reason = step.reason
+        if step.transitioned:
+            runtime.last_transition = now
+            self._diag(
+                "sun_presence_changed",
+                sector_id=sector_id,
+                sector=sector.get("name", ""),
+                state="on" if runtime.is_on else "off",
+                lux=lux,
+                on_lux=effective_on_lux,
+                off_lux=effective_off_lux,
+                reason=runtime.reason,
+                raw_state=getattr(lux_state, "state", None),
+                unit=(lux_state.attributes.get("unit_of_measurement") if lux_state else None),
+            )
+        elif runtime.pending_target is not None:
+            self._diag(
+                "sun_presence_delay",
+                full=True,
+                sector_id=sector_id,
+                sector=sector.get("name", ""),
+                target="on" if runtime.pending_target else "off",
+                lux=lux,
+                pending_until=runtime.pending_until.isoformat() if runtime.pending_until else None,
+            )
+        await self._save_sun_runtime(runtime)
+
+        if runtime.pending_until:
+            self._schedule_sun_timer(sector_id, runtime.pending_until)
+        else:
+            self._cancel_sun_timer(sector_id)
+
+    def _schedule_sun_timer(self, sector_id: str, due: datetime) -> None:
+        self._cancel_sun_timer(sector_id)
+        seconds = max(0.0, (due - dt_util.now()).total_seconds()) + 0.1
+
+        async def timer_callback(_now) -> None:
+            self._sun_timer_unsubs.pop(sector_id, None)
+            try:
+                sector = self.sector_config(sector_id)
+            except KeyError:
+                return
+            await self._update_sun_presence(sector, dt_util.now())
+            self._notify()
+
+        self._sun_timer_unsubs[sector_id] = async_call_later(
+            self.hass, seconds, timer_callback
+        )
+
+    def _cancel_sun_timer(self, sector_id: str) -> None:
+        unsub = self._sun_timer_unsubs.pop(sector_id, None)
+        if unsub:
+            unsub()
+
+    def _sector_sun_pass(self, sector: dict[str, Any]) -> bool:
+        if not sector.get("lux_sensor"):
+            return True
+        return self.sun_runtime[sector["id"]].is_on
+
+    def _weather_pass(self, room: dict[str, Any]) -> tuple[bool, list[str]]:
+        tests: list[tuple[str, bool]] = []
+        irradiance = room.get("irradiance_sensor", "")
+        if irradiance:
+            irradiance_value = _state_number(self.hass, irradiance)
+            tests.append(
+                (
+                    "irradiance",
+                    irradiance_value is not None
+                    and irradiance_value
+                    >= float(
+                        self.room_value(
+                            room["id"], "irradiance_minimum", 150.0
+                        )
+                    ),
+                )
+            )
+        cloud = room.get("cloud_cover_sensor", "")
+        if cloud:
+            cloud_value = _state_number(self.hass, cloud)
+            tests.append(
+                (
+                    "cloud cover",
+                    cloud_value is not None
+                    and cloud_value
+                    <= float(
+                        self.room_value(
+                            room["id"], "cloud_cover_maximum", 85.0
+                        )
+                    ),
+                )
+            )
+        permission = room.get("weather_permission", "")
+        if permission:
+            tests.append(("weather permission", _is_on(self.hass, permission)))
+        if not tests:
+            return True, []
+        logic = room.get("weather_logic", "all")
+        passed = (
+            any(value for _, value in tests)
+            if logic == "any"
+            else all(value for _, value in tests)
+        )
+        return passed, [name for name, value in tests if not value]
+
+    def _pause_active(self, runtime: RoomRuntime, now: datetime) -> bool:
+        if runtime.pause_mode == PAUSE_MANUAL:
+            return True
+        if runtime.pause_mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED}:
+            if runtime.pause_until and runtime.pause_until > now:
+                return True
+            runtime.pause_mode = PAUSE_AUTO
+            runtime.pause_until = None
+        return False
+
+    @staticmethod
+    def _time_inside(now: datetime, start_value: str, end_value: str) -> bool:
+        def parse(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
+            try:
+                parts = [int(part) for part in str(value).split(":")]
+                return (parts + [0, 0, 0])[:3]
+            except (TypeError, ValueError):
+                return fallback
+
+        sh, sm, ss = parse(start_value, (0, 0, 0))
+        eh, em, es = parse(end_value, (23, 59, 59))
+        current = now.hour * 3600 + now.minute * 60 + now.second
+        start = sh * 3600 + sm * 60 + ss
+        end = eh * 3600 + em * 60 + es
+        if start <= end:
+            return start <= current <= end
+        return current >= start or current <= end
+
+    @staticmethod
+    def _schedule_active_at(room: dict[str, Any], when: datetime) -> bool:
+        months = {int(value) for value in room.get("active_months", range(1, 13))}
+        weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
+        if when.month not in months or when.weekday() not in weekdays:
+            return False
+        window = room.get("day_window", "sector_sun")
+        if window in {DAY_WINDOW_ALL_DAY, "sector_sun"}:
+            return True
+        if window == DAY_WINDOW_FIXED:
+            return SmartShadingEngine._time_inside(
+                when,
+                room.get("start_time", "00:00:00"),
+                room.get("end_time", "23:59:59"),
+            )
+        return True
+
+    @staticmethod
+    def _clock_parts(value: str, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
+        try:
+            parts = [int(part) for part in str(value).split(":")]
+            parts = (parts + [0, 0, 0])[:3]
+            hour, minute, second = parts
+            if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+                raise ValueError
+            return hour, minute, second
+        except (TypeError, ValueError):
+            return fallback
+
+    def _next_schedule_change(
+        self, room: dict[str, Any], now: datetime, current_active: bool
+    ) -> datetime | None:
+        """Find the next schedule boundary without creating another automation."""
+        candidates: set[datetime] = set()
+        fixed = room.get("day_window", "sector_sun") == DAY_WINDOW_FIXED
+        start_parts = self._clock_parts(room.get("start_time", "00:00:00"), (0, 0, 0))
+        end_parts = self._clock_parts(room.get("end_time", "23:59:59"), (23, 59, 59))
+
+        # One full year plus margin covers seasonal and weekday profiles.
+        for offset in range(0, 380):
+            day = now + timedelta(days=offset)
+            midnight = day.replace(hour=0, minute=0, second=0, microsecond=0)
+            candidates.add(midnight)
+            if fixed:
+                candidates.add(midnight.replace(
+                    hour=start_parts[0], minute=start_parts[1], second=start_parts[2]
+                ))
+                # The configured end time is inclusive in _time_inside, so the
+                # state changes one second afterwards.
+                end = midnight.replace(
+                    hour=end_parts[0], minute=end_parts[1], second=end_parts[2]
+                ) + timedelta(seconds=1)
+                candidates.add(end)
+
+        for candidate in sorted(value for value in candidates if value > now):
+            if self._schedule_active_at(room, candidate) != current_active:
+                return candidate
+        return None
+
+    def _schedule_status(
+        self, room: dict[str, Any], now: datetime
+    ) -> tuple[bool, str, datetime | None]:
+        months = {int(value) for value in room.get("active_months", range(1, 13))}
+        weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
+        active = self._schedule_active_at(room, now)
+        if now.month not in months:
+            reason = "Month outside shading season"
+        elif now.weekday() not in weekdays:
+            reason = "Weekday outside shading schedule"
+        elif room.get("day_window", "sector_sun") == DAY_WINDOW_FIXED:
+            reason = "Inside fixed shading time" if active else "Outside fixed shading time"
+        else:
+            reason = "Schedule permits normal shading"
+        return active, reason, self._next_schedule_change(room, now, active)
+
+    async def _evaluate_room(
+        self, room: dict[str, Any], now: datetime
+    ) -> None:
+        runtime = self.rooms[room["id"]]
+        runtime.last_evaluation = now
+        runtime.active_sectors = []
+        runtime.targets = []
+        for configured_sector in room.get("sectors", []):
+            sector_runtime = self.sun_runtime.get(configured_sector["id"])
+            if sector_runtime:
+                sector_runtime.geometry_active = False
+                sector_runtime.shading_active = False
+                sector_runtime.mode = MODE_IDLE
+                sector_runtime.status = "not_evaluated"
+                sector_runtime.status_reason = "Evaluation started"
+        schedule_active, schedule_reason, next_change = self._schedule_status(room, now)
+        runtime.schedule_active = schedule_active
+        runtime.schedule_reason = schedule_reason
+        runtime.next_schedule_change = next_change
+
+        # Safety has the highest priority. It remains active even when the
+        # customer pauses or disables normal room automation.
+        blockers = [
+            entity
+            for entity in room.get("safety_blockers", [])
+            if _is_on(self.hass, entity)
+        ]
+        if blockers:
+            runtime.mode = MODE_SAFETY
+            runtime.reason = f"Safety active: {self._entity_display_name(blockers[0], 'Safety sensor')}"
+            self._mark_room_sectors(room, status="safety", reason=runtime.reason, mode=MODE_SAFETY, active=True)
+            if room.get("safety_behavior", "move_safe") == "move_safe":
+                await self._apply_room_mode(room, runtime, MODE_SAFETY, 0.0)
+            await self._save_room_runtime(runtime)
+            return
+
+        if not runtime.enabled:
+            runtime.mode = MODE_DISABLED
+            runtime.reason = "Room automation disabled"
+            self._mark_room_sectors(room, status="disabled", reason=runtime.reason, mode=MODE_DISABLED, active=False)
+            await self._save_room_runtime(runtime)
+            return
+
+        pause_active = self._pause_active(runtime, now)
+        if pause_active and not room.get("heat_during_pause", False):
+            runtime.mode = MODE_PAUSED
+            runtime.reason = "Automatic shading is paused"
+            self._mark_room_sectors(room, status="paused", reason=runtime.reason, mode=MODE_PAUSED, active=False)
+            await self._save_room_runtime(runtime)
+            return
+
+        if runtime.finished_today:
+            runtime.mode = MODE_FINISHED
+            runtime.reason = "Heat protection finished for today"
+            self._mark_room_sectors(room, status="finished", reason=runtime.reason, mode=MODE_FINISHED, active=False)
+            await self._save_room_runtime(runtime)
+            return
+
+        sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        sun_state = self.hass.states.get(sun_entity)
+        sun_up = bool(sun_state and sun_state.state == "above_horizon")
+        azimuth_value = parse_numeric_value(
+            sun_state.attributes.get("azimuth") if sun_state else None
+        )
+        elevation_value = parse_numeric_value(
+            sun_state.attributes.get("elevation") if sun_state else None
+        )
+        azimuth = azimuth_value if azimuth_value is not None else -999.0
+        elevation = elevation_value if elevation_value is not None else -999.0
+
+        indoor_entity = room.get("indoor_temperature", "")
+        indoor = _state_number(self.hass, indoor_entity)
+        indoor_valid = indoor is not None
+        outdoor_entity = room.get("outdoor_temperature", "")
+        outdoor = _state_number(self.hass, outdoor_entity)
+        outdoor_valid = outdoor is not None
+        weather_pass, weather_failed = self._weather_pass(room)
+        self._diag(
+            "room_inputs",
+            full=True,
+            room_id=room["id"],
+            room=runtime.name,
+            indoor_temperature=indoor if indoor_valid else None,
+            outdoor_temperature=outdoor if outdoor_valid else None,
+            sun_up=sun_up,
+            sun_azimuth=azimuth,
+            sun_elevation=elevation,
+            schedule_active=schedule_active,
+            pause_active=pause_active,
+            weather_pass=weather_pass,
+            weather_failed=list(weather_failed),
+        )
+
+        heat_start = float(
+            self.room_value(room["id"], "heat_temperature", 27.0)
+        )
+        heat_release = float(
+            self.room_value(room["id"], "heat_release_temperature", 26.0)
+        )
+        heat_requires_sun = bool(room.get("heat_requires_sun", True))
+
+        if runtime.heat_active:
+            if indoor_valid and indoor < heat_release:
+                runtime.heat_active = False
+            elif not indoor_valid and room.get("heat_fail_safe", True):
+                runtime.heat_active = True
+        elif (
+            indoor_valid
+            and indoor >= heat_start
+            and (sun_up or not heat_requires_sun)
+            and (room.get("heat_ignores_weather", True) or weather_pass)
+        ):
+            runtime.heat_active = True
+
+        if runtime.heat_active and self._evening_release_reached(now):
+            await self._apply_room_mode(room, runtime, MODE_OPEN, elevation)
+            runtime.heat_active = False
+            runtime.finished_today = True
+            runtime.mode = MODE_FINISHED
+            runtime.reason = "Heat protection released for evening"
+            self._mark_room_sectors(
+                room,
+                status="outside_sun_sector",
+                reason=runtime.reason,
+                mode=MODE_FINISHED,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        active_sectors: list[dict[str, Any]] = []
+        for sector in room.get("sectors", []):
+            sector_runtime = self.sun_runtime[sector["id"]]
+            if not bool(self.sector_value(sector["id"], "enabled", True)):
+                sector_runtime.status = "disabled"
+                sector_runtime.status_reason = "Sector disabled"
+                sector_runtime.mode = MODE_DISABLED
+                continue
+            geometry = (
+                sun_up
+                and azimuth_inside(
+                    azimuth,
+                    float(
+                        self.sector_value(
+                            sector["id"],
+                            "azimuth_start",
+                            sector.get("azimuth_start", 0),
+                        )
+                    ),
+                    float(
+                        self.sector_value(
+                            sector["id"],
+                            "azimuth_end",
+                            sector.get("azimuth_end", 359),
+                        )
+                    ),
+                )
+                and elevation
+                >= float(
+                    self.sector_value(
+                        sector["id"],
+                        "elevation_min",
+                        sector.get("elevation_min", 0),
+                    )
+                )
+            )
+            sector_runtime.geometry_active = geometry
+            sun_pass = self._sector_sun_pass(sector)
+            if not sun_up:
+                sector_runtime.status = "sun_below_horizon"
+                sector_runtime.status_reason = "Sun below horizon"
+            elif not geometry:
+                sector_runtime.status = "outside_sun_sector"
+                sector_runtime.status_reason = "Sun outside this sector"
+            elif sector.get("lux_sensor") and not sun_pass:
+                sector_runtime.status = "waiting_for_lux"
+                sector_runtime.status_reason = sector_runtime.reason
+            else:
+                sector_runtime.status = "sun_detected"
+                sector_runtime.status_reason = "Sun detected in sector"
+            self._diag(
+                "sector_inputs",
+                full=True,
+                room_id=room["id"],
+                sector_id=sector["id"],
+                sector=sector.get("name", ""),
+                enabled=bool(self.sector_value(sector["id"], "enabled", True)),
+                geometry_active=geometry,
+                lux=sector_runtime.current_lux,
+                sun_presence=sector_runtime.is_on,
+                sun_pass=sun_pass,
+                status=sector_runtime.status,
+            )
+            if geometry and sun_pass:
+                active_sectors.append(sector)
+                runtime.active_sectors.append(sector["name"])
+
+        if runtime.heat_active and (
+            schedule_active or room.get("heat_outside_schedule", True)
+        ):
+            runtime.mode = MODE_HEAT
+            runtime.reason = "Heat threshold / hysteresis active"
+            self._mark_room_sectors(room, status="heat", reason=runtime.reason, mode=MODE_HEAT, active=True)
+            await self._apply_room_mode(room, runtime, MODE_HEAT, elevation)
+            await self._save_room_runtime(runtime)
+            return
+
+        if pause_active:
+            runtime.mode = MODE_PAUSED
+            runtime.reason = "Automatic shading is paused; heat protection is not active"
+            self._mark_room_sectors(room, status="paused", reason=runtime.reason, mode=MODE_PAUSED, active=False)
+            await self._save_room_runtime(runtime)
+            return
+
+        if not schedule_active:
+            behavior = room.get("outside_schedule_behavior", OUTSIDE_OPEN)
+            if behavior == OUTSIDE_OPEN:
+                runtime.mode = MODE_OPEN
+                runtime.reason = f"{schedule_reason}; covers moved to neutral/open position"
+                await self._apply_room_mode(room, runtime, MODE_OPEN, elevation)
+            else:
+                runtime.mode = MODE_IDLE
+                runtime.reason = f"{schedule_reason}; cover positions held"
+            self._mark_room_sectors(
+                room, status="schedule_blocked", reason=runtime.reason, mode=runtime.mode, active=False
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        outdoor_ok = not outdoor_entity or (
+            outdoor_valid
+            and outdoor
+            >= float(self.room_value(room["id"], "outdoor_minimum", 18.0))
+        )
+        occupied = not room.get("occupancy_sensor") or _is_on(
+            self.hass, room.get("occupancy_sensor", "")
+        )
+        glare = bool(room.get("glare_sensor")) and _is_on(
+            self.hass, room.get("glare_sensor", "")
+        )
+        comfort_temperature = float(
+            self.room_value(room["id"], "comfort_temperature", 23.5)
+        )
+        solar_temperature = float(
+            self.room_value(room["id"], "solar_temperature", 25.5)
+        )
+        normal_shading_temperature = float(
+            self.room_value(
+                room["id"], "normal_shading_temperature", comfort_temperature
+            )
+        )
+        reopen_temperature = float(
+            self.room_value(room["id"], "reopen_temperature", 22.0)
+        )
+        comfort_allowed = occupied or not room.get(
+            "comfort_requires_occupancy", False
+        )
+        venetian_only = self._venetian_only(room)
+        if venetian_only:
+            if not indoor_entity:
+                runtime.shading_active = True
+            elif indoor_valid:
+                if runtime.shading_active and indoor < reopen_temperature:
+                    runtime.shading_active = False
+                elif not runtime.shading_active and indoor >= normal_shading_temperature:
+                    runtime.shading_active = True
+
+        highest_mode = MODE_OPEN
+        reasons: list[str] = []
+        for sector in room.get("sectors", []):
+            if sector in active_sectors:
+                if venetian_only:
+                    if weather_pass and outdoor_ok and comfort_allowed and (glare or runtime.shading_active):
+                        mode = MODE_SOLAR
+                        reason = "Normal adaptive solar shading"
+                    else:
+                        mode = MODE_IDLE
+                        waiting = weather_failed or [
+                            "normal shading temperature / occupancy / outdoor condition"
+                        ]
+                        reason = f"Waiting: {', '.join(waiting)}"
+                elif (
+                    indoor_valid
+                    and indoor >= solar_temperature
+                    and weather_pass
+                    and outdoor_ok
+                ):
+                    mode = MODE_SOLAR
+                    reason = "Solar heat reduction"
+                elif (
+                    comfort_allowed
+                    and weather_pass
+                    and (
+                        glare
+                        or not indoor_entity
+                        or (indoor_valid and indoor >= comfort_temperature)
+                    )
+                ):
+                    mode = MODE_COMFORT
+                    reason = "Glare / comfort protection"
+                else:
+                    mode = MODE_IDLE
+                    waiting = weather_failed or [
+                        "temperature / occupancy / outdoor condition"
+                    ]
+                    reason = f"Waiting: {', '.join(waiting)}"
+            else:
+                mode = MODE_OPEN
+                reason = "Sun outside this sector"
+
+            if mode != MODE_IDLE:
+                await self._apply_sector_mode(
+                    room, sector, runtime, mode, elevation, reason
+                )
+            sector_runtime = self.sun_runtime[sector["id"]]
+            sector_runtime.mode = mode
+            sector_runtime.shading_active = mode in {MODE_COMFORT, MODE_SOLAR, MODE_HEAT, MODE_SAFETY}
+            if mode in {MODE_COMFORT, MODE_SOLAR}:
+                sector_runtime.status = "shading_active"
+            elif mode == MODE_IDLE and sector_runtime.geometry_active:
+                sector_runtime.status = "waiting_conditions"
+            sector_runtime.status_reason = reason
+            reasons.append(f"{sector['name']}: {reason}")
+            if self._mode_priority(mode) > self._mode_priority(highest_mode):
+                highest_mode = mode
+
+        runtime.mode = highest_mode if room.get("sectors") else MODE_IDLE
+        runtime.reason = " · ".join(reasons) if reasons else "No sectors configured"
+        await self._save_room_runtime(runtime)
+
+    @staticmethod
+    def _mode_priority(mode: str) -> int:
+        return {
+            MODE_IDLE: 0,
+            MODE_OPEN: 1,
+            MODE_COMFORT: 2,
+            MODE_SOLAR: 3,
+            MODE_HEAT: 4,
+            MODE_SAFETY: 5,
+        }.get(mode, 0)
+
+    def _evening_release_reached(self, now: datetime) -> bool:
+        fixed = self.config.get("evening_release_time", "18:00:00")
+        try:
+            hour, minute, second = [int(part) for part in fixed.split(":")]
+        except (AttributeError, ValueError):
+            hour, minute, second = 18, 0, 0
+        fixed_dt = now.replace(
+            hour=hour, minute=minute, second=second, microsecond=0
+        )
+        if now >= fixed_dt:
+            return True
+        state = self.hass.states.get(
+            self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        )
+        next_setting = state.attributes.get("next_setting") if state else None
+        parsed = dt_util.parse_datetime(next_setting) if next_setting else None
+        if parsed is None:
+            return False
+        release = dt_util.as_local(parsed) + timedelta(
+            minutes=int(self.config.get("sunset_offset_minutes", -15))
+        )
+        return now >= release
+
+    async def _apply_room_mode(
+        self,
+        room: dict[str, Any],
+        runtime: RoomRuntime,
+        mode: str,
+        elevation: float,
+    ) -> None:
+        for sector in room.get("sectors", []):
+            await self._apply_sector_mode(
+                room, sector, runtime, mode, elevation, runtime.reason
+            )
+
+    async def _apply_sector_mode(
+        self,
+        room: dict[str, Any],
+        sector: dict[str, Any],
+        runtime: RoomRuntime,
+        mode: str,
+        elevation: float,
+        reason: str,
+    ) -> None:
+        for layer in sector.get("layers", []):
+            position, tilt = self._targets(layer, mode, elevation)
+            for cover in layer.get("covers", []):
+                await self._apply_cover(
+                    room,
+                    sector,
+                    layer,
+                    cover,
+                    runtime,
+                    mode,
+                    position,
+                    tilt,
+                    reason,
+                )
+
+    def _targets(
+        self, layer: dict[str, Any], mode: str, elevation: float
+    ) -> tuple[float, float | None]:
+        """Return targets using profile-specific physical behavior.
+
+        Home Assistant semantics are used exclusively: 0 is closed and 100 is
+        open. KNX value conversion belongs to the KNX cover entity.
+        """
+        profile = layer.get("profile", DEVICE_VENETIAN)
+        defaults = PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS[DEVICE_VENETIAN])
+        layer_id = layer["id"]
+
+        def value(key: str, default: float) -> float:
+            return clamp_percent(
+                float(self.layer_value(layer_id, key, layer.get(key, default)))
+            )
+
+        def adaptive(fallback: float) -> float:
+            points = []
+            for index, point in enumerate(
+                layer.get("tilt_curve", defaults.get("tilt_curve", [])), start=1
+            ):
+                points.append(
+                    {
+                        "elevation": self.layer_value(
+                            layer_id, f"tilt_elevation_{index}", point.get("elevation", 0)
+                        ),
+                        "tilt": self.layer_value(
+                            layer_id, f"tilt_value_{index}", point.get("tilt", fallback)
+                        ),
+                    }
+                )
+            return adaptive_tilt(elevation, fallback, points)
+
+        # Exterior venetian blinds have no partial-height comfort stage.
+        if profile == DEVICE_VENETIAN:
+            if mode in {MODE_COMFORT, MODE_SOLAR}:
+                return 0.0, adaptive(float(defaults["solar_tilt"]))
+            if mode == MODE_HEAT:
+                return 0.0, 0.0
+            if mode == MODE_SAFETY:
+                return value("safety_position", 100.0), 100.0
+            return value("open_position", 100.0), 100.0
+
+        # Vertical blinds cover the opening first, then adjust slats.
+        if profile == DEVICE_VERTICAL:
+            if mode == MODE_COMFORT:
+                return 0.0, value("comfort_tilt", float(defaults["comfort_tilt"]))
+            if mode == MODE_SOLAR:
+                return 0.0, adaptive(float(defaults["solar_tilt"]))
+            if mode == MODE_HEAT:
+                return 0.0, value("heat_tilt", 0.0)
+            if mode == MODE_SAFETY:
+                return value("safety_position", 100.0), 100.0
+            return value("open_position", 100.0), 100.0
+
+        # Interior curtains use the solar target in heat mode unless advanced
+        # full heat closure is explicitly enabled.
+        if profile == DEVICE_CURTAIN and mode == MODE_HEAT:
+            if layer.get("heat_close_enabled", defaults.get("heat_close_enabled", False)):
+                return 0.0, None
+            return value("heat_position", float(defaults["heat_position"])), None
+
+        key = f"{mode}_position"
+        default_position = float(defaults.get(key, defaults.get("open_position", 100.0)))
+        return value(key, default_position), None
+
+    async def _apply_cover(
+        self,
+        room: dict[str, Any],
+        sector: dict[str, Any],
+        layer: dict[str, Any],
+        cover: dict[str, Any],
+        runtime: RoomRuntime,
+        mode: str,
+        target_position: float,
+        target_tilt: float | None,
+        reason: str,
+    ) -> None:
+        entity_id = cover["entity"]
+        profile = layer.get("profile", DEVICE_VENETIAN)
+        if mode == MODE_SAFETY and cover.get("safety_position_override") is not None:
+            target_position = clamp_percent(float(cover["safety_position_override"]))
+        max_open = clamp_percent(float(cover.get("max_open_position", 100.0)))
+        target_position = min(clamp_percent(target_position), max_open)
+
+        state = self.hass.states.get(entity_id)
+        current_position = (
+            state.attributes.get("current_position") if state else None
+        )
+        if profile == DEVICE_BINARY and state is not None and current_position is None:
+            if state.state == "open":
+                current_position = 100.0
+            elif state.state == "closed":
+                current_position = 0.0
+        current_tilt = (
+            state.attributes.get("current_tilt_position") if state else None
+        )
+        suppressions: list[str] = []
+
+        pause_info = self.cover_pause_info(cover)
+        lock = cover.get("lock", "")
+        if pause_info["active"] and mode != MODE_SAFETY:
+            suppressions.append("cover_paused_until_morning")
+        elif lock and _is_on(self.hass, lock) and mode != MODE_SAFETY:
+            suppressions.append("automation_lock")
+
+        window = cover.get("window", "")
+        window_safe_state = cover.get("window_safe_state", "on")
+        window_unsafe = bool(window) and not self.hass.states.is_state(
+            window, window_safe_state
+        )
+        if window_unsafe and mode != MODE_SAFETY:
+            policy = cover.get("window_policy", WINDOW_POLICY_BLOCK_CLOSING)
+            if policy == WINDOW_POLICY_BLOCK_ALL:
+                suppressions.append("unsafe_window")
+            elif policy == WINDOW_POLICY_BLOCK_CLOSING:
+                if current_position is None or target_position < float(
+                    current_position
+                ):
+                    suppressions.append("unsafe_window_closing_blocked")
+
+        displayed_position = (
+            100.0 - target_position
+            if cover.get("invert_position", False)
+            else target_position
+        )
+        displayed_tilt = target_tilt
+        if target_tilt is not None and cover.get("invert_tilt", False):
+            displayed_tilt = 100.0 - target_tilt
+
+        target_record = {
+            "entity_id": entity_id,
+            "name": cover.get("name") or self._entity_display_name(entity_id, "Cover"),
+            "short": cover.get("short", ""),
+            "mode": mode,
+            "position": target_position,
+            "command_position": displayed_position,
+            "tilt": target_tilt,
+            "command_tilt": displayed_tilt,
+            "sector": sector["name"],
+            "sector_id": sector["id"],
+            "layer": layer["name"],
+            "layer_id": layer["id"],
+            "profile": profile,
+            "reason": reason,
+            "suppressed": suppressions,
+            "cover_pause_active": pause_info["active"],
+            "cover_pause_until": pause_info["until"],
+            "cover_pause_reason": pause_info["reason"],
+        }
+
+        position_tolerance = float(
+            self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
+        )
+        tilt_tolerance = float(
+            self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
+        )
+        position_needed = (
+            current_position is None
+            or abs(float(current_position) - displayed_position) > position_tolerance
+        )
+        tilt_needed = (
+            displayed_tilt is not None
+            and (
+                current_tilt is None
+                or abs(float(current_tilt) - displayed_tilt) > tilt_tolerance
+            )
+        )
+        movement_needed = position_needed or tilt_needed
+
+        if suppressions:
+            if movement_needed:
+                runtime.suppressed_commands += 1
+                self._diag(
+                    "cover_command_suppressed",
+                    room_id=runtime.room_id,
+                    cover=target_record["name"] or "Cover",
+                    mode=mode,
+                    reasons=list(suppressions),
+                )
+            else:
+                target_record["suppressed"] = [
+                    reason
+                    for reason, needed in (
+                        ("position_already_correct", not position_needed),
+                        ("tilt_already_correct", displayed_tilt is not None and not tilt_needed),
+                    )
+                    if needed
+                ]
+            runtime.targets.append(target_record)
+            return
+
+        memory = self.command_memory.setdefault(entity_id, CommandMemory())
+        now = dt_util.now()
+        cooldown = int(
+            self.config.get("command_cooldown", DEFAULT_COMMAND_COOLDOWN)
+        )
+        unknown_policy = self.config.get("unknown_feedback_policy", "send")
+        sent = 0
+
+        position_correct = (
+            current_position is not None
+            and abs(float(current_position) - displayed_position)
+            <= position_tolerance
+        )
+        position_cooldown = (
+            memory.position == displayed_position
+            and memory.position_at is not None
+            and (now - memory.position_at).total_seconds() < cooldown
+        )
+        if position_correct:
+            suppressions.append("position_already_correct")
+        elif position_cooldown:
+            suppressions.append("position_command_cooldown")
+        elif current_position is None and unknown_policy == "skip":
+            suppressions.append("position_feedback_unknown")
+        else:
+            if profile == DEVICE_BINARY:
+                service = "open_cover" if displayed_position >= 50.0 else "close_cover"
+                await self.hass.services.async_call(
+                    "cover", service, {"entity_id": entity_id}, blocking=False
+                )
+            else:
+                await self.hass.services.async_call(
+                    "cover",
+                    "set_cover_position",
+                    {
+                        "entity_id": entity_id,
+                        "position": round(displayed_position),
+                    },
+                    blocking=False,
+                )
+            memory.position = displayed_position
+            memory.position_at = now
+            memory.last_activity_at = now
+            sent += 1
+
+        if displayed_tilt is not None and profile != DEVICE_BINARY:
+            tilt_correct = (
+                current_tilt is not None
+                and abs(float(current_tilt) - displayed_tilt)
+                <= tilt_tolerance
+            )
+            tilt_cooldown = (
+                memory.tilt == displayed_tilt
+                and memory.tilt_at is not None
+                and (now - memory.tilt_at).total_seconds() < cooldown
+            )
+            if tilt_correct:
+                suppressions.append("tilt_already_correct")
+            elif tilt_cooldown:
+                suppressions.append("tilt_command_cooldown")
+            elif current_tilt is None and unknown_policy == "skip":
+                suppressions.append("tilt_feedback_unknown")
+            else:
+                await self.hass.services.async_call(
+                    "cover",
+                    "set_cover_tilt_position",
+                    {
+                        "entity_id": entity_id,
+                        "tilt_position": round(displayed_tilt),
+                    },
+                    blocking=False,
+                )
+                memory.tilt = displayed_tilt
+                memory.tilt_at = now
+                memory.last_activity_at = now
+                sent += 1
+
+        runtime.sent_commands += sent
+        meaningful_suppressions = [reason for reason in suppressions if reason not in {"position_already_correct", "tilt_already_correct", "position_command_cooldown", "tilt_command_cooldown"}]
+        runtime.suppressed_commands += len(meaningful_suppressions)
+        if sent:
+            runtime.last_command = now
+            self._diag(
+                "cover_command_sent",
+                room_id=runtime.room_id,
+                cover=target_record["name"],
+                mode=mode,
+                position=round(displayed_position),
+                tilt=None if displayed_tilt is None else round(displayed_tilt),
+                commands=sent,
+            )
+        elif suppressions:
+            routine_reasons = {
+                "position_already_correct",
+                "tilt_already_correct",
+                "position_command_cooldown",
+                "tilt_command_cooldown",
+            }
+            self._diag(
+                "cover_command_suppressed",
+                full=all(reason in routine_reasons for reason in suppressions),
+                room_id=runtime.room_id,
+                cover=target_record["name"],
+                mode=mode,
+                reasons=list(suppressions),
+            )
+        target_record["suppressed"] = suppressions
+        target_record["commands_sent"] = sent
+        runtime.targets.append(target_record)
+
+    async def _save_room_runtime(self, runtime: RoomRuntime) -> None:
+        previous = self._last_logged_mode.get(runtime.room_id)
+        if previous != runtime.mode:
+            self._diag(
+                "room_mode_changed",
+                room_id=runtime.room_id,
+                room=runtime.name,
+                previous=previous,
+                mode=runtime.mode,
+                reason=runtime.reason,
+            )
+            self._last_logged_mode[runtime.room_id] = runtime.mode
+        self._diag(
+            "room_evaluated",
+            full=True,
+            room_id=runtime.room_id,
+            room=runtime.name,
+            mode=runtime.mode,
+            reason=runtime.reason,
+            active_sectors=list(runtime.active_sectors),
+            targets=len(runtime.targets),
+        )
+        await self.store.async_save_room_runtime(
+            runtime.room_id,
+            {
+                "enabled": runtime.enabled,
+                "pause_mode": runtime.pause_mode,
+                "pause_hours": runtime.pause_hours,
+                "pause_until": _serialize_datetime(runtime.pause_until),
+                "heat_active": runtime.heat_active,
+                "shading_active": runtime.shading_active,
+                "finished_today": runtime.finished_today,
+                "sent_commands": runtime.sent_commands,
+                "suppressed_commands": runtime.suppressed_commands,
+            },
+        )
+
+    async def _save_sun_runtime(self, runtime: SectorSunRuntime) -> None:
+        await self.store.async_save_sun_runtime(
+            runtime.sector_id,
+            {
+                "is_on": runtime.is_on,
+                "pending_target": runtime.pending_target,
+                "pending_since": _serialize_datetime(runtime.pending_since),
+                "pending_until": _serialize_datetime(runtime.pending_until),
+                "last_transition": _serialize_datetime(runtime.last_transition),
+                "reason": runtime.reason,
+                "status": runtime.status,
+                "status_reason": runtime.status_reason,
+                "geometry_active": runtime.geometry_active,
+                "shading_active": runtime.shading_active,
+                "mode": runtime.mode,
+            },
+        )

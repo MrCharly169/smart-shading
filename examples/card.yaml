@@ -1,0 +1,8 @@
+# Kompakte Standardansicht. Die aktuelle Entität steht in der automatisch
+# erzeugten Home-Assistant-Benachrichtigung und im Attribut `card_yaml`.
+type: custom:smart-shading-card
+entity: sensor.replace_with_generated_room_status
+advanced_mode: false
+show_sun_track: true
+show_covers: true
+show_actions: true
