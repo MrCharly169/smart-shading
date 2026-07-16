@@ -10,8 +10,8 @@ class FakeNode {
   remove() { this.isConnected = false; }
 }
 class FakeShadowRoot {
-  constructor() { this.innerHTML = ""; }
-  querySelector() { return null; }
+  constructor() { this.innerHTML = ""; this.dialog = { scrollTop: 0 }; }
+  querySelector(selector) { return selector === ".dialog" ? this.dialog : null; }
   querySelectorAll() { return []; }
 }
 class FakeHTMLElement extends FakeNode {
@@ -129,7 +129,16 @@ if (!dialog.shadowRoot.innerHTML.includes("Erweiterte Ansicht")) throw new Error
 if (!dialog.shadowRoot.innerHTML.includes("26") || !dialog.shadowRoot.innerHTML.includes("18") || !dialog.shadowRoot.innerHTML.includes("Pausiert")) throw new Error("Advanced dialog missed lux or local pause details");
 if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector")) throw new Error("Advanced dialog exposed raw internal reason keys");
 const before = dialog.shadowRoot.innerHTML;
+dialog.shadowRoot.dialog.scrollTop = 420;
 card.hass = hass;
 if (!dialog.isConnected || !dialog.shadowRoot.innerHTML.includes("Erweiterte Ansicht")) throw new Error("Advanced dialog closed during state update");
+if (dialog.shadowRoot.dialog.scrollTop !== 420) throw new Error("Advanced dialog lost its scroll position during a live update");
 if (dialog.shadowRoot.innerHTML.includes("undefined")) throw new Error("Dialog rendered undefined");
+
+roomStatus.attributes.sector_statuses[0].geometry_active = false;
+card.hass = hass;
+if (card.shadowRoot.innerHTML.includes('class="sun-dot active"')) throw new Error("Sun pulse remained active outside sector geometry");
+roomStatus.attributes.sector_statuses[0].geometry_active = true;
+card.hass = hass;
+if (!card.shadowRoot.innerHTML.includes('class="sun-dot active"')) throw new Error("Sun pulse did not activate for confirmed sun inside sector geometry");
 console.log("Card and advanced dialog runtime smoke test passed");
