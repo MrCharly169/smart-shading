@@ -249,8 +249,93 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_room_pause_sets_every_configured_manual_entity_on(self):
+        hass, engine, _tomorrow = await self._engine("manual")
+        covers = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "switch.cover_two_lock",
+            }
+        )
+        hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        hass.states.values["switch.cover_two_lock"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await engine.async_pause_default("room")
+
+        self.assertEqual(engine.rooms["room"].pause_mode, "manual")
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+        self.assertEqual(hass.states.get("switch.cover_two_lock").state, "on")
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(engine.cover_pauses["cover_two"].active)
+
+    async def test_identical_knx_off_refresh_does_not_cancel_cover_pause(self):
+        hass, engine, _tomorrow = await self._engine()
+        await self._position_call_and_feedback(engine)
+
+        await engine._async_state_changed(
+            FakeEvent(
+                "switch.cover_lock",
+                FakeState("off"),
+                FakeState("off"),
+            )
+        )
+
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_external_manual_entity_off_releases_cover_pause(self):
+        _hass, engine, _tomorrow = await self._engine()
+        await self._position_call_and_feedback(engine)
+        await engine._async_state_changed(
+            FakeEvent(
+                "switch.cover_lock",
+                FakeState("off"),
+                FakeState("on"),
+            )
+        )
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        await engine._async_state_changed(
+            FakeEvent(
+                "switch.cover_lock",
+                FakeState("on"),
+                FakeState("off"),
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(calls, ["cover_pause_ended:cover_one"])
+
     async def test_resume_room_clears_local_cover_pause_and_owned_lock(self):
         hass, engine, _tomorrow = await self._engine()
+        covers = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "switch.cover_two_lock",
+            }
+        )
+        hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        hass.states.values["switch.cover_two_lock"] = FakeState("on")
+        engine._rebuild_runtime()
         await self._position_call_and_feedback(engine)
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
@@ -266,6 +351,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(engine.cover_pauses["cover_one"].active)
         self.assertIsNone(engine.cover_pauses["cover_one"].until)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(hass.states.get("switch.cover_two_lock").state, "off")
         self.assertEqual(calls, ["resume"])
 
     async def test_resume_room_clears_stale_lock_without_active_pause(self):
