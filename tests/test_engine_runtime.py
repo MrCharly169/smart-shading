@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from copy import deepcopy
 import sys
 import types
 from pathlib import Path
@@ -544,6 +545,121 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             )
         finally:
             engine_mod.async_call_later = original
+
+
+    async def _make_heat_engine(self, *, two_sectors=False, requires_sun=True):
+        config = base_config()
+        room = config["rooms"][0]
+        room.update({
+            "indoor_temperature": "sensor.indoor",
+            "heat_temperature": 27.0,
+            "heat_release_temperature": 26.0,
+            "heat_requires_sun": requires_sun,
+        })
+        south = room["sectors"][0]
+        south.update({
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 0,
+            "sun_off_delay": 0,
+        })
+        if two_sectors:
+            east = deepcopy(south)
+            east.update({
+                "id": "east",
+                "name": "East",
+                "short": "E",
+                "lux_sensor": "sensor.lux_east",
+                "layers": [],
+            })
+            room["sectors"].append(east)
+            self.hass.states.values["sensor.lux_east"] = FakeState("1000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.indoor"] = FakeState("28", unit_of_measurement="°C")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        return engine, room
+
+    async def test_heat_requires_room_sun_presence(self):
+        engine, _ = await self._make_heat_engine()
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_heat_without_sun")
+        self.assertFalse(engine.rooms["room"].heat_active)
+        self.assertNotEqual(engine.rooms["room"].mode, "heat")
+
+    async def test_one_active_sector_enables_heat_for_whole_room(self):
+        engine, _ = await self._make_heat_engine(two_sectors=True)
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.lux_east"] = FakeState("20000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_one_sector_with_sun")
+        self.assertTrue(engine.rooms["room"].heat_active)
+        self.assertEqual(engine.rooms["room"].mode, "heat")
+
+    async def test_heat_releases_when_last_active_sector_turns_off(self):
+        engine, _ = await self._make_heat_engine(two_sectors=True)
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.lux_east"] = FakeState("20000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_heat_start")
+        self.assertTrue(engine.rooms["room"].heat_active)
+
+        self.hass.states.values["sensor.lux_east"] = FakeState("1000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_last_sector_off")
+        self.assertFalse(engine.rooms["room"].heat_active)
+        self.assertNotEqual(engine.rooms["room"].mode, "heat")
+
+    async def test_heat_stays_active_while_another_sector_has_sun(self):
+        engine, _ = await self._make_heat_engine(two_sectors=True)
+        self.hass.states.values["sensor.lux"] = FakeState("20000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.lux_east"] = FakeState("20000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_both_sectors_on")
+        self.assertTrue(engine.rooms["room"].heat_active)
+
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_one_sector_off")
+        self.assertTrue(engine.rooms["room"].heat_active)
+        self.assertEqual(engine.rooms["room"].mode, "heat")
+
+    async def test_disabled_sector_does_not_enable_heat(self):
+        engine, room = await self._make_heat_engine(two_sectors=True)
+        room["sectors"][1]["enabled"] = False
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.lux_east"] = FakeState("20000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_disabled_sector")
+        self.assertFalse(engine.rooms["room"].heat_active)
+
+    async def test_heat_without_sun_requirement_keeps_temperature_only_behavior(self):
+        engine, _ = await self._make_heat_engine(requires_sun=False)
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_temperature_only_heat")
+        self.assertTrue(engine.rooms["room"].heat_active)
+        self.assertEqual(engine.rooms["room"].mode, "heat")
+
+    async def test_unavailable_lux_does_not_count_as_confirmed_room_sun(self):
+        engine, _ = await self._make_heat_engine()
+        self.hass.states.values["sensor.lux"] = FakeState("20000", unit_of_measurement="lx")
+        await engine.async_evaluate_all("test_valid_sun")
+        self.assertTrue(engine.rooms["room"].heat_active)
+
+        self.hass.states.values["sensor.lux"] = FakeState("unavailable")
+        await engine.async_evaluate_all("test_unavailable_sun")
+        self.assertFalse(engine.rooms["room"].heat_active)
+
+    async def test_room_sun_transition_triggers_immediate_heat_evaluation(self):
+        engine, _ = await self._make_heat_engine()
+        self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
+        await engine._update_sun_presence(engine.sector_config("south"), datetime.now(timezone.utc))
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        old_state = self.hass.states.values["sensor.lux"]
+        new_state = FakeState("20000", unit_of_measurement="lx")
+        self.hass.states.values["sensor.lux"] = new_state
+        await engine._async_state_changed(FakeEvent("sensor.lux", old_state, new_state))
+        self.assertEqual(calls, ["heat_sun_presence:room:south"])
+
 
 
 if __name__ == "__main__":
