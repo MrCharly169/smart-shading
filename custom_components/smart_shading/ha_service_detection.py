@@ -141,38 +141,19 @@ class HomeAssistantServiceDetectionMixin:
         """Confirm that the exact service target produced real cover feedback."""
         if old_state is None or new_state is None:
             return False
-        if getattr(old_state, "state", None) in {
-            "unknown",
-            "unavailable",
-            "none",
-            "",
-        }:
+        if getattr(old_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
-        if getattr(new_state, "state", None) in {
-            "unknown",
-            "unavailable",
-            "none",
-            "",
-        }:
+        if getattr(new_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
 
         if getattr(old_state, "state", None) != getattr(new_state, "state", None):
-            if getattr(new_state, "state", None) in {
-                "opening",
-                "closing",
-                "open",
-                "closed",
-            }:
+            if getattr(new_state, "state", None) in {"opening", "closing", "open", "closed"}:
                 return True
 
         for key in ("current_position", "current_tilt_position"):
             before = self._state_value(old_state, key)
             after = self._state_value(new_state, key)
-            if (
-                before is not None
-                and after is not None
-                and abs(after - before) >= 0.5
-            ):
+            if before is not None and after is not None and abs(after - before) >= 0.5:
                 return True
         return False
 
@@ -226,6 +207,45 @@ class HomeAssistantServiceDetectionMixin:
                 requested_entity_ids=list(requested),
                 context_id=context_id,
             )
+
+    async def async_resume_room(self, room_id: str) -> None:
+        """Resume the room and clear every local cover pause and lock."""
+        now = dt_util.now()
+        intents = self._manual_service_intents()
+
+        for room, _sector, _layer, cover in self._iter_covers():
+            if str(room.get("id")) != str(room_id):
+                continue
+
+            entity_id = str(cover.get("entity") or "")
+            intents.pop(entity_id, None)
+            pause = self.cover_pauses.get(self._cover_id(cover))
+            if pause and pause.active:
+                await self._clear_cover_pause(
+                    room, cover, unlock=True, evaluate=False
+                )
+                continue
+
+            # A configured lock may still be ON after an interrupted restart or
+            # a stale external update even when no active pause is persisted.
+            # An explicit room resume means the user wants automation restored,
+            # so clear that lock as well.
+            lock = str(cover.get("lock") or "")
+            if lock and self.hass.states.is_state(lock, STATE_ON):
+                domain = lock.split(".", 1)[0] if "." in lock else ""
+                if domain in {"switch", "input_boolean"}:
+                    self._owned_lock_changes[lock] = ("off", now)
+                    await self.hass.services.async_call(
+                        domain,
+                        "turn_off",
+                        {"entity_id": lock},
+                        blocking=False,
+                    )
+
+        # The base implementation clears the room-level pause and performs one
+        # final evaluation. Individual cover clears above intentionally do not
+        # evaluate, preventing one evaluation per cover.
+        await super().async_resume_room(room_id)
 
     async def _async_state_changed(self, event) -> None:
         entity_id = str(event.data.get("entity_id") or "")
