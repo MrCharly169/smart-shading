@@ -516,6 +516,12 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_room_pause_timer_releases_and_evaluates_exactly_once(self):
         callbacks = []
+        pause_changes = []
+
+        async def record_pause_change(room_id, paused):
+            pause_changes.append((room_id, paused))
+
+        self.engine._async_room_pause_state_changed = record_pause_change
         original = engine_mod.async_call_later
         engine_mod.async_call_later = lambda hass, seconds, callback: (callbacks.append(callback) or (lambda: None))
         try:
@@ -532,6 +538,10 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.engine.rooms["room"].pause_mode, "auto")
             self.assertEqual(len(calls), 1)
             self.assertTrue(calls[0].startswith("room_pause_ended:"))
+            self.assertEqual(
+                pause_changes,
+                [("room", True), ("room", False)],
+            )
         finally:
             engine_mod.async_call_later = original
 
