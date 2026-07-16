@@ -63,13 +63,18 @@ The repository uses the following sources of truth:
 
 A pull request that changes production or release behavior must update `CHANGELOG.md`. CI enforces this rule. Documentation changes are selected deliberately because GitHub cannot infer the meaning of a logic or UI change automatically.
 
-A release is created by:
+## Beta and stable release channels
 
-1. moving the relevant `Unreleased` entries into a section matching the manifest version;
-2. updating the version in `manifest.json`;
-3. pushing a tag such as `v4.6.0`.
+Smart Shading uses two release channels:
 
-The release workflow verifies that tag and manifest version match, runs all tests, builds the installable ZIP, and publishes the GitHub release.
+- **Beta:** built only from `develop`, with versions such as `4.6.0-beta.2`, and published as a GitHub prerelease.
+- **Stable:** built only from `main`, with versions such as `4.6.0` or the future `1.0.0`, and published as the latest stable GitHub release.
+
+Prepare a release by moving the relevant `Unreleased` entries into a section matching the new manifest version and updating `manifest.json`. Then open **GitHub → Actions → Release → Run workflow**, select the correct branch and channel, and type the manifest version as confirmation. The workflow rejects wrong branches, version formats, duplicate versions, mismatched changelog sections, and failed tests before publishing anything.
+
+The repository remains outside the official HACS catalog during private testing. It must nevertheless be publicly readable because HACS cannot download private GitHub repositories. Add it once as a HACS custom integration repository. Test installations may opt into GitHub prereleases; stable installations use normal releases. `hide_default_branch` prevents accidental installation of an unversioned development snapshot.
+
+HACS downloads the source belonging to the selected GitHub release tag. The attached ZIP is retained for manual recovery and inspection.
 
 ## Repository layout
 
@@ -80,7 +85,7 @@ docs/                              Development and repository notes
 scripts/build_release.py           Package and metadata validation
 scripts/check_pr_changelog.py      PR documentation policy
 .github/workflows/validate.yml     Continuous validation
-.github/workflows/release.yml      Tagged release automation
+.github/workflows/release.yml      Manual beta/stable release automation
 ```
 
 German documentation is available in [README_DE.md](README_DE.md). Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).

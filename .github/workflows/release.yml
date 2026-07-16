@@ -1,26 +1,72 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        type: choice
+        options:
+          - beta
+          - stable
+      confirm_version:
+        description: Type the exact version from manifest.json (without v)
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: smart-shading-release
+  cancel-in-progress: false
+
 jobs:
   release:
+    name: Publish ${{ inputs.channel }} release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify tag and package metadata
-        run: python scripts/build_release.py --check --tag "${{ github.ref_name }}"
+
+      - name: Read manifest version
+        id: metadata
+        shell: bash
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/smart_shading/manifest.json"))["version"])')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate selected channel, branch, version, and changelog
+        run: >-
+          python scripts/validate_release_channel.py
+          --channel "${{ inputs.channel }}"
+          --branch "${{ github.ref_name }}"
+          --confirm-version "${{ inputs.confirm_version }}"
+
+      - name: Reject an existing release tag
+        env:
+          TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG"; then
+            echo "::error::Tag $TAG already exists. Release versions are immutable."
+            exit 1
+          fi
+
+      - name: Verify package metadata
+        run: >-
+          python scripts/build_release.py
+          --check
+          --tag "${{ steps.metadata.outputs.tag }}"
+
       - name: Run Python tests
         run: python -m unittest discover -s tests -v
       - name: Compile integration
@@ -28,14 +74,23 @@ jobs:
       - name: Validate frontend
         run: |
           node --check custom_components/smart_shading/frontend/shading.js
+          node --check custom_components/smart_shading/frontend/smart-shading-card.js
           node tests/test_card_runtime.js
-      - name: Build release archive
+
+      - name: Build manual installation archive
         run: >-
           python scripts/build_release.py
-          --tag "${{ github.ref_name }}"
-          --output "dist/smart_shading-${{ github.ref_name }}.zip"
+          --tag "${{ steps.metadata.outputs.tag }}"
+          --output "dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip"
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.metadata.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Smart Shading ${{ steps.metadata.outputs.tag }}
+          prerelease: ${{ inputs.channel == 'beta' }}
+          make_latest: ${{ inputs.channel == 'stable' }}
           generate_release_notes: true
-          files: dist/smart_shading-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true
+          files: dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip

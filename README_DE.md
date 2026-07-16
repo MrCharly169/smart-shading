@@ -203,4 +203,23 @@ Bestehende Installationen mit `/smart_shading/smart-shading-card.js?v=...` funkt
 - Ein Release-Tag muss exakt zur Version im Manifest passen.
 - Ein gültiger Tag erzeugt nach erfolgreichen Tests automatisch das Installations-ZIP und den GitHub Release.
 
+## Beta- und Stable-Kanal
+
+- **Beta** wird ausschließlich aus `develop` veröffentlicht und verwendet Versionen wie `4.6.0-beta.2`.
+- **Stable** wird ausschließlich aus `main` veröffentlicht und verwendet Versionen wie `4.6.0` beziehungsweise später `1.0.0`.
+- Beta-Releases werden auf GitHub als Prerelease markiert; Stable-Releases werden als aktuelles Release markiert.
+- HACS bietet keinen unversionierten Entwicklungsbranch an. Installiert werden ausschließlich veröffentlichte Versionen.
+
+Release vorbereiten:
+
+1. Änderungen aus `Unreleased` in einen Abschnitt `## <Version>` verschieben.
+2. Dieselbe Version in `custom_components/smart_shading/manifest.json` eintragen.
+3. Änderungen nach `develop` für Beta oder nach `main` für Stable mergen.
+4. Unter **GitHub → Actions → Release → Run workflow** den richtigen Branch und Kanal auswählen.
+5. Die Manifest-Version ohne führendes `v` zur Bestätigung eingeben.
+
+Der Workflow validiert Branch, Versionsformat, Changelog, Paket, Python, Frontend und bereits vorhandene Tags. Erst danach werden Tag, GitHub Release und Installations-ZIP erstellt.
+
+Für HACS wird das Repository einmalig als benutzerdefiniertes Repository vom Typ **Integration** hinzugefügt. Das Repository darf nicht wirklich privat geschaltet werden: HACS kann private GitHub-Repositories nicht herunterladen. „Privater Beta-Test“ bedeutet, dass das öffentliche Repository nicht im offiziellen HACS-Katalog gelistet ist und nur auf dem eigenen Testsystem als Custom Repository verwendet wird.
+
 GitHub kann nicht selbst erkennen, welche fachliche Bedeutung eine Codeänderung besitzt. Die Repository-Regeln sorgen deshalb dafür, dass die Beschreibung im selben Pull Request bewusst mitgeändert und durch CI kontrolliert wird.
