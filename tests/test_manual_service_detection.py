@@ -249,6 +249,42 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_resume_room_clears_local_cover_pause_and_owned_lock(self):
+        hass, engine, _tomorrow = await self._engine()
+        await self._position_call_and_feedback(engine)
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        await engine.async_resume_room("room")
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertIsNone(engine.cover_pauses["cover_one"].until)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(calls, ["resume"])
+
+    async def test_resume_room_clears_stale_lock_without_active_pause(self):
+        hass, engine, _tomorrow = await self._engine()
+        hass.states.values["switch.cover_lock"] = FakeState("on")
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        await engine.async_resume_room("room")
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(calls, ["resume"])
+
     async def test_next_sunrise_uses_wizard_offset(self):
         _hass, engine, tomorrow = await self._engine(
             "next_sunrise", pause_sun_offset_minutes=30
