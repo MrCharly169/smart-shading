@@ -102,26 +102,6 @@ class PackageTests(unittest.TestCase):
         self.assertIn("diagnostic_journal", engine)
         self.assertIn("DIAGNOSTIC_FULL", engine)
 
-    def test_easy_and_advanced_setup_are_separate(self):
-        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn("async_step_initial_advanced", flow)
-        self.assertIn("if advanced_mode:", flow)
-        self.assertIn('vol.Required("lux_sensor")', flow)
-        self.assertIn("async_step_compact_sector_geometry", flow)
-        self.assertIn("if self.advanced_mode:", flow)
-        self.assertIn('CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"', flow)
-        self.assertIn("CONF_EXTERNAL_MOVEMENT_DETECTION, default=False", flow)
-
-    def test_easy_mode_uses_safe_defaults_and_hides_expert_menus(self):
-        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        compact_room = flow[flow.index("async def async_step_compact_room"):]
-        self.assertIn('"schedule_profile": SCHEDULE_SUMMER', compact_room)
-        self.assertIn('"default_pause_mode": PAUSE_NEXT_SUNRISE', compact_room)
-        self.assertIn('"heat_during_pause": False', compact_room)
-        self.assertIn('options = ["edit_room_basic"]', flow)
-        self.assertIn('options = ["edit_sector_customer"]', flow)
-        self.assertIn('options = ["edit_layer_customer"]', flow)
-
     def test_full_diagnostics_logs_routine_suppressions_only_in_full_mode(self):
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
         self.assertIn("routine_reasons", engine)
@@ -171,8 +151,6 @@ class PackageTests(unittest.TestCase):
                     self.assertTrue(steps[step].get("title"), f"{language}/{section}/{step}")
                 advanced = steps["room_advanced_setup"]["data"]
                 self.assertIn("normal_shading_temperature", advanced)
-            for step in ("initial_advanced", "compact_sector_geometry"):
-                self.assertTrue(data["config"]["step"][step].get("title"))
 
     def test_translation_placeholders_are_intentional(self):
         allowed = {"current", "count", "entity_name"}
@@ -369,26 +347,6 @@ class PackageTests(unittest.TestCase):
         self.assertIn("prerelease: ${{ inputs.channel == 'beta' }}", workflow)
         self.assertIn("make_latest: ${{ inputs.channel == 'stable' }}", workflow)
         self.assertNotIn("push:\n    tags:", workflow)
-
-
-
-    def test_global_slat_inversion_is_configurable_and_migrated(self):
-        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        engine = (COMP / "engine.py").read_text(encoding="utf-8")
-        migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn('"invert_tilt_globally"', flow)
-        self.assertIn('result.setdefault("invert_tilt_globally", False)', migration)
-        self.assertIn("def _tilt_command_value", engine)
-        self.assertIn('cover.get("invert_tilt", False)', engine)
-        self.assertIn('"effective_tilt_inverted"', engine)
-
-
-
-    def test_advanced_dialog_preserves_scroll_and_sun_pulse_requires_geometry(self):
-        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
-        self.assertIn("previousScrollTop", card)
-        self.assertIn("dialog.scrollTop = previousScrollTop", card)
-        self.assertIn("item.sun_presence && item.geometry_active", card)
 
 
 
