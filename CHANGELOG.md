@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Repository, Frontend und Releases
+
+- kanonische Dashboard-Ressource auf die dauerhaft stabile URL `/smart_shading/shading.js` umgestellt
+- Versionsparameter aus der Resource-URL entfernt; Home Assistant muss bei Upgrades nicht mehr angepasst werden
+- bisherige `smart-shading-card.js` bleibt als Kompatibilitäts-Loader erhalten
+- technische Versionsnummer ausschließlich im Integrations-Manifest gepflegt
+- Pull Requests mit Produktionsänderungen müssen gleichzeitig das Changelog aktualisieren
+- validierter Tag-Workflow erstellt automatisch Installations-ZIP und GitHub Release
+- README, deutsche Anleitung, Entwicklungsdokumentation und CI an den neuen Release-Prozess angepasst
+
+
 ## 4.6.0-beta.1
 
 ### Kernstabilität
