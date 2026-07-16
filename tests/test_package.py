@@ -350,5 +350,17 @@ class PackageTests(unittest.TestCase):
 
 
 
+    def test_global_slat_inversion_is_configurable_and_migrated(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        migration = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn('"invert_tilt_globally"', flow)
+        self.assertIn('result.setdefault("invert_tilt_globally", False)', migration)
+        self.assertIn("def _tilt_command_value", engine)
+        self.assertIn('cover.get("invert_tilt", False)', engine)
+        self.assertIn('"effective_tilt_inverted"', engine)
+
+
+
 if __name__ == "__main__":
     unittest.main()

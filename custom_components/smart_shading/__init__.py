@@ -37,6 +37,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     result.setdefault(CONF_ADVANCED_MODE, False)
     result.setdefault(CONF_DIAGNOSTIC_LEVEL, "events" if result.get(CONF_TEST_MODE, False) else "off")
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
+    result.setdefault("invert_tilt_globally", False)
     old_curve = [(10.0, 90.0), (20.0, 50.0), (40.0, 15.0), (60.0, 10.0)]
 
     for room in result[CONF_ROOMS]:

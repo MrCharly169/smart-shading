@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Lamellenrichtung
+
+- globale Option ergänzt, um die Lamellenrichtung einer gesamten Installation zwischen 0 % und 100 % zu invertieren
+- individuelle `invert_tilt`-Option je Jalousie bleibt erhalten und wirkt als Gegeninvertierung zur globalen Einstellung
+- bestehende Installationen behalten ohne Aktivierung der neuen globalen Option ihr bisheriges Verhalten
+- Diagnoseziele zeigen logischen Zielwert, tatsächlich gesendeten Wert sowie globale, individuelle und effektive Invertierung
+- deutsche und englische Assistententexte sowie Regressionstests ergänzt
+
+
 
 ## 4.6.0-beta.2
 
