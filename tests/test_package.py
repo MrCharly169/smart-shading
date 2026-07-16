@@ -37,7 +37,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["name"], "Smart Shading")
         self.assertEqual(const.CARD_RESOURCE, "/smart_shading/shading.js")
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
-        legacy = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        legacy = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
         self.assertNotIn("const VERSION =", card)
         self.assertIn('import "./shading.js"', legacy)
 
