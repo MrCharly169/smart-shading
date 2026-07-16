@@ -9,13 +9,15 @@
           "house_name": "House or area name",
           "advanced_mode": "Use advanced mode",
           "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation"
+          "evaluation_interval_minutes": "Periodic evaluation",
+          "invert_tilt_globally": "Invert slat direction for the entire installation"
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
           "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "Interval for the additional safety evaluation. Sensor changes still trigger an immediate evaluation. Default: 20 minutes."
+          "evaluation_interval_minutes": "Interval for the additional safety evaluation. Sensor changes still trigger an immediate evaluation. Default: 20 minutes.",
+          "invert_tilt_globally": "Enable when 0% and 100% arrive reversed on most blind actuators. A cover's individual option reverses this global mapping for that cover only."
         }
       },
       "global_settings": {
@@ -31,12 +33,14 @@
           "sunset_offset_minutes": "Sunset offset",
           "advanced_mode": "Advanced mode",
           "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation"
+          "evaluation_interval_minutes": "Periodic evaluation",
+          "invert_tilt_globally": "Invert slat direction for the entire installation"
         },
         "data_description": {
           "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
+          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes.",
+          "invert_tilt_globally": "Enable when 0% and 100% arrive reversed on most blind actuators. A cover's individual option reverses this global mapping for that cover only."
         }
       },
       "add_room": {
@@ -645,12 +649,14 @@
         "data": {
           "house_name": "House or area name",
           "advanced_mode": "Use advanced mode",
-          "diagnostic_level": "Diagnostic logging"
+          "diagnostic_level": "Diagnostic logging",
+          "invert_tilt_globally": "Invert slat direction for the entire installation"
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
           "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself.",
-          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision."
+          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
+          "invert_tilt_globally": "Enable when 0% and 100% arrive reversed on most blind actuators. A cover's individual option reverses this global mapping for that cover only."
         }
       },
       "global_settings": {
@@ -666,12 +672,14 @@
           "sunset_offset_minutes": "Sunset offset",
           "advanced_mode": "Advanced mode",
           "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation"
+          "evaluation_interval_minutes": "Periodic evaluation",
+          "invert_tilt_globally": "Invert slat direction for the entire installation"
         },
         "data_description": {
           "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
+          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes.",
+          "invert_tilt_globally": "Enable when 0% and 100% arrive reversed on most blind actuators. A cover's individual option reverses this global mapping for that cover only."
         }
       },
       "add_room": {
