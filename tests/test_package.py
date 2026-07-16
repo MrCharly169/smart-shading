@@ -362,5 +362,13 @@ class PackageTests(unittest.TestCase):
 
 
 
+    def test_advanced_dialog_preserves_scroll_and_sun_pulse_requires_geometry(self):
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        self.assertIn("previousScrollTop", card)
+        self.assertIn("dialog.scrollTop = previousScrollTop", card)
+        self.assertIn("item.sun_presence && item.geometry_active", card)
+
+
+
 if __name__ == "__main__":
     unittest.main()

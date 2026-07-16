@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Card und Advanced View
+
+- Scrollposition der geöffneten Advanced View bleibt bei Home-Assistant-Live-Updates erhalten
+- Sun-Pulse wird nur noch gezeigt, wenn Sun Presence ON und die Sektorgeometrie gleichzeitig aktiv sind
+- Runtime-Regressionstests für beide Aktualisierungsfälle ergänzt
+
 ### Lamellenrichtung
 
 - globale Option ergänzt, um die Lamellenrichtung einer gesamten Installation zwischen 0 % und 100 % zu invertieren
