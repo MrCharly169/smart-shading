@@ -4,6 +4,11 @@
 
 ### Repository, Frontend und Releases
 
+- manuellen Release-Trigger mit klarer Auswahl zwischen Beta (`develop`) und Stable (`main`) ergänzt
+- Beta-Versionen werden als GitHub-Prerelease, Stable-Versionen als aktuelles Release veröffentlicht
+- Branch, SemVer, Changelog, Bestätigung und doppelte Tags werden vor jeder Veröffentlichung geprüft
+- HACS bietet nur veröffentlichte Versionen und keine unversionierten Branch-Snapshots an
+- englische und deutsche Dokumentation um Beta-/Stable- und HACS-Testablauf erweitert
 - kanonische Dashboard-Ressource auf die dauerhaft stabile URL `/smart_shading/shading.js` umgestellt
 - Versionsparameter aus der Resource-URL entfernt; Home Assistant muss bei Upgrades nicht mehr angepasst werden
 - bisherige `smart-shading-card.js` bleibt als Kompatibilitäts-Loader erhalten
