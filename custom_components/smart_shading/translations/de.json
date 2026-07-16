@@ -4,25 +4,38 @@
     "step": {
       "user": {
         "title": "Smart Shading einrichten",
-        "description": "Voraussetzung: Die Home-Assistant-Sonnenintegration und die Entität `sun.sun` müssen vorhanden und verfügbar sein. Smart Shading verwendet sie automatisch für Sonnenrichtung und Sonnenhöhe. Fehlt die Entität, zeigt der Assistent einen konkreten Fehler und beendet die Einrichtung nicht.",
+        "description": "Voraussetzung: Die Entität `sun.sun` muss vorhanden und verfügbar sein. Wähle Easy für eine kurze Einrichtung mit sicheren Standardwerten oder Advanced für alle technischen Einstellungen.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
-          "advanced_mode": "Erweiterten Modus verwenden",
-          "diagnostic_level": "Diagnoseprotokoll",
-          "evaluation_interval_minutes": "Regelmäßige Prüfung",
-          "invert_tilt_globally": "Lamellenrichtung für die gesamte Installation invertieren"
+          "advanced_mode": "Erweiterten Modus verwenden"
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
-          "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert.",
-          "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
-          "evaluation_interval_minutes": "Intervall der zusätzlichen Sicherheitsprüfung. Sensoränderungen lösen weiterhin sofort eine Auswertung aus. Standard: 20 Minuten.",
-          "invert_tilt_globally": "Aktivieren, wenn 0 % und 100 % bei den meisten Jalousieaktoren vertauscht ankommen. Die individuelle Option eines Behanges kehrt diese globale Zuordnung nur für diesen Behang wieder um."
+          "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert."
+        }
+      },
+      "initial_advanced": {
+        "title": "Advanced: globale Einstellungen",
+        "description": "Diese technischen Werte erscheinen nur im Advanced-Setup. Sensoränderungen lösen weiterhin sofort eine Auswertung aus; das Intervall ist eine zusätzliche Sicherheitsprüfung.",
+        "data": {
+          "diagnostic_level": "Diagnoseprotokoll",
+          "evaluation_interval_minutes": "Regelmäßige Prüfung",
+          "invert_tilt_globally": "Lamellenrichtung global invertieren",
+          "position_tolerance": "Toleranz für Behangposition",
+          "tilt_tolerance": "Toleranz für Lamellenöffnung",
+          "command_cooldown": "Sperrzeit für identische Befehle",
+          "unknown_feedback_policy": "Verhalten ohne Positionsrückmeldung",
+          "evening_release_time": "Feste späteste Abendfreigabe",
+          "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang"
+        },
+        "data_description": {
+          "diagnostic_level": "Ereignisse ist der empfohlene Beta-Standard. Vollständig protokolliert jede Auswertung.",
+          "invert_tilt_globally": "Bei vertauschter 0-%-/100-%-Lamellenrichtung aktivieren. Die individuelle Cover-Option wirkt als Gegeninvertierung."
         }
       },
       "global_settings": {
         "title": "Allgemeine Einstellungen",
-        "description": "Das Prüfintervall ist immer einstellbar. Weitere technische Werte erscheinen nur im erweiterten Modus.",
+        "description": "Im Easy Mode wird nur der Moduswechsel gezeigt. Nach dem Aktivieren von Advanced öffnet sich diese Seite erneut mit Diagnose- und technischen Einstellungen.",
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
@@ -291,11 +304,13 @@
           "heat_fail_safe": "Aktiven Heat-Modus bei Sensorausfall halten",
           "heat_requires_sun": "Heat Protection nur bei Sonne starten",
           "comfort_requires_occupancy": "Comfort nur bei Belegung",
+          "external_movement_detection": "Externe Coverbewegungen automatisch erkennen",
           "safety_behavior": "Safety-Reaktion",
           "normal_shading_temperature": "Normale Beschattung ab"
         },
         "data_description": {
-          "normal_shading_temperature": "Ab dieser Raumtemperatur fährt die Außenjalousie bei Sonne vollständig herunter und führt die Lamellen adaptiv."
+          "normal_shading_temperature": "Ab dieser Raumtemperatur fährt die Außenjalousie bei Sonne vollständig herunter und führt die Lamellen adaptiv.",
+          "external_movement_detection": "Standardmäßig AUS. Aktivieren, wenn KNX-, Wand- oder andere externe Fahrten nach Bestätigung automatisch eine lokale Cover-Pause starten sollen."
         }
       },
       "select_sector": {
@@ -586,8 +601,8 @@
         }
       },
       "compact_room": {
-        "title": "Raum, Sensorik und Grundverhalten",
-        "description": "Richte den Raum in einem Schritt ein. Temperatursensoren, Safety-Sensoren und Außentemperatur sind optional. Der Zeitplan gibt nur die grundsätzliche Freigabe; Sonnenstand, Lux und Temperatur entscheiden über die tatsächliche Fahrt.",
+        "title": "Raum einrichten",
+        "description": "Easy fragt nur die Kernwerte ab und verwendet sichere Standardwerte. Advanced zeigt zusätzliche Sensoren, Zeitplan, Pause und die bestätigte Erkennung externer Coverbewegungen.",
         "data": {
           "name": "Raumname",
           "indoor_temperature": "Raumtemperatur (optional)",
@@ -595,7 +610,13 @@
           "safety_blockers": "Wind-, Frost- oder Regensensoren (optional)",
           "schedule_profile": "Aktivitätszeitraum",
           "default_pause_mode": "Standardaktion beim Pausieren",
-          "heat_during_pause": "Heat Protection trotz Pause erlauben"
+          "heat_during_pause": "Heat Protection trotz Pause erlauben",
+          "irradiance_sensor": "Globaler Einstrahlungssensor (optional)",
+          "cloud_cover_sensor": "Bewölkungssensor (optional)",
+          "weather_permission": "Wetter-/API-Freigabe (optional)",
+          "glare_sensor": "Blendsensor (optional)",
+          "occupancy_sensor": "Belegungssensor (optional)",
+          "external_movement_detection": "Externe Coverbewegungen automatisch erkennen"
         },
         "data_description": {
           "safety_blockers": "Mehrfachauswahl möglich. ON bedeutet normalerweise Gefahr aktiv.",
@@ -615,13 +636,22 @@
       },
       "compact_sector": {
         "title": "Sonnensektor und Lux-Sensor",
-        "description": "Wähle die Fassadenrichtung und optional einen Lux-Sensor. Der Name und das Kürzel erscheinen später in Card und Entitäten. Empfindlich bedeutet einen niedrigeren Lux-Schwellwert.",
+        "description": "Easy benötigt nur Himmelsrichtung und Lux-Sensor. Name, Geometrie, Hysterese und Verzögerungen erhalten sichere Vorgaben. Advanced bietet die vollständige Abstimmung.",
         "data": {
           "direction": "Himmelsrichtung",
           "name": "Anzeigename des Sektors",
           "short": "Kürzel",
           "lux_sensor": "Lux-Sensor (optional)",
           "sun_preset": "Sun-Presence-Empfindlichkeit"
+        }
+      },
+      "compact_sector_geometry": {
+        "title": "Advanced: Sektorgeometrie",
+        "description": "Prüfe oder ändere den vom Fassaden-Preset übernommenen Sonnenbereich.",
+        "data": {
+          "azimuth_start": "Azimut Start",
+          "azimuth_end": "Azimut Ende",
+          "elevation_min": "Minimale Sonnenhöhe"
         }
       },
       "compact_sun_custom": {
@@ -636,7 +666,7 @@
       },
       "compact_layer": {
         "title": "Behanggruppe und Covers",
-        "description": "Wähle den Behangtyp und füge mehrere Covers gleichzeitig hinzu. Für Außenjalousien gilt automatisch: Sonnenschutz vollständig herunter mit adaptiven Lamellen; Heat vollständig geschlossen.",
+        "description": "Easy benötigt nur Behangtyp und Covers. Gruppenname und Lamellenprofil werden automatisch gesetzt. Advanced kann diese Vorgaben direkt anpassen.",
         "data": {
           "name": "Name der Behanggruppe",
           "profile": "Behangtyp",
@@ -660,14 +690,17 @@
       },
       "compact_cover_details": {
         "title": "Cover {current} von {count}: Details",
-        "description": "Lege einen kurzen Anzeigenamen fest. Fensterkontakt und Automatiksperre sind optional, werden aber direkt in der Card und Steuerungslogik berücksichtigt. Ausgewählt: {entity_name}",
+        "description": "Easy fragt pro Cover nur optionale Manuellsperre und Fensterkontakt ab. Name, sicherer Fensterzustand und technische Coverwerte erhalten Vorgaben. Ausgewählt: {entity_name}",
         "data": {
           "name": "Anzeigename",
           "short": "Kürzel",
           "lock": "Automatik-/Manuellsperre (optional)",
           "window": "Fensterkontakt (optional)",
           "window_safe_state": "Sicherer Fensterzustand",
-          "window_policy": "Verhalten bei unsicherem Fenster"
+          "window_policy": "Verhalten bei unsicherem Fenster",
+          "max_open_position": "Maximale Öffnungsposition",
+          "invert_position": "Behangposition invertieren",
+          "invert_tilt": "Lamellenrichtung für dieses Cover invertieren"
         },
         "data_description": {
           "window": "Beispiel: Fenster geschlossen. Der sichere Zustand wird darunter festgelegt.",
@@ -714,7 +747,7 @@
       },
       "global_settings": {
         "title": "Allgemeine Einstellungen",
-        "description": "Das Prüfintervall ist immer einstellbar. Weitere technische Werte erscheinen nur im erweiterten Modus.",
+        "description": "Im Easy Mode wird nur der Moduswechsel gezeigt. Nach dem Aktivieren von Advanced öffnet sich diese Seite erneut mit Diagnose- und technischen Einstellungen.",
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
@@ -983,11 +1016,13 @@
           "heat_fail_safe": "Aktiven Heat-Modus bei Sensorausfall halten",
           "heat_requires_sun": "Heat Protection nur bei Sonne starten",
           "comfort_requires_occupancy": "Comfort nur bei Belegung",
+          "external_movement_detection": "Externe Coverbewegungen automatisch erkennen",
           "safety_behavior": "Safety-Reaktion",
           "normal_shading_temperature": "Normale Beschattung ab"
         },
         "data_description": {
-          "normal_shading_temperature": "Ab dieser Raumtemperatur fährt die Außenjalousie bei Sonne vollständig herunter und führt die Lamellen adaptiv."
+          "normal_shading_temperature": "Ab dieser Raumtemperatur fährt die Außenjalousie bei Sonne vollständig herunter und führt die Lamellen adaptiv.",
+          "external_movement_detection": "Standardmäßig AUS. Aktivieren, wenn KNX-, Wand- oder andere externe Fahrten nach Bestätigung automatisch eine lokale Cover-Pause starten sollen."
         }
       },
       "select_sector": {

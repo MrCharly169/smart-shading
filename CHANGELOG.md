@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Easy und Advanced Setup
+
+- Erstassistent klar getrennt: Easy zeigt nur Kernangaben, Advanced erhält eine eigene Seite für Diagnose und technische globale Werte
+- Easy verwendet feste sichere Vorgaben für Saison, Pause, Sun-Presence-Hysterese, Geometrie, Lamellenprofil und Coverdetails
+- Lux-Sensor ist im kompakten Kundenpfad eine explizite Pflichtangabe
+- Advanced Setup ergänzt vollständige Sektorgeometrie sowie zusätzliche Raum-, Wetter- und Belegungssensoren
+- bestätigte externe Coverbewegung ist als ausdrückliche Advanced-Raumoption verfügbar und bleibt standardmäßig deaktiviert
+- Raum-, Sektor- und Behanggruppen-Menüs blenden Expertenkategorien im Easy Mode aus; die Raumnavigation bleibt flach
+
 ### Card und Advanced View
 
 - Scrollposition der geöffneten Advanced View bleibt bei Home-Assistant-Live-Updates erhalten
