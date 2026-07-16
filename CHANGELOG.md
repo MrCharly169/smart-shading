@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+
+### Heat Protection
+
+- Heat Protection mit aktivierter Sonnenpflicht verwendet die kombinierte Sun Presence aller aktivierten Sektoren eines Raums
+- ein Sektor mit bestätigter Sun Presence genügt für den gesamten Raum
+- beim Ausschalten des letzten aktiven Sektors wird Heat Protection sofort neu bewertet und freigegeben
+- deaktivierte Sektoren sowie ungültige oder nicht verfügbare Luxwerte zählen nicht als bestätigte Sonne
+- bei deaktivierter Sonnenpflicht bleibt das bisherige rein temperaturbasierte Verhalten erhalten
+
+
 ### Repository, Frontend und Releases
 
 - kanonische Dashboard-Ressource auf die dauerhaft stabile URL `/smart_shading/shading.js` umgestellt
