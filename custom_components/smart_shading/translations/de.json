@@ -9,13 +9,15 @@
           "house_name": "Name des Hauses oder Bereichs",
           "advanced_mode": "Erweiterten Modus verwenden",
           "diagnostic_level": "Diagnoseprotokoll",
-          "evaluation_interval_minutes": "Regelmäßige Prüfung"
+          "evaluation_interval_minutes": "Regelmäßige Prüfung",
+          "invert_tilt_globally": "Lamellenrichtung für die gesamte Installation invertieren"
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
           "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
-          "evaluation_interval_minutes": "Intervall der zusätzlichen Sicherheitsprüfung. Sensoränderungen lösen weiterhin sofort eine Auswertung aus. Standard: 20 Minuten."
+          "evaluation_interval_minutes": "Intervall der zusätzlichen Sicherheitsprüfung. Sensoränderungen lösen weiterhin sofort eine Auswertung aus. Standard: 20 Minuten.",
+          "invert_tilt_globally": "Aktivieren, wenn 0 % und 100 % bei den meisten Jalousieaktoren vertauscht ankommen. Die individuelle Option eines Behanges kehrt diese globale Zuordnung nur für diesen Behang wieder um."
         }
       },
       "global_settings": {
@@ -31,7 +33,8 @@
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
           "advanced_mode": "Erweiterter Modus",
           "diagnostic_level": "Diagnoseprotokoll",
-          "evaluation_interval_minutes": "Regelmäßige Prüfung"
+          "evaluation_interval_minutes": "Regelmäßige Prüfung",
+          "invert_tilt_globally": "Lamellenrichtung für die gesamte Installation invertieren"
         },
         "data_description": {
           "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Positionsbefehl gesendet.",
@@ -41,7 +44,8 @@
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
           "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
-          "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
+          "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten.",
+          "invert_tilt_globally": "Aktivieren, wenn 0 % und 100 % bei den meisten Jalousieaktoren vertauscht ankommen. Die individuelle Option eines Behanges kehrt diese globale Zuordnung nur für diesen Behang wieder um."
         }
       },
       "add_room": {
@@ -698,12 +702,14 @@
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
           "advanced_mode": "Erweiterten Modus verwenden",
-          "diagnostic_level": "Diagnoseprotokoll"
+          "diagnostic_level": "Diagnoseprotokoll",
+          "invert_tilt_globally": "Lamellenrichtung für die gesamte Installation invertieren"
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
           "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert.",
-          "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung."
+          "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
+          "invert_tilt_globally": "Aktivieren, wenn 0 % und 100 % bei den meisten Jalousieaktoren vertauscht ankommen. Die individuelle Option eines Behanges kehrt diese globale Zuordnung nur für diesen Behang wieder um."
         }
       },
       "global_settings": {
@@ -719,7 +725,8 @@
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
           "advanced_mode": "Erweiterter Modus",
           "diagnostic_level": "Diagnoseprotokoll",
-          "evaluation_interval_minutes": "Regelmäßige Prüfung"
+          "evaluation_interval_minutes": "Regelmäßige Prüfung",
+          "invert_tilt_globally": "Lamellenrichtung für die gesamte Installation invertieren"
         },
         "data_description": {
           "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Positionsbefehl gesendet.",
@@ -729,7 +736,8 @@
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
           "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
-          "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
+          "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten.",
+          "invert_tilt_globally": "Aktivieren, wenn 0 % und 100 % bei den meisten Jalousieaktoren vertauscht ankommen. Die individuelle Option eines Behanges kehrt diese globale Zuordnung nur für diesen Behang wieder um."
         }
       },
       "add_room": {
