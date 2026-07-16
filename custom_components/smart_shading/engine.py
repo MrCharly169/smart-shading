@@ -516,9 +516,26 @@ class SmartShadingEngine:
 
         sector = self._find_sector_by_lux(entity_id)
         if sector:
+            room = self._find_room_for_sector(sector["id"])
+            room_sun_before = (
+                self._room_heat_sun_present(room) if room is not None else False
+            )
             runtime = self.sun_runtime[sector["id"]]
             before = runtime.is_on
             await self._update_sun_presence(sector, now)
+            room_sun_after = (
+                self._room_heat_sun_present(room) if room is not None else False
+            )
+            if (
+                room is not None
+                and bool(room.get("heat_requires_sun", True))
+                and not room_sun_before
+                and room_sun_after
+            ):
+                await self.async_evaluate_all(
+                    f"heat_sun_presence:{room['id']}:{sector['id']}"
+                )
+                return
             if before != runtime.is_on:
                 self._diag(
                     "sun_presence_transition_deferred_to_interval",
@@ -554,6 +571,33 @@ class SmartShadingEngine:
                 if sector.get("lux_sensor") == entity_id:
                     return sector
         return None
+
+    def _find_room_for_sector(self, sector_id: str):
+        return next(
+            (
+                room
+                for room in self.config.get(CONF_ROOMS, [])
+                if any(
+                    str(sector.get("id")) == str(sector_id)
+                    for sector in room.get("sectors", [])
+                )
+            ),
+            None,
+        )
+
+    def _room_heat_sun_present(self, room: dict[str, Any]) -> bool:
+        """Return whether any enabled sector has valid active Sun Presence."""
+        for sector in room.get("sectors", []):
+            if not bool(self.sector_value(sector["id"], "enabled", True)):
+                continue
+            runtime = self.sun_runtime.get(sector["id"])
+            if (
+                runtime is not None
+                and runtime.is_on
+                and runtime.current_lux is not None
+            ):
+                return True
+        return False
 
     def _room_safety_active(self, room: dict[str, Any]) -> bool:
         return any(
@@ -1570,6 +1614,18 @@ class SmartShadingEngine:
         outdoor = _state_number(self.hass, outdoor_entity)
         outdoor_valid = outdoor is not None
         weather_pass, weather_failed = self._weather_pass(room)
+        outdoor_ok = not outdoor_entity or (
+            outdoor_valid
+            and outdoor
+            >= float(self.room_value(room["id"], "outdoor_minimum", 18.0))
+        )
+        heat_requires_sun = bool(room.get("heat_requires_sun", True))
+        room_sun_present = self._room_heat_sun_present(room)
+        heat_sun_pass = not heat_requires_sun or room_sun_present
+        heat_schedule_pass = schedule_active or bool(
+            room.get("heat_outside_schedule", True)
+        )
+        heat_weather_pass = bool(room.get("heat_ignores_weather", True)) or weather_pass
         self._diag(
             "room_inputs",
             full=True,
@@ -1584,27 +1640,28 @@ class SmartShadingEngine:
             pause_active=pause_active,
             weather_pass=weather_pass,
             weather_failed=list(weather_failed),
+            heat_requires_sun=heat_requires_sun,
+            heat_sun_present=room_sun_present,
+            heat_sun_pass=heat_sun_pass,
+            heat_schedule_pass=heat_schedule_pass,
+            heat_weather_pass=heat_weather_pass,
+            heat_outdoor_pass=outdoor_ok,
         )
 
         heat_start = float(
             self.room_value(room["id"], "heat_temperature", 27.0)
         )
-        heat_release = float(
-            self.room_value(room["id"], "heat_release_temperature", 26.0)
-        )
-        heat_requires_sun = bool(room.get("heat_requires_sun", True))
-
-        if runtime.heat_active:
-            if indoor_valid and indoor < heat_release:
-                runtime.heat_active = False
-            elif not indoor_valid and room.get("heat_fail_safe", True):
-                runtime.heat_active = True
-        elif (
+        if not runtime.heat_active and (
             indoor_valid
             and indoor >= heat_start
-            and (sun_up or not heat_requires_sun)
-            and (room.get("heat_ignores_weather", True) or weather_pass)
+            and heat_sun_pass
+            and heat_schedule_pass
+            and heat_weather_pass
+            and outdoor_ok
         ):
+            # Heat protection is latched for the day. Falling temperature or
+            # Sun Presence ending must not reopen covers and start another
+            # heat cycle later. Only the configured evening release clears it.
             runtime.heat_active = True
 
         if runtime.heat_active and self._evening_release_reached(now):
@@ -1690,9 +1747,7 @@ class SmartShadingEngine:
                 active_sectors.append(sector)
                 runtime.active_sectors.append(sector["name"])
 
-        if runtime.heat_active and (
-            schedule_active or room.get("heat_outside_schedule", True)
-        ):
+        if runtime.heat_active:
             runtime.mode = MODE_HEAT
             runtime.reason = "Heat threshold / hysteresis active"
             self._mark_room_sectors(room, status="heat", reason=runtime.reason, mode=MODE_HEAT, active=True)
@@ -1722,11 +1777,6 @@ class SmartShadingEngine:
             await self._save_room_runtime(runtime)
             return
 
-        outdoor_ok = not outdoor_entity or (
-            outdoor_valid
-            and outdoor
-            >= float(self.room_value(room["id"], "outdoor_minimum", 18.0))
-        )
         occupied = not room.get("occupancy_sensor") or _is_on(
             self.hass, room.get("occupancy_sensor", "")
         )
