@@ -204,6 +204,7 @@ class SmartShadingV4Dialog extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot || !this._roomState) return;
+    const previousScrollTop = this.shadowRoot.querySelector?.(".dialog")?.scrollTop || 0;
     const L = this._labels();
     const attrs = this._roomState.attributes || {};
     const configuration = attrs.configuration || {};
@@ -322,6 +323,8 @@ class SmartShadingV4Dialog extends HTMLElement {
         </main>
       </article>`;
 
+    const dialog = this.shadowRoot.querySelector?.(".dialog");
+    if (dialog) dialog.scrollTop = previousScrollTop;
     this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
     this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
   }
@@ -631,7 +634,9 @@ class SmartShadingV4Card extends HTMLElement {
     const anyLocalPause = asArray(attrs.cover_pauses).some((item) => item.active);
     const anyLock = covers.some((cover) => cover.lock && this._state(cover.lock)?.state === "on");
     const manualIntervention = Boolean(attrs.manual_master_active || anyLocalPause || anyLock);
-    const anySunPresence = asArray(attrs.sector_statuses).some((item) => item.sun_presence);
+    const anySunPresence = asArray(attrs.sector_statuses).some(
+      (item) => item.sun_presence && item.geometry_active
+    );
 
     const pauseButton = this._control(controls, "pause_default");
     const resumeButton = this._control(controls, "resume");
