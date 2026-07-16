@@ -4,25 +4,38 @@
     "step": {
       "user": {
         "title": "Set up Smart Shading",
-        "description": "Requirement: The Home Assistant Sun integration and the `sun.sun` entity must be present and available. Smart Shading uses it automatically for sun direction and elevation. If it is missing, the wizard shows a clear error and does not finish setup.",
+        "description": "Requirement: The `sun.sun` entity must exist and be available. Choose Easy for a short setup with safe defaults or Advanced for all technical settings.",
         "data": {
           "house_name": "House or area name",
-          "advanced_mode": "Use advanced mode",
-          "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation",
-          "invert_tilt_globally": "Invert slat direction for the entire installation"
+          "advanced_mode": "Use advanced mode"
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
-          "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself.",
-          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "Interval for the additional safety evaluation. Sensor changes still trigger an immediate evaluation. Default: 20 minutes.",
-          "invert_tilt_globally": "Enable when 0% and 100% arrive reversed on most blind actuators. A cover's individual option reverses this global mapping for that cover only."
+          "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself."
+        }
+      },
+      "initial_advanced": {
+        "title": "Advanced: global settings",
+        "description": "These technical values are shown only in Advanced setup. Sensor changes still trigger immediate evaluation; the interval is an additional safety check.",
+        "data": {
+          "diagnostic_level": "Diagnostic logging",
+          "evaluation_interval_minutes": "Periodic evaluation",
+          "invert_tilt_globally": "Invert slat direction globally",
+          "position_tolerance": "Cover position tolerance",
+          "tilt_tolerance": "Slat opening tolerance",
+          "command_cooldown": "Duplicate-command cooldown",
+          "unknown_feedback_policy": "Behavior without position feedback",
+          "evening_release_time": "Latest fixed evening release",
+          "sunset_offset_minutes": "Sunset offset"
+        },
+        "data_description": {
+          "diagnostic_level": "Events is the recommended beta default. Full records every evaluation.",
+          "invert_tilt_globally": "Enable for reversed 0%/100% slat direction. The individual cover option acts as a counter-inversion."
         }
       },
       "global_settings": {
         "title": "General settings",
-        "description": "The evaluation interval is always adjustable. Other technical values appear only in advanced mode.",
+        "description": "Easy mode shows only the mode switch. After enabling Advanced, this page opens again with diagnostics and technical settings.",
         "data": {
           "sun_entity": "Sun entity",
           "position_tolerance": "Cover position tolerance",
@@ -252,11 +265,13 @@
           "heat_fail_safe": "Keep active heat mode on sensor failure",
           "heat_requires_sun": "Require sun to start heat protection",
           "comfort_requires_occupancy": "Comfort only while occupied",
+          "external_movement_detection": "Automatically detect external cover movement",
           "safety_behavior": "Safety response",
           "normal_shading_temperature": "Normal shading from"
         },
         "data_description": {
-          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun."
+          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun.",
+          "external_movement_detection": "Off by default. Enable when confirmed KNX, wall-switch or other external movement should automatically start a local cover pause."
         }
       },
       "select_sector": {
@@ -541,8 +556,8 @@
         }
       },
       "compact_room": {
-        "title": "Room, sensors and core behavior",
-        "description": "Configure the room on one page. Temperature, safety and outdoor sensors are optional. The schedule only grants permission; sun position, lux and temperature determine actual movement.",
+        "title": "Set up room",
+        "description": "Easy asks only for core values and uses safe defaults. Advanced adds sensors, schedule, pause and confirmed external-cover-movement detection.",
         "data": {
           "name": "Room name",
           "indoor_temperature": "Room temperature (optional)",
@@ -550,7 +565,13 @@
           "safety_blockers": "Wind, frost or rain sensors (optional)",
           "schedule_profile": "Active period",
           "default_pause_mode": "Default pause action",
-          "heat_during_pause": "Allow heat protection during pause"
+          "heat_during_pause": "Allow heat protection during pause",
+          "irradiance_sensor": "Global irradiance sensor (optional)",
+          "cloud_cover_sensor": "Cloud cover sensor (optional)",
+          "weather_permission": "Weather/API permission (optional)",
+          "glare_sensor": "Glare sensor (optional)",
+          "occupancy_sensor": "Occupancy sensor (optional)",
+          "external_movement_detection": "Automatically detect external cover movement"
         }
       },
       "compact_schedule_custom": {
@@ -566,13 +587,22 @@
       },
       "compact_sector": {
         "title": "Sun sector and lux sensor",
-        "description": "Select the facade direction and optionally a lux sensor. Name and abbreviation are used in the card and entities. Sensitive means a lower lux threshold.",
+        "description": "Easy requires only facade direction and a lux sensor. Name, geometry, hysteresis and delays use safe defaults. Advanced offers full tuning.",
         "data": {
           "direction": "Compass direction",
           "name": "Sector display name",
           "short": "Abbreviation",
           "lux_sensor": "Lux sensor (optional)",
           "sun_preset": "Sun Presence sensitivity"
+        }
+      },
+      "compact_sector_geometry": {
+        "title": "Advanced: sector geometry",
+        "description": "Review or change the sun range inherited from the facade preset.",
+        "data": {
+          "azimuth_start": "Azimuth start",
+          "azimuth_end": "Azimuth end",
+          "elevation_min": "Minimum sun elevation"
         }
       },
       "compact_sun_custom": {
@@ -587,7 +617,7 @@
       },
       "compact_layer": {
         "title": "Cover group and covers",
-        "description": "Select the cover type and add multiple covers at once. Exterior venetian blinds automatically use fully lowered adaptive shading and fully closed heat protection.",
+        "description": "Easy requires only cover type and covers. Group name and slat profile are selected automatically. Advanced can tune them immediately.",
         "data": {
           "name": "Cover group name",
           "profile": "Cover type",
@@ -611,14 +641,17 @@
       },
       "compact_cover_details": {
         "title": "Cover {current} of {count}: details",
-        "description": "Choose a short display name. Window contact and automation lock are optional but used by both card and control logic. Selected: {entity_name}",
+        "description": "Easy asks only for the optional manual lock and window contact per cover. Names, safe window state and technical values use defaults. Selected: {entity_name}",
         "data": {
           "name": "Display name",
           "short": "Abbreviation",
           "lock": "Automation/manual lock (optional)",
           "window": "Window contact (optional)",
           "window_safe_state": "Safe window state",
-          "window_policy": "Behavior when window is unsafe"
+          "window_policy": "Behavior when window is unsafe",
+          "max_open_position": "Maximum open position",
+          "invert_position": "Invert cover position",
+          "invert_tilt": "Invert slat direction for this cover"
         }
       }
     },
@@ -661,7 +694,7 @@
       },
       "global_settings": {
         "title": "General settings",
-        "description": "The evaluation interval is always adjustable. Other technical values appear only in advanced mode.",
+        "description": "Easy mode shows only the mode switch. After enabling Advanced, this page opens again with diagnostics and technical settings.",
         "data": {
           "sun_entity": "Sun entity",
           "position_tolerance": "Cover position tolerance",
@@ -891,11 +924,13 @@
           "heat_fail_safe": "Keep active heat mode on sensor failure",
           "heat_requires_sun": "Require sun to start heat protection",
           "comfort_requires_occupancy": "Comfort only while occupied",
+          "external_movement_detection": "Automatically detect external cover movement",
           "safety_behavior": "Safety response",
           "normal_shading_temperature": "Normal shading from"
         },
         "data_description": {
-          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun."
+          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun.",
+          "external_movement_detection": "Off by default. Enable when confirmed KNX, wall-switch or other external movement should automatically start a local cover pause."
         }
       },
       "select_sector": {
