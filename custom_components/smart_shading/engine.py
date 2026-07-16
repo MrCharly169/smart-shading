@@ -2010,24 +2010,6 @@ class SmartShadingEngine:
         default_position = float(defaults.get(key, defaults.get("open_position", 100.0)))
         return value(key, default_position), None
 
-    def _tilt_command_value(
-        self, cover: dict[str, Any], target_tilt: float | None
-    ) -> float | None:
-        """Map a logical HA tilt target to the configured actuator direction.
-
-        Smart Shading keeps Home Assistant's logical convention internally:
-        0 is closed and 100 is open. A global inversion adapts installations
-        whose actuators use the opposite direction. The per-cover inversion is
-        XORed with that global mapping so one exceptional blind can be flipped
-        back without changing every other cover.
-        """
-        if target_tilt is None:
-            return None
-        invert = bool(self.config.get("invert_tilt_globally", False)) != bool(
-            cover.get("invert_tilt", False)
-        )
-        return 100.0 - target_tilt if invert else target_tilt
-
     async def _apply_cover(
         self,
         room: dict[str, Any],
@@ -2088,11 +2070,9 @@ class SmartShadingEngine:
             if cover.get("invert_position", False)
             else target_position
         )
-        displayed_tilt = self._tilt_command_value(cover, target_tilt)
-        global_tilt_inverted = bool(
-            self.config.get("invert_tilt_globally", False)
-        )
-        individual_tilt_inverted = bool(cover.get("invert_tilt", False))
+        displayed_tilt = target_tilt
+        if target_tilt is not None and cover.get("invert_tilt", False):
+            displayed_tilt = 100.0 - target_tilt
 
         target_record = {
             "entity_id": entity_id,
@@ -2103,11 +2083,6 @@ class SmartShadingEngine:
             "command_position": displayed_position,
             "tilt": target_tilt,
             "command_tilt": displayed_tilt,
-            "global_tilt_inverted": global_tilt_inverted,
-            "individual_tilt_inverted": individual_tilt_inverted,
-            "effective_tilt_inverted": (
-                global_tilt_inverted != individual_tilt_inverted
-            ),
             "sector": sector["name"],
             "sector_id": sector["id"],
             "layer": layer["name"],

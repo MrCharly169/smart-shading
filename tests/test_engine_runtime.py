@@ -716,30 +716,5 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
 
 
-    async def test_global_and_individual_slat_inversion_use_xor_mapping(self):
-        cover = base_config()["rooms"][0]["sectors"][0]["layers"][0]["covers"][0]
-        cases = (
-            (False, False, 0.0, 0.0),
-            (True, False, 0.0, 100.0),
-            (False, True, 0.0, 100.0),
-            (True, True, 0.0, 0.0),
-            (True, False, 35.0, 65.0),
-        )
-        for global_inverted, individual_inverted, target, expected in cases:
-            with self.subTest(
-                global_inverted=global_inverted,
-                individual_inverted=individual_inverted,
-                target=target,
-            ):
-                self.engine.config["invert_tilt_globally"] = global_inverted
-                cover["invert_tilt"] = individual_inverted
-                self.assertEqual(
-                    self.engine._tilt_command_value(cover, target),
-                    expected,
-                )
-        self.assertIsNone(self.engine._tilt_command_value(cover, None))
-
-
-
 if __name__ == "__main__":
     unittest.main()
