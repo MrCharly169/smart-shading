@@ -45,10 +45,20 @@ Do not remove a regression test merely to make a change pass.
 
 ## Releases
 
-1. Move completed entries from `Unreleased` into a section matching the release version.
-2. Update `manifest.json` once.
-3. Validate locally.
-4. Merge through the normal review flow.
-5. Tag the release commit with `v<manifest-version>`.
+### Beta channel
 
-The release workflow rejects mismatched tags, reruns validation, builds the ZIP, and publishes the GitHub release automatically.
+1. Merge tested feature and fix PRs into `develop`.
+2. Move completed changelog entries into `## X.Y.Z-beta.N`.
+3. Set the manifest to the same `X.Y.Z-beta.N` version.
+4. Merge that release preparation into `develop`.
+5. Run the Release workflow on `develop`, choose `beta`, and confirm the exact version.
+
+### Stable channel
+
+1. Promote the tested state from `develop` to `main` through a PR.
+2. Prepare a stable `## X.Y.Z` changelog section and matching manifest version.
+3. Run the Release workflow on `main`, choose `stable`, and confirm the exact version.
+
+The workflow enforces channel-specific branches and SemVer formats, rejects existing tags, runs all validation, creates the tag, builds the recovery ZIP, and publishes either a GitHub prerelease or latest stable release. Release tags are immutable and must not be created manually.
+
+HACS uses only published releases because `hide_default_branch` is enabled. Beta testers opt into prereleases; production installations stay on stable releases. The repository must remain publicly readable even while it is used only as a custom, non-catalogued HACS repository.
