@@ -454,6 +454,7 @@ class _SmartShadingWizardMixin:
                 DIAGNOSTIC_OPTIONS, "diagnostic_level"
             ),
             vol.Required("evaluation_interval_minutes"): _number(1, 60, 1, "min"),
+            vol.Required("invert_tilt_globally"): selector.BooleanSelector(),
         }
         if self.advanced_mode:
             fields.update(
@@ -1720,6 +1721,9 @@ class SmartShadingConfigFlow(
                     "unknown_feedback_policy": "send",
                     "evening_release_time": DEFAULT_EVENING_RELEASE_TIME,
                     "sunset_offset_minutes": DEFAULT_SUNSET_OFFSET_MINUTES,
+                    "invert_tilt_globally": bool(
+                        user_input["invert_tilt_globally"]
+                    ),
                     CONF_ROOMS: [],
                 }
                 self._room_id = None
@@ -1742,6 +1746,7 @@ class SmartShadingConfigFlow(
                         DIAGNOSTIC_OPTIONS, "diagnostic_level"
                     ),
                     vol.Required("evaluation_interval_minutes", default=20): _number(1, 60, 1, "min"),
+                    vol.Required("invert_tilt_globally", default=False): selector.BooleanSelector(),
                 }
             ),
             errors=errors,
