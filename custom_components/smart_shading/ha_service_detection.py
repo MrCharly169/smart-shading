@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -32,6 +33,19 @@ MANUAL_COVER_SERVICES = {
     "stop_cover_tilt",
     "set_cover_tilt_position",
 }
+
+
+@dataclass(slots=True)
+class PendingManualServiceIntent:
+    """One explicit HA cover command awaiting feedback from the same entity."""
+
+    entity_id: str
+    room_id: str
+    cover_id: str
+    service: str
+    created_at: datetime
+    requested_entity_ids: tuple[str, ...]
+    context_id: str | None
 
 
 class HomeAssistantServiceDetectionMixin:
@@ -106,8 +120,64 @@ class HomeAssistantServiceDetectionMixin:
             return state.state in {"opening", "closing"}
         return service == "toggle"
 
+    def _manual_service_intents(self) -> dict[str, PendingManualServiceIntent]:
+        intents = getattr(self, "_pending_manual_service_intents", None)
+        if intents is None:
+            intents = {}
+            self._pending_manual_service_intents = intents
+        return intents
+
+    @staticmethod
+    def _state_value(state, key: str) -> float | None:
+        if state is None:
+            return None
+        value = state.attributes.get(key)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _state_change_confirms_manual_intent(self, old_state, new_state) -> bool:
+        """Confirm that the exact service target produced real cover feedback."""
+        if old_state is None or new_state is None:
+            return False
+        if getattr(old_state, "state", None) in {
+            "unknown",
+            "unavailable",
+            "none",
+            "",
+        }:
+            return False
+        if getattr(new_state, "state", None) in {
+            "unknown",
+            "unavailable",
+            "none",
+            "",
+        }:
+            return False
+
+        if getattr(old_state, "state", None) != getattr(new_state, "state", None):
+            if getattr(new_state, "state", None) in {
+                "opening",
+                "closing",
+                "open",
+                "closed",
+            }:
+                return True
+
+        for key in ("current_position", "current_tilt_position"):
+            before = self._state_value(old_state, key)
+            after = self._state_value(new_state, key)
+            if (
+                before is not None
+                and after is not None
+                and abs(after - before) >= 0.5
+            ):
+                return True
+        return False
+
     async def _async_cover_service_called(self, event) -> None:
-        """Pause covers moved by a user, script, or external HA automation."""
+        """Record external HA cover intent; pause only after that entity moves."""
         if event.data.get(ATTR_DOMAIN) != "cover":
             return
         service = str(event.data.get(ATTR_SERVICE) or "")
@@ -125,30 +195,83 @@ class HomeAssistantServiceDetectionMixin:
             return
 
         service_data = dict(event.data.get(ATTR_SERVICE_DATA) or {})
-        affected_safety_rooms: set[str] = set()
-        for entity_id in self._service_entity_ids(service_data):
+        requested = tuple(dict.fromkeys(self._service_entity_ids(service_data)))
+        context_id = getattr(context, "id", None)
+        now = dt_util.now()
+        intents = self._manual_service_intents()
+
+        for entity_id in requested:
             match = self._find_cover_by_entity(entity_id)
             if not match or not self._service_requests_movement(
                 service, service_data, entity_id
             ):
                 continue
             room, cover = match
-            await self._activate_cover_pause(
-                room, cover, "home_assistant_manual_service"
+            intents[entity_id] = PendingManualServiceIntent(
+                entity_id=entity_id,
+                room_id=str(room["id"]),
+                cover_id=self._cover_id(cover),
+                service=service,
+                created_at=now,
+                requested_entity_ids=requested,
+                context_id=context_id,
             )
             self._diag(
-                "manual_cover_service_detected",
+                "manual_cover_service_intent",
+                force=True,
                 room_id=room["id"],
+                cover=cover.get("name", entity_id),
                 entity_id=entity_id,
                 service=service,
+                requested_entity_ids=list(requested),
+                context_id=context_id,
             )
-            if self._room_safety_active(room):
-                affected_safety_rooms.add(room["id"])
 
-        for room_id in affected_safety_rooms:
-            await self.async_evaluate_all(
-                f"safety_manual_cover_service:{room_id}"
-            )
+    async def _async_state_changed(self, event) -> None:
+        entity_id = str(event.data.get("entity_id") or "")
+        intents = self._manual_service_intents()
+        intent = intents.get(entity_id)
+        if intent is not None:
+            now = dt_util.now()
+            if (now - intent.created_at).total_seconds() > 15.0:
+                intents.pop(entity_id, None)
+                self._diag(
+                    "manual_cover_service_intent_expired",
+                    force=True,
+                    entity_id=entity_id,
+                    service=intent.service,
+                )
+            elif self._state_change_confirms_manual_intent(
+                event.data.get("old_state"), event.data.get("new_state")
+            ):
+                intents.pop(entity_id, None)
+                match = self._find_cover_by_entity(entity_id)
+                if match:
+                    room, cover = match
+                    if (
+                        str(room["id"]) == intent.room_id
+                        and self._cover_id(cover) == intent.cover_id
+                    ):
+                        await self._activate_cover_pause(
+                            room, cover, "home_assistant_manual_service"
+                        )
+                        self._diag(
+                            "manual_cover_service_detected",
+                            force=True,
+                            room_id=room["id"],
+                            cover=cover.get("name", entity_id),
+                            entity_id=entity_id,
+                            service=intent.service,
+                            requested_entity_ids=list(intent.requested_entity_ids),
+                            context_id=intent.context_id,
+                        )
+                        if self._room_safety_active(room):
+                            await self.async_evaluate_all(
+                                f"safety_manual_cover_service:{room['id']}"
+                            )
+                        return
+
+        await super()._async_state_changed(event)
 
     def _configured_cover_pause_until(
         self, room: dict[str, Any], now: datetime
