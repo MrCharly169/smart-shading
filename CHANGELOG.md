@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.2
+
 ### Heat Protection
 
 - Heat Protection mit aktivierter Sonnenpflicht verwendet die kombinierte Sun Presence aller aktivierten Sektoren eines Raums
