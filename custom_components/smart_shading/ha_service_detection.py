@@ -208,8 +208,10 @@ class HomeAssistantServiceDetectionMixin:
                 context_id=context_id,
             )
 
-    async def async_resume_room(self, room_id: str) -> None:
-        """Resume the room and clear every local cover pause and lock."""
+    async def _async_room_pause_state_changed(
+        self, room_id: str, paused: bool
+    ) -> None:
+        """Mirror a room pause to every configured cover manual entity."""
         now = dt_util.now()
         intents = self._manual_service_intents()
 
@@ -219,33 +221,39 @@ class HomeAssistantServiceDetectionMixin:
 
             entity_id = str(cover.get("entity") or "")
             intents.pop(entity_id, None)
-            pause = self.cover_pauses.get(self._cover_id(cover))
-            if pause and pause.active:
-                await self._clear_cover_pause(
-                    room, cover, unlock=True, evaluate=False
-                )
-                continue
-
-            # A configured lock may still be ON after an interrupted restart or
-            # a stale external update even when no active pause is persisted.
-            # An explicit room resume means the user wants automation restored,
-            # so clear that lock as well.
             lock = str(cover.get("lock") or "")
-            if lock and self.hass.states.is_state(lock, STATE_ON):
-                domain = lock.split(".", 1)[0] if "." in lock else ""
-                if domain in {"switch", "input_boolean"}:
-                    self._owned_lock_changes[lock] = ("off", now)
+            domain = lock.split(".", 1)[0] if "." in lock else ""
+
+            if paused:
+                if (
+                    lock
+                    and domain in {"switch", "input_boolean"}
+                ):
+                    self._owned_lock_changes[lock] = (STATE_ON, now)
                     await self.hass.services.async_call(
                         domain,
-                        "turn_off",
+                        "turn_on",
                         {"entity_id": lock},
                         blocking=False,
                     )
+                continue
 
-        # The base implementation clears the room-level pause and performs one
-        # final evaluation. Individual cover clears above intentionally do not
-        # evaluate, preventing one evaluation per cover.
-        await super().async_resume_room(room_id)
+            pause = self.cover_pauses.get(self._cover_id(cover))
+            if pause and pause.active:
+                await self._clear_cover_pause(
+                    room, cover, unlock=False, evaluate=False
+                )
+
+            if lock and domain in {"switch", "input_boolean"}:
+                self._owned_lock_changes[lock] = ("off", now)
+                await self.hass.services.async_call(
+                    domain,
+                    "turn_off",
+                    {"entity_id": lock},
+                    blocking=False,
+                )
+
+        await super()._async_room_pause_state_changed(room_id, paused)
 
     async def _async_state_changed(self, event) -> None:
         entity_id = str(event.data.get("entity_id") or "")
@@ -364,7 +372,7 @@ class HomeAssistantServiceDetectionMixin:
             pause.lock_owned = False
 
         lock = str(cover.get("lock") or "")
-        if set_lock and lock and not self.hass.states.is_state(lock, STATE_ON):
+        if set_lock and lock:
             domain = lock.split(".", 1)[0] if "." in lock else ""
             if domain in {"switch", "input_boolean"}:
                 self._owned_lock_changes[lock] = (STATE_ON, now)
