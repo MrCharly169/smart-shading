@@ -40,4 +40,9 @@ python scripts/build_release.py --check
 
 ## Release process
 
-Release tags use `v<manifest-version>`. GitHub Actions validates the version, runs the complete test suite, builds the installable archive, and publishes the release.
+Releases are started only through **Actions → Release → Run workflow**.
+
+- Beta: select `develop`, channel `beta`, and a manifest version matching `X.Y.Z-beta.N`.
+- Stable: select `main`, channel `stable`, and a manifest version matching `X.Y.Z`.
+
+Before running the workflow, create the matching version section in `CHANGELOG.md` and update the manifest. Type that exact version in the workflow confirmation input. The workflow creates the immutable `v<manifest-version>` tag and GitHub release only after all checks pass. Do not create release tags manually.
