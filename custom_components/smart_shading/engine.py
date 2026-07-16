@@ -297,6 +297,9 @@ class SmartShadingEngine:
             )
         )
         await self._async_sync_configured_locks()
+        for room_id, runtime in self.rooms.items():
+            if runtime.pause_mode != PAUSE_AUTO:
+                await self._async_room_pause_state_changed(room_id, True)
         await self.async_evaluate_all("startup")
         notifications_ready = await self.async_sync_card_notifications()
         if not notifications_ready:
@@ -483,22 +486,27 @@ class SmartShadingEngine:
         lock_match = self._find_cover_by_lock(entity_id)
         if lock_match:
             room, cover = lock_match
+            old_value = getattr(old_state, "state", None)
+            new_value = getattr(new_state, "state", None)
             owned_change = self._owned_lock_changes.get(entity_id)
             if owned_change:
                 expected_state, owned_at = owned_change
                 if (
-                    new_state
-                    and new_state.state == expected_state
+                    new_value == expected_state
                     and (now - owned_at).total_seconds() < 10
                 ):
                     self._owned_lock_changes.pop(entity_id, None)
                     return
-                # A different state is a real user/external change, even when it
-                # happens immediately after our own service call.
+                # KNX can repeat its old state before acknowledging our write.
+                # An identical off -> off refresh must never cancel the pause.
+                if old_value == new_value:
+                    return
                 self._owned_lock_changes.pop(entity_id, None)
-            if new_state and new_state.state == STATE_ON:
+            elif old_value == new_value:
+                return
+            if new_value == STATE_ON:
                 await self._activate_cover_pause(room, cover, "manual_lock_entity", set_lock=False)
-            elif new_state and new_state.state == STATE_OFF:
+            elif new_value == STATE_OFF:
                 await self._clear_cover_pause(room, cover, unlock=False, evaluate=True)
             return
 
@@ -681,7 +689,7 @@ class SmartShadingEngine:
         if timer:
             timer()
         lock = cover.get("lock", "")
-        if unlock and lock and _is_on(self.hass, lock):
+        if unlock and lock:
             self._owned_lock_changes[lock] = (STATE_OFF, dt_util.now())
             await _async_set_boolean_entity(self.hass, lock, False)
         await self._save_cover_pause(pause)
@@ -1102,6 +1110,7 @@ class SmartShadingEngine:
             runtime.pause_until = None
             await self._save_room_runtime(runtime)
             self._diag("room_pause_ended", room_id=room_id, reason="timer_expired")
+            await self._async_room_pause_state_changed(room_id, False)
             await self.async_evaluate_all(f"room_pause_ended:{room_id}")
 
         self._room_pause_timer_unsubs[room_id] = async_call_later(
@@ -1139,10 +1148,17 @@ class SmartShadingEngine:
                 active=False,
             )
             await self._save_room_runtime(runtime)
+            await self._async_room_pause_state_changed(room_id, True)
             self._notify()
         else:
             await self._save_room_runtime(runtime)
+            await self._async_room_pause_state_changed(room_id, False)
             await self.async_evaluate_all("pause_released")
+
+    async def _async_room_pause_state_changed(
+        self, room_id: str, paused: bool
+    ) -> None:
+        """Allow runtime controllers to mirror room pauses to manual entities."""
 
     async def async_pause_default(self, room_id: str) -> None:
         room = self.room_config(room_id)
@@ -1164,6 +1180,7 @@ class SmartShadingEngine:
         runtime.pause_mode = PAUSE_AUTO
         runtime.pause_until = None
         await self._save_room_runtime(runtime)
+        await self._async_room_pause_state_changed(room_id, False)
         await self.async_evaluate_all("resume")
 
     async def async_reset_finished(self, room_id: str) -> None:
