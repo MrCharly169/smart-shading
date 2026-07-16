@@ -5,12 +5,13 @@ from types import SimpleNamespace
 import unittest
 
 from test_engine_runtime import (
-    COMP,
     FakeEntry,
+    FakeEvent,
     FakeHass,
     FakeState,
     _load,
     base_config,
+    COMP,
 )
 
 _load(
@@ -31,13 +32,18 @@ class ServiceEvent:
         *,
         user_id: str | None = "user-1",
         parent_id: str | None = None,
+        context_id: str = "context-1",
     ) -> None:
         self.data = {
             "domain": "cover",
             "service": service,
             "service_data": service_data,
         }
-        self.context = SimpleNamespace(user_id=user_id, parent_id=parent_id)
+        self.context = SimpleNamespace(
+            id=context_id,
+            user_id=user_id,
+            parent_id=parent_id,
+        )
 
 
 class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
@@ -65,7 +71,42 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_initialize()
         return hass, engine, tomorrow
 
-    async def test_direct_ha_position_call_pauses_cover_and_sets_lock(self):
+    async def _position_call_and_feedback(
+        self,
+        engine,
+        *,
+        entity_id: str = "cover.one",
+        target: int = 40,
+        old_position: int = 100,
+        new_position: int = 70,
+        user_id: str | None = "user-1",
+        parent_id: str | None = None,
+    ) -> None:
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": entity_id, "position": target},
+                user_id=user_id,
+                parent_id=parent_id,
+            )
+        )
+        await engine._async_state_changed(
+            FakeEvent(
+                entity_id,
+                FakeState(
+                    "open",
+                    current_position=old_position,
+                    current_tilt_position=100,
+                ),
+                FakeState(
+                    "closing",
+                    current_position=new_position,
+                    current_tilt_position=100,
+                ),
+            )
+        )
+
+    async def test_direct_ha_position_call_waits_for_exact_cover_feedback(self):
         hass, engine, _tomorrow = await self._engine()
         await engine._async_cover_service_called(
             ServiceEvent(
@@ -74,13 +115,102 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertIn("cover.one", engine._manual_service_intents())
+
+        await engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=70, current_tilt_position=100),
+            )
+        )
         pause = engine.cover_pauses["cover_one"]
         self.assertTrue(pause.active)
         self.assertEqual(pause.reason, "home_assistant_manual_service")
         self.assertIsNotNone(pause.until)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
-    async def test_noop_ha_position_call_does_not_pause(self):
+    async def test_multi_target_call_pauses_only_cover_that_really_moves(self):
+        hass, engine, _tomorrow = await self._engine()
+        room = engine.config["rooms"][0]
+        covers = room["sectors"][0]["layers"][0]["covers"]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "switch.cover_two_lock",
+            }
+        )
+        hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        hass.states.values["switch.cover_two_lock"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": ["cover.one", "cover.two"], "position": 40},
+            )
+        )
+        await engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=70, current_tilt_position=100),
+            )
+        )
+
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(engine.cover_pauses["cover_two"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+        self.assertEqual(hass.states.get("switch.cover_two_lock").state, "off")
+        self.assertIn("cover.two", engine._manual_service_intents())
+
+    async def test_multi_target_call_pauses_second_cover_only_after_its_feedback(self):
+        hass, engine, _tomorrow = await self._engine()
+        room = engine.config["rooms"][0]
+        covers = room["sectors"][0]["layers"][0]["covers"]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "switch.cover_two_lock",
+            }
+        )
+        hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        hass.states.values["switch.cover_two_lock"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": ["cover.one", "cover.two"], "position": 40},
+            )
+        )
+        await engine._async_state_changed(
+            FakeEvent(
+                "cover.two",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=80, current_tilt_position=100),
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertTrue(engine.cover_pauses["cover_two"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(hass.states.get("switch.cover_two_lock").state, "on")
+
+    async def test_noop_ha_position_call_does_not_create_intent_or_pause(self):
         hass, engine, _tomorrow = await self._engine()
         await engine._async_cover_service_called(
             ServiceEvent(
@@ -90,6 +220,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", engine._manual_service_intents())
         self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
 
     async def test_internal_context_without_user_or_parent_is_ignored(self):
@@ -104,17 +235,15 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", engine._manual_service_intents())
         self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
 
     async def test_automation_parent_context_is_external_intent(self):
         hass, engine, _tomorrow = await self._engine()
-        await engine._async_cover_service_called(
-            ServiceEvent(
-                "close_cover",
-                {"entity_id": "cover.one"},
-                user_id=None,
-                parent_id="automation-context",
-            )
+        await self._position_call_and_feedback(
+            engine,
+            user_id=None,
+            parent_id="automation-context",
         )
 
         self.assertTrue(engine.cover_pauses["cover_one"].active)
@@ -124,12 +253,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         _hass, engine, tomorrow = await self._engine(
             "next_sunrise", pause_sun_offset_minutes=30
         )
-        await engine._async_cover_service_called(
-            ServiceEvent(
-                "set_cover_position",
-                {"entity_id": "cover.one", "position": 40},
-            )
-        )
+        await self._position_call_and_feedback(engine)
         self.assertEqual(
             engine.cover_pauses["cover_one"].until,
             tomorrow + timedelta(minutes=30),
@@ -139,12 +263,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         _hass, engine, tomorrow = await self._engine(
             "next_sunset", pause_sun_offset_minutes=-15
         )
-        await engine._async_cover_service_called(
-            ServiceEvent(
-                "set_cover_position",
-                {"entity_id": "cover.one", "position": 40},
-            )
-        )
+        await self._position_call_and_feedback(engine)
         self.assertEqual(
             engine.cover_pauses["cover_one"].until,
             tomorrow + timedelta(hours=8, minutes=-15),
@@ -155,12 +274,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
             "timed", pause_duration_hours=3.5
         )
         before = datetime.now(timezone.utc)
-        await engine._async_cover_service_called(
-            ServiceEvent(
-                "set_cover_position",
-                {"entity_id": "cover.one", "position": 40},
-            )
-        )
+        await self._position_call_and_feedback(engine)
         due = engine.cover_pauses["cover_one"].until
         self.assertIsNotNone(due)
         self.assertGreaterEqual(due, before + timedelta(hours=3.5))
@@ -168,12 +282,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_manual_pause_has_no_expiry(self):
         _hass, engine, _tomorrow = await self._engine("manual")
-        await engine._async_cover_service_called(
-            ServiceEvent(
-                "set_cover_position",
-                {"entity_id": "cover.one", "position": 40},
-            )
-        )
+        await self._position_call_and_feedback(engine)
         pause = engine.cover_pauses["cover_one"]
         self.assertTrue(pause.active)
         self.assertIsNone(pause.until)
