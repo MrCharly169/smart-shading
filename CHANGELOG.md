@@ -7,8 +7,11 @@
 
 - Heat Protection mit aktivierter Sonnenpflicht verwendet die kombinierte Sun Presence aller aktivierten Sektoren eines Raums
 - ein Sektor mit bestätigter Sun Presence genügt für den gesamten Raum
-- beim Ausschalten des letzten aktiven Sektors wird Heat Protection sofort neu bewertet und freigegeben
-- deaktivierte Sektoren sowie ungültige oder nicht verfügbare Luxwerte zählen nicht als bestätigte Sonne
+- Sun Presence ist ausschließlich eine Startbedingung; nach dem Start bleibt Heat Protection unabhängig von späteren OFF-Zuständen aktiv
+- auch sinkende Innenraumtemperaturen lösen eine laufende Heat Protection nicht vorzeitig auf
+- Schedule, Wetterfreigabe und konfigurierte Außentemperatur-Mindestgrenze werden beim Start berücksichtigt
+- nur der konfigurierte Evening Release öffnet wieder und sperrt einen weiteren Heat-Zyklus bis zum nächsten Tagesreset
+- deaktivierte Sektoren sowie ungültige oder nicht verfügbare Luxwerte zählen beim Start nicht als bestätigte Sonne
 - bei deaktivierter Sonnenpflicht bleibt das bisherige rein temperaturbasierte Verhalten erhalten
 
 
