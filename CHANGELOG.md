@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.3
+
 ### Easy und Advanced Setup
 
 - Erstassistent klar getrennt: Easy zeigt nur Kernangaben, Advanced erhält eine eigene Seite für Diagnose und technische globale Werte
