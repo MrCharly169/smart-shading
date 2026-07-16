@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 DOMAIN = "smart_shading"
 NAME = "Smart Shading"
-VERSION = "4.6.0-beta.1"
+VERSION = str(
+    json.loads(
+        (Path(__file__).with_name("manifest.json")).read_text(encoding="utf-8")
+    )["version"]
+)
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}.runtime"
-CARD_RESOURCE = f"/smart_shading/smart-shading-card.js?v={VERSION}"
+CARD_RESOURCE = "/smart_shading/shading.js"
 
 PLATFORMS = ["sensor", "binary_sensor", "switch", "select", "number", "button"]
 

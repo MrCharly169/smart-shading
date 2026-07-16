@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify tag and package metadata
+        run: python scripts/build_release.py --check --tag "${{ github.ref_name }}"
+      - name: Run Python tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile integration
+        run: python -m compileall custom_components/smart_shading
+      - name: Validate frontend
+        run: |
+          node --check custom_components/smart_shading/frontend/shading.js
+          node tests/test_card_runtime.js
+      - name: Build release archive
+        run: >-
+          python scripts/build_release.py
+          --tag "${{ github.ref_name }}"
+          --output "dist/smart_shading-${{ github.ref_name }}.zip"
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/smart_shading-${{ github.ref_name }}.zip

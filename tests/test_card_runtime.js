@@ -44,7 +44,7 @@ global.document = {
 global.window = {};
 global.navigator = { clipboard: { writeText: async () => {} } };
 
-const cardPath = path.join(__dirname, "..", "custom_components", "smart_shading", "frontend", "smart-shading-card.js");
+const cardPath = path.join(__dirname, "..", "custom_components", "smart_shading", "frontend", "shading.js");
 vm.runInThisContext(fs.readFileSync(cardPath, "utf8"), { filename: cardPath });
 
 const Card = registry.get("smart-shading-card");

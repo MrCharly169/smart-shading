@@ -33,13 +33,13 @@ class PackageTests(unittest.TestCase):
 
     def test_versions_and_resources_match(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(const.VERSION, "4.6.0-beta.1")
         self.assertEqual(manifest["version"], const.VERSION)
         self.assertEqual(manifest["name"], "Smart Shading")
-        self.assertIn(const.VERSION, const.CARD_RESOURCE)
-        for card_name in ("smart-shading-card.js",):
-            text = (FRONTEND / card_name).read_text(encoding="utf-8")
-            self.assertIn(f'const VERSION = "{const.VERSION}";', text)
+        self.assertEqual(const.CARD_RESOURCE, "/smart_shading/shading.js")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        legacy = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        self.assertNotIn("const VERSION =", card)
+        self.assertIn('import "./shading.js"', legacy)
 
     def test_direction_presets_cover_customer_choices(self):
         self.assertEqual(len(const.DIRECTION_OPTIONS), 9)
@@ -170,20 +170,20 @@ class PackageTests(unittest.TestCase):
             self.assertNotIn(banned, text)
 
     def test_card_is_responsive_and_clips_no_side_content(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn(":host{display:block;width:100%;max-width:100%;min-width:0", card)
         self.assertIn("grid-template-columns:repeat(auto-fit", card)
         self.assertIn("text-overflow:ellipsis", card)
         self.assertIn("max-width:100%", card)
 
     def test_card_uses_compact_reference_structure(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         for token in (".chips", ".sunbox", ".sectors", ".cover-row", ".sector-bar", ".sun-dot"):
             self.assertIn(token, card)
         self.assertNotIn("position_already_correct</", card)
 
     def test_advanced_view_is_document_level_dialog_not_inline_details(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn("class SmartShadingV4Dialog", card)
         self.assertIn("document.body.appendChild(this)", card)
         self.assertIn("position:fixed;inset:0", card)
@@ -191,7 +191,7 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("<details", card)
 
     def test_card_editor_initializes_config_and_emits_changes(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         editor = card[card.index("class SmartShadingV4CardEditor"):]
         self.assertIn("this._config = {", editor)
         self.assertIn("setConfig(config = {})", editor)
@@ -199,7 +199,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn('new CustomEvent("config-changed"', editor)
 
     def test_card_never_uses_raw_entity_id_as_display_fallback(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn("isRawEntityId", card)
         self.assertIn("cleanDisplayName", card)
         self.assertIn('const fallback = `${L.cover} ${index + 1}`', card)
@@ -207,7 +207,7 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("friendly || entityId", card)
 
     def test_card_defensively_handles_missing_values(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn('String(value ?? "")', card)
         self.assertIn("if (!roomState)", card)
         self.assertIn("No covers assigned", card)
@@ -222,11 +222,11 @@ class PackageTests(unittest.TestCase):
 
     def test_canonical_domain_and_card_names(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertEqual(COMP.name, "smart_shading")
         self.assertEqual(manifest["domain"], "smart_shading")
         self.assertEqual(const.DOMAIN, "smart_shading")
-        self.assertIn('/smart_shading/smart-shading-card.js', const.CARD_RESOURCE)
+        self.assertEqual('/smart_shading/shading.js', const.CARD_RESOURCE)
         self.assertIn('customElements.define("smart-shading-card"', card)
         self.assertNotIn("smart_shading_v3", card)
         self.assertNotIn("smart-shading-v3", card)
@@ -293,19 +293,19 @@ class PackageTests(unittest.TestCase):
         self.assertIn('interval_minutes * 60', flow)
 
     def test_card_footer_icons_are_compact(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn('.round{width:32px;height:32px', card)
         self.assertIn('.round ha-icon{width:15px;height:15px}', card)
         for token in ("--mdc-icon-size:12px", "--mdc-icon-size:13px", "--mdc-icon-size:14px", "--mdc-icon-size:15px"):
             self.assertIn(token, card)
 
     def test_card_routes_button_and_switch_actions(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn('domain === "button" ? "press" : domain === "switch" ? "toggle"', card)
         self.assertNotIn('callService("button", "press", { entity_id: entityId })', card)
 
     def test_local_pause_variable_is_defined_before_use(self):
-        card = (FRONTEND / "smart-shading-card.js").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         definition = card.index("const locallyPaused = Boolean(localPause.active)")
         use = card.index("roomPaused || locallyPaused", definition)
         self.assertLess(definition, use)
