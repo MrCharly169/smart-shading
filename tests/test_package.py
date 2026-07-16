@@ -330,5 +330,25 @@ class PackageTests(unittest.TestCase):
         self.assertIn("manual_lock_entity", engine)
 
 
+    def test_hacs_uses_only_published_versions(self):
+        hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+        self.assertTrue(hacs["hide_default_branch"])
+        self.assertFalse(hacs["content_in_root"])
+
+    def test_release_workflow_separates_beta_and_stable(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("channel:", workflow)
+        self.assertIn("- beta", workflow)
+        self.assertIn("- stable", workflow)
+        self.assertIn("validate_release_channel.py", workflow)
+        self.assertIn("prerelease: ${{ inputs.channel == 'beta' }}", workflow)
+        self.assertIn("make_latest: ${{ inputs.channel == 'stable' }}", workflow)
+        self.assertNotIn("push:\n    tags:", workflow)
+
+
+
 if __name__ == "__main__":
     unittest.main()
