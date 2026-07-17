@@ -47,7 +47,7 @@ Release preparation and publication are separate maintainer actions.
 Run **Actions → Prepare Release → Run workflow** from the default branch.
 
 - Beta versions must match `X.Y.Z-beta.N`. The workflow branches from `develop` and opens a draft pull request back to `develop`.
-- Stable versions must match `X.Y.Z`. The workflow branches from the tested `develop` state and opens a draft promotion pull request to `main`.
+- Stable versions must match `X.Y.Z`. The workflow creates the release branch from the current `main`, integrates the tested `develop` state locally, and opens a draft promotion pull request back to `main`. Unexpected merge conflicts abort before the branch is pushed. The one historical add/add conflict for `.github/workflows/release.yml` is resolved explicitly in favor of the tested `develop` version; every other conflict requires manual reconciliation.
 
 The workflow validates the requested version, checks for an existing tag, runs the complete test and package suite, updates the manifest, and moves `CHANGELOG.md → Unreleased` into a dated release section. Stable preparation can aggregate beta sections since the previous stable release when `Unreleased` is empty. It then pushes only a dedicated release branch and opens a draft pull request. It cannot merge or publish a release.
 
