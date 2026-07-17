@@ -5,7 +5,8 @@
 ### Release Process
 
 - added a manually triggered Prepare Release workflow that creates a dedicated, reviewable draft pull request instead of publishing directly
-- beta preparation branches from and targets `develop`; stable preparation promotes the tested `develop` state to `main`
+- beta preparation branches from and targets `develop`; stable preparation starts from current `main` and integrates the tested `develop` state before opening its promotion pull request
+- unexpected stable-promotion merge conflicts now abort before any release branch is pushed; only the known historical release-workflow add/add conflict is resolved from tested `develop`
 - release preparation validates the channel, version, source and target branches, existing tags, releases, and release branches
 - the manifest version and a dated changelog section are prepared together while preserving an empty `Unreleased` section
 - stable preparation can assemble beta history since the previous stable version into an editable draft

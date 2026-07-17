@@ -356,18 +356,31 @@ class PackageTests(unittest.TestCase):
             ROOT / ".github" / "workflows" / "prepare-release.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", workflow)
-        self.assertIn("ref: develop", workflow)
+        self.assertIn("inputs.channel == 'stable' && 'main' || 'develop'", workflow)
         self.assertIn("pull-requests: write", workflow)
         self.assertIn("actions: write", workflow)
         self.assertIn("release_changelog.py prepare", workflow)
         self.assertIn('--source-branch "develop"', workflow)
         self.assertIn('TARGET_BRANCH="main"', workflow)
+        self.assertIn('git switch -c "$RELEASE_BRANCH"', workflow)
+        self.assertIn("git merge --no-commit --no-ff origin/develop", workflow)
+        self.assertIn('FILE" != ".github/workflows/release.yml"', workflow)
+        self.assertIn("git merge --abort", workflow)
+        self.assertNotIn("git merge -X theirs", workflow)
         self.assertIn("gh pr create", workflow)
         self.assertIn('--base "$TARGET_BRANCH"', workflow)
         self.assertIn("--draft", workflow)
         self.assertIn("gh workflow run validate.yml", workflow)
         self.assertNotIn("gh pr merge", workflow)
         self.assertNotIn("gh release create", workflow)
+
+        create_branch = workflow.index('git switch -c "$RELEASE_BRANCH"')
+        prepare_changelog = workflow.index("release_changelog.py prepare")
+        run_tests = workflow.index("python -m unittest discover")
+        push_branch = workflow.index('git push --set-upstream origin "$RELEASE_BRANCH"')
+        self.assertLess(create_branch, prepare_changelog)
+        self.assertLess(prepare_changelog, run_tests)
+        self.assertLess(run_tests, push_branch)
 
 
 

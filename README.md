@@ -73,7 +73,7 @@ Smart Shading uses two release channels:
 Releases use two deliberate maintainer gates:
 
 1. Open **GitHub → Actions → Prepare Release → Run workflow** on the default branch. Select the channel and enter the requested version without a leading `v`. The workflow validates and tests the tested `develop` state, updates the manifest, moves `Unreleased` into a dated version section, creates a dedicated draft pull request, and dispatches the normal validation workflow for its release commit. It never merges or publishes.
-2. Review and merge that pull request deliberately. Beta preparation targets `develop`; stable promotion carries the tested `develop` state into `main`. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
+2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
 3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
 
 The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. The workflows reject invalid channel or version combinations, duplicate tags, missing release sections, and failed tests.
