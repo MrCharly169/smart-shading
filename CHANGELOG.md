@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.999 - 2026-07-17
+
 ### Release Process
 
 - added a manually triggered Prepare Release workflow that creates a dedicated, reviewable draft pull request instead of publishing directly
