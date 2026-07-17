@@ -1,4 +1,4 @@
-# Smart Shading 4.6.0-beta.1
+# Smart Shading
 
 Smart Shading ist eine Home-Assistant-Custom-Integration für sektorbasierte Beschattung mit Sonnenstand, Lux, Temperatur, Safety, Fensterkontakten sowie manuellen Overrides.
 
@@ -17,7 +17,7 @@ smart_shading
 Dashboard-Ressource:
 
 ```text
-/smart_shading/smart-shading-card.js?v=4.6.0-beta.1
+/smart_shading/shading.js
 ```
 
 Card:
@@ -175,36 +175,51 @@ Zusätzlich erzeugt der Export-Button eine JSON-Datei unter:
 /config/www/smart_shading_logs/
 ```
 
-## Update von 4.5
+## Updates
 
-1. Ordner sichern:
-
-```bash
-cd /config/custom_components
-mv smart_shading smart_shading_backup_4.5
-```
-
-2. Drop-in-ZIP nach `/config` kopieren und entpacken:
-
-```bash
-cd /config
-unzip -q smart_shading_v4_4.6.0-beta.1_dropin.zip -d /config
-```
-
-3. Version prüfen:
-
-```bash
-grep '"version"' /config/custom_components/smart_shading/manifest.json
-```
-
-4. Home Assistant vollständig neu starten.
-
-5. Ressource aktualisieren:
+Die Dashboard-Ressource wird einmalig als JavaScript-Modul registriert:
 
 ```text
-/smart_shading/smart-shading-card.js?v=4.6.0-beta.1
+/smart_shading/shading.js
 ```
 
-6. Browser mit `Strg + F5` neu laden.
+Diese URL bleibt bei allen zukünftigen Versionen gleich. Beim nächsten Upgrade:
 
-Der bestehende `smart_shading`-Config-Entry bleibt erhalten.
+1. Smart Shading über HACS aktualisieren oder den Integrationsordner ersetzen.
+2. Home Assistant vollständig neu starten.
+3. Browser beziehungsweise Companion App neu laden, falls noch die alte Card im Speicher liegt.
+
+Die Resource muss nicht mehr pro Version angepasst werden. Keine Versionsnummer und keinen `?v=...`-Parameter ergänzen.
+
+Bestehende Installationen mit `/smart_shading/smart-shading-card.js?v=...` funktionieren über einen Kompatibilitäts-Loader weiter. Empfohlen wird, die Resource einmal auf `/smart_shading/shading.js` umzustellen.
+
+## Versions- und Änderungsverwaltung
+
+- `custom_components/smart_shading/manifest.json` ist die einzige technische Versionsquelle.
+- Noch nicht veröffentlichte Änderungen stehen unter `CHANGELOG.md → Unreleased`.
+- Jede Änderung an Logik, Card, Advanced Mode oder Release-Verhalten muss im Changelog dokumentiert werden.
+- Die Pull-Request-Vorlage fragt Dokumentation, Tests und Migrationsauswirkungen verpflichtend ab.
+- CI verhindert Produktionsänderungen ohne Changelog-Anpassung.
+- Ein Release-Tag muss exakt zur Version im Manifest passen.
+- Ein gültiger Tag erzeugt nach erfolgreichen Tests automatisch das Installations-ZIP und den GitHub Release.
+
+## Beta- und Stable-Kanal
+
+- **Beta** wird ausschließlich aus `develop` veröffentlicht und verwendet Versionen wie `4.6.0-beta.2`.
+- **Stable** wird ausschließlich aus `main` veröffentlicht und verwendet Versionen wie `4.6.0` beziehungsweise später `1.0.0`.
+- Beta-Releases werden auf GitHub als Prerelease markiert; Stable-Releases werden als aktuelles Release markiert.
+- HACS bietet keinen unversionierten Entwicklungsbranch an. Installiert werden ausschließlich veröffentlichte Versionen.
+
+Release vorbereiten:
+
+1. Änderungen aus `Unreleased` in einen Abschnitt `## <Version>` verschieben.
+2. Dieselbe Version in `custom_components/smart_shading/manifest.json` eintragen.
+3. Änderungen nach `develop` für Beta oder nach `main` für Stable mergen.
+4. Unter **GitHub → Actions → Release → Run workflow** den richtigen Branch und Kanal auswählen.
+5. Die Manifest-Version ohne führendes `v` zur Bestätigung eingeben.
+
+Der Workflow validiert Branch, Versionsformat, Changelog, Paket, Python, Frontend und bereits vorhandene Tags. Erst danach werden Tag, GitHub Release und Installations-ZIP erstellt.
+
+Für HACS wird das Repository einmalig als benutzerdefiniertes Repository vom Typ **Integration** hinzugefügt. Das Repository darf nicht wirklich privat geschaltet werden: HACS kann private GitHub-Repositories nicht herunterladen. „Privater Beta-Test“ bedeutet, dass das öffentliche Repository nicht im offiziellen HACS-Katalog gelistet ist und nur auf dem eigenen Testsystem als Custom Repository verwendet wird.
+
+GitHub kann nicht selbst erkennen, welche fachliche Bedeutung eine Codeänderung besitzt. Die Repository-Regeln sorgen deshalb dafür, dass die Beschreibung im selben Pull Request bewusst mitgeändert und durch CI kontrolliert wird.
