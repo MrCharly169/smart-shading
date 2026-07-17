@@ -23,7 +23,7 @@ from .const import (
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
 )
-from .engine import SmartShadingEngine
+from .controller import SmartShadingEngine
 from .storage import RuntimeStore
 
 
