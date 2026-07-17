@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ inputs.channel == 'stable' && 'main' || 'develop' }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Prepare version and changelog
+      - name: Resolve release metadata
         id: metadata
         shell: bash
         env:
@@ -50,19 +50,20 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [[ "$CHANNEL" == "beta" ]]; then
+            if [[ ! "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+              echo "::error::Beta versions must match X.Y.Z-beta.N without a leading v."
+              exit 1
+            fi
             TARGET_BRANCH="develop"
           else
+            if [[ ! "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Stable versions must match X.Y.Z without a leading v."
+              exit 1
+            fi
             TARGET_BRANCH="main"
           fi
 
           RELEASE_DATE="$(date -u +%F)"
-          python scripts/release_changelog.py prepare \
-            --channel "$CHANNEL" \
-            --source-branch "develop" \
-            --target-branch "$TARGET_BRANCH" \
-            --version "$REQUESTED_VERSION" \
-            --date "$RELEASE_DATE"
-
           RELEASE_BRANCH="release/v$REQUESTED_VERSION"
           echo "version=$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
@@ -90,6 +91,64 @@ jobs:
             exit 1
           fi
 
+      - name: Create local release branch and integrate tested develop state
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RELEASE_BRANCH"
+
+          if [[ "$CHANNEL" != "stable" ]]; then
+            exit 0
+          fi
+
+          git fetch --no-tags origin develop:refs/remotes/origin/develop
+          if ! git merge --no-commit --no-ff origin/develop; then
+            mapfile -t CONFLICTS < <(git diff --name-only --diff-filter=U)
+            UNEXPECTED=()
+            for FILE in "${CONFLICTS[@]}"; do
+              if [[ "$FILE" != ".github/workflows/release.yml" ]] || \
+                 git ls-files -u -- "$FILE" | awk '{print $3}' | grep -qx '1'; then
+                UNEXPECTED+=("$FILE")
+              fi
+            done
+
+            if (( ${#CONFLICTS[@]} == 0 || ${#UNEXPECTED[@]} > 0 )); then
+              printf '::error::Stable promotion has unresolved conflicts: %s\n' \
+                "${UNEXPECTED[*]:-unknown merge failure}"
+              git merge --abort
+              exit 1
+            fi
+
+            echo "::notice::Using the tested develop version of the historical release workflow add/add conflict."
+            git checkout --theirs -- .github/workflows/release.yml
+            git add .github/workflows/release.yml
+          fi
+
+          if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+            echo "::error::Stable promotion still contains unresolved merge conflicts."
+            git merge --abort
+            exit 1
+          fi
+
+          if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+            git commit -m "Merge tested develop state for Smart Shading v$VERSION"
+          fi
+
+      - name: Prepare version and changelog
+        shell: bash
+        run: >-
+          python scripts/release_changelog.py prepare
+          --channel "${{ inputs.channel }}"
+          --source-branch "develop"
+          --target-branch "${{ steps.metadata.outputs.target_branch }}"
+          --version "${{ steps.metadata.outputs.version }}"
+          --date "${{ steps.metadata.outputs.release_date }}"
+
       - name: Verify package metadata
         run: >-
           python scripts/build_release.py
@@ -116,9 +175,6 @@ jobs:
           VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$RELEASE_BRANCH"
           git add custom_components/smart_shading/manifest.json CHANGELOG.md
           if git diff --cached --quiet; then
             echo "::error::Release preparation produced no reviewable changes."
