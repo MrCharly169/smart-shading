@@ -26,7 +26,7 @@ class ReleaseChannelTests(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "CHANGELOG.md").write_text(
-            f"# Changelog\n\n## Unreleased\n\n## {version}\n",
+            f"# Changelog\n\n## Unreleased\n\n## {version}\n\n- Release notes.\n",
             encoding="utf-8",
         )
         return root
@@ -77,10 +77,24 @@ class ReleaseChannelTests(unittest.TestCase):
             "# Changelog\n\n## Unreleased\n",
             encoding="utf-8",
         )
-        with self.assertRaisesRegex(RuntimeError, "no release section"):
+        with self.assertRaisesRegex(RuntimeError, "release section is invalid"):
             release_mod.validate_release(
                 "beta", "develop", "4.6.0-beta.2", root=root
             )
+
+    def test_dated_changelog_heading_is_accepted(self):
+        root = self._root("4.6.0-beta.2")
+        (root / "CHANGELOG.md").write_text(
+            "# Changelog\n\n## Unreleased\n\n"
+            "## 4.6.0-beta.2 - 2026-07-17\n\n- Prepared release.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            release_mod.validate_release(
+                "beta", "develop", "4.6.0-beta.2", root=root
+            ),
+            "4.6.0-beta.2",
+        )
 
 
 if __name__ == "__main__":

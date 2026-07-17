@@ -1,0 +1,178 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        type: choice
+        options:
+          - beta
+          - stable
+      version:
+        description: Requested version without a leading v
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: smart-shading-prepare-release-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare ${{ inputs.channel }} release PR
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare version and changelog
+        id: metadata
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$CHANNEL" == "beta" ]]; then
+            TARGET_BRANCH="develop"
+          else
+            TARGET_BRANCH="main"
+          fi
+
+          RELEASE_DATE="$(date -u +%F)"
+          python scripts/release_changelog.py prepare \
+            --channel "$CHANNEL" \
+            --source-branch "develop" \
+            --target-branch "$TARGET_BRANCH" \
+            --version "$REQUESTED_VERSION" \
+            --date "$RELEASE_DATE"
+
+          RELEASE_BRANCH="release/v$REQUESTED_VERSION"
+          echo "version=$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+          echo "source_branch=develop" >> "$GITHUB_OUTPUT"
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "release_branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "release_date=$RELEASE_DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Reject an existing tag, release, or release branch
+        shell: bash
+        env:
+          TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG"; then
+            echo "::error::Tag $TAG already exists. Release versions are immutable."
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Release versions are immutable."
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/$RELEASE_BRANCH"; then
+            echo "::error::Branch $RELEASE_BRANCH already exists. Review or remove it first."
+            exit 1
+          fi
+
+      - name: Verify package metadata
+        run: >-
+          python scripts/build_release.py
+          --check
+          --tag "${{ steps.metadata.outputs.tag }}"
+      - name: Run Python tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile integration and release scripts
+        run: python -m compileall custom_components/smart_shading scripts
+      - name: Validate frontend
+        run: |
+          node --check custom_components/smart_shading/frontend/shading.js
+          node --check custom_components/smart_shading/frontend/smart-shading-card.js
+          node tests/test_card_runtime.js
+      - name: Build installation archive
+        run: >-
+          python scripts/build_release.py
+          --tag "${{ steps.metadata.outputs.tag }}"
+          --output "dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip"
+
+      - name: Commit and push release preparation
+        shell: bash
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RELEASE_BRANCH"
+          git add custom_components/smart_shading/manifest.json CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "::error::Release preparation produced no reviewable changes."
+            exit 1
+          fi
+          git commit -m "Prepare Smart Shading v$VERSION"
+          git push --set-upstream origin "$RELEASE_BRANCH"
+
+      - name: Create draft release pull request
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+          SOURCE_BRANCH: ${{ steps.metadata.outputs.source_branch }}
+          TARGET_BRANCH: ${{ steps.metadata.outputs.target_branch }}
+          RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
+          RELEASE_DATE: ${{ steps.metadata.outputs.release_date }}
+        run: |
+          PR_BODY="$RUNNER_TEMP/release-pr.md"
+          printf '%s\n' \
+            '## Release preparation' \
+            '' \
+            "- Channel: \`$CHANNEL\`" \
+            "- Version: \`$VERSION\`" \
+            "- Source branch: \`$SOURCE_BRANCH\`" \
+            "- Target branch: \`$TARGET_BRANCH\`" \
+            "- Preparation date: \`$RELEASE_DATE\`" \
+            '' \
+            '## Maintainer review' \
+            '' \
+            '- [ ] Version and release channel are correct' \
+            '- [ ] Changelog content is complete, clear, and publication-ready' \
+            '- [ ] Required documentation changes are already included' \
+            '- [ ] Migration and breaking-change impact has been reviewed' \
+            '- [ ] Python, frontend, regression, and package checks pass' \
+            '- [ ] This beta or stable release is ready to publish after merge' \
+            '' \
+            'This pull request only prepares the release metadata. It does not merge or publish a release.' \
+            '' \
+            'Implements #19' > "$PR_BODY"
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$TARGET_BRANCH" \
+            --head "$RELEASE_BRANCH" \
+            --title "Prepare Smart Shading v$VERSION" \
+            --body-file "$PR_BODY" \
+            --draft
+
+      - name: Dispatch pull request validation
+        shell: bash
+        env:
+          RELEASE_BRANCH: ${{ steps.metadata.outputs.release_branch }}
+        run: >-
+          gh workflow run validate.yml
+          --repo "$GITHUB_REPOSITORY"
+          --ref "$RELEASE_BRANCH"

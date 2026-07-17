@@ -40,9 +40,26 @@ python scripts/build_release.py --check
 
 ## Release process
 
-Releases are started only through **Actions → Release → Run workflow**.
+Release preparation and publication are separate maintainer actions.
 
-- Beta: select `develop`, channel `beta`, and a manifest version matching `X.Y.Z-beta.N`.
-- Stable: select `main`, channel `stable`, and a manifest version matching `X.Y.Z`.
+### Prepare a release
 
-Before running the workflow, create the matching version section in `CHANGELOG.md` and update the manifest. Type that exact version in the workflow confirmation input. The workflow creates the immutable `v<manifest-version>` tag and GitHub release only after all checks pass. Do not create release tags manually.
+Run **Actions → Prepare Release → Run workflow** from the default branch.
+
+- Beta versions must match `X.Y.Z-beta.N`. The workflow branches from `develop` and opens a draft pull request back to `develop`.
+- Stable versions must match `X.Y.Z`. The workflow branches from the tested `develop` state and opens a draft promotion pull request to `main`.
+
+The workflow validates the requested version, checks for an existing tag, runs the complete test and package suite, updates the manifest, and moves `CHANGELOG.md → Unreleased` into a dated release section. Stable preparation can aggregate beta sections since the previous stable release when `Unreleased` is empty. It then pushes only a dedicated release branch and opens a draft pull request. It cannot merge or publish a release.
+
+Review the generated pull request for version, channel, changelog quality, documentation completeness, migration impact, and release readiness. Repository settings must allow GitHub Actions to create pull requests; approval and merging must remain manual.
+
+### Publish a reviewed release
+
+After the release pull request is merged, run **Actions → Release → Run workflow** from the merged target branch:
+
+- Beta: select `develop`, channel `beta`, and confirm the exact manifest version.
+- Stable: select `main`, channel `stable`, and confirm the exact manifest version.
+
+This second workflow repeats all validation, creates the immutable `v<manifest-version>` tag and installation ZIP, and publishes the GitHub release. Its release body is the exact content of the matching changelog section. Do not create release tags or GitHub releases manually.
+
+After publishing a stable release, synchronize `main` back into `develop` before starting the next release cycle. This preserves the stable changelog boundary used by later stable aggregation.
