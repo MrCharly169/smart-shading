@@ -346,7 +346,28 @@ class PackageTests(unittest.TestCase):
         self.assertIn("validate_release_channel.py", workflow)
         self.assertIn("prerelease: ${{ inputs.channel == 'beta' }}", workflow)
         self.assertIn("make_latest: ${{ inputs.channel == 'stable' }}", workflow)
+        self.assertIn("release_changelog.py notes", workflow)
+        self.assertIn("body_path: dist/release-notes.md", workflow)
+        self.assertNotIn("generate_release_notes:", workflow)
         self.assertNotIn("push:\n    tags:", workflow)
+
+    def test_prepare_release_workflow_creates_only_a_reviewable_draft_pr(self):
+        workflow = (
+            ROOT / ".github" / "workflows" / "prepare-release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("ref: develop", workflow)
+        self.assertIn("pull-requests: write", workflow)
+        self.assertIn("actions: write", workflow)
+        self.assertIn("release_changelog.py prepare", workflow)
+        self.assertIn('--source-branch "develop"', workflow)
+        self.assertIn('TARGET_BRANCH="main"', workflow)
+        self.assertIn("gh pr create", workflow)
+        self.assertIn('--base "$TARGET_BRANCH"', workflow)
+        self.assertIn("--draft", workflow)
+        self.assertIn("gh workflow run validate.yml", workflow)
+        self.assertNotIn("gh pr merge", workflow)
+        self.assertNotIn("gh release create", workflow)
 
 
 

@@ -83,6 +83,12 @@ jobs:
           --tag "${{ steps.metadata.outputs.tag }}"
           --output "dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip"
 
+      - name: Extract changelog release notes
+        run: >-
+          python scripts/release_changelog.py notes
+          --version "${{ steps.metadata.outputs.version }}"
+          --output dist/release-notes.md
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -91,6 +97,6 @@ jobs:
           name: Smart Shading ${{ steps.metadata.outputs.tag }}
           prerelease: ${{ inputs.channel == 'beta' }}
           make_latest: ${{ inputs.channel == 'stable' }}
-          generate_release_notes: true
+          body_path: dist/release-notes.md
           fail_on_unmatched_files: true
           files: dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip

@@ -8,6 +8,11 @@ import re
 import sys
 from pathlib import Path
 
+try:
+    from scripts.release_changelog import extract_release_notes
+except ModuleNotFoundError:  # Direct execution adds scripts/, not the repository root.
+    from release_changelog import extract_release_notes
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "custom_components" / "smart_shading" / "manifest.json"
 CHANGELOG = ROOT / "CHANGELOG.md"
@@ -47,8 +52,10 @@ def validate_release(
         )
 
     changelog = changelog_path.read_text(encoding="utf-8")
-    if not re.search(rf"(?m)^## {re.escape(version)}\s*$", changelog):
-        raise RuntimeError(f"CHANGELOG.md has no release section '## {version}'")
+    try:
+        extract_release_notes(changelog, version)
+    except RuntimeError as exc:
+        raise RuntimeError(f"CHANGELOG.md release section is invalid: {exc}") from exc
 
     return version
 

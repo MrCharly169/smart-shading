@@ -70,7 +70,15 @@ Smart Shading uses two release channels:
 - **Beta:** built only from `develop`, with versions such as `4.6.0-beta.2`, and published as a GitHub prerelease.
 - **Stable:** built only from `main`, with versions such as `4.6.0` or the future `1.0.0`, and published as the latest stable GitHub release.
 
-Prepare a release by moving the relevant `Unreleased` entries into a section matching the new manifest version and updating `manifest.json`. Then open **GitHub → Actions → Release → Run workflow**, select the correct branch and channel, and type the manifest version as confirmation. The workflow rejects wrong branches, version formats, duplicate versions, mismatched changelog sections, and failed tests before publishing anything.
+Releases use two deliberate maintainer gates:
+
+1. Open **GitHub → Actions → Prepare Release → Run workflow** on the default branch. Select the channel and enter the requested version without a leading `v`. The workflow validates and tests the tested `develop` state, updates the manifest, moves `Unreleased` into a dated version section, creates a dedicated draft pull request, and dispatches the normal validation workflow for its release commit. It never merges or publishes.
+2. Review and merge that pull request deliberately. Beta preparation targets `develop`; stable promotion carries the tested `develop` state into `main`. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
+3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
+
+The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. The workflows reject invalid channel or version combinations, duplicate tags, missing release sections, and failed tests.
+
+For automatic draft pull-request creation, repository administrators must enable **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Only pull-request creation is automated; approval and merging remain manual.
 
 The repository remains outside the official HACS catalog during private testing. It must nevertheless be publicly readable because HACS cannot download private GitHub repositories. Add it once as a HACS custom integration repository. Test installations may opt into GitHub prereleases; stable installations use normal releases. `hide_default_branch` prevents accidental installation of an unversioned development snapshot.
 
@@ -84,7 +92,9 @@ tests/                             Regression and runtime tests
 docs/                              Development and repository notes
 scripts/build_release.py           Package and metadata validation
 scripts/check_pr_changelog.py      PR documentation policy
+scripts/release_changelog.py       Release preparation and note extraction
 .github/workflows/validate.yml     Continuous validation
+.github/workflows/prepare-release.yml  Reviewable release preparation
 .github/workflows/release.yml      Manual beta/stable release automation
 ```
 
