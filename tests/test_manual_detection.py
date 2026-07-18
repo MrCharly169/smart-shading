@@ -51,6 +51,26 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.engine.async_initialize()
 
+    def _configure_window_return(self, *, enabled: bool = True):
+        cover = self.engine.config["rooms"][0]["sectors"][0]["layers"][0][
+            "covers"
+        ][0]
+        cover["window"] = "binary_sensor.window"
+        cover["window_safe_state"] = "on"
+        cover["window_policy"] = "block_closing"
+        cover["window_returns_to_automation"] = enabled
+        self.hass.states.values["binary_sensor.window"] = FakeState("on")
+        self.engine._rebuild_runtime()
+        return cover
+
+    async def _window_transition(self, old_value: str, new_value: str) -> None:
+        old_state = FakeState(old_value)
+        new_state = FakeState(new_value)
+        self.hass.states.values["binary_sensor.window"] = new_state
+        await self.engine._async_state_changed(
+            FakeEvent("binary_sensor.window", old_state, new_state)
+        )
+
     async def test_external_cover_movement_pauses_by_default(self):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
@@ -421,6 +441,137 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine._async_state_changed(FakeEvent("cover.one", second, third))
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(calls, ["safety_manual_cover:cover.one"])
+
+    async def test_window_open_and_close_movements_do_not_pause_cover(self):
+        self._configure_window_return()
+        evaluations = []
+
+        async def fake_evaluate(trigger):
+            evaluations.append(trigger)
+
+        self.engine.async_evaluate_all = fake_evaluate
+        await self._window_transition("on", "off")
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=90, current_tilt_position=100),
+                FakeState("opening", current_position=96, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("opening", current_position=96, current_tilt_position=100),
+                FakeState("open", current_position=100, current_tilt_position=100),
+            )
+        )
+
+        await self._window_transition("off", "on")
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=96, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("closing", current_position=96, current_tilt_position=100),
+                FakeState("open", current_position=90, current_tilt_position=100),
+            )
+        )
+
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(
+            evaluations,
+            [
+                "critical_state:binary_sensor.window",
+                "critical_state:binary_sensor.window",
+            ],
+        )
+
+    async def test_manual_detection_resumes_after_window_recovery_settles(self):
+        self._configure_window_return()
+
+        async def fake_evaluate(_trigger):
+            return None
+
+        self.engine.async_evaluate_all = fake_evaluate
+        await self._window_transition("on", "off")
+        await self._window_transition("off", "on")
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("open", current_position=90, current_tilt_position=100),
+            )
+        )
+        context = self.engine.window_automation_contexts["cover.one"]
+        context.last_feedback_at -= timedelta(seconds=31)
+
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=90, current_tilt_position=100),
+                FakeState("closing", current_position=70, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("closing", current_position=70, current_tilt_position=100),
+                FakeState("closing", current_position=40, current_tilt_position=100),
+            )
+        )
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_window_close_preserves_explicit_manual_entity_pause(self):
+        self._configure_window_return()
+
+        async def fake_evaluate(_trigger):
+            return None
+
+        self.engine.async_evaluate_all = fake_evaluate
+        await self._window_transition("on", "off")
+        self.hass.states.values["switch.cover_lock"] = FakeState("on")
+        await self.engine._async_state_changed(
+            FakeEvent("switch.cover_lock", FakeState("off"), FakeState("on"))
+        )
+        await self._window_transition("off", "on")
+
+        pause = self.engine.cover_pauses["cover_one"]
+        self.assertTrue(pause.active)
+        self.assertEqual(pause.reason, "manual_lock_entity")
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_window_return_can_be_disabled_per_cover(self):
+        self._configure_window_return(enabled=False)
+
+        async def fake_evaluate(_trigger):
+            return None
+
+        self.engine.async_evaluate_all = fake_evaluate
+        await self._window_transition("on", "off")
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=90, current_tilt_position=100),
+                FakeState("opening", current_position=96, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("opening", current_position=96, current_tilt_position=100),
+                FakeState("open", current_position=100, current_tilt_position=100),
+            )
+        )
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
 
 
 if __name__ == "__main__":
