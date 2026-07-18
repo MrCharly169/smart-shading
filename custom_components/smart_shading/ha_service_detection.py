@@ -33,6 +33,7 @@ MANUAL_COVER_SERVICES = {
     "stop_cover_tilt",
     "set_cover_tilt_position",
 }
+MANUAL_SERVICE_INTENT_TIMEOUT_SECONDS = 60.0
 
 
 @dataclass(slots=True)
@@ -221,6 +222,8 @@ class HomeAssistantServiceDetectionMixin:
 
             entity_id = str(cover.get("entity") or "")
             intents.pop(entity_id, None)
+            if paused:
+                self._cancel_own_command_session(entity_id)
             lock = str(cover.get("lock") or "")
             domain = lock.split(".", 1)[0] if "." in lock else ""
 
@@ -261,7 +264,9 @@ class HomeAssistantServiceDetectionMixin:
         intent = intents.get(entity_id)
         if intent is not None:
             now = dt_util.now()
-            if (now - intent.created_at).total_seconds() > 15.0:
+            if (
+                now - intent.created_at
+            ).total_seconds() > MANUAL_SERVICE_INTENT_TIMEOUT_SECONDS:
                 intents.pop(entity_id, None)
                 self._diag(
                     "manual_cover_service_intent_expired",
@@ -343,6 +348,7 @@ class HomeAssistantServiceDetectionMixin:
     ) -> None:
         """Activate only this cover using the pause mode chosen in the wizard."""
         entity_id = str(cover.get("entity") or "")
+        self._cancel_own_command_session(entity_id)
         observation = self.cover_motion.get(entity_id)
         if observation is not None:
             self._clear_motion_candidate(observation)
