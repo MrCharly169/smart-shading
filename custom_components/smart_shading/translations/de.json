@@ -425,12 +425,14 @@
           "window": "Fensterkontakt (optional)",
           "window_safe_state": "Sicherer Fensterzustand",
           "window_policy": "Verhalten bei unsicherem Fenster",
+          "window_returns_to_automation": "Nach dem Schließen zur Automatik zurückkehren",
           "max_open_position": "Maximale Öffnungsposition",
           "invert_position": "Position zusätzlich invertieren",
           "invert_tilt": "Lamellen zusätzlich invertieren",
           "short": "Kürzel"
         },
         "data_description": {
+          "window_returns_to_automation": "Standardmäßig aktiv. Fensterbedingte Bewegungen im unsicheren Zustand und die Rückfahrt nach dem Schließen erzeugen keine manuelle Pause. Ausdrückliche Cover- und Raum-Pausen bleiben aktiv.",
           "max_open_position": "Beispiel: 90 %, wenn ein Cover aus Sicherheitsgründen nie vollständig öffnen soll.",
           "invert_position": "Nur verwenden, wenn die Home-Assistant-Entität selbst 0/100 falsch herum meldet. KNX-Invertierung gehört normalerweise in die KNX-Cover-Konfiguration.",
           "invert_tilt": "Nur bei falsch herum gemeldeter Home-Assistant-Lamellenposition verwenden.",
@@ -663,11 +665,13 @@
           "lock": "Automatik-/Manuellsperre (optional)",
           "window": "Fensterkontakt (optional)",
           "window_safe_state": "Sicherer Fensterzustand",
-          "window_policy": "Verhalten bei unsicherem Fenster"
+          "window_policy": "Verhalten bei unsicherem Fenster",
+          "window_returns_to_automation": "Nach dem Schließen zur Automatik zurückkehren"
         },
         "data_description": {
           "window": "Beispiel: Fenster geschlossen. Der sichere Zustand wird darunter festgelegt.",
-          "window_policy": "„Nur Schließen blockieren“ erlaubt weiterhin das sichere Öffnen."
+          "window_policy": "„Nur Schließen blockieren“ erlaubt weiterhin das sichere Öffnen.",
+          "window_returns_to_automation": "Standardmäßig aktiv. Fensterbedingte Bewegungen im unsicheren Zustand und die Rückfahrt nach dem Schließen erzeugen keine manuelle Pause. Ausdrückliche Cover- und Raum-Pausen bleiben aktiv."
         }
       }
     },
@@ -1113,12 +1117,14 @@
           "window": "Fensterkontakt (optional)",
           "window_safe_state": "Sicherer Fensterzustand",
           "window_policy": "Verhalten bei unsicherem Fenster",
+          "window_returns_to_automation": "Nach dem Schließen zur Automatik zurückkehren",
           "max_open_position": "Maximale Öffnungsposition",
           "invert_position": "Position zusätzlich invertieren",
           "invert_tilt": "Lamellen zusätzlich invertieren",
           "short": "Kürzel"
         },
         "data_description": {
+          "window_returns_to_automation": "Standardmäßig aktiv. Fensterbedingte Bewegungen im unsicheren Zustand und die Rückfahrt nach dem Schließen erzeugen keine manuelle Pause. Ausdrückliche Cover- und Raum-Pausen bleiben aktiv.",
           "max_open_position": "Beispiel: 90 %, wenn ein Cover aus Sicherheitsgründen nie vollständig öffnen soll.",
           "invert_position": "Nur verwenden, wenn die Home-Assistant-Entität selbst 0/100 falsch herum meldet. KNX-Invertierung gehört normalerweise in die KNX-Cover-Konfiguration.",
           "invert_tilt": "Nur bei falsch herum gemeldeter Home-Assistant-Lamellenposition verwenden.",
