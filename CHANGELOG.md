@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Manual Operation
+
+- Smart Shading now claims cover feedback before dispatching its own service call, closing the race with immediate Home Assistant or KNX state updates
+- delayed, non-monotonic, and coupled KNX position or tilt feedback remains owned by the active Smart Shading command session and cannot create a manual pause
+- command ownership ends after the commanded target settles or after a hard timeout; explicit external Home Assistant commands retain their intent across delayed KNX feedback and manual entities remain authoritative
+
 
 ## 4.6.0-beta.3 - 2026-07-18
 

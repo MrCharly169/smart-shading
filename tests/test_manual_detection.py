@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 import unittest
 
 from test_engine_runtime import (
@@ -249,6 +250,155 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.engine.cover_motion["cover.one"].phase, "own_command")
+
+    async def test_delayed_non_monotonic_knx_feedback_stays_owned(self):
+        now = datetime.now(timezone.utc)
+        self.engine._begin_own_command_session(
+            "cover.one", "tilt", 35.0, now
+        )
+
+        first = self.engine._classify_confirmed_cover_change(
+            self.engine.config["rooms"][0],
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=100),
+            FakeState("open", current_position=97, current_tilt_position=70),
+            now + timedelta(seconds=20),
+        )
+        second = self.engine._classify_confirmed_cover_change(
+            self.engine.config["rooms"][0],
+            "cover.one",
+            FakeState("open", current_position=97, current_tilt_position=70),
+            FakeState("open", current_position=95, current_tilt_position=50),
+            now + timedelta(seconds=60),
+        )
+
+        self.assertTrue(first.expected)
+        self.assertTrue(second.expected)
+        self.assertFalse(first.manual)
+        self.assertFalse(second.manual)
+        self.assertEqual(first.reason, "active_own_command_session")
+        self.assertEqual(self.engine.cover_motion["cover.one"].phase, "own_command")
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+
+    async def test_settled_own_session_releases_later_external_feedback(self):
+        now = datetime.now(timezone.utc)
+        self.engine._begin_own_command_session(
+            "cover.one", "tilt", 35.0, now
+        )
+        room = self.engine.config["rooms"][0]
+
+        reached = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=50),
+            FakeState("open", current_position=100, current_tilt_position=35),
+            now + timedelta(seconds=20),
+        )
+        settled = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=35),
+            FakeState("open", current_position=100, current_tilt_position=35),
+            now + timedelta(seconds=51),
+        )
+        first_external = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=35),
+            FakeState("open", current_position=100, current_tilt_position=55),
+            now + timedelta(seconds=52),
+        )
+        confirmed_external = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=55),
+            FakeState("open", current_position=100, current_tilt_position=75),
+            now + timedelta(seconds=72),
+        )
+
+        self.assertTrue(reached.expected)
+        self.assertFalse(settled.changed)
+        self.assertNotIn("cover.one", self.engine.own_command_sessions)
+        self.assertFalse(first_external.manual)
+        self.assertTrue(confirmed_external.manual)
+
+    async def test_own_session_exists_before_cover_service_dispatch(self):
+        room = self.engine.config["rooms"][0]
+        sector = room["sectors"][0]
+        layer = sector["layers"][0]
+        cover = layer["covers"][0]
+        calls = []
+        original_call = self.hass.services.async_call
+
+        async def inspect_call(domain, service, data, blocking=False):
+            if domain == "cover":
+                session = self.engine.own_command_sessions.get("cover.one")
+                self.assertIsNotNone(session)
+                if service == "set_cover_position":
+                    self.assertTrue(session.position_commanded)
+                    self.assertEqual(session.position_target, 0.0)
+                if service == "set_cover_tilt_position":
+                    self.assertTrue(session.tilt_commanded)
+                    self.assertEqual(session.tilt_target, 35.0)
+                calls.append(service)
+            await original_call(domain, service, data, blocking=blocking)
+
+        self.hass.services.async_call = inspect_call
+        await self.engine._apply_cover(
+            room,
+            sector,
+            layer,
+            cover,
+            self.engine.rooms["room"],
+            "solar",
+            0.0,
+            35.0,
+            "test",
+        )
+
+        self.assertEqual(
+            calls, ["set_cover_position", "set_cover_tilt_position"]
+        )
+
+    async def test_explicit_ha_command_overrides_active_own_session(self):
+        now = datetime.now(timezone.utc)
+        self.engine._begin_own_command_session(
+            "cover.one", "position", 0.0, now
+        )
+        await self.engine._async_cover_service_called(
+            SimpleNamespace(
+                data={
+                    "domain": "cover",
+                    "service": "set_cover_position",
+                    "service_data": {
+                        "entity_id": "cover.one",
+                        "position": 50,
+                    },
+                },
+                context=SimpleNamespace(
+                    id="external-context",
+                    user_id="user-id",
+                    parent_id=None,
+                ),
+            )
+        )
+        self.engine._manual_service_intents()[
+            "cover.one"
+        ].created_at -= timedelta(seconds=20)
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=80, current_tilt_position=100),
+            )
+        )
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", self.engine.own_command_sessions)
+        self.assertEqual(
+            self.engine.cover_pauses["cover_one"].reason,
+            "home_assistant_manual_service",
+        )
 
     async def test_confirmed_external_move_during_safety_rechecks_immediately(self):
         config = base_config()

@@ -71,10 +71,17 @@ from .logic import (
     parse_numeric_value,
     sun_presence_step,
 )
-from .models import CommandMemory, CoverPauseRuntime, RoomRuntime, SectorSunRuntime
+from .models import (
+    CommandMemory,
+    CoverPauseRuntime,
+    OwnCommandSession,
+    RoomRuntime,
+    SectorSunRuntime,
+)
 from .storage import RuntimeStore
 
 _LOGGER = logging.getLogger(__name__)
+OWN_COMMAND_SESSION_TIMEOUT_SECONDS = 180.0
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -147,6 +154,7 @@ class SmartShadingEngine:
         self.rooms: dict[str, RoomRuntime] = {}
         self.sun_runtime: dict[str, SectorSunRuntime] = {}
         self.command_memory: dict[str, CommandMemory] = {}
+        self.own_command_sessions: dict[str, OwnCommandSession] = {}
         self.cover_pauses: dict[str, CoverPauseRuntime] = {}
         self._cover_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._room_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
@@ -161,6 +169,49 @@ class SmartShadingEngine:
         self._evaluate_lock = asyncio.Lock()
         self._day_key: str | None = None
         self.reload_config()
+
+    def _begin_own_command_session(
+        self,
+        entity_id: str,
+        axis: str,
+        target: float,
+        now: datetime,
+    ) -> OwnCommandSession:
+        """Claim feedback before dispatching a Smart Shading cover command."""
+        session = self.own_command_sessions.get(entity_id)
+        if (
+            session is None
+            or now > session.expires_at
+            or session.target_reached_at is not None
+        ):
+            session = OwnCommandSession(
+                entity_id=entity_id,
+                started_at=now,
+                updated_at=now,
+                expires_at=now + timedelta(
+                    seconds=OWN_COMMAND_SESSION_TIMEOUT_SECONDS
+                ),
+            )
+            self.own_command_sessions[entity_id] = session
+
+        session.updated_at = now
+        session.expires_at = now + timedelta(
+            seconds=OWN_COMMAND_SESSION_TIMEOUT_SECONDS
+        )
+        session.target_reached_at = None
+        if axis == "position":
+            session.position_target = float(target)
+            session.position_commanded = True
+        elif axis == "tilt":
+            session.tilt_target = float(target)
+            session.tilt_commanded = True
+        else:
+            raise ValueError(f"unsupported cover command axis {axis!r}")
+        return session
+
+    def _cancel_own_command_session(self, entity_id: str) -> None:
+        """Release feedback ownership after an explicit external override."""
+        self.own_command_sessions.pop(entity_id, None)
 
     def _entity_display_name(self, entity_id: str, fallback: str) -> str:
         return _friendly_state_name(self.hass, entity_id, fallback)
@@ -2161,6 +2212,9 @@ class SmartShadingEngine:
         elif current_position is None and unknown_policy == "skip":
             suppressions.append("position_feedback_unknown")
         else:
+            self._begin_own_command_session(
+                entity_id, "position", displayed_position, now
+            )
             if profile == DEVICE_BINARY:
                 service = "open_cover" if displayed_position >= 50.0 else "close_cover"
                 await self.hass.services.async_call(
@@ -2199,6 +2253,9 @@ class SmartShadingEngine:
             elif current_tilt is None and unknown_policy == "skip":
                 suppressions.append("tilt_feedback_unknown")
             else:
+                self._begin_own_command_session(
+                    entity_id, "tilt", displayed_tilt, now
+                )
                 await self.hass.services.async_call(
                     "cover",
                     "set_cover_tilt_position",
