@@ -15,6 +15,21 @@ class CommandMemory:
 
 
 @dataclass(slots=True)
+class OwnCommandSession:
+    """Ephemeral ownership of feedback caused by one Smart Shading command."""
+
+    entity_id: str
+    started_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    position_target: float | None = None
+    tilt_target: float | None = None
+    position_commanded: bool = False
+    tilt_commanded: bool = False
+    target_reached_at: datetime | None = None
+
+
+@dataclass(slots=True)
 class SectorSunRuntime:
     sector_id: str
     is_on: bool = False
