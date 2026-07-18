@@ -47,6 +47,7 @@ class PendingManualServiceIntent:
     created_at: datetime
     requested_entity_ids: tuple[str, ...]
     context_id: str | None
+    user_initiated: bool
 
 
 class HomeAssistantServiceDetectionMixin:
@@ -179,6 +180,7 @@ class HomeAssistantServiceDetectionMixin:
         service_data = dict(event.data.get(ATTR_SERVICE_DATA) or {})
         requested = tuple(dict.fromkeys(self._service_entity_ids(service_data)))
         context_id = getattr(context, "id", None)
+        user_initiated = bool(getattr(context, "user_id", None))
         now = dt_util.now()
         intents = self._manual_service_intents()
 
@@ -189,6 +191,21 @@ class HomeAssistantServiceDetectionMixin:
             ):
                 continue
             room, cover = match
+            if (
+                not user_initiated
+                and self._window_automation_context_active(cover, now=now)
+            ):
+                intents.pop(entity_id, None)
+                self._diag(
+                    "window_automation_service_ignored",
+                    force=True,
+                    room_id=room["id"],
+                    cover=cover.get("name", entity_id),
+                    entity_id=entity_id,
+                    service=service,
+                    context_id=context_id,
+                )
+                continue
             intents[entity_id] = PendingManualServiceIntent(
                 entity_id=entity_id,
                 room_id=str(room["id"]),
@@ -197,6 +214,7 @@ class HomeAssistantServiceDetectionMixin:
                 created_at=now,
                 requested_entity_ids=requested,
                 context_id=context_id,
+                user_initiated=user_initiated,
             )
             self._diag(
                 "manual_cover_service_intent",
@@ -264,7 +282,22 @@ class HomeAssistantServiceDetectionMixin:
         intent = intents.get(entity_id)
         if intent is not None:
             now = dt_util.now()
+            match = self._find_cover_by_entity(entity_id)
             if (
+                not intent.user_initiated
+                and match is not None
+                and self._window_automation_context_active(match[1], now=now)
+            ):
+                intents.pop(entity_id, None)
+                self._diag(
+                    "window_automation_service_feedback_ignored",
+                    force=True,
+                    room_id=match[0]["id"],
+                    entity_id=entity_id,
+                    service=intent.service,
+                    context_id=intent.context_id,
+                )
+            elif (
                 now - intent.created_at
             ).total_seconds() > MANUAL_SERVICE_INTENT_TIMEOUT_SECONDS:
                 intents.pop(entity_id, None)
