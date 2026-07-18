@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Manual Operation
+
+- external and physical cover movement detection is enabled by default
+- KNX feedback may confirm an external movement within 60 seconds
+- Smart Shading's own movement feedback and isolated status refreshes do not create a pause
+- confirmed external movement pauses only the affected cover and synchronizes its configured manual entity
+
 ### Release Process
 
 - added a manually triggered Prepare Release workflow that creates a dedicated, reviewable draft pull request instead of publishing directly
