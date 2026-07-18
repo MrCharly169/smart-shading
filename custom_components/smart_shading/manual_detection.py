@@ -15,6 +15,7 @@ DEFAULT_EXTERNAL_MOVEMENT_DETECTION = True
 # previous eight-second window. Keep isolated updates harmless, but allow a
 # second directionally consistent update to confirm the external movement.
 EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 60.0
+OWN_COMMAND_SETTLE_SECONDS = 30.0
 
 
 @dataclass(slots=True)
@@ -147,6 +148,69 @@ class ManualOverrideDetectionMixin:
             )
         )
 
+    def _own_command_session_active(
+        self,
+        entity_id: str,
+        *,
+        now: datetime,
+        new_state: str | None,
+        new_position: float | None,
+        new_tilt: float | None,
+        position_tolerance: float,
+        tilt_tolerance: float,
+    ) -> bool:
+        """Return whether feedback still belongs to Smart Shading.
+
+        KNX can publish delayed, non-monotonic and cross-axis feedback while a
+        venetian blind is moving. Ownership therefore follows the command
+        session, not every individual intermediate value. Once the commanded
+        targets have been stable for a short grace period, the next movement is
+        eligible for normal external-movement confirmation again.
+        """
+        session = self.own_command_sessions.get(entity_id)
+        if session is None:
+            return False
+        if now > session.expires_at:
+            self._cancel_own_command_session(entity_id)
+            return False
+        if (
+            session.target_reached_at is not None
+            and (now - session.target_reached_at).total_seconds()
+            > OWN_COMMAND_SETTLE_SECONDS
+        ):
+            self._cancel_own_command_session(entity_id)
+            return False
+
+        position_complete = (
+            not session.position_commanded
+            or (
+                new_position is not None
+                and session.position_target is not None
+                and abs(float(new_position) - session.position_target)
+                <= position_tolerance
+            )
+        )
+        tilt_complete = (
+            not session.tilt_commanded
+            or (
+                new_tilt is not None
+                and session.tilt_target is not None
+                and abs(float(new_tilt) - session.tilt_target)
+                <= tilt_tolerance
+            )
+        )
+        target_complete = (
+            position_complete
+            and tilt_complete
+            and new_state not in {"opening", "closing"}
+        )
+        if target_complete:
+            if session.target_reached_at is None:
+                session.target_reached_at = now
+        else:
+            session.target_reached_at = None
+        return True
+
     def _classify_confirmed_cover_change(
         self,
         room: dict[str, Any],
@@ -232,6 +296,33 @@ class ManualOverrideDetectionMixin:
             position_change_threshold=position_threshold,
             tilt_change_threshold=tilt_threshold,
         )
+
+        if self._own_command_session_active(
+            entity_id,
+            now=now,
+            new_state=new_value,
+            new_position=new_position,
+            new_tilt=new_tilt,
+            position_tolerance=float(
+                self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
+            ),
+            tilt_tolerance=float(
+                self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
+            ),
+        ):
+            self._clear_motion_candidate(observation)
+            observation.phase = "own_command"
+            self._update_motion_observation(
+                observation, new_state, new_position, new_tilt
+            )
+            return CoverFeedbackDecision(
+                raw.changed,
+                True,
+                False,
+                raw.position_complete,
+                raw.tilt_complete,
+                "active_own_command_session",
+            )
 
         if raw.expected:
             self._clear_motion_candidate(observation)
