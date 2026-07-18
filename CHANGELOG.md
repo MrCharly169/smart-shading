@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.5 - 2026-07-18
+
 ### Window Contacts
 
 - cover movement linked to a configured unsafe window state and its return movement after the window closes no longer create a false manual pause
