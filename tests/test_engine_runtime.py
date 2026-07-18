@@ -185,6 +185,7 @@ def base_config():
                                         "window": "",
                                         "window_safe_state": "on",
                                         "window_policy": "block_closing",
+                                        "window_returns_to_automation": True,
                                         "max_open_position": 100,
                                         "invert_position": False,
                                         "invert_tilt": False,

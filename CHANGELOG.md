@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Window Contacts
+
+- cover movement linked to a configured unsafe window state and its return movement after the window closes no longer create a false manual pause
+- each cover exposes a setup option, enabled by default, to return cleanly to the current automation target after the window closes
+- explicit Home Assistant user commands, manual entities, room pauses, and safety behavior remain authoritative during the window automation context
+
 
 ## 4.6.0-beta.4 - 2026-07-18
 

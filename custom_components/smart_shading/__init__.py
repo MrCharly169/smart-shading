@@ -14,7 +14,9 @@ from .const import (
     CONF_EVALUATION_INTERVAL,
     CONF_ROOMS,
     CONF_TEST_MODE,
+    CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DOMAIN,
     PLATFORMS,
     PROFILE_DEFAULTS,
@@ -77,6 +79,10 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                     cover.setdefault("window", "")
                     cover.setdefault("window_safe_state", "on")
                     cover.setdefault("window_policy", "block_closing")
+                    cover.setdefault(
+                        CONF_WINDOW_RETURNS_TO_AUTOMATION,
+                        DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+                    )
                     cover.setdefault("invert_position", False)
                     cover.setdefault("invert_tilt", False)
                     cover.setdefault("max_open_position", 100.0)

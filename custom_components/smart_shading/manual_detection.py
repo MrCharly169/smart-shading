@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_POSITION_TOLERANCE, DEFAULT_TILT_TOLERANCE
+from .const import (
+    CONF_WINDOW_RETURNS_TO_AUTOMATION,
+    DEFAULT_POSITION_TOLERANCE,
+    DEFAULT_TILT_TOLERANCE,
+    DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+    WINDOW_POLICY_IGNORE,
+)
 from .logic import CoverFeedbackDecision, classify_cover_feedback
 
 CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
@@ -16,6 +22,8 @@ DEFAULT_EXTERNAL_MOVEMENT_DETECTION = True
 # second directionally consistent update to confirm the external movement.
 EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 60.0
 OWN_COMMAND_SETTLE_SECONDS = 30.0
+WINDOW_AUTOMATION_SETTLE_SECONDS = 30.0
+WINDOW_AUTOMATION_TIMEOUT_SECONDS = 180.0
 
 
 @dataclass(slots=True)
@@ -32,6 +40,18 @@ class CoverMotionObservation:
     candidate_updates: int = 0
 
 
+@dataclass(slots=True)
+class WindowAutomationContext:
+    """Transient ownership of movement caused by a configured window contact."""
+
+    entity_id: str
+    window_entity_id: str
+    phase: str
+    started_at: datetime
+    expires_at: datetime | None = None
+    last_feedback_at: datetime | None = None
+
+
 class ManualOverrideDetectionMixin:
     """Separate Smart Shading feedback from every other real cover movement.
 
@@ -44,10 +64,222 @@ class ManualOverrideDetectionMixin:
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.cover_motion: dict[str, CoverMotionObservation] = {}
+        self.window_automation_contexts: dict[str, WindowAutomationContext] = {}
 
     def _rebuild_runtime(self) -> None:
         super()._rebuild_runtime()
         self._seed_cover_motion_baselines()
+        self._seed_window_automation_contexts()
+
+    @staticmethod
+    def _window_return_enabled(cover: dict[str, Any]) -> bool:
+        return bool(
+            cover.get("window")
+            and cover.get("window_policy") != WINDOW_POLICY_IGNORE
+            and cover.get(
+                CONF_WINDOW_RETURNS_TO_AUTOMATION,
+                DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+            )
+        )
+
+    @staticmethod
+    def _window_state_is_safe(cover: dict[str, Any], state) -> bool:
+        return bool(
+            state is not None
+            and getattr(state, "state", None)
+            == cover.get("window_safe_state", "on")
+        )
+
+    def _seed_window_automation_contexts(self) -> None:
+        """Own window-linked movement immediately after startup when unsafe."""
+        now = dt_util.now()
+        configured: set[str] = set()
+        for _room, _sector, _layer, cover in self._iter_covers():
+            if not self._window_return_enabled(cover):
+                continue
+            entity_id = str(cover.get("entity") or "")
+            window_entity_id = str(cover.get("window") or "")
+            if not entity_id or not window_entity_id:
+                continue
+            configured.add(entity_id)
+            if not self._window_state_is_safe(
+                cover, self.hass.states.get(window_entity_id)
+            ):
+                self.window_automation_contexts[entity_id] = (
+                    WindowAutomationContext(
+                        entity_id=entity_id,
+                        window_entity_id=window_entity_id,
+                        phase="unsafe",
+                        started_at=now,
+                    )
+                )
+            else:
+                self.window_automation_contexts.pop(entity_id, None)
+
+        for entity_id in list(self.window_automation_contexts):
+            if entity_id not in configured:
+                self.window_automation_contexts.pop(entity_id, None)
+
+    @staticmethod
+    def _window_feedback_changed(old_state, new_state) -> bool:
+        if old_state is None or new_state is None:
+            return False
+        if getattr(old_state, "state", None) != getattr(new_state, "state", None):
+            return True
+        for key in ("current_position", "current_tilt_position"):
+            try:
+                before = float(old_state.attributes.get(key))
+                after = float(new_state.attributes.get(key))
+            except (TypeError, ValueError):
+                continue
+            if before is not None and after is not None and abs(after - before) >= 0.5:
+                return True
+        return False
+
+    def _clear_pending_window_cover_detection(self, entity_id: str) -> None:
+        observation = self.cover_motion.get(entity_id)
+        if observation is not None:
+            self._clear_motion_candidate(observation)
+            observation.phase = "window_automation"
+
+        intents = getattr(self, "_pending_manual_service_intents", None)
+        if not intents:
+            return
+        intent = intents.get(entity_id)
+        if intent is not None and not getattr(intent, "user_initiated", False):
+            intents.pop(entity_id, None)
+
+    def _window_automation_context_active(
+        self,
+        cover: dict[str, Any],
+        *,
+        now: datetime,
+        feedback_changed: bool = False,
+    ) -> bool:
+        """Return whether this cover's feedback belongs to window automation."""
+        if not self._window_return_enabled(cover):
+            return False
+
+        entity_id = str(cover.get("entity") or "")
+        window_entity_id = str(cover.get("window") or "")
+        if not entity_id or not window_entity_id:
+            return False
+
+        context = self.window_automation_contexts.get(entity_id)
+        current_safe = self._window_state_is_safe(
+            cover, self.hass.states.get(window_entity_id)
+        )
+        if context is None and not current_safe:
+            context = WindowAutomationContext(
+                entity_id=entity_id,
+                window_entity_id=window_entity_id,
+                phase="unsafe",
+                started_at=now,
+            )
+            self.window_automation_contexts[entity_id] = context
+
+        if context is None:
+            return False
+        if context.phase == "unsafe" and not current_safe:
+            return True
+        if context.phase == "unsafe":
+            context.phase = "recovery"
+            context.started_at = now
+            context.expires_at = now + timedelta(
+                seconds=WINDOW_AUTOMATION_TIMEOUT_SECONDS
+            )
+            context.last_feedback_at = None
+
+        if context.expires_at is not None and now > context.expires_at:
+            self.window_automation_contexts.pop(entity_id, None)
+            self._diag(
+                "window_automation_context_ended",
+                full=True,
+                entity_id=entity_id,
+                window_entity_id=window_entity_id,
+                reason="timeout",
+            )
+            return False
+        if (
+            feedback_changed
+            and context.last_feedback_at is not None
+            and (now - context.last_feedback_at).total_seconds()
+            > WINDOW_AUTOMATION_SETTLE_SECONDS
+        ):
+            self.window_automation_contexts.pop(entity_id, None)
+            self._diag(
+                "window_automation_context_ended",
+                full=True,
+                entity_id=entity_id,
+                window_entity_id=window_entity_id,
+                reason="settled",
+            )
+            return False
+        if feedback_changed:
+            context.last_feedback_at = now
+        return True
+
+    def _handle_window_state_change(
+        self, entity_id: str, old_state, new_state, now: datetime
+    ) -> None:
+        """Start or transition contexts for covers linked to this contact."""
+        for room, _sector, _layer, cover in self._iter_covers():
+            if (
+                cover.get("window") != entity_id
+                or not self._window_return_enabled(cover)
+            ):
+                continue
+            cover_entity_id = str(cover.get("entity") or "")
+            if not cover_entity_id:
+                continue
+            old_safe = self._window_state_is_safe(cover, old_state)
+            new_safe = self._window_state_is_safe(cover, new_state)
+            if old_safe == new_safe:
+                if not new_safe and cover_entity_id not in self.window_automation_contexts:
+                    self.window_automation_contexts[cover_entity_id] = (
+                        WindowAutomationContext(
+                            entity_id=cover_entity_id,
+                            window_entity_id=entity_id,
+                            phase="unsafe",
+                            started_at=now,
+                        )
+                    )
+                continue
+
+            if not new_safe:
+                self.window_automation_contexts[cover_entity_id] = (
+                    WindowAutomationContext(
+                        entity_id=cover_entity_id,
+                        window_entity_id=entity_id,
+                        phase="unsafe",
+                        started_at=now,
+                    )
+                )
+                event_name = "window_automation_context_started"
+                phase = "unsafe"
+            else:
+                self.window_automation_contexts[cover_entity_id] = (
+                    WindowAutomationContext(
+                        entity_id=cover_entity_id,
+                        window_entity_id=entity_id,
+                        phase="recovery",
+                        started_at=now,
+                        expires_at=now
+                        + timedelta(seconds=WINDOW_AUTOMATION_TIMEOUT_SECONDS),
+                    )
+                )
+                event_name = "window_automation_recovery_started"
+                phase = "recovery"
+
+            self._clear_pending_window_cover_detection(cover_entity_id)
+            self._diag(
+                event_name,
+                force=True,
+                room_id=room.get("id"),
+                entity_id=cover_entity_id,
+                window_entity_id=entity_id,
+                phase=phase,
+            )
 
     @staticmethod
     def _cover_state_valid(state) -> bool:
@@ -232,6 +464,30 @@ class ManualOverrideDetectionMixin:
         new_tilt = self._state_attribute_number(new_state, "current_tilt_position")
         old_value = getattr(old_state, "state", None)
         new_value = getattr(new_state, "state", None)
+
+        cover_match = self._find_cover_by_entity(entity_id)
+        cover = cover_match[1] if cover_match else {}
+        window_feedback_changed = self._window_feedback_changed(
+            old_state, new_state
+        )
+        if self._window_automation_context_active(
+            cover,
+            now=now,
+            feedback_changed=window_feedback_changed,
+        ):
+            self._clear_motion_candidate(observation)
+            observation.phase = "window_automation"
+            self._update_motion_observation(
+                observation, new_state, new_position, new_tilt
+            )
+            return CoverFeedbackDecision(
+                window_feedback_changed,
+                True,
+                False,
+                False,
+                False,
+                "window_automation_context",
+            )
 
         # Startup, reconnect and unavailable recovery only establish a baseline.
         if not old_valid or not new_valid or observation.phase == "baseline":
@@ -428,6 +684,13 @@ class ManualOverrideDetectionMixin:
         entity_id = event.data.get("entity_id")
         cover_match = self._find_cover_by_entity(entity_id)
         if not cover_match:
+            if self._is_critical_entity(entity_id):
+                self._handle_window_state_change(
+                    str(entity_id or ""),
+                    event.data.get("old_state"),
+                    event.data.get("new_state"),
+                    dt_util.now(),
+                )
             await super()._async_state_changed(event)
             return
 

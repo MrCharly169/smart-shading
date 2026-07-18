@@ -22,6 +22,7 @@ from .const import (
     CONF_ROOMS,
     CONF_SUN_ENTITY,
     CONF_TEST_MODE,
+    CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
     DAY_WINDOW_OPTIONS,
@@ -31,6 +32,7 @@ from .const import (
     DEFAULT_POSITION_TOLERANCE,
     DEFAULT_SUNSET_OFFSET_MINUTES,
     DEFAULT_TILT_TOLERANCE,
+    DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DIAGNOSTIC_EVENTS,
     DIAGNOSTIC_OPTIONS,
     DEVICE_TYPES,
@@ -151,6 +153,7 @@ def _default_cover(entity_id: str, display_name: str, short_name: str = "") -> d
         "window": "",
         "window_safe_state": "on",
         "window_policy": "block_closing",
+        CONF_WINDOW_RETURNS_TO_AUTOMATION: DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
         "invert_position": False,
         "invert_tilt": False,
         "max_open_position": 100.0,
@@ -1622,6 +1625,10 @@ class _SmartShadingWizardMixin:
                 vol.Optional("window"): _entity("binary_sensor"),
                 vol.Required("window_safe_state"): self._choice(["on", "off"], "safe_state"),
                 vol.Required("window_policy"): self._choice(WINDOW_POLICIES, "window_policy"),
+                vol.Required(
+                    CONF_WINDOW_RETURNS_TO_AUTOMATION,
+                    default=DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+                ): selector.BooleanSelector(),
                 vol.Required("max_open_position"): _number(0, 100, 1, "%"),
                 vol.Required("invert_position"): selector.BooleanSelector(),
                 vol.Required("invert_tilt"): selector.BooleanSelector(),
@@ -1978,6 +1985,10 @@ class SmartShadingConfigFlow(
                 "window": user_input.get("window", ""),
                 "window_safe_state": user_input.get("window_safe_state", "on"),
                 "window_policy": user_input.get("window_policy", "block_closing"),
+                CONF_WINDOW_RETURNS_TO_AUTOMATION: user_input.get(
+                    CONF_WINDOW_RETURNS_TO_AUTOMATION,
+                    DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+                ),
             })
             self.layer().setdefault("covers", []).append(cover)
             self._pending_cover_index = index + 1
@@ -1990,6 +2001,10 @@ class SmartShadingConfigFlow(
                 vol.Optional("window"): _entity("binary_sensor"),
                 vol.Required("window_safe_state", default="on"): self._choice(["on", "off"], "safe_state"),
                 vol.Required("window_policy", default="block_closing"): self._choice(WINDOW_POLICIES, "window_policy"),
+                vol.Required(
+                    CONF_WINDOW_RETURNS_TO_AUTOMATION,
+                    default=DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+                ): selector.BooleanSelector(),
             }
         )
         return self.async_show_form(

@@ -249,6 +249,63 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_window_automation_service_does_not_create_manual_pause(self):
+        hass, engine, _tomorrow = await self._engine()
+        cover = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"][0]
+        cover.update(
+            {
+                "window": "binary_sensor.window",
+                "window_safe_state": "on",
+                "window_policy": "block_closing",
+                "window_returns_to_automation": True,
+            }
+        )
+        hass.states.values["binary_sensor.window"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await self._position_call_and_feedback(
+            engine,
+            target=100,
+            old_position=90,
+            new_position=96,
+            user_id=None,
+            parent_id="window-automation-context",
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", engine._manual_service_intents())
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+
+    async def test_direct_user_service_still_pauses_while_window_is_unsafe(self):
+        hass, engine, _tomorrow = await self._engine()
+        cover = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"][0]
+        cover.update(
+            {
+                "window": "binary_sensor.window",
+                "window_safe_state": "on",
+                "window_policy": "block_closing",
+                "window_returns_to_automation": True,
+            }
+        )
+        hass.states.values["binary_sensor.window"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await self._position_call_and_feedback(
+            engine,
+            target=40,
+            old_position=90,
+            new_position=70,
+            user_id="user-1",
+            parent_id=None,
+        )
+
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(
+            engine.cover_pauses["cover_one"].reason,
+            "home_assistant_manual_service",
+        )
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+
     async def test_room_pause_sets_every_configured_manual_entity_on(self):
         hass, engine, _tomorrow = await self._engine("manual")
         covers = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"]

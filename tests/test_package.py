@@ -271,6 +271,29 @@ class PackageTests(unittest.TestCase):
         self.assertIn('vol.Optional("window")', flow)
         self.assertIn('multiple=True', flow)
 
+    def test_window_return_to_automation_is_defaulted_and_translated(self):
+        self.assertTrue(const.DEFAULT_WINDOW_RETURNS_TO_AUTOMATION)
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        migration = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertGreaterEqual(flow.count("CONF_WINDOW_RETURNS_TO_AUTOMATION"), 4)
+        self.assertIn("DEFAULT_WINDOW_RETURNS_TO_AUTOMATION", migration)
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIn(
+                "window_returns_to_automation",
+                data["config"]["step"]["compact_cover_details"]["data"],
+            )
+            for section in ("config", "options"):
+                step = data[section]["step"]["edit_cover"]
+                self.assertIn("window_returns_to_automation", step["data"])
+                self.assertIn(
+                    "window_returns_to_automation", step["data_description"]
+                )
+
     def test_sun_sensitivity_is_inverse_threshold(self):
         self.assertGreater(
             const.SUN_PRESETS["low"]["sun_on_lux"],
