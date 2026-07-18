@@ -50,14 +50,14 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.engine.async_initialize()
 
-    async def test_safe_default_ignores_even_multiple_external_cover_updates(self):
+    async def test_external_cover_movement_pauses_by_default(self):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         third = FakeState("closing", current_position=40, current_tilt_position=100)
         await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
         await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
-        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
-        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
     async def test_external_lock_remains_immediate_and_authoritative(self):
         await self.engine._async_state_changed(
@@ -80,8 +80,7 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(len(calls), 1)
 
-    async def test_single_update_is_only_possible_external_when_opted_in(self):
-        self.engine.config[manual_mod.CONF_EXTERNAL_MOVEMENT_DETECTION] = True
+    async def test_single_update_is_only_possible_external_by_default(self):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
@@ -90,6 +89,31 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.engine.cover_motion["cover.one"].phase,
             "possible_external",
         )
+
+    async def test_knx_feedback_after_twenty_seconds_confirms_external_move(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("closing", current_position=70, current_tilt_position=100)
+        third = FakeState("closing", current_position=40, current_tilt_position=100)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
+        observation = self.engine.cover_motion["cover.one"]
+        observation.candidate_started_at -= timedelta(seconds=20)
+        await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_legacy_opt_out_still_ignores_external_cover_updates(self):
+        self.engine.config[manual_mod.CONF_EXTERNAL_MOVEMENT_DETECTION] = False
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("closing", current_position=70, current_tilt_position=100)
+        third = FakeState("closing", current_position=40, current_tilt_position=100)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
+        await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
 
     async def test_second_consistent_update_confirms_only_that_cover(self):
         config = base_config()

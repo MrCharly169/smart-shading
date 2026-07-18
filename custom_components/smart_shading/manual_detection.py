@@ -10,8 +10,11 @@ from .const import DEFAULT_POSITION_TOLERANCE, DEFAULT_TILT_TOLERANCE
 from .logic import CoverFeedbackDecision, classify_cover_feedback
 
 CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
-DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False
-EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 8.0
+DEFAULT_EXTERNAL_MOVEMENT_DETECTION = True
+# KNX actuators commonly publish movement feedback at intervals longer than the
+# previous eight-second window. Keep isolated updates harmless, but allow a
+# second directionally consistent update to confirm the external movement.
+EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 60.0
 
 
 @dataclass(slots=True)
@@ -29,11 +32,12 @@ class CoverMotionObservation:
 
 
 class ManualOverrideDetectionMixin:
-    """Protect local pauses from isolated KNX/Home Assistant state refreshes.
+    """Separate Smart Shading feedback from every other real cover movement.
 
     Explicit automation-lock entities remain authoritative and immediate. Cover
-    movement detection is an opt-in feature and requires two consistent updates
-    from the same cover within a short confirmation window.
+    movement outside an active Smart Shading target is enabled by default and
+    requires two directionally consistent updates from the same cover. Startup,
+    recovery, identical refreshes and own-command feedback remain harmless.
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -249,8 +253,9 @@ class ManualOverrideDetectionMixin:
             )
             return raw
 
-        # Safe default: explicit automation-lock entities are the only source of
-        # local pauses until detection is deliberately enabled.
+        # A legacy per-room or house override may still disable feedback-based
+        # detection. Normal installations classify real movement outside a
+        # Smart Shading target as external by default.
         if not self._external_movement_detection_enabled(room):
             self._clear_motion_candidate(observation)
             observation.phase = "idle"
