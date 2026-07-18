@@ -383,12 +383,14 @@
           "window": "Window contact (optional)",
           "window_safe_state": "Safe window state",
           "window_policy": "Behavior for unsafe window",
+          "window_returns_to_automation": "Return to automation after the window closes",
           "max_open_position": "Maximum open position",
           "invert_position": "Additionally invert position",
           "invert_tilt": "Additionally invert slats",
           "short": "Short code"
         },
         "data_description": {
+          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
           "short": "Short label used by the card."
         }
       },
@@ -614,7 +616,11 @@
           "lock": "Automation/manual lock (optional)",
           "window": "Window contact (optional)",
           "window_safe_state": "Safe window state",
-          "window_policy": "Behavior when window is unsafe"
+          "window_policy": "Behavior when window is unsafe",
+          "window_returns_to_automation": "Return to automation after the window closes"
+        },
+        "data_description": {
+          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active."
         }
       }
     },
@@ -1018,12 +1024,14 @@
           "window": "Window contact (optional)",
           "window_safe_state": "Safe window state",
           "window_policy": "Behavior for unsafe window",
+          "window_returns_to_automation": "Return to automation after the window closes",
           "max_open_position": "Maximum open position",
           "invert_position": "Additionally invert position",
           "invert_tilt": "Additionally invert slats",
           "short": "Short code"
         },
         "data_description": {
+          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
           "short": "Short label used by the card."
         }
       },
