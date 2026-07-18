@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.4 - 2026-07-18
+
 ### Manual Operation
 
 - Smart Shading now claims cover feedback before dispatching its own service call, closing the race with immediate Home Assistant or KNX state updates
