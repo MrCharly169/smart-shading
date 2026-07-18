@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.3 - 2026-07-18
+
 ### Manual Operation
 
 - external and physical cover movement detection is enabled by default
