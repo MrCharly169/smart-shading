@@ -17,10 +17,12 @@ from .logic import CoverFeedbackDecision, classify_cover_feedback
 
 CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
 DEFAULT_EXTERNAL_MOVEMENT_DETECTION = True
-# KNX actuators commonly publish movement feedback at intervals longer than the
-# previous eight-second window. Keep isolated updates harmless, but allow a
-# second directionally consistent update to confirm the external movement.
+# KNX actuators may publish movement feedback at wider intervals. Keep isolated
+# updates harmless and require consistent numeric progress plus a stable value.
 EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 60.0
+EXTERNAL_MIN_CHANGED_UPDATES = 2
+EXTERNAL_MIN_STABLE_UPDATES = 1
+EXTERNAL_STABLE_EPSILON = 0.5
 OWN_COMMAND_SETTLE_SECONDS = 30.0
 WINDOW_AUTOMATION_SETTLE_SECONDS = 30.0
 WINDOW_AUTOMATION_TIMEOUT_SECONDS = 180.0
@@ -35,9 +37,19 @@ class CoverMotionObservation:
     last_position: float | None = None
     last_tilt: float | None = None
     last_state: str | None = None
+    baseline_position: float | None = None
+    baseline_tilt: float | None = None
+    candidate_axis: str | None = None
     candidate_direction: str | None = None
     candidate_started_at: datetime | None = None
+    candidate_last_changed_at: datetime | None = None
+    candidate_start_position: float | None = None
+    candidate_start_tilt: float | None = None
+    candidate_latest_position: float | None = None
+    candidate_latest_tilt: float | None = None
     candidate_updates: int = 0
+    candidate_stable_updates: int = 0
+    last_decision_reason: str = "baseline"
 
 
 @dataclass(slots=True)
@@ -57,8 +69,9 @@ class ManualOverrideDetectionMixin:
 
     Explicit automation-lock entities remain authoritative and immediate. Cover
     movement outside an active Smart Shading target is enabled by default and
-    requires two directionally consistent updates from the same cover. Startup,
-    recovery, identical refreshes and own-command feedback remain harmless.
+    requires directionally consistent numeric updates followed by stable numeric
+    feedback from the same cover. Startup, recovery, state-only refreshes and
+    own-command feedback remain harmless.
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -310,7 +323,10 @@ class ManualOverrideDetectionMixin:
                 observation.last_tilt = self._state_attribute_number(
                     state, "current_tilt_position"
                 )
+                observation.baseline_position = observation.last_position
+                observation.baseline_tilt = observation.last_tilt
                 observation.last_state = state.state
+                observation.last_decision_reason = "baseline_seeded"
                 self._clear_motion_candidate(observation)
             else:
                 observation.phase = "baseline"
@@ -323,8 +339,15 @@ class ManualOverrideDetectionMixin:
     @staticmethod
     def _clear_motion_candidate(observation: CoverMotionObservation) -> None:
         observation.candidate_direction = None
+        observation.candidate_axis = None
         observation.candidate_started_at = None
+        observation.candidate_last_changed_at = None
+        observation.candidate_start_position = None
+        observation.candidate_start_tilt = None
+        observation.candidate_latest_position = None
+        observation.candidate_latest_tilt = None
         observation.candidate_updates = 0
+        observation.candidate_stable_updates = 0
         if observation.phase in {"possible_external", "confirmed_external"}:
             observation.phase = "idle"
 
@@ -339,6 +362,27 @@ class ManualOverrideDetectionMixin:
         observation.last_tilt = new_tilt
         observation.last_state = getattr(new_state, "state", None)
 
+    @classmethod
+    def _accept_motion_baseline(
+        cls,
+        observation: CoverMotionObservation,
+        new_state,
+        new_position: float | None,
+        new_tilt: float | None,
+        reason: str,
+    ) -> None:
+        """Accept feedback as the new harmless detector baseline."""
+        cls._clear_motion_candidate(observation)
+        observation.phase = "idle"
+        if new_position is not None:
+            observation.baseline_position = new_position
+        if new_tilt is not None:
+            observation.baseline_tilt = new_tilt
+        observation.last_decision_reason = reason
+        cls._update_motion_observation(
+            observation, new_state, new_position, new_tilt
+        )
+
     @staticmethod
     def _movement_direction(
         *,
@@ -346,28 +390,108 @@ class ManualOverrideDetectionMixin:
         new_position: float | None,
         old_tilt: float | None,
         new_tilt: float | None,
-        new_state: str | None,
         position_threshold: float,
         tilt_threshold: float,
-    ) -> str | None:
-        state_direction = new_state if new_state in {"opening", "closing"} else None
-        position_direction = None
+    ) -> tuple[str, str] | None:
         if old_position is not None and new_position is not None:
             delta = float(new_position) - float(old_position)
             if abs(delta) >= position_threshold:
-                position_direction = "opening" if delta > 0 else "closing"
-
-        # Contradicting direction data is not reliable enough to pause a cover.
-        if state_direction and position_direction and state_direction != position_direction:
-            return None
-        if state_direction or position_direction:
-            return state_direction or position_direction
+                return (
+                    "position",
+                    "opening" if delta > 0 else "closing",
+                )
 
         if old_tilt is not None and new_tilt is not None:
             delta = float(new_tilt) - float(old_tilt)
             if abs(delta) >= tilt_threshold:
-                return "tilt_opening" if delta > 0 else "tilt_closing"
+                return (
+                    "tilt",
+                    "opening" if delta > 0 else "closing",
+                )
         return None
+
+    @staticmethod
+    def _candidate_returned_to_baseline(
+        observation: CoverMotionObservation,
+        new_position: float | None,
+        new_tilt: float | None,
+        position_threshold: float,
+        tilt_threshold: float,
+    ) -> bool:
+        if observation.candidate_axis == "position":
+            return bool(
+                observation.candidate_start_position is not None
+                and new_position is not None
+                and abs(new_position - observation.candidate_start_position)
+                <= position_threshold
+            )
+        if observation.candidate_axis == "tilt":
+            return bool(
+                observation.candidate_start_tilt is not None
+                and new_tilt is not None
+                and abs(new_tilt - observation.candidate_start_tilt)
+                <= tilt_threshold
+            )
+        return False
+
+    @staticmethod
+    def _candidate_value_is_stable(
+        observation: CoverMotionObservation,
+        new_position: float | None,
+        new_tilt: float | None,
+    ) -> bool:
+        if observation.candidate_axis == "position":
+            return bool(
+                observation.candidate_latest_position is not None
+                and new_position is not None
+                and abs(new_position - observation.candidate_latest_position)
+                <= EXTERNAL_STABLE_EPSILON
+            )
+        if observation.candidate_axis == "tilt":
+            return bool(
+                observation.candidate_latest_tilt is not None
+                and new_tilt is not None
+                and abs(new_tilt - observation.candidate_latest_tilt)
+                <= EXTERNAL_STABLE_EPSILON
+            )
+        return False
+
+    def _start_motion_candidate(
+        self,
+        observation: CoverMotionObservation,
+        *,
+        axis: str,
+        direction: str,
+        old_position: float | None,
+        new_position: float | None,
+        old_tilt: float | None,
+        new_tilt: float | None,
+        new_state,
+        now: datetime,
+    ) -> None:
+        observation.phase = "possible_external"
+        observation.candidate_axis = axis
+        observation.candidate_direction = direction
+        observation.candidate_started_at = now
+        observation.candidate_last_changed_at = now
+        observation.candidate_start_position = (
+            observation.baseline_position
+            if observation.baseline_position is not None
+            else old_position
+        )
+        observation.candidate_start_tilt = (
+            observation.baseline_tilt
+            if observation.baseline_tilt is not None
+            else old_tilt
+        )
+        observation.candidate_latest_position = new_position
+        observation.candidate_latest_tilt = new_tilt
+        observation.candidate_updates = 1
+        observation.candidate_stable_updates = 0
+        observation.last_decision_reason = "possible_external_movement"
+        self._update_motion_observation(
+            observation, new_state, new_position, new_tilt
+        )
 
     def _external_movement_detection_enabled(self, room: dict[str, Any]) -> bool:
         return bool(
@@ -475,11 +599,14 @@ class ManualOverrideDetectionMixin:
             now=now,
             feedback_changed=window_feedback_changed,
         ):
-            self._clear_motion_candidate(observation)
-            observation.phase = "window_automation"
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "window_automation_context",
             )
+            observation.phase = "window_automation"
             return CoverFeedbackDecision(
                 window_feedback_changed,
                 True,
@@ -491,14 +618,18 @@ class ManualOverrideDetectionMixin:
 
         # Startup, reconnect and unavailable recovery only establish a baseline.
         if not old_valid or not new_valid or observation.phase == "baseline":
-            self._clear_motion_candidate(observation)
             if new_valid:
-                observation.phase = "idle"
-                self._update_motion_observation(
-                    observation, new_state, new_position, new_tilt
+                self._accept_motion_baseline(
+                    observation,
+                    new_state,
+                    new_position,
+                    new_tilt,
+                    "baseline_or_recovery",
                 )
             else:
+                self._clear_motion_candidate(observation)
                 observation.phase = "baseline"
+                observation.last_decision_reason = "baseline_or_recovery"
             return CoverFeedbackDecision(
                 False, False, False, False, False, "baseline_or_recovery"
             )
@@ -566,11 +697,14 @@ class ManualOverrideDetectionMixin:
                 self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
             ),
         ):
-            self._clear_motion_candidate(observation)
-            observation.phase = "own_command"
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "active_own_command_session",
             )
+            observation.phase = "own_command"
             return CoverFeedbackDecision(
                 raw.changed,
                 True,
@@ -580,37 +714,19 @@ class ManualOverrideDetectionMixin:
                 "active_own_command_session",
             )
 
-        if raw.expected:
-            self._clear_motion_candidate(observation)
-            observation.phase = "own_command"
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
-            )
-            return raw
-
-        if not raw.changed:
-            if (
-                observation.candidate_started_at is not None
-                and (now - observation.candidate_started_at).total_seconds()
-                > EXTERNAL_CONFIRMATION_WINDOW_SECONDS
-            ):
-                self._clear_motion_candidate(observation)
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
-            )
-            return raw
-
         # A legacy per-room or house override may still disable feedback-based
         # detection. Normal installations classify real movement outside a
         # Smart Shading target as external by default.
         if not self._external_movement_detection_enabled(room):
-            self._clear_motion_candidate(observation)
-            observation.phase = "idle"
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "external_movement_detection_disabled",
             )
             return CoverFeedbackDecision(
-                True,
+                raw.changed,
                 False,
                 False,
                 raw.position_complete,
@@ -618,20 +734,110 @@ class ManualOverrideDetectionMixin:
                 "external_movement_detection_disabled",
             )
 
-        direction = self._movement_direction(
+        candidate_active = (
+            observation.phase == "possible_external"
+            and observation.candidate_started_at is not None
+        )
+        if candidate_active and (
+            now - observation.candidate_started_at
+        ).total_seconds() > EXTERNAL_CONFIRMATION_WINDOW_SECONDS:
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "external_candidate_expired",
+            )
+            return CoverFeedbackDecision(
+                raw.changed,
+                False,
+                False,
+                raw.position_complete,
+                raw.tilt_complete,
+                "external_candidate_expired",
+            )
+
+        if candidate_active and self._candidate_returned_to_baseline(
+            observation,
+            new_position,
+            new_tilt,
+            position_threshold,
+            tilt_threshold,
+        ):
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "external_candidate_returned_to_baseline",
+            )
+            return CoverFeedbackDecision(
+                raw.changed,
+                False,
+                False,
+                raw.position_complete,
+                raw.tilt_complete,
+                "external_candidate_returned_to_baseline",
+            )
+
+        if not raw.changed:
+            if candidate_active and self._candidate_value_is_stable(
+                observation, new_position, new_tilt
+            ):
+                observation.candidate_stable_updates += 1
+                self._update_motion_observation(
+                    observation, new_state, new_position, new_tilt
+                )
+                if (
+                    observation.candidate_updates >= EXTERNAL_MIN_CHANGED_UPDATES
+                    and observation.candidate_stable_updates
+                    >= EXTERNAL_MIN_STABLE_UPDATES
+                ):
+                    observation.phase = "confirmed_external"
+                    observation.last_decision_reason = (
+                        "confirmed_stable_external_movement"
+                    )
+                    return CoverFeedbackDecision(
+                        True,
+                        False,
+                        True,
+                        raw.position_complete,
+                        raw.tilt_complete,
+                        "confirmed_stable_external_movement",
+                    )
+                observation.last_decision_reason = (
+                    "external_candidate_awaiting_corroboration"
+                )
+                return CoverFeedbackDecision(
+                    False,
+                    False,
+                    False,
+                    raw.position_complete,
+                    raw.tilt_complete,
+                    "external_candidate_awaiting_corroboration",
+                )
+
+            observation.last_decision_reason = raw.reason
+            self._update_motion_observation(
+                observation, new_state, new_position, new_tilt
+            )
+            return raw
+
+        movement = self._movement_direction(
             old_position=old_position,
             new_position=new_position,
             old_tilt=old_tilt,
             new_tilt=new_tilt,
-            new_state=new_value,
             position_threshold=position_threshold,
             tilt_threshold=tilt_threshold,
         )
-        if direction is None:
-            self._clear_motion_candidate(observation)
-            observation.phase = "idle"
-            self._update_motion_observation(
-                observation, new_state, new_position, new_tilt
+        if movement is None:
+            self._accept_motion_baseline(
+                observation,
+                new_state,
+                new_position,
+                new_tilt,
+                "ambiguous_external_change",
             )
             return CoverFeedbackDecision(
                 True,
@@ -642,34 +848,42 @@ class ManualOverrideDetectionMixin:
                 "ambiguous_external_change",
             )
 
+        axis, direction = movement
+
         candidate_fresh = (
-            observation.phase == "possible_external"
-            and observation.candidate_started_at is not None
-            and (now - observation.candidate_started_at).total_seconds()
-            <= EXTERNAL_CONFIRMATION_WINDOW_SECONDS
+            candidate_active
+            and observation.candidate_axis == axis
             and observation.candidate_direction == direction
         )
         if candidate_fresh:
             observation.candidate_updates += 1
-            observation.phase = "confirmed_external"
+            observation.candidate_stable_updates = 0
+            observation.candidate_last_changed_at = now
+            observation.candidate_latest_position = new_position
+            observation.candidate_latest_tilt = new_tilt
+            observation.last_decision_reason = "external_candidate_progress"
             self._update_motion_observation(
                 observation, new_state, new_position, new_tilt
             )
             return CoverFeedbackDecision(
                 True,
                 False,
-                True,
+                False,
                 raw.position_complete,
                 raw.tilt_complete,
-                "confirmed_external_movement",
+                "external_candidate_progress",
             )
 
-        observation.phase = "possible_external"
-        observation.candidate_direction = direction
-        observation.candidate_started_at = now
-        observation.candidate_updates = 1
-        self._update_motion_observation(
-            observation, new_state, new_position, new_tilt
+        self._start_motion_candidate(
+            observation,
+            axis=axis,
+            direction=direction,
+            old_position=old_position,
+            new_position=new_position,
+            old_tilt=old_tilt,
+            new_tilt=new_tilt,
+            new_state=new_state,
+            now=now,
         )
         return CoverFeedbackDecision(
             True,
@@ -712,6 +926,22 @@ class ManualOverrideDetectionMixin:
             return
 
         if decision.manual:
+            observation = self.cover_motion[entity_id]
+            self._diag(
+                "external_cover_movement_confirmed",
+                force=True,
+                room_id=room.get("id"),
+                entity_id=entity_id,
+                reason=decision.reason,
+                axis=observation.candidate_axis,
+                direction=observation.candidate_direction,
+                baseline_position=observation.candidate_start_position,
+                baseline_tilt=observation.candidate_start_tilt,
+                latest_position=observation.candidate_latest_position,
+                latest_tilt=observation.candidate_latest_tilt,
+                changed_updates=observation.candidate_updates,
+                stable_updates=observation.candidate_stable_updates,
+            )
             await self._activate_cover_pause(
                 room, cover, "external_or_physical_control"
             )
@@ -719,7 +949,7 @@ class ManualOverrideDetectionMixin:
                 await self.async_evaluate_all(f"safety_manual_cover:{entity_id}")
             return
 
-        if decision.changed:
+        if decision.changed or decision.reason == "state_only_change_ignored":
             self._diag(
                 "cover_change_observed",
                 full=True,
@@ -740,16 +970,17 @@ class ManualOverrideDetectionMixin:
         entity_id = str(cover.get("entity") or "")
         observation = self.cover_motion.get(entity_id)
         if observation is not None:
-            self._clear_motion_candidate(observation)
             state = self.hass.states.get(entity_id)
             if self._cover_state_valid(state):
-                observation.phase = "idle"
-                self._update_motion_observation(
+                self._accept_motion_baseline(
                     observation,
                     state,
                     self._state_attribute_number(state, "current_position"),
                     self._state_attribute_number(state, "current_tilt_position"),
+                    "pause_cleared_baseline",
                 )
             else:
+                self._clear_motion_candidate(observation)
                 observation.phase = "baseline"
+                observation.last_decision_reason = "pause_cleared_without_state"
         await super()._clear_cover_pause(room, cover, **kwargs)

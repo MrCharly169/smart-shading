@@ -75,8 +75,11 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
         await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
         await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        await self.engine._async_state_changed(FakeEvent("cover.one", third, settled))
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
@@ -115,11 +118,13 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
 
         await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
         observation = self.engine.cover_motion["cover.one"]
         observation.candidate_started_at -= timedelta(seconds=20)
         await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+        await self.engine._async_state_changed(FakeEvent("cover.one", third, settled))
 
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
@@ -160,8 +165,10 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
         await engine._async_state_changed(FakeEvent("cover.one", first, second))
         await engine._async_state_changed(FakeEvent("cover.one", second, third))
+        await engine._async_state_changed(FakeEvent("cover.one", third, settled))
 
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertFalse(engine.cover_pauses["cover_two"].active)
@@ -234,6 +241,70 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.engine.cover_motion["cover.one"].candidate_direction
         )
 
+    async def test_state_only_opening_and_closing_are_informational(self):
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=100, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("closing", current_position=100, current_tilt_position=100),
+                FakeState("closed", current_position=100, current_tilt_position=100),
+            )
+        )
+
+        observation = self.engine.cover_motion["cover.one"]
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(observation.phase, "idle")
+        self.assertIsNone(observation.candidate_direction)
+        self.assertEqual(observation.last_decision_reason, "state_only_change_ignored")
+
+    async def test_candidate_return_to_baseline_is_rejected(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        away = FakeState("closing", current_position=70, current_tilt_position=100)
+        baseline = FakeState("open", current_position=100, current_tilt_position=100)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, away))
+        await self.engine._async_state_changed(FakeEvent("cover.one", away, baseline))
+
+        observation = self.engine.cover_motion["cover.one"]
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(observation.phase, "idle")
+        self.assertIsNone(observation.candidate_direction)
+        self.assertEqual(
+            observation.last_decision_reason,
+            "external_candidate_returned_to_baseline",
+        )
+
+    async def test_tilt_only_feedback_requires_progress_and_stability(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("open", current_position=100, current_tilt_position=70)
+        third = FakeState("open", current_position=100, current_tilt_position=40)
+        settled = FakeState("open", current_position=100, current_tilt_position=40)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
+        await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        await self.engine._async_state_changed(FakeEvent("cover.one", third, settled))
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_cover_without_numeric_feedback_uses_manual_entity_only(self):
+        await self.engine._async_state_changed(
+            FakeEvent("cover.one", FakeState("open"), FakeState("closing"))
+        )
+        await self.engine._async_state_changed(
+            FakeEvent("cover.one", FakeState("closing"), FakeState("closed"))
+        )
+
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
+
     async def test_direction_reversal_restarts_confirmation(self):
         self.engine.config[manual_mod.CONF_EXTERNAL_MOVEMENT_DETECTION] = True
         first = FakeState("open", current_position=100, current_tilt_position=100)
@@ -256,6 +327,9 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             tilt=100,
             tilt_at=now,
             last_activity_at=now,
+        )
+        self.engine._begin_own_command_session(
+            "cover.one", "position", 100.0, now
         )
         await self.engine._async_state_changed(
             FakeEvent(
@@ -335,12 +409,20 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             FakeState("open", current_position=100, current_tilt_position=75),
             now + timedelta(seconds=72),
         )
+        stable_external = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=75),
+            FakeState("open", current_position=100, current_tilt_position=75),
+            now + timedelta(seconds=73),
+        )
 
         self.assertTrue(reached.expected)
         self.assertFalse(settled.changed)
         self.assertNotIn("cover.one", self.engine.own_command_sessions)
         self.assertFalse(first_external.manual)
-        self.assertTrue(confirmed_external.manual)
+        self.assertFalse(confirmed_external.manual)
+        self.assertTrue(stable_external.manual)
 
     async def test_own_session_exists_before_cover_service_dispatch(self):
         room = self.engine.config["rooms"][0]
@@ -436,9 +518,12 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         second = FakeState("closing", current_position=70, current_tilt_position=100)
         third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
         await engine._async_state_changed(FakeEvent("cover.one", first, second))
         self.assertEqual(calls, [])
         await engine._async_state_changed(FakeEvent("cover.one", second, third))
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        await engine._async_state_changed(FakeEvent("cover.one", third, settled))
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(calls, ["safety_manual_cover:cover.one"])
 
@@ -525,6 +610,13 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 FakeState("closing", current_position=40, current_tilt_position=100),
             )
         )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("closing", current_position=40, current_tilt_position=100),
+                FakeState("open", current_position=40, current_tilt_position=100),
+            )
+        )
 
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
@@ -549,6 +641,9 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
     async def test_window_return_can_be_disabled_per_cover(self):
+        self.hass.states.values["cover.one"] = FakeState(
+            "open", current_position=90, current_tilt_position=100
+        )
         self._configure_window_return(enabled=False)
 
         async def fake_evaluate(_trigger):
@@ -567,6 +662,13 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             FakeEvent(
                 "cover.one",
                 FakeState("opening", current_position=96, current_tilt_position=100),
+                FakeState("open", current_position=100, current_tilt_position=100),
+            )
+        )
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
                 FakeState("open", current_position=100, current_tilt_position=100),
             )
         )

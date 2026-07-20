@@ -99,3 +99,5 @@ scripts/release_changelog.py       Release preparation and note extraction
 ```
 
 German documentation is available in [README_DE.md](README_DE.md). Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Troubleshooting, including false KNX cover movement caused by readable command objects, is documented in the [FAQ](docs/FAQ.md).
