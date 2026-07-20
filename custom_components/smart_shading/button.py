@@ -8,7 +8,12 @@ from .entity import SmartShadingEntity, localized
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
-    entities = [EvaluateHouseButton(engine), ExportDiagnosticsButton(engine)]
+    entities = [EvaluateHouseButton(engine)]
+    if not engine.advanced_mode:
+        entities.extend(EvaluateRoomButton(engine, room_id) for room_id in engine.rooms)
+        async_add_entities(entities)
+        return
+    entities.append(ExportDiagnosticsButton(engine))
     for room_id in engine.rooms:
         entities.extend(
             [

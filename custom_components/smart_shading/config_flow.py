@@ -18,6 +18,7 @@ from .const import (
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
+    CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_HOUSE_NAME,
     CONF_ROOMS,
     CONF_SUN_ENTITY,
@@ -28,6 +29,7 @@ from .const import (
     DAY_WINDOW_OPTIONS,
     DEFAULT_COMMAND_COOLDOWN,
     DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
     DEFAULT_EVENING_RELEASE_TIME,
     DEFAULT_POSITION_TOLERANCE,
     DEFAULT_SUNSET_OFFSET_MINUTES,
@@ -452,20 +454,24 @@ class _SmartShadingWizardMixin:
     ) -> ConfigFlowResult:
         if user_input is not None:
             values = dict(user_input)
-            interval_minutes = float(values.pop("evaluation_interval_minutes", 20))
-            values[CONF_EVALUATION_INTERVAL] = max(60, int(interval_minutes * 60))
+            if "evaluation_interval_minutes" in values:
+                interval_minutes = float(values.pop("evaluation_interval_minutes"))
+                values[CONF_EVALUATION_INTERVAL] = max(60, int(interval_minutes * 60))
             self._working.update(values)
+            if not bool(self._working.get(CONF_ADVANCED_MODE, False)):
+                self._working[CONF_DIAGNOSTIC_LEVEL] = "off"
+                self._working[CONF_TEST_MODE] = False
             return await self.async_step_init()
         fields: dict[Any, Any] = {
             vol.Required(CONF_ADVANCED_MODE): selector.BooleanSelector(),
-            vol.Required(CONF_DIAGNOSTIC_LEVEL): self._choice(
-                DIAGNOSTIC_OPTIONS, "diagnostic_level"
-            ),
-            vol.Required("evaluation_interval_minutes"): _number(1, 60, 1, "min"),
         }
         if self.advanced_mode:
             fields.update(
                 {
+                    vol.Required(CONF_DIAGNOSTIC_LEVEL): self._choice(
+                        DIAGNOSTIC_OPTIONS, "diagnostic_level"
+                    ),
+                    vol.Required("evaluation_interval_minutes"): _number(1, 60, 1, "min"),
                     vol.Required(CONF_SUN_ENTITY): _entity("sun"),
                     vol.Required("position_tolerance"): _number(0, 10, 1, "%"),
                     vol.Required("tilt_tolerance"): _number(0, 15, 1, "%"),
@@ -1220,6 +1226,10 @@ class _SmartShadingWizardMixin:
                 vol.Required("pause_sun_offset_minutes"): _number(-120, 240, 5, "min"),
                 vol.Required("pause_duration_hours"): _number(0.5, 72, 0.5, "h"),
                 vol.Required("heat_during_pause"): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_EXTERNAL_MOVEMENT_DETECTION,
+                    default=DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
+                ): selector.BooleanSelector(),
             }
         )
         return self.async_show_form(
@@ -1796,7 +1806,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 11
+    VERSION = 12
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -1814,10 +1824,10 @@ class SmartShadingConfigFlow(
                 self._working = {
                     CONF_HOUSE_NAME: user_input[CONF_HOUSE_NAME],
                     CONF_SUN_ENTITY: "sun.sun",
-                    CONF_DIAGNOSTIC_LEVEL: str(user_input[CONF_DIAGNOSTIC_LEVEL]),
-                    CONF_TEST_MODE: str(user_input[CONF_DIAGNOSTIC_LEVEL]) != "off",
+                    CONF_DIAGNOSTIC_LEVEL: "off",
+                    CONF_TEST_MODE: False,
                     CONF_ADVANCED_MODE: bool(user_input[CONF_ADVANCED_MODE]),
-                    CONF_EVALUATION_INTERVAL: max(60, int(float(user_input["evaluation_interval_minutes"]) * 60)),
+                    CONF_EVALUATION_INTERVAL: DEFAULT_EVALUATION_INTERVAL,
                     "position_tolerance": DEFAULT_POSITION_TOLERANCE,
                     "tilt_tolerance": DEFAULT_TILT_TOLERANCE,
                     "command_cooldown": DEFAULT_COMMAND_COOLDOWN,
@@ -1834,7 +1844,7 @@ class SmartShadingConfigFlow(
                 self._pending_layer = None
                 self._pending_cover_entities = []
                 self._pending_cover_index = 0
-                return await self.async_step_compact_room()
+                return await self.async_step_room_setup()
         current_sun_state = "missing" if sun_state is None else sun_state.state
         return self.async_show_form(
             step_id="user",
@@ -1842,16 +1852,146 @@ class SmartShadingConfigFlow(
                 {
                     vol.Required(CONF_HOUSE_NAME): selector.TextSelector(),
                     vol.Required(CONF_ADVANCED_MODE, default=False): selector.BooleanSelector(),
-                    vol.Required(CONF_DIAGNOSTIC_LEVEL, default=DIAGNOSTIC_EVENTS): self._choice(
-                        DIAGNOSTIC_OPTIONS, "diagnostic_level"
-                    ),
-                    vol.Required("evaluation_interval_minutes", default=20): _number(1, 60, 1, "min"),
                 }
             ),
             errors=errors,
             description_placeholders={"sun_state": current_sun_state},
         )
 
+
+    async def async_step_room_setup(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Create the first room in one page, keeping setup two levels deep."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = list(user_input.get("cover_entities", []))
+            if not entities:
+                errors["cover_entities"] = "select_at_least_one"
+            else:
+                if self.advanced_mode:
+                    diagnostic_level = str(
+                        user_input.get(CONF_DIAGNOSTIC_LEVEL, DIAGNOSTIC_EVENTS)
+                    )
+                    self._working[CONF_DIAGNOSTIC_LEVEL] = diagnostic_level
+                    self._working[CONF_TEST_MODE] = diagnostic_level != "off"
+                    self._working[CONF_EVALUATION_INTERVAL] = max(
+                        60,
+                        int(float(user_input.get("evaluation_interval_minutes", 20)) * 60),
+                    )
+                direction = str(user_input.get("direction", "south"))
+                sector = self._direction_defaults(direction)
+                sector["id"] = _new_id(sector["name"])
+                sector["direction"] = direction
+                if self.advanced_mode:
+                    sector["lux_sensor"] = user_input.get("lux_sensor", "")
+                    sector["sun_preset"] = user_input.get("sun_preset", PRESET_MEDIUM)
+                else:
+                    sector["lux_sensor"] = ""
+                    sector["sun_preset"] = PRESET_MEDIUM
+
+                profile = str(user_input.get("profile", DEVICE_VENETIAN))
+                group_name = str(
+                    user_input.get("group_name")
+                    or ("Behanggruppe" if self._is_german() else "Cover group")
+                )
+                layer = self._new_layer(group_name, profile)
+                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+                    preset = str(user_input.get("tilt_preset", TILT_PRESET_BALANCED))
+                    layer["tilt_preset"] = preset
+                    layer["tilt_curve"] = deepcopy(
+                        TILT_CURVE_PRESETS.get(preset, TILT_CURVE_PRESETS[TILT_PRESET_BALANCED])
+                    )
+                layer["covers"] = [
+                    _default_cover(
+                        entity_id,
+                        self._friendly_name(
+                            entity_id,
+                            f"{'Behang' if self._is_german() else 'Cover'} {index + 1}",
+                        ),
+                        self._cover_short(index),
+                    )
+                    for index, entity_id in enumerate(entities)
+                ]
+                sector["layers"] = [layer]
+
+                room = deepcopy(ROOM_DEFAULTS)
+                room["id"] = _new_id(str(user_input["name"]))
+                room["name"] = str(user_input["name"])
+                room["sectors"] = [sector]
+                room[CONF_EXTERNAL_MOVEMENT_DETECTION] = bool(
+                    user_input.get(
+                        CONF_EXTERNAL_MOVEMENT_DETECTION,
+                        DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
+                    )
+                ) if self.advanced_mode else False
+                if self.advanced_mode:
+                    room.update({
+                        "indoor_temperature": user_input.get("indoor_temperature", ""),
+                        "outdoor_temperature": user_input.get("outdoor_temperature", ""),
+                        "safety_blockers": list(user_input.get("safety_blockers", [])),
+                        "schedule_profile": user_input.get("schedule_profile", "summer"),
+                        "default_pause_mode": user_input.get("default_pause_mode", PAUSE_NEXT_SUNRISE),
+                        "heat_during_pause": bool(user_input.get("heat_during_pause", False)),
+                    })
+                    room["active_months"] = (
+                        [5, 6, 7, 8, 9]
+                        if room["schedule_profile"] == SCHEDULE_SUMMER
+                        else list(range(1, 13))
+                    )
+                self.rooms.append(room)
+                return self.async_create_entry(
+                    title=self._working[CONF_HOUSE_NAME], data=self._working
+                )
+
+        fields: dict[Any, Any] = {
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("direction", default="south"): self._choice(
+                DIRECTION_OPTIONS, "direction_preset"
+            ),
+            vol.Required(
+                "group_name",
+                default="Behanggruppe" if self._is_german() else "Cover group",
+            ): selector.TextSelector(),
+            vol.Required("profile", default=DEVICE_VENETIAN): self._choice(
+                DEVICE_TYPES, "device_type"
+            ),
+            vol.Required("cover_entities"): _entity("cover", multiple=True),
+        }
+        if self.advanced_mode:
+            fields.update({
+                vol.Optional("indoor_temperature"): _temperature_entity(),
+                vol.Optional("outdoor_temperature"): _temperature_entity(),
+                vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
+                vol.Required("schedule_profile", default="summer"): self._choice(
+                    ["year_round", "summer"], "schedule_profile"
+                ),
+                vol.Required("default_pause_mode", default=PAUSE_NEXT_SUNRISE): self._choice(
+                    [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
+                    "pause_mode",
+                ),
+                vol.Required("heat_during_pause", default=False): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_EXTERNAL_MOVEMENT_DETECTION,
+                    default=DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
+                ): selector.BooleanSelector(),
+                vol.Optional("lux_sensor"): _entity("sensor"),
+                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
+                    ["low", "medium", "high"], "sun_preset"
+                ),
+                vol.Required("tilt_preset", default=TILT_PRESET_BALANCED): self._choice(
+                    ["glare", "balanced", "daylight"], "tilt_preset"
+                ),
+                vol.Required(CONF_DIAGNOSTIC_LEVEL, default=DIAGNOSTIC_EVENTS): self._choice(
+                    DIAGNOSTIC_OPTIONS, "diagnostic_level"
+                ),
+                vol.Required("evaluation_interval_minutes", default=20): _number(
+                    1, 60, 1, "min"
+                ),
+            })
+        return self.async_show_form(
+            step_id="room_setup", data_schema=vol.Schema(fields), errors=errors
+        )
 
     async def async_step_compact_room(
         self, user_input: dict[str, Any] | None = None
@@ -2126,6 +2266,21 @@ class SmartShadingConfigFlow(
 class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
     """Manage an existing house. Saving reloads the entry once."""
 
+    def __getattr__(self, name: str):
+        """Expose every configured room directly from the main options menu."""
+        prefix = "async_step_room_"
+        if name.startswith(prefix):
+            room_id = name[len(prefix):]
+
+            async def _room_step(user_input=None):
+                if not any(room.get("id") == room_id for room in self.rooms):
+                    return self.async_abort(reason="no_rooms")
+                self._room_id = room_id
+                return await self.async_step_room_settings(user_input)
+
+            return _room_step
+        raise AttributeError(name)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -2147,9 +2302,233 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._pending_layer = None
             self._pending_cover_entities = []
             self._pending_cover_index = 0
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=self._menu(["add_room", "select_room", "global_settings", "finish"]),
+        labels = self._menu(["add_room", "global_settings", "finish"])
+        room_prefix = "Raum" if self._is_german() else "Room"
+        menu_options: dict[str, str] = {
+            "add_room": labels["add_room"],
+            **{
+                f"room_{room['id']}": f"{room_prefix}: {room['name']}"
+                for room in self.rooms
+            },
+            "global_settings": labels["global_settings"],
+            "finish": labels["finish"],
+        }
+        return self.async_show_menu(step_id="init", menu_options=menu_options)
+
+    async def async_step_room_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit one complete room without another navigation level."""
+        room = self.room()
+        if user_input is not None:
+            if user_input.get("delete_room", False):
+                self._working[CONF_ROOMS] = [
+                    item for item in self.rooms if item["id"] != room["id"]
+                ]
+                return await self.async_step_init()
+
+            room["name"] = str(user_input.get("name") or room["name"])
+            if self.advanced_mode:
+                for key in (
+                    "indoor_temperature", "outdoor_temperature", "safety_blockers",
+                    "schedule_profile", "default_pause_mode", "heat_during_pause",
+                    CONF_EXTERNAL_MOVEMENT_DETECTION, "night_enabled", "night_source",
+                    "night_entity", "night_morning_transition_minutes",
+                    "night_evening_transition_minutes",
+                ):
+                    if key in user_input:
+                        room[key] = user_input[key]
+                room["active_months"] = (
+                    [5, 6, 7, 8, 9]
+                    if room.get("schedule_profile") == SCHEDULE_SUMMER
+                    else list(range(1, 13))
+                )
+            else:
+                room[CONF_EXTERNAL_MOVEMENT_DETECTION] = False
+
+            for sector_index, sector in enumerate(room.get("sectors", [])):
+                direction_key = f"sector_{sector_index}_direction"
+                direction = str(user_input.get(direction_key, sector.get("direction", "custom")))
+                if direction != "custom":
+                    sector.update(self._direction_defaults(direction))
+                sector["direction"] = direction
+                sector["name"] = str(user_input.get(
+                    f"sector_{sector_index}_name", sector.get("name", "")
+                ))
+                sector["short"] = str(user_input.get(
+                    f"sector_{sector_index}_short", sector.get("short", "")
+                )).upper()
+                if self.advanced_mode:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min", "lux_sensor", "sun_preset"):
+                        form_key = f"sector_{sector_index}_{key}"
+                        if form_key in user_input:
+                            sector[key] = user_input[form_key]
+
+                for layer_index, layer in enumerate(sector.get("layers", [])):
+                    layer["name"] = str(user_input.get(
+                        f"layer_{sector_index}_{layer_index}_name",
+                        layer.get("name", ""),
+                    ))
+                    selected = list(user_input.get(
+                        f"layer_{sector_index}_{layer_index}_covers",
+                        [cover["entity"] for cover in layer.get("covers", [])],
+                    ))
+                    existing = {cover["entity"]: cover for cover in layer.get("covers", [])}
+                    layer["covers"] = [
+                        existing.get(entity_id) or _default_cover(
+                            entity_id,
+                            self._friendly_name(entity_id, f"Cover {index + 1}"),
+                            self._cover_short(index),
+                        )
+                        for index, entity_id in enumerate(selected)
+                    ]
+                    for cover_index, cover in enumerate(layer["covers"]):
+                        prefix = f"cover_{sector_index}_{layer_index}_{cover_index}_"
+                        for key in ("name", "short"):
+                            if f"{prefix}{key}" in user_input:
+                                cover[key] = str(user_input[f"{prefix}{key}"])
+                        if self.advanced_mode:
+                            for key in (
+                                "lock", "window", "window_safe_state", "window_policy",
+                                CONF_WINDOW_RETURNS_TO_AUTOMATION, "max_open_position",
+                                "invert_position", "invert_tilt",
+                            ):
+                                if f"{prefix}{key}" in user_input:
+                                    cover[key] = user_input[f"{prefix}{key}"]
+            return await self.async_step_init()
+
+        fields: dict[Any, Any] = {
+            vol.Required("name", default=room.get("name", "")): selector.TextSelector(),
+            vol.Required("delete_room", default=False): selector.BooleanSelector(),
+        }
+        if self.advanced_mode:
+            fields.update({
+                vol.Optional("indoor_temperature", default=room.get("indoor_temperature", "")): _temperature_entity(),
+                vol.Optional("outdoor_temperature", default=room.get("outdoor_temperature", "")): _temperature_entity(),
+                vol.Optional("safety_blockers", default=room.get("safety_blockers", [])): _entity("binary_sensor", multiple=True),
+                vol.Required("schedule_profile", default=room.get("schedule_profile", "summer")): self._choice(["year_round", "summer"], "schedule_profile"),
+                vol.Required("default_pause_mode", default=room.get("default_pause_mode", PAUSE_NEXT_SUNRISE)): self._choice([PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL], "pause_mode"),
+                vol.Required("heat_during_pause", default=room.get("heat_during_pause", False)): selector.BooleanSelector(),
+                vol.Required(CONF_EXTERNAL_MOVEMENT_DETECTION, default=room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, DEFAULT_EXTERNAL_MOVEMENT_DETECTION)): selector.BooleanSelector(),
+                vol.Required("night_enabled", default=room.get("night_enabled", False)): selector.BooleanSelector(),
+                vol.Required("night_source", default=room.get("night_source", "entity")): self._choice(["entity", "sun"], "night_source"),
+                vol.Optional("night_entity", default=room.get("night_entity", "")): _entity(["schedule", "input_boolean", "binary_sensor", "switch"]),
+                vol.Required("night_morning_transition_minutes", default=room.get("night_morning_transition_minutes", 0)): _number(0, 120, 5, "min"),
+                vol.Required("night_evening_transition_minutes", default=room.get("night_evening_transition_minutes", 0)): _number(0, 120, 5, "min"),
+            })
+
+        for sector_index, sector in enumerate(room.get("sectors", [])):
+            fields[vol.Required(
+                f"sector_{sector_index}_direction",
+                default=sector.get("direction", "custom"),
+            )] = self._choice(DIRECTION_OPTIONS, "direction_preset")
+            fields[vol.Required(f"sector_{sector_index}_name", default=sector.get("name", ""))] = selector.TextSelector()
+            fields[vol.Required(f"sector_{sector_index}_short", default=sector.get("short", ""))] = selector.TextSelector()
+            if self.advanced_mode:
+                fields[vol.Required(f"sector_{sector_index}_azimuth_start", default=sector.get("azimuth_start", 0))] = _number(0, 359, 1, "°")
+                fields[vol.Required(f"sector_{sector_index}_azimuth_end", default=sector.get("azimuth_end", 359))] = _number(0, 359, 1, "°")
+                fields[vol.Required(f"sector_{sector_index}_elevation_min", default=sector.get("elevation_min", 0))] = _number(-10, 90, 1, "°")
+                fields[vol.Optional(f"sector_{sector_index}_lux_sensor", default=sector.get("lux_sensor", ""))] = _entity("sensor")
+                fields[vol.Required(f"sector_{sector_index}_sun_preset", default=sector.get("sun_preset", PRESET_MEDIUM))] = self._choice(["low", "medium", "high"], "sun_preset")
+            for layer_index, layer in enumerate(sector.get("layers", [])):
+                fields[vol.Required(f"layer_{sector_index}_{layer_index}_name", default=layer.get("name", ""))] = selector.TextSelector()
+                fields[vol.Required(
+                    f"layer_{sector_index}_{layer_index}_covers",
+                    default=[cover["entity"] for cover in layer.get("covers", [])],
+                )] = _entity("cover", multiple=True)
+                for cover_index, cover in enumerate(layer.get("covers", [])):
+                    prefix = f"cover_{sector_index}_{layer_index}_{cover_index}_"
+                    fields[vol.Required(f"{prefix}name", default=cover.get("name", ""))] = selector.TextSelector()
+                    fields[vol.Required(f"{prefix}short", default=cover.get("short", ""))] = selector.TextSelector()
+                    if self.advanced_mode:
+                        fields[vol.Optional(f"{prefix}lock", default=cover.get("lock", ""))] = _entity(["switch", "input_boolean"])
+                        fields[vol.Optional(f"{prefix}window", default=cover.get("window", ""))] = _entity("binary_sensor")
+                        fields[vol.Required(f"{prefix}window_safe_state", default=cover.get("window_safe_state", "on"))] = self._choice(["on", "off"], "safe_state")
+                        fields[vol.Required(f"{prefix}window_policy", default=cover.get("window_policy", "block_closing"))] = self._choice(WINDOW_POLICIES, "window_policy")
+                        fields[vol.Required(f"{prefix}{CONF_WINDOW_RETURNS_TO_AUTOMATION}", default=cover.get(CONF_WINDOW_RETURNS_TO_AUTOMATION, DEFAULT_WINDOW_RETURNS_TO_AUTOMATION))] = selector.BooleanSelector()
+                        fields[vol.Required(f"{prefix}max_open_position", default=cover.get("max_open_position", 100))] = _number(0, 100, 1, "%")
+                        fields[vol.Required(f"{prefix}invert_position", default=cover.get("invert_position", False))] = selector.BooleanSelector()
+                        fields[vol.Required(f"{prefix}invert_tilt", default=cover.get("invert_tilt", False))] = selector.BooleanSelector()
+        return self.async_show_form(
+            step_id="room_settings", data_schema=vol.Schema(fields)
+        )
+
+    async def async_step_add_room(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a complete room from one options page."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = list(user_input.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["cover_entities"] = "select_at_least_one"
+            else:
+                direction = str(user_input.get("direction", "south"))
+                sector = self._direction_defaults(direction)
+                sector["id"] = _new_id(sector["name"])
+                sector["direction"] = direction
+                sector["lux_sensor"] = (
+                    user_input.get("lux_sensor", "") if self.advanced_mode else ""
+                )
+                sector["sun_preset"] = (
+                    user_input.get("sun_preset", PRESET_MEDIUM)
+                    if self.advanced_mode else PRESET_MEDIUM
+                )
+                profile = str(user_input.get("profile", DEVICE_VENETIAN))
+                layer = self._new_layer(
+                    str(user_input.get("group_name") or "Cover group"), profile
+                )
+                layer["covers"] = [
+                    _default_cover(
+                        entity_id,
+                        self._friendly_name(entity_id, f"Cover {index + 1}"),
+                        self._cover_short(index),
+                    )
+                    for index, entity_id in enumerate(entities)
+                ]
+                sector["layers"] = [layer]
+                room = deepcopy(ROOM_DEFAULTS)
+                room.update({
+                    "id": _new_id(str(user_input["name"])),
+                    "name": str(user_input["name"]),
+                    "sectors": [sector],
+                    CONF_EXTERNAL_MOVEMENT_DETECTION: bool(
+                        user_input.get(
+                            CONF_EXTERNAL_MOVEMENT_DETECTION,
+                            DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
+                        )
+                    ) if self.advanced_mode else False,
+                })
+                if self.advanced_mode:
+                    room.update({
+                        "indoor_temperature": user_input.get("indoor_temperature", ""),
+                        "outdoor_temperature": user_input.get("outdoor_temperature", ""),
+                        "safety_blockers": list(user_input.get("safety_blockers", [])),
+                    })
+                self.rooms.append(room)
+                return await self.async_step_init()
+
+        fields: dict[Any, Any] = {
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("direction", default="south"): self._choice(DIRECTION_OPTIONS, "direction_preset"),
+            vol.Required("group_name", default="Behanggruppe" if self._is_german() else "Cover group"): selector.TextSelector(),
+            vol.Required("profile", default=DEVICE_VENETIAN): self._choice(DEVICE_TYPES, "device_type"),
+            vol.Required("cover_entities"): _entity("cover", multiple=True),
+        }
+        if self.advanced_mode:
+            fields.update({
+                vol.Optional("indoor_temperature"): _temperature_entity(),
+                vol.Optional("outdoor_temperature"): _temperature_entity(),
+                vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
+                vol.Required(CONF_EXTERNAL_MOVEMENT_DETECTION, default=DEFAULT_EXTERNAL_MOVEMENT_DETECTION): selector.BooleanSelector(),
+                vol.Optional("lux_sensor"): _entity("sensor"),
+                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(["low", "medium", "high"], "sun_preset"),
+            })
+        return self.async_show_form(
+            step_id="add_room", data_schema=vol.Schema(fields), errors=errors
         )
 
     async def async_step_finish(self, user_input=None) -> ConfigFlowResult:

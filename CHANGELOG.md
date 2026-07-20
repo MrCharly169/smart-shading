@@ -3,6 +3,32 @@
 ## Unreleased
 
 
+## 4.6.1-beta.0 - 2026-07-20
+
+### Easy and Advanced Modes
+
+- Easy Mode is now a separate runtime instead of a visual preference: only Home Assistant sun geometry, facade sectors, cover targets, and one room-level Manual Override are active
+- Easy Mode no longer executes schedules, Sun Presence or lux checks, temperature and weather conditions, Safety inputs, Pause, Heat Protection, Night Mode, per-cover manual entities, or external movement detection
+- the room Manual Override disables Easy Mode indefinitely and is released only by the user, the card, or an explicit external automation
+- Advanced Mode retains the complete Smart Shading feature set; existing Advanced configuration remains stored when switching to Easy Mode
+- new rooms opt in to feedback-based external movement detection, while migrated Advanced installations retain their previous behavior
+
+### Setup and Entities
+
+- replaced the multi-page initial room wizard with one mode-aware room page after the house/mode selection
+- Easy setup asks only for the room, facade direction, cover type, and covers; Advanced setup adds its optional sensors, schedule, pause, Sun Presence, slat profile, diagnostics, and movement detection on the same page
+- Easy Mode exposes only house and room status, the room Manual Override, and explicit evaluation controls; Advanced-only configuration, pause, sector, Sun Presence, and diagnostic entities are no longer created in Easy Mode
+- added config-entry migration version 12 and English/German guidance describing the effective differences between both modes
+
+### Dashboard Card
+
+- the card now derives Easy or Advanced rendering from the integration instead of a separate card setting
+- removed the room selector and removed Pause and Advanced View from the Easy card
+- Advanced cards show sector azimuth ranges, a more detailed active-sector status, and a direct Night schedule shortcut
+- centered action icons consistently across mobile and desktop and replaced rapid effects with calm, reduced-motion-aware animations
+- throttled Advanced View updates and preserved its scroll position while live states refresh
+
+
 ## 4.6.0-beta.9 - 2026-07-20
 
 ### Night Mode

@@ -13,9 +13,37 @@
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
-          "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself.",
+          "advanced_mode": "Easy uses only sun geometry and one room Manual Override. Advanced enables sensors, schedules, Safety, Pause, Heat Protection, Night Mode and diagnostics.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
           "evaluation_interval_minutes": "Interval for the additional safety evaluation. Sensor changes still trigger an immediate evaluation. Default: 20 minutes."
+        }
+      },
+      "room_setup": {
+        "title": "Configure the first room",
+        "description": "This is the only room setup page. Easy Mode asks only for facade direction, cover type and covers. Advanced Mode adds its optional conditions on the same page.",
+        "data": {
+          "name": "Room name",
+          "direction": "Facade direction",
+          "group_name": "Cover group name",
+          "profile": "Cover type",
+          "cover_entities": "Covers",
+          "indoor_temperature": "Indoor temperature (optional)",
+          "outdoor_temperature": "Outdoor temperature (optional)",
+          "safety_blockers": "Safety conditions (optional)",
+          "schedule_profile": "Activity profile",
+          "default_pause_mode": "Default pause mode",
+          "heat_during_pause": "Allow Heat Protection during a pause",
+          "external_movement_detection": "Pause after confirmed external cover movement",
+          "lux_sensor": "Sun Presence lux sensor (optional)",
+          "sun_preset": "Sun Presence sensitivity",
+          "tilt_preset": "Slat profile"
+          ,"diagnostic_level": "Diagnostic logging"
+          ,"evaluation_interval_minutes": "Periodic evaluation"
+        },
+        "data_description": {
+          "external_movement_detection": "Advanced Mode only. Enable this only when reliable numeric position or slat feedback is available. It is off for new rooms by default."
+          ,"diagnostic_level": "Events is the recommended beta setting."
+          ,"evaluation_interval_minutes": "Additional periodic check; state changes remain immediate."
         }
       },
       "global_settings": {
@@ -34,7 +62,7 @@
           "evaluation_interval_minutes": "Periodic evaluation"
         },
         "data_description": {
-          "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
+          "advanced_mode": "Changes the effective runtime and card. Easy keeps Advanced settings stored but does not execute them.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
           "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
         }
@@ -688,7 +716,7 @@
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
-          "advanced_mode": "Shows additional configuration options. It does not change the control logic by itself.",
+          "advanced_mode": "Easy runs only sun-geometry shading and one indefinite room Manual Override. Advanced enables the complete Smart Shading feature set.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision."
         }
       },
@@ -708,22 +736,54 @@
           "evaluation_interval_minutes": "Periodic evaluation"
         },
         "data_description": {
-          "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
+          "advanced_mode": "Changes both the effective runtime and the card. Advanced values remain stored while Easy Mode is selected.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
           "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
         }
       },
       "add_room": {
         "title": "Create room",
-        "description": "Select only sensors that exist. **Temperature and lux are sufficient for a complete shading strategy.** Safety sensors such as wind or frost are optional and override normal movement.",
+        "description": "Create the room on one page. Easy asks only for covers and facade direction. Advanced also offers its optional inputs.",
         "data": {
           "name": "Room name",
+          "direction": "Facade direction",
+          "group_name": "Cover group name",
+          "profile": "Cover type",
+          "cover_entities": "Covers",
           "indoor_temperature": "Indoor temperature",
           "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Safety conditions (optional)"
+          "safety_blockers": "Safety conditions (optional)",
+          "external_movement_detection": "Pause after confirmed external cover movement",
+          "lux_sensor": "Lux sensor (optional)",
+          "sun_preset": "Sun Presence sensitivity"
         },
         "data_description": {
-          "safety_blockers": "Multiple selection: wind, frost, rain, or maintenance sensors. Normally `on` means danger is active. Leave empty when none are available."
+          "safety_blockers": "Multiple selection: wind, frost, rain, or maintenance sensors. Normally `on` means danger is active. Leave empty when none are available.",
+          "external_movement_detection": "Advanced Mode only. Disabled for new rooms by default and requires reliable numeric position or tilt feedback."
+        }
+      },
+      "room_settings": {
+        "title": "Edit room",
+        "description": "All settings for the selected room are kept on this single editor level. Numbered sector, group and cover fields belong to the corresponding configured item.",
+        "data": {
+          "name": "Room name",
+          "delete_room": "Delete this room",
+          "indoor_temperature": "Indoor temperature",
+          "outdoor_temperature": "Outdoor temperature",
+          "safety_blockers": "Safety conditions",
+          "schedule_profile": "Activity profile",
+          "default_pause_mode": "Default pause action",
+          "heat_during_pause": "Allow heat protection during pause",
+          "external_movement_detection": "Pause after confirmed external cover movement",
+          "night_enabled": "Enable Night Mode",
+          "night_source": "Night source",
+          "night_entity": "Night schedule or on/off entity",
+          "night_morning_transition_minutes": "Morning transition window",
+          "night_evening_transition_minutes": "Evening transition window"
+        },
+        "data_description": {
+          "delete_room": "The room is removed after saving this page.",
+          "external_movement_detection": "Advanced Mode only. Requires reliable numeric position or tilt feedback."
         }
       },
       "room_schedule": {
@@ -1163,13 +1223,15 @@
           "default_pause_mode": "Default pause action",
           "pause_sun_offset_minutes": "Sun offset",
           "pause_duration_hours": "Duration for “Fixed duration”",
-          "heat_during_pause": "Allow heat protection during pause"
+          "heat_during_pause": "Allow heat protection during pause",
+          "external_movement_detection": "Pause after confirmed external cover movement"
         },
         "data_description": {
           "default_pause_mode": "Recommended: until next morning. “Until manually resumed” never ends automatically.",
           "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
           "pause_duration_hours": "Only used when a fixed-duration pause is started.",
-          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
+          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection.",
+          "external_movement_detection": "Advanced Mode only. Disabled for new rooms by default and requires reliable numeric position or tilt feedback."
         }
       },
       "edit_room_night": {

@@ -41,8 +41,23 @@ Restart Home Assistant and register the same stable dashboard resource once.
 ```yaml
 type: custom:smart-shading-card
 entity: sensor.YOUR_ROOM_STATUS
-advanced_mode: true
 ```
+
+The card automatically follows the mode selected in the integration. It has no
+separate Easy/Advanced switch.
+
+## Easy and Advanced Mode
+
+- **Easy Mode** uses only `sun.sun`, the configured facade sector, the cover
+  targets, and one room-level **Manual Override**. The override remains active
+  until a user or an explicit automation turns it off.
+- **Advanced Mode** adds Sun Presence/lux, temperatures, weather, schedules,
+  Safety, Pause, Heat Protection, Night Mode, diagnostics, per-cover manual
+  entities, and optional external-movement detection.
+
+Advanced settings remain stored while Easy Mode is selected, but Easy Mode
+does not execute them. New rooms keep external-movement pause detection off
+until it is explicitly enabled in Advanced Mode.
 
 ## Updating
 

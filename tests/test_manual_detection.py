@@ -51,6 +51,16 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.engine.async_initialize()
 
+    async def test_easy_mode_never_creates_pause_from_cover_feedback(self):
+        self.engine.config["advanced_mode"] = False
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("closing", current_position=60, current_tilt_position=50)
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertFalse(self.engine._external_movement_detection_enabled(
+            self.engine.config["rooms"][0]
+        ))
+
     def _configure_window_return(self, *, enabled: bool = True):
         cover = self.engine.config["rooms"][0]["sectors"][0]["layers"][0][
             "covers"

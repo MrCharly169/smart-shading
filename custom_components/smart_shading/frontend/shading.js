@@ -30,6 +30,9 @@ class SmartShadingV4Dialog extends HTMLElement {
     this._roomState = null;
     this._controls = [];
     this._owner = null;
+    this._renderQueued = false;
+    this._updateCount = 0;
+    this._renderCount = 0;
     this._keyHandler = (event) => { if (event.key === "Escape") this.close(); };
   }
 
@@ -44,10 +47,18 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   update({ hass, roomState, controls }) {
+    this._updateCount += 1;
+    this.dataset.updateCount = String(this._updateCount);
     if (hass) this._hass = hass;
     if (roomState) this._roomState = roomState;
     if (controls) this._controls = controls;
-    if (this.isConnected) this._render();
+    if (this.isConnected && !this._renderQueued) {
+      this._renderQueued = true;
+      (globalThis.requestAnimationFrame || ((callback) => callback()))(() => {
+        this._renderQueued = false;
+        if (this.isConnected) this._render();
+      });
+    }
   }
 
   close() {
@@ -229,7 +240,11 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   _render() {
+    const existingDialog = this.shadowRoot?.querySelector?.(".dialog");
+    const previousScrollTop = existingDialog?.scrollTop || 0;
     if (!this.shadowRoot || !this._roomState) return;
+    this._renderCount += 1;
+    this.dataset.renderCount = String(this._renderCount);
     const L = this._labels();
     const attrs = this._roomState.attributes || {};
     const configuration = attrs.configuration || {};
@@ -314,12 +329,32 @@ class SmartShadingV4Dialog extends HTMLElement {
       return `<div class="event"><time>${htmlEscape(this._formatDate(time))}</time><strong>${htmlEscape(event.event || event.type || "event")}</strong><span>${htmlEscape(data)}</span></div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noEvents)}</div>`;
 
-    this.shadowRoot.innerHTML = `
+    const mainHtml = `
+      <section><h3>${htmlEscape(L.overview)}</h3><div class="summary">
+        <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(this._roomState.state))}</strong></div>
+        <div><small>${htmlEscape(L.reason)}</small><strong>${htmlEscape(attrs.reason || L.noReason)}</strong></div>
+        <div><small>${htmlEscape(L.schedule)}</small><strong>${attrs.schedule_active === false ? L.inactive : L.active}</strong></div>
+        <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
+        <div><small>${htmlEscape(L.sent)}</small><strong>${htmlEscape(attrs.sent_commands ?? 0)}</strong></div>
+        <div><small>${htmlEscape(L.suppressed)}</small><strong>${htmlEscape(attrs.suppressed_commands ?? 0)}</strong></div>
+      </div></section>
+      ${nightHtml}
+      <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
+        ${attrs.pause_mode && attrs.pause_mode !== "auto" ? `<button data-press="${htmlEscape(resume?.entity_id || "")}"><ha-icon icon="mdi:play"></ha-icon>${htmlEscape(L.resume)}</button>` : `<button data-press="${htmlEscape(pause?.entity_id || "")}"><ha-icon icon="mdi:pause"></ha-icon>${htmlEscape(L.pause)}</button>`}
+        <button data-press="${htmlEscape(evaluate?.entity_id || "")}"><ha-icon icon="mdi:refresh"></ha-icon>${htmlEscape(L.evaluate)}</button>
+        ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}"><ha-icon icon="mdi:hand-back-right"></ha-icon>${htmlEscape(L.master)}</button>` : ""}
+        ${exportLog?.entity_id ? `<button data-press="${htmlEscape(exportLog.entity_id)}"><ha-icon icon="mdi:file-download-outline"></ha-icon>${htmlEscape(L.exportLog)}</button>` : ""}
+      </div></section>
+      <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
+      <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
+      <section><h3>${htmlEscape(L.diagnostics)}</h3><div>${eventHtml}</div></section>`;
+
+    if (!existingDialog) this.shadowRoot.innerHTML = `
       <style>
         :host{position:fixed;inset:0;z-index:99999;display:block;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--primary-text-color,#fff)}
         *{box-sizing:border-box}
         .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(5px)}
-        .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 24px));max-height:min(900px,calc(100vh - 24px));overflow:auto;background:var(--ha-card-background,var(--card-background-color,#1d1d1d));border:1px solid rgba(255,255,255,.13);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+        .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 24px));max-height:min(900px,calc(100vh - 24px));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;background:var(--ha-card-background,var(--card-background-color,#1d1d1d));border:1px solid rgba(255,255,255,.13);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
         header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color,#1d1d1d)) 94%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
         h2{margin:0;font-size:19px} .room{font-size:12px;opacity:.62;margin-top:3px}
         button{border:0;border-radius:999px;background:rgba(255,255,255,.09);color:inherit;min-width:34px;height:34px;cursor:pointer;font:inherit}button ha-icon{--mdc-icon-size:14px;width:14px;height:14px} button:hover{background:rgba(255,255,255,.16)}
@@ -340,31 +375,16 @@ class SmartShadingV4Dialog extends HTMLElement {
           <div><h2>${htmlEscape(L.title)}</h2><div class="room">${htmlEscape(roomName)}</div></div>
           <button data-close title="${htmlEscape(L.close)}"><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
-        <main>
-          <section><h3>${htmlEscape(L.overview)}</h3><div class="summary">
-            <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(this._roomState.state))}</strong></div>
-            <div><small>${htmlEscape(L.reason)}</small><strong>${htmlEscape(attrs.reason || L.noReason)}</strong></div>
-            <div><small>${htmlEscape(L.schedule)}</small><strong>${attrs.schedule_active === false ? L.inactive : L.active}</strong></div>
-            <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
-            <div><small>${htmlEscape(L.sent)}</small><strong>${htmlEscape(attrs.sent_commands ?? 0)}</strong></div>
-            <div><small>${htmlEscape(L.suppressed)}</small><strong>${htmlEscape(attrs.suppressed_commands ?? 0)}</strong></div>
-          </div></section>
-          ${nightHtml}
-          <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
-            ${attrs.pause_mode && attrs.pause_mode !== "auto" ? `<button data-press="${htmlEscape(resume?.entity_id || "")}"><ha-icon icon="mdi:play"></ha-icon>${htmlEscape(L.resume)}</button>` : `<button data-press="${htmlEscape(pause?.entity_id || "")}"><ha-icon icon="mdi:pause"></ha-icon>${htmlEscape(L.pause)}</button>`}
-            <button data-press="${htmlEscape(evaluate?.entity_id || "")}"><ha-icon icon="mdi:refresh"></ha-icon>${htmlEscape(L.evaluate)}</button>
-            ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}"><ha-icon icon="mdi:hand-back-right"></ha-icon>${htmlEscape(L.master)}</button>` : ""}
-            ${exportLog?.entity_id ? `<button data-press="${htmlEscape(exportLog.entity_id)}"><ha-icon icon="mdi:file-download-outline"></ha-icon>${htmlEscape(L.exportLog)}</button>` : ""}
-          </div></section>
-          <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
-          <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
-          <section><h3>${htmlEscape(L.diagnostics)}</h3><div>${eventHtml}</div></section>
-        </main>
+        <main>${mainHtml}</main>
       </article>`;
 
-    this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
-    this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
-    this.shadowRoot.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
+    const dialog = this.shadowRoot.querySelector?.(".dialog");
+    const main = this.shadowRoot.querySelector?.("main");
+    if (existingDialog && main) main.innerHTML = mainHtml;
+    if (!existingDialog) this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
+    main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
+    main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
+    if (dialog) dialog.scrollTop = previousScrollTop;
   }
 }
 
@@ -379,7 +399,7 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { advanced_mode: false, show_sun_track: true, show_covers: true, show_actions: true };
+    return { show_sun_track: true, show_covers: true, show_actions: true };
   }
 
   static async getConfigElement() {
@@ -389,7 +409,6 @@ class SmartShadingV4Card extends HTMLElement {
   setConfig(config = {}) {
     if (!config || typeof config !== "object") throw new Error("Invalid Smart Shading card configuration");
     this._config = {
-      advanced_mode: false,
       show_sun_track: true,
       show_covers: true,
       show_actions: true,
@@ -565,6 +584,7 @@ class SmartShadingV4Card extends HTMLElement {
     }
 
     const attrs = roomState.attributes || {};
+    const advancedMode = attrs.smart_shading_advanced_mode === true;
     const room = attrs.configuration || {};
     const controls = this._controls(roomState);
     const sectors = asArray(room.sectors);
@@ -574,6 +594,9 @@ class SmartShadingV4Card extends HTMLElement {
     ));
     const mode = roomState.state || "idle";
     const [modeIcon, modeLabel, modeClass] = this._modeInfo(mode, L);
+    const detailedModeLabel = advancedMode && asArray(attrs.active_sectors).length
+      ? `${modeLabel} · ${asArray(attrs.active_sectors).join(", ")}`
+      : modeLabel;
     const roomName = cleanDisplayName(attrs.name || room.name, L.room);
     const temperatureState = this._state(room.indoor_temperature);
     const temperature = asNumber(temperatureState?.state, null);
@@ -639,8 +662,9 @@ class SmartShadingV4Card extends HTMLElement {
       const status = runtime.status || "outside_sun_sector";
       const active = ["shading_active", "sun_detected", "heat", "safety"].includes(status);
       const name = cleanDisplayName(sector.name, `${L.sector} ${index + 1}`);
+      const range = `${Math.round(asNumber(sector.azimuth_start, 0))}°–${Math.round(asNumber(sector.azimuth_end, 359))}°`;
       return `<button class="sector-card ${active ? "active" : ""}" data-more="${htmlEscape(runtime.sun_presence_entity_id || sunEntity)}">
-        <span><strong>${htmlEscape(name)}</strong><small>${htmlEscape(this._sectorStatusText(status, L))}</small></span>
+        <span><strong>${htmlEscape(name)}</strong><small>${htmlEscape(`${range} · ${this._sectorStatusText(status, L)}`)}</small></span>
         <ha-icon icon="${active ? "mdi:weather-sunny" : "mdi:circle-outline"}"></ha-icon>
       </button>`;
     }).join("");
@@ -667,7 +691,7 @@ class SmartShadingV4Card extends HTMLElement {
         </button>
         <div class="bar"><i style="width:${position}%"></i></div>
         ${tilt == null ? "" : `<div class="bar tilt"><i style="width:${clamp(tilt, 0, 100)}%"></i></div>`}
-        ${this._config.advanced_mode && target.position != null ? `<div class="target-line">${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}</div>` : ""}
+        ${advancedMode && target.position != null ? `<div class="target-line">${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}</div>` : ""}
       </div>`;
     }).join("");
 
@@ -681,7 +705,6 @@ class SmartShadingV4Card extends HTMLElement {
     const evaluateButton = this._control(controls, "evaluate");
     const masterButton = this._control(controls, "manual_master");
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
-    const roomSelector = this._roomSelector(roomState);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -694,37 +717,38 @@ class SmartShadingV4Card extends HTMLElement {
         ha-card.paused,ha-card.muted{background:linear-gradient(135deg,rgba(80,120,190,.18),rgba(24,28,36,.97))} ha-card.disabled,ha-card.master:not(.danger):not(.heat){background:linear-gradient(135deg,rgba(185,55,55,.28),rgba(38,22,22,.98))} ha-card.manual:not(.paused):not(.disabled):not(.danger):not(.heat){background:linear-gradient(135deg,rgba(190,62,54,.20),rgba(37,24,24,.97))}
         .wrap{width:100%;padding:16px;display:grid;gap:11px;overflow:hidden}
         .header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.heading{flex:1;overflow:hidden}.title{font-size:18px;font-weight:850;line-height:1.08}.room-name{font-size:11px;opacity:.56;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.important{font-size:11px;opacity:.72;margin-top:4px;line-height:1.3;overflow-wrap:anywhere}
-        .mode{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap}.mode ha-icon{width:13px;height:13px;--mdc-icon-size:13px}.danger .mode,.heat .mode,.paused .mode,.disabled .mode,.manual .mode{animation:pulse 1.8s infinite}.danger,.heat,.master{animation:cardGlow 2.2s infinite}@keyframes cardGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,105,85,.4)}70%{box-shadow:0 0 0 8px rgba(255,105,85,0)}100%{box-shadow:0 0 0 0 rgba(255,105,85,0)}}
+        .mode{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap}.mode ha-icon{width:14px;height:14px;--mdc-icon-size:14px;display:grid;place-items:center}.danger .mode,.heat .mode,.paused .mode,.disabled .mode,.manual .mode{animation:pulse 3.6s ease-in-out infinite}.danger,.heat,.master{animation:cardGlow 4s ease-in-out infinite}@keyframes cardGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.035)}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,105,85,.22)}50%{box-shadow:0 0 0 6px rgba(255,105,85,0)}}
         .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;cursor:pointer}.chip ha-icon{width:12px;height:12px;--mdc-icon-size:12px}.parts{display:inline-flex;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
-        .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.45)}.sun-dot.active{animation:sunPulse 1.55s infinite}@keyframes sunPulse{0%,100%{box-shadow:0 0 10px rgba(255,200,75,.4);transform:translate(-50%,-50%) scale(1)}50%{box-shadow:0 0 28px rgba(255,200,75,.95);transform:translate(-50%,-50%) scale(1.18)}}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
+        .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.35)}.sun-dot.active{animation:sunPulse 3.8s ease-in-out infinite}@keyframes sunPulse{0%,100%{box-shadow:0 0 10px rgba(255,200,75,.32);transform:translate(-50%,-50%) scale(1)}50%{box-shadow:0 0 22px rgba(255,200,75,.68);transform:translate(-50%,-50%) scale(1.10)}}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
         .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}.sector-card ha-icon{width:14px;height:14px;--mdc-icon-size:14px;opacity:.7;flex:none}
         .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name ha-icon{width:12px;height:12px;--mdc-icon-size:12px;flex:none}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
-        .footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:2px}.actions{display:flex;gap:6px;margin-left:auto}.round{width:32px;height:32px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.075);color:inherit;cursor:pointer}.round:hover{background:rgba(255,255,255,.14)}.round.active-master{background:rgba(255,70,60,.34);animation:pulse 1.8s infinite}.round ha-icon{width:15px;height:15px}.round ha-icon{--mdc-icon-size:15px}.advanced-button{width:auto;border-radius:999px;padding:0 11px;gap:6px;display:flex;align-items:center;font-size:10px}.advanced-button ha-icon{width:14px;height:14px;--mdc-icon-size:14px}.room-select{max-width:45%;font-size:10px;border:0;border-radius:999px;padding:7px 10px;background:rgba(255,255,255,.07);color:inherit;overflow:hidden;text-overflow:ellipsis}
+        .footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}.actions{display:flex;align-items:center;gap:6px;margin-left:auto}.round{width:34px;height:34px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.075);color:inherit;cursor:pointer;padding:0}.round:hover{background:rgba(255,255,255,.14)}.round.active-master{background:rgba(255,70,60,.34);animation:pulse 3.6s ease-in-out infinite}.round ha-icon{width:16px;height:16px;--mdc-icon-size:16px;display:grid;place-items:center;margin:0}.advanced-button{width:auto;border-radius:999px;padding:0 11px;gap:6px;display:flex;align-items:center;justify-content:center;font-size:10px}.advanced-button ha-icon{width:15px;height:15px;--mdc-icon-size:15px}
         .message{padding:18px;font-size:13px;opacity:.75}
-        @media(max-width:480px){.wrap{padding:13px}.values{font-size:9px}.mode span{display:none}.room-select{max-width:38%}.advanced-button span{display:none}.advanced-button{width:32px;padding:0;justify-content:center}}
+        @media(max-width:480px){.wrap{padding:13px}.values{font-size:9px}.mode span{display:none}.advanced-button span{display:none}.advanced-button{width:34px;padding:0;justify-content:center}}
         @media(prefers-reduced-motion:reduce){.mode,.danger,.heat,.master,.sun-dot,.active-master{animation:none!important}}
       </style>
       <ha-card class="${htmlEscape(`${modeClass} ${temperatureClass} ${manualIntervention ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`)}">
         <div class="wrap">
           <div class="header">
             <div class="heading"><div class="title">${htmlEscape(this._config.title || L.title)}</div><div class="room-name">${htmlEscape(roomName)}</div>${important ? `<div class="important">${htmlEscape(important)}</div>` : ""}</div>
-            <div class="mode"><ha-icon icon="${htmlEscape(modeIcon)}"></ha-icon><span>${htmlEscape(modeLabel)}</span></div>
+            <div class="mode"><ha-icon icon="${htmlEscape(modeIcon)}"></ha-icon><span>${htmlEscape(detailedModeLabel)}</span></div>
           </div>
-          <div class="chips">
+          ${advancedMode ? `<div class="chips">
             ${covers.length ? `<span class="chip"><ha-icon icon="mdi:autorenew"></ha-icon><span class="parts">${coverChips}</span></span>` : ""}
             ${safetyChips}
             ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}"><ha-icon icon="mdi:window-closed-variant"></ha-icon><span class="parts">${windowParts}</span></span>` : ""}
             ${sectors.length ? `<span class="chip"><ha-icon icon="mdi:white-balance-sunny"></ha-icon><span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}"><ha-icon icon="mdi:thermometer"></ha-icon>${temperature.toFixed(1)}°</button>` : ""}
-          </div>
+          </div>` : ""}
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(L.sun)}</span><span>Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°</span></div><div class="track">${sectorBars}<span class="sun-dot ${anySunPresence ? "active" : ""}"></span></div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
-          ${sectors.length ? `<div class="sectors">${sectorCards}</div>` : ""}
+          ${advancedMode && sectors.length ? `<div class="sectors">${sectorCards}</div>` : ""}
           ${this._config.show_covers !== false ? `<div class="covers">${coverRows || `<div class="message">${htmlEscape(L.noCovers)}</div>`}</div>` : ""}
-          ${this._config.show_actions !== false ? `<div class="footer">${roomSelector}<div class="actions">
-            <button class="round" data-press="${htmlEscape(paused ? resumeButton?.entity_id || "" : pauseButton?.entity_id || "")}" title="${htmlEscape(paused ? L.resume : L.pause)}"><ha-icon icon="${paused ? "mdi:play" : "mdi:pause"}"></ha-icon></button>
+          ${this._config.show_actions !== false ? `<div class="footer"><div class="actions">
+            ${advancedMode ? `<button class="round" data-press="${htmlEscape(paused ? resumeButton?.entity_id || "" : pauseButton?.entity_id || "")}" title="${htmlEscape(paused ? L.resume : L.pause)}"><ha-icon icon="${paused ? "mdi:play" : "mdi:pause"}"></ha-icon></button>` : ""}
             <button class="round" data-press="${htmlEscape(evaluateButton?.entity_id || "")}" title="${htmlEscape(L.evaluate)}"><ha-icon icon="mdi:refresh"></ha-icon></button>
             ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}"><ha-icon icon="mdi:hand-back-right"></ha-icon></button>` : ""}
-            ${this._config.advanced_mode ? `<button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${htmlEscape(L.advanced)}</span></button>` : ""}
+            ${advancedMode && attrs.night_enabled && attrs.night_entity ? `<button class="round" data-more="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.night)}"><ha-icon icon="mdi:calendar-clock"></ha-icon></button>` : ""}
+            ${advancedMode ? `<button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${htmlEscape(L.advanced)}</span></button>` : ""}
           </div></div>` : ""}
         </div>
       </ha-card>`;
@@ -732,14 +756,6 @@ class SmartShadingV4Card extends HTMLElement {
     this.shadowRoot.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); this._more(element.dataset.more); }));
     this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
     this.shadowRoot.querySelector?.("[data-advanced]")?.addEventListener("click", () => this._openAdvanced(roomState, controls));
-    this.shadowRoot.querySelector?.("[data-room-select]")?.addEventListener("change", (event) => { this._selectedRoom = event.target.value; this._render(); });
-  }
-
-  _roomSelector(roomState) {
-    const entryId = roomState.attributes?.smart_shading_entry_id;
-    const rooms = this._roomStates(entryId);
-    if (rooms.length < 2) return "";
-    return `<select class="room-select" data-room-select>${rooms.map((state) => `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === roomState.entity_id ? "selected" : ""}>${htmlEscape(cleanDisplayName(state.attributes?.name, "Raum"))}</option>`).join("")}</select>`;
   }
 
   _messageCard(message) {
@@ -752,7 +768,7 @@ class SmartShadingV4CardEditor extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._hass = null;
-    this._config = { advanced_mode: false, show_sun_track: true, show_covers: true, show_actions: true };
+    this._config = { show_sun_track: true, show_covers: true, show_actions: true };
   }
 
   set hass(hass) { this._hass = hass; this._render(); }
@@ -761,11 +777,9 @@ class SmartShadingV4CardEditor extends HTMLElement {
   _labels() {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
     return de ? {
-      entity: "Raumstatus-Entität", title: "Überschrift", advanced: "Erweiterte Ansicht als Dialog ermöglichen",
-      advancedHelp: "Öffnet Diagnose und Detailwerte in einem eigenen Overlay. Die kompakte Card bleibt unverändert.", sun: "Sonnenverlauf anzeigen", covers: "Behänge anzeigen", actions: "Aktionsbuttons anzeigen",
+      entity: "Raumstatus-Entität", title: "Überschrift", sun: "Sonnenverlauf anzeigen", covers: "Behänge anzeigen", actions: "Aktionsbuttons anzeigen",
     } : {
-      entity: "Room status entity", title: "Title", advanced: "Enable advanced dialog",
-      advancedHelp: "Opens diagnostics and details in a separate overlay. The compact card stays unchanged.", sun: "Show sun track", covers: "Show covers", actions: "Show action buttons",
+      entity: "Room status entity", title: "Title", sun: "Show sun track", covers: "Show covers", actions: "Show action buttons",
     };
   }
 
@@ -781,7 +795,6 @@ class SmartShadingV4CardEditor extends HTMLElement {
       <div class="editor">
         <label>${htmlEscape(L.entity)}<select data-entity><option value=""></option>${entities.map((state) => `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(cleanDisplayName(state.attributes?.name, state.attributes?.friendly_name || "Smart Shading"))}</option>`).join("")}</select></label>
         <label>${htmlEscape(L.title)}<input data-title value="${htmlEscape(this._config.title || "")}"></label>
-        <label class="toggle"><span>${htmlEscape(L.advanced)}<div class="help">${htmlEscape(L.advancedHelp)}</div></span><input type="checkbox" data-toggle="advanced_mode" ${this._config.advanced_mode ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.sun)}</span><input type="checkbox" data-toggle="show_sun_track" ${this._config.show_sun_track !== false ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.covers)}</span><input type="checkbox" data-toggle="show_covers" ${this._config.show_covers !== false ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.actions)}</span><input type="checkbox" data-toggle="show_actions" ${this._config.show_actions !== false ? "checked" : ""}></label>

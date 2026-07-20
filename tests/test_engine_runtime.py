@@ -150,6 +150,8 @@ def base_config():
     return {
         "house_name": "Test",
         "sun_entity": "sun.sun",
+        "advanced_mode": True,
+        "external_movement_detection": True,
         "evaluation_interval": 1200,
         "diagnostic_level": "full",
         "rooms": [
@@ -218,6 +220,40 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.hass = FakeHass(values)
         self.engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(base_config()))
         await self.engine.async_initialize()
+
+    async def test_easy_mode_uses_only_sun_geometry_and_manual_override(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        room = config["rooms"][0]
+        room.update({
+            "indoor_temperature": "sensor.indoor",
+            "safety_blockers": ["binary_sensor.wind"],
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+            "active_months": [],
+            "external_movement_detection": True,
+        })
+        self.hass.states.values.update({
+            "sensor.indoor": FakeState("40"),
+            "binary_sensor.wind": FakeState("on"),
+            "schedule.night": FakeState("on"),
+            "sensor.lux": FakeState("0", unit_of_measurement="lx"),
+        })
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        engine.rooms["room"].pause_mode = "manual"
+
+        await engine.async_evaluate_all("easy_contract")
+
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+        self.assertEqual(engine.rooms["room"].pause_mode, "auto")
+        self.assertFalse(engine.rooms["room"].night_active)
+        self.assertFalse(engine.rooms["room"].heat_active)
+        self.assertEqual(engine.referenced_entities(), {"sun.sun", "cover.one"})
+
+        await engine.async_set_room_enabled("room", False)
+        self.assertEqual(engine.rooms["room"].mode, "disabled")
 
 
 
@@ -800,6 +836,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_basic_mode_ignores_stored_night_configuration(self):
         config = base_config()
+        config["advanced_mode"] = False
         room = config["rooms"][0]
         room.update({
             "night_enabled": True,

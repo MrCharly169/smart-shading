@@ -77,6 +77,9 @@ DEFAULT_POSITION_KEYS = (
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
+    if not engine.advanced_mode:
+        async_add_entities([])
+        return
     entities = []
     for room in engine.config.get("rooms", []):
         room_id = room["id"]
