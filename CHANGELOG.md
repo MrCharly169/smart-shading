@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Manual Operation
+
+- external cover movement can now be confirmed when an actuator publishes only one final numeric position or tilt value; Smart Shading verifies that the value remains stable for five seconds before pausing the cover
+- additional numeric progress restarts the stability timer, while feedback returning to the accepted baseline, active Smart Shading ownership, window automation, and safety contexts remain harmless
+- downloadable room diagnostics now include per-cover movement candidates, pending stability timers, decision reasons, and active window-automation contexts
+
 
 ## 4.6.0-beta.6 - 2026-07-20
 

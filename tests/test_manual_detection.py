@@ -113,6 +113,102 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.engine.cover_motion["cover.one"].phase,
             "possible_external",
         )
+        self.assertIn(
+            "cover.one", self.engine._external_candidate_timer_unsubs
+        )
+
+    async def test_single_final_position_feedback_confirms_after_stability(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        final = FakeState("open", current_position=49, current_tilt_position=100)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, final))
+        self.hass.states.values["cover.one"] = final
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+        confirmed = [
+            event
+            for event in self.engine.recent_diagnostics(limit=50)
+            if event.get("event") == "external_cover_movement_confirmed"
+        ]
+        self.assertEqual(
+            confirmed[-1]["reason"],
+            "confirmed_timed_stable_external_movement",
+        )
+        self.assertEqual(confirmed[-1]["changed_updates"], 1)
+        self.assertEqual(confirmed[-1]["stable_updates"], 1)
+
+    async def test_single_final_tilt_feedback_confirms_after_stability(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        final = FakeState("open", current_position=100, current_tilt_position=35)
+
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, final))
+        self.hass.states.values["cover.one"] = final
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_single_candidate_returning_to_baseline_is_not_confirmed(self):
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        candidate = FakeState(
+            "closing", current_position=49, current_tilt_position=100
+        )
+
+        await self.engine._async_state_changed(
+            FakeEvent("cover.one", first, candidate)
+        )
+        self.hass.states.values["cover.one"] = first
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+
+        observation = self.engine.cover_motion["cover.one"]
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(
+            observation.last_decision_reason,
+            "external_candidate_returned_to_baseline",
+        )
+        self.assertNotIn(
+            "cover.one", self.engine._external_candidate_timer_unsubs
+        )
+
+    async def test_single_feedback_during_unsafe_window_remains_automation_owned(self):
+        self._configure_window_return()
+
+        async def fake_evaluate(_trigger):
+            return None
+
+        self.engine.async_evaluate_all = fake_evaluate
+        await self._window_transition("on", "off")
+        first = FakeState("open", current_position=90, current_tilt_position=100)
+        final = FakeState("open", current_position=49, current_tilt_position=100)
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, final))
+
+        observation = self.engine.cover_motion["cover.one"]
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(observation.phase, "window_automation")
+        self.assertEqual(
+            observation.last_decision_reason, "window_automation_context"
+        )
+        self.assertNotIn(
+            "cover.one", self.engine._external_candidate_timer_unsubs
+        )
+
+    async def test_candidate_timer_is_cancelled_on_engine_stop(self):
+        await self.engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=70, current_tilt_position=100),
+            )
+        )
+        self.assertIn(
+            "cover.one", self.engine._external_candidate_timer_unsubs
+        )
+
+        self.engine.async_stop()
+
+        self.assertEqual(self.engine._external_candidate_timer_unsubs, {})
 
     async def test_knx_feedback_after_twenty_seconds_confirms_external_move(self):
         first = FakeState("open", current_position=100, current_tilt_position=100)
