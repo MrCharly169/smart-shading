@@ -1,7 +1,7 @@
 {
   "domain": "smart_shading",
   "name": "Smart Shading",
-  "version": "4.6.1-beta.1",
+  "version": "4.6.2-beta.0",
   "config_flow": true,
   "integration_type": "hub",
   "iot_class": "calculated",
