@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.7 - 2026-07-20
+
 ### Manual Operation
 
 - external cover movement can now be confirmed when an actuator publishes only one final numeric position or tilt value; Smart Shading verifies that the value remains stable for five seconds before pausing the cover
