@@ -29,7 +29,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "configuration": async_redact_data(engine.config, []),
         "diagnostic_level": engine.diagnostic_level,
         "diagnostic_journal": engine.recent_diagnostics(limit=500),
-        "schema_version": 3,
+        "schema_version": 4,
         "integration_version": VERSION,
         "evaluation_interval_seconds": engine.config.get("evaluation_interval", 1200),
         "test_mode_legacy": engine.test_mode,
@@ -70,6 +70,32 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "room_id": pause.room_id,
             }
             for cover_id, pause in engine.cover_pauses.items()
+        },
+        "cover_motion_detection": {
+            entity_id: {
+                "phase": observation.phase,
+                "numeric_feedback": {
+                    "position_available": observation.last_position is not None,
+                    "tilt_available": observation.last_tilt is not None,
+                },
+                "baseline_position": observation.baseline_position,
+                "baseline_tilt": observation.baseline_tilt,
+                "last_position": observation.last_position,
+                "last_tilt": observation.last_tilt,
+                "last_state_informational_only": observation.last_state,
+                "candidate_axis": observation.candidate_axis,
+                "candidate_direction": observation.candidate_direction,
+                "candidate_started_at": observation.candidate_started_at,
+                "candidate_last_changed_at": observation.candidate_last_changed_at,
+                "candidate_start_position": observation.candidate_start_position,
+                "candidate_start_tilt": observation.candidate_start_tilt,
+                "candidate_latest_position": observation.candidate_latest_position,
+                "candidate_latest_tilt": observation.candidate_latest_tilt,
+                "candidate_changed_updates": observation.candidate_updates,
+                "candidate_stable_updates": observation.candidate_stable_updates,
+                "last_decision_reason": observation.last_decision_reason,
+            }
+            for entity_id, observation in getattr(engine, "cover_motion", {}).items()
         },
         "sun_presence": {
             sector_id: {

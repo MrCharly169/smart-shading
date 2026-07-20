@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Manual Operation
+
+- cover state strings are now informational only and can no longer confirm an external movement or manual service intent
+- automatic pause detection requires directionally consistent numeric height or tilt feedback followed by a stable value; isolated updates and candidates returning to their baseline are rejected
+- Smart Shading diagnostics expose the numeric feedback availability, accepted baseline, candidate evidence, and confirmation or rejection reason for each cover
+- covers without usable numeric position or tilt feedback continue to use their explicit Manual Override entity only
+- added a KNX/Theben troubleshooting guide for false movement caused by readable UP/DOWN command objects while keeping the global KNX state updater enabled
+
 
 ## 4.6.0-beta.5 - 2026-07-18
 

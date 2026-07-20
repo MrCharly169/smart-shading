@@ -131,6 +131,26 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(pause.until)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_state_only_feedback_does_not_confirm_manual_service_intent(self):
+        hass, engine, _tomorrow = await self._engine()
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": "cover.one", "position": 40},
+            )
+        )
+        await engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=100, current_tilt_position=100),
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertIn("cover.one", engine._manual_service_intents())
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+
     async def test_multi_target_call_pauses_only_cover_that_really_moves(self):
         hass, engine, _tomorrow = await self._engine()
         room = engine.config["rooms"][0]

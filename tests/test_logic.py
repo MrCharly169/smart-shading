@@ -275,6 +275,22 @@ class LogicTests(unittest.TestCase):
         self.assertFalse(decision.changed)
         self.assertFalse(decision.manual)
 
+    def test_state_string_transition_without_numeric_feedback_is_ignored(self):
+        decision = classify_cover_feedback(
+            old_position=100,
+            new_position=100,
+            old_tilt=100,
+            new_tilt=100,
+            old_state="open",
+            new_state="closing",
+            target_position=None,
+            target_tilt=None,
+            command_age_seconds=None,
+        )
+        self.assertFalse(decision.changed)
+        self.assertFalse(decision.manual)
+        self.assertEqual(decision.reason, "state_only_change_ignored")
+
 
 if __name__ == "__main__":
     unittest.main()

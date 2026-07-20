@@ -210,11 +210,12 @@ def classify_cover_feedback(
     position_change_threshold: float = 2.0,
     tilt_change_threshold: float = 3.0,
 ) -> CoverFeedbackDecision:
-    """Decide whether a state change is own feedback or external/manual control.
+    """Classify numeric cover feedback without trusting the cover state string.
 
-    A movement is expected only when it moves toward the last target (or reaches
-    it) and the command has not expired. Moving away from the own target is
-    treated as manual control even while the cover is still moving.
+    ``opening``, ``closing``, ``open`` and ``closed`` are informational only.
+    Some integrations derive those values from command telegrams and configured
+    travel times even when no physical movement occurred. Only numeric position
+    or tilt feedback may therefore count as a relevant change here.
     """
 
     def changed(old: float | None, new: float | None, threshold: float) -> bool:
@@ -226,16 +227,11 @@ def classify_cover_feedback(
 
     position_changed = changed(old_position, new_position, position_change_threshold)
     tilt_changed = changed(old_tilt, new_tilt, tilt_change_threshold)
-    movement_state_changed = old_state != new_state and new_state in {"opening", "closing"}
-    endpoint_state_changed = (
-        old_state in {"open", "closed"}
-        and new_state in {"open", "closed"}
-        and old_state != new_state
-    )
-    state_changed = movement_state_changed or endpoint_state_changed
-    any_changed = position_changed or tilt_changed or state_changed
+    state_changed = old_state != new_state
+    any_changed = position_changed or tilt_changed
     if not any_changed:
-        return CoverFeedbackDecision(False, False, False, False, False, "no_relevant_change")
+        reason = "state_only_change_ignored" if state_changed else "no_relevant_change"
+        return CoverFeedbackDecision(False, False, False, False, False, reason)
 
     fresh = command_age_seconds is not None and 0 <= command_age_seconds <= command_timeout_seconds
     position_complete = (
@@ -259,10 +255,6 @@ def classify_cover_feedback(
             old_distance = abs(float(old_position) - float(target_position))
             new_distance = abs(float(new_position) - float(target_position))
             checks.append(position_complete or new_distance < old_distance - 0.1)
-    elif state_changed and new_state in {"opening", "closing"} and target_position is not None and old_position is not None:
-        expected_direction = "opening" if float(target_position) > float(old_position) else "closing"
-        checks.append(new_state == expected_direction)
-
     if tilt_changed:
         if target_tilt is None:
             checks.append(False)

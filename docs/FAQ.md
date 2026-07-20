@@ -1,0 +1,61 @@
+# Frequently Asked Questions
+
+## Why does Home Assistant show a KNX cover moving although the motor is idle?
+
+### Symptoms
+
+- Home Assistant periodically shows `opening` or `closing` although the motor does not move.
+- The displayed position may run virtually to 0% or 100%.
+- Automatic pause detection may otherwise mistake the update for external operation.
+- The event often follows a KNX state-updater expiry interval, a reconnect, or a Home Assistant reload.
+
+### Cause
+
+Home Assistant's KNX state updater reads configured state addresses. If an UP/DOWN **command** group address is readable, some actuators answer the `GroupValueRead` with their last stored command value. That value means "the last command was up/down"; it is not proof that the motor is currently moving.
+
+XKNX may interpret that response as a movement command and calculate a temporary position from the configured travel time. The Home Assistant cover can consequently appear to move even though the physical cover remains stationary.
+
+### Diagnosis
+
+1. Open the KNX Group Monitor.
+2. Look for a Home Assistant `GroupValueRead` to the affected cover's UP/DOWN command group address.
+3. Check whether the actuator immediately answers with a `GroupValueResponse` containing its last stored `up` or `down` value.
+4. Verify that the cover uses separate group addresses for:
+   - UP/DOWN command
+   - Step/Stop command
+   - absolute position command
+   - tilt command
+   - position feedback
+   - tilt feedback
+5. Compare the event with the Home Assistant entity history and Smart Shading diagnostics.
+
+### Safe mitigation for a Theben JM 8 T
+
+The global KNX state updater may remain enabled. Test the following change on one cover first:
+
+1. In ETS, open the actuator's UP/DOWN command communication object.
+2. Disable only its **Read (`R`)** flag.
+3. Keep **Communication (`C`)** and **Write (`W`)** enabled.
+4. Keep the Read and Transmit flags required by the real position and tilt feedback objects.
+5. Download the updated application to the actuator.
+6. Trigger a read with Home Assistant and inspect the Group Monitor.
+7. Confirm that the UP/DOWN command address no longer answers the read request.
+8. Confirm that KNX pushbuttons, Home Assistant commands, position feedback, and tilt feedback still work.
+
+Repeat the change for other command objects only when the Group Monitor proves that they are also being read and return a misleading command value.
+
+The Theben default Read flag is not inherently invalid. It exposes the last command-object value, but that value is not a physical movement status. Remove the flag only when no other controller intentionally depends on reading that command object.
+
+Do not disable the global KNX state updater as the only workaround. Other KNX entities may require it to restore valid state after a restart or reconnect.
+
+### How Smart Shading handles these events
+
+- `opening`, `closing`, `open`, and `closed` are informational and never prove external movement.
+- Automatic pause detection uses numeric `current_position` and `current_tilt_position` feedback where available.
+- One isolated numeric change is never enough.
+- A candidate needs multiple directionally consistent changes followed by stable numeric feedback.
+- A value returning to the accepted baseline rejects the candidate.
+- Smart Shading, window-policy, and safety-owned command sessions cannot create a manual pause.
+- Covers without usable numeric feedback use the configured Manual Override entity only.
+
+Home Assistant does not expose whether every numeric value came directly from a physical protocol feedback object. Smart Shading therefore reports the available evidence and its decision reason in the diagnostics without claiming protocol-level certainty.

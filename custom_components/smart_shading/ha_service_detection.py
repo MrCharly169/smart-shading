@@ -140,17 +140,13 @@ class HomeAssistantServiceDetectionMixin:
             return None
 
     def _state_change_confirms_manual_intent(self, old_state, new_state) -> bool:
-        """Confirm that the exact service target produced real cover feedback."""
+        """Confirm an explicit service intent with numeric cover feedback."""
         if old_state is None or new_state is None:
             return False
         if getattr(old_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
         if getattr(new_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
-
-        if getattr(old_state, "state", None) != getattr(new_state, "state", None):
-            if getattr(new_state, "state", None) in {"opening", "closing", "open", "closed"}:
-                return True
 
         for key in ("current_position", "current_tilt_position"):
             before = self._state_value(old_state, key)
