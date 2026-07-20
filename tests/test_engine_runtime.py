@@ -691,6 +691,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.hass.states.values["sensor.indoor"] = FakeState("28", unit_of_measurement="°C")
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
+        # Heat behavior tests must not depend on the UTC time at which CI runs.
+        # The dedicated evening-release test overrides this with ``True``.
+        engine._evening_release_reached = lambda now: False
         return engine, room
 
     async def test_heat_requires_room_sun_presence(self):
