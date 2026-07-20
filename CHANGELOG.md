@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.0-beta.6 - 2026-07-20
+
 ### Manual Operation
 
 - cover state strings are now informational only and can no longer confirm an external movement or manual service intent
