@@ -13,9 +13,37 @@
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
-          "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert.",
+          "advanced_mode": "Easy nutzt nur Sonnengeometrie und einen Manual Override pro Raum. Advanced aktiviert Sensoren, Zeitpläne, Safety, Pause, Heat Protection, Nachtfunktion und Diagnose.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Intervall der zusätzlichen Sicherheitsprüfung. Sensoränderungen lösen weiterhin sofort eine Auswertung aus. Standard: 20 Minuten."
+        }
+      },
+      "room_setup": {
+        "title": "Ersten Raum konfigurieren",
+        "description": "Dies ist die einzige Seite zur Raumeinrichtung. Easy fragt nur Himmelsrichtung, Behangtyp und Behänge ab. Advanced ergänzt die optionalen Bedingungen auf derselben Seite.",
+        "data": {
+          "name": "Raumname",
+          "direction": "Himmelsrichtung",
+          "group_name": "Name der Behanggruppe",
+          "profile": "Behangtyp",
+          "cover_entities": "Behänge",
+          "indoor_temperature": "Raumtemperatur (optional)",
+          "outdoor_temperature": "Außentemperatur (optional)",
+          "safety_blockers": "Safety-Bedingungen (optional)",
+          "schedule_profile": "Aktivitätsprofil",
+          "default_pause_mode": "Standard-Pausenmodus",
+          "heat_during_pause": "Heat Protection während Pause erlauben",
+          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
+          "lux_sensor": "Lux-Sensor für Sun Presence (optional)",
+          "sun_preset": "Sun-Presence-Empfindlichkeit",
+          "tilt_preset": "Lamellenprofil"
+          ,"diagnostic_level": "Diagnoseprotokoll"
+          ,"evaluation_interval_minutes": "Regelmäßige Prüfung"
+        },
+        "data_description": {
+          "external_movement_detection": "Nur Advanced Mode. Nur mit zuverlässiger numerischer Positions- oder Lamellenrückmeldung aktivieren. Für neue Räume standardmäßig aus."
+          ,"diagnostic_level": "Ereignisse ist die empfohlene Beta-Einstellung."
+          ,"evaluation_interval_minutes": "Zusätzliche regelmäßige Prüfung; Statusänderungen wirken weiterhin sofort."
         }
       },
       "global_settings": {
@@ -39,7 +67,7 @@
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
-          "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
+          "advanced_mode": "Ändert die wirksame Laufzeit und Card. Easy behält Advanced-Einstellungen gespeichert, führt sie jedoch nicht aus.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
@@ -738,7 +766,7 @@
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
-          "advanced_mode": "Zeigt zusätzliche Einstellmöglichkeiten. Die Steuerungslogik wird dadurch nicht verändert.",
+          "advanced_mode": "Easy nutzt ausschließlich Sonnengeometrie und einen unbefristeten Manual Override pro Raum. Advanced aktiviert den vollständigen Funktionsumfang.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung."
         }
       },
@@ -763,25 +791,57 @@
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
-          "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
+          "advanced_mode": "Ändert sowohl die wirksame Laufzeit als auch die Card. Advanced-Werte bleiben beim Wechsel zu Easy gespeichert.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
       },
       "add_room": {
         "title": "Raum anlegen",
-        "description": "Wählen Sie nur die Sensoren, die wirklich vorhanden sind. **Temperatur und Lux reichen für eine vollständige Beschattungslogik aus.** Safety-Sensoren wie Wind oder Frost sind optional, übersteuern aber alle normalen Fahrten.",
+        "description": "Legen Sie den Raum auf einer Seite an. Easy fragt nur Behänge und Fassadenrichtung ab. Advanced bietet zusätzlich optionale Eingänge an.",
         "data": {
           "name": "Raumname",
+          "direction": "Fassadenrichtung",
+          "group_name": "Name der Behanggruppe",
+          "profile": "Behangtyp",
+          "cover_entities": "Behänge",
           "indoor_temperature": "Raumtemperatur",
           "outdoor_temperature": "Außentemperatur (optional)",
-          "safety_blockers": "Sicherheitsbedingungen (optional)"
+          "safety_blockers": "Sicherheitsbedingungen (optional)",
+          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
+          "lux_sensor": "Lux-Sensor (optional)",
+          "sun_preset": "Sun-Presence-Empfindlichkeit"
         },
         "data_description": {
           "name": "Neutrales Beispiel: Wohnbereich, Raum A oder Büro.",
           "indoor_temperature": "Steuert Comfort, Solar und Heat Protection. Ohne Sensor arbeitet nur die sonnenabhängige Logik.",
           "outdoor_temperature": "Kann normale Beschattung bei kalter Witterung verhindern. Für den ersten Test darf dieses Feld leer bleiben.",
-          "safety_blockers": "Mehrfachauswahl: Wind-, Frost-, Regen- oder Wartungssensoren. Normalerweise bedeutet `on`, dass Gefahr aktiv ist. Ohne solche Sensoren bleibt das Feld leer."
+          "safety_blockers": "Mehrfachauswahl: Wind-, Frost-, Regen- oder Wartungssensoren. Normalerweise bedeutet `on`, dass Gefahr aktiv ist. Ohne solche Sensoren bleibt das Feld leer.",
+          "external_movement_detection": "Nur Advanced Mode. Für neue Räume standardmäßig deaktiviert; benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+        }
+      },
+      "room_settings": {
+        "title": "Raum bearbeiten",
+        "description": "Alle Einstellungen des gewählten Raums bleiben auf dieser einen Bearbeitungsebene. Nummerierte Sektor-, Gruppen- und Behangfelder gehören zum jeweils konfigurierten Element.",
+        "data": {
+          "name": "Raumname",
+          "delete_room": "Diesen Raum löschen",
+          "indoor_temperature": "Raumtemperatur",
+          "outdoor_temperature": "Außentemperatur",
+          "safety_blockers": "Sicherheitsbedingungen",
+          "schedule_profile": "Aktivitätsprofil",
+          "default_pause_mode": "Standardaktion für Pause",
+          "heat_during_pause": "Heat Protection trotz Pause erlauben",
+          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
+          "night_enabled": "Nachtfunktion aktivieren",
+          "night_source": "Nachtquelle",
+          "night_entity": "Nacht-Zeitplan oder Ein/Aus-Entität",
+          "night_morning_transition_minutes": "Morgendliches Übergangsfenster",
+          "night_evening_transition_minutes": "Abendliches Übergangsfenster"
+        },
+        "data_description": {
+          "delete_room": "Der Raum wird nach dem Speichern dieser Seite entfernt.",
+          "external_movement_detection": "Nur Advanced Mode. Benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
         }
       },
       "room_schedule": {
@@ -1257,13 +1317,15 @@
           "default_pause_mode": "Standardaktion für Pause",
           "pause_sun_offset_minutes": "Offset zur Sonne",
           "pause_duration_hours": "Dauer bei „Feste Dauer“",
-          "heat_during_pause": "Heat Protection trotz Pause erlauben"
+          "heat_during_pause": "Heat Protection trotz Pause erlauben",
+          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren"
         },
         "data_description": {
           "default_pause_mode": "Empfohlen: bis zum nächsten Morgen. „Bis manuell fortgesetzt“ beendet sich niemals automatisch.",
           "pause_sun_offset_minutes": "0 Minuten bedeutet exakt zum Sonnenereignis. Positive Werte verlängern die Pause.",
           "pause_duration_hours": "Wird nur verwendet, wenn die Pause als feste Dauer gestartet wird.",
-          "heat_during_pause": "Safety übersteuert eine Pause immer. Diese Option betrifft nur Heat Protection."
+          "heat_during_pause": "Safety übersteuert eine Pause immer. Diese Option betrifft nur Heat Protection.",
+          "external_movement_detection": "Nur Advanced Mode. Für neue Räume standardmäßig deaktiviert; benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
         }
       },
       "edit_room_night": {

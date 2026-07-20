@@ -25,9 +25,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 11", flow)
-        self.assertIn("if entry.version >= 11", migration)
-        self.assertIn("version=11", migration)
+        self.assertIn("VERSION = 12", flow)
+        self.assertIn("if entry.version >= 12", migration)
+        self.assertIn("version=12", migration)
         self.assertIn("if entry.version < 10", migration)
         self.assertIn("migrate_slat_config", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
@@ -106,6 +106,20 @@ class PackageTests(unittest.TestCase):
         self.assertIn("DiagnosticLoggingSelect", select)
         self.assertIn("diagnostic_journal", engine)
         self.assertIn("DIAGNOSTIC_FULL", engine)
+
+    def test_easy_and_advanced_have_distinct_runtime_and_card_contracts(self):
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        self.assertIn("async def _evaluate_easy_room", engine)
+        self.assertIn("Easy Mode uses only sun geometry", engine)
+        self.assertIn("attrs.smart_shading_advanced_mode === true", card)
+        self.assertNotIn("_roomSelector(roomState)", card)
+        self.assertNotIn('data-toggle="advanced_mode"', card)
+        self.assertIn('step_id="room_setup"', flow)
+        self.assertIn('step_id="room_settings"', flow)
+        self.assertIn('f"room_{room[\'id\']}"', flow)
+        self.assertIn("DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False", (COMP / "const.py").read_text(encoding="utf-8"))
 
     def test_full_diagnostics_logs_routine_suppressions_only_in_full_mode(self):
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
@@ -193,6 +207,10 @@ class PackageTests(unittest.TestCase):
         self.assertIn("document.body.appendChild(this)", card)
         self.assertIn("position:fixed;inset:0", card)
         self.assertIn("aria-modal=\"true\"", card)
+        self.assertIn("const existingDialog", card)
+        self.assertIn("if (existingDialog && main) main.innerHTML = mainHtml", card)
+        self.assertIn("overscroll-behavior:contain", card)
+        self.assertIn("dataset.renderCount", card)
         self.assertNotIn("<details", card)
 
     def test_card_editor_initializes_config_and_emits_changes(self):
@@ -223,7 +241,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("persistent_notification", engine)
         self.assertIn("smart_shading_card_", engine)
         self.assertIn("type: custom:smart-shading-card", engine)
-        self.assertIn("advanced_mode: false", engine)
+        self.assertNotIn("advanced_mode: false", engine)
 
     def test_canonical_domain_and_card_names(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
@@ -250,7 +268,9 @@ class PackageTests(unittest.TestCase):
         paused = engine.index("pause_active = self._pause_active(runtime, now)", safety)
         self.assertLess(safety, disabled)
         self.assertLess(safety, paused)
-        self.assertIn("if window_unsafe and mode != MODE_SAFETY", engine)
+        easy = engine.index("if not self.advanced_mode:", engine.index("async def _evaluate_room"))
+        self.assertLess(easy, safety)
+        self.assertIn("if self.advanced_mode and window_unsafe", engine)
 
     def test_reopen_threshold_is_implemented_for_venetian(self):
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
@@ -322,9 +342,9 @@ class PackageTests(unittest.TestCase):
 
     def test_card_footer_icons_are_compact(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
-        self.assertIn('.round{width:32px;height:32px', card)
-        self.assertIn('.round ha-icon{width:15px;height:15px}', card)
-        for token in ("--mdc-icon-size:12px", "--mdc-icon-size:13px", "--mdc-icon-size:14px", "--mdc-icon-size:15px"):
+        self.assertIn('.round{width:34px;height:34px', card)
+        self.assertIn('.round ha-icon{width:16px;height:16px', card)
+        for token in ("--mdc-icon-size:12px", "--mdc-icon-size:14px", "--mdc-icon-size:15px", "--mdc-icon-size:16px"):
             self.assertIn(token, card)
 
     def test_card_routes_button_and_switch_actions(self):

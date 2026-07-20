@@ -12,6 +12,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
     entities = [HouseStatusSensor(engine)]
     entities.extend(RoomStatusSensor(engine, room_id) for room_id in engine.rooms)
+    if not engine.advanced_mode:
+        async_add_entities(entities)
+        return
     for room in engine.config.get("rooms", []):
         for sector in room.get("sectors", []):
             entities.append(SectorStatusSensor(engine, room["id"], sector["id"]))
@@ -63,7 +66,6 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
                     f"entity: {self.entity_id}\n"
-                    "advanced_mode: false\n"
                 ),
                 "card_resource": CARD_RESOURCE,
             }
@@ -123,6 +125,9 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                         "id": sector["id"],
                         "name": sector.get("name", ""),
                         "short": sector.get("short", ""),
+                        "azimuth_start": sector.get("azimuth_start", 0),
+                        "azimuth_end": sector.get("azimuth_end", 359),
+                        "elevation_min": sector.get("elevation_min", 0),
                         "status": self.engine.sun_runtime[sector["id"]].status,
                         "reason": self.engine.sun_runtime[sector["id"]].status_reason,
                         "geometry_active": self.engine.sun_runtime[sector["id"]].geometry_active,
@@ -154,6 +159,30 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "pause_hours": self.runtime.pause_hours,
                 "pause_until": self.runtime.pause_until,
                 "manual_master_active": not self.runtime.enabled,
+                "manual_override_entity": er.async_get(self.engine.hass).async_get_entity_id(
+                    "switch", "smart_shading",
+                    f"{self.entry.entry_id}_{self.room_id}_enable",
+                ),
+                "configured_mode": (
+                    "advanced"
+                    if self.engine.config.get("advanced_mode", False)
+                    else "easy"
+                ),
+                "effective_mode": "advanced" if self.engine.advanced_mode else "easy",
+                "external_movement_detection_configured": bool(
+                    room.get("external_movement_detection", False)
+                ),
+                "external_movement_detection_enabled": bool(
+                    self.engine.advanced_mode
+                    and room.get("external_movement_detection", False)
+                ),
+                "easy_mode_disabled_features": (
+                    [] if self.engine.advanced_mode else [
+                        "schedule", "sun_presence", "temperature", "weather",
+                        "safety", "pause", "heat", "night",
+                        "external_movement_detection", "per_cover_manual_entities",
+                    ]
+                ),
                 "schedule_active": self.runtime.schedule_active,
                 "schedule_reason": self.runtime.schedule_reason,
                 "next_schedule_change": self.runtime.next_schedule_change,
@@ -215,7 +244,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
                     f"entity: {self.entity_id}\n"
-                    "advanced_mode: false\n"
                 ),
             }
         )

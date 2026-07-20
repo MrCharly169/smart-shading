@@ -22,6 +22,9 @@ from .entity import SmartShadingEntity, localized
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
+    if not engine.advanced_mode:
+        async_add_entities([])
+        return
     entities = [DiagnosticLoggingSelect(engine)]
     for room_id in engine.rooms:
         entities.append(RoomPauseSelect(engine, room_id))

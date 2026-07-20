@@ -8,7 +8,9 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
+    DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
     DEFAULT_POSITION_TOLERANCE,
     DEFAULT_TILT_TOLERANCE,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
@@ -16,8 +18,6 @@ from .const import (
 )
 from .logic import CoverFeedbackDecision, classify_cover_feedback
 
-CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
-DEFAULT_EXTERNAL_MOVEMENT_DETECTION = True
 # KNX actuators may publish movement feedback at wider intervals. Keep isolated
 # updates harmless and require consistent numeric progress plus a stable value.
 EXTERNAL_CONFIRMATION_WINDOW_SECONDS = 60.0
@@ -678,7 +678,7 @@ class ManualOverrideDetectionMixin:
             await self.async_evaluate_all(f"safety_manual_cover:{entity_id}")
 
     def _external_movement_detection_enabled(self, room: dict[str, Any]) -> bool:
-        return bool(
+        return bool(self.advanced_mode) and bool(
             room.get(
                 CONF_EXTERNAL_MOVEMENT_DETECTION,
                 self.config.get(
@@ -1080,6 +1080,9 @@ class ManualOverrideDetectionMixin:
         )
 
     async def _async_state_changed(self, event) -> None:
+        if not self.advanced_mode:
+            await super()._async_state_changed(event)
+            return
         entity_id = event.data.get("entity_id")
         cover_match = self._find_cover_by_entity(entity_id)
         if not cover_match:

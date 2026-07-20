@@ -25,8 +25,24 @@ Card:
 ```yaml
 type: custom:smart-shading-card
 entity: sensor.DEIN_RAUMSTATUS
-advanced_mode: true
 ```
+
+Die Card übernimmt den in der Integration gewählten Modus automatisch. Sie hat
+keinen eigenen Easy-/Advanced-Schalter.
+
+## Easy und Advanced Mode
+
+- **Easy Mode** verwendet ausschließlich `sun.sun`, den konfigurierten
+  Fassadensektor, die Behangziele und einen raumweiten **Manual Override**. Der
+  Override bleibt aktiv, bis ein Benutzer oder eine explizite Automation ihn
+  ausschaltet.
+- **Advanced Mode** ergänzt Sun Presence/Lux, Temperaturen, Wetter, Zeitpläne,
+  Safety, Pause, Heat Protection, Nachtfunktion, Diagnose, Manual-Entitäten pro
+  Behang und die optionale Erkennung externer Fahrten.
+
+Advanced-Einstellungen bleiben beim Wechsel zu Easy gespeichert, werden dort
+aber nicht ausgeführt. Bei neuen Räumen ist die Pausenerkennung durch externe
+Fahrten aus, bis sie im Advanced Mode ausdrücklich aktiviert wird.
 
 ## Voraussetzungen
 

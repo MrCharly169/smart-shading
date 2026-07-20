@@ -57,6 +57,8 @@ class HomeAssistantServiceDetectionMixin:
     async def async_start(self) -> None:
         """Start runtime and watch explicit HA cover service calls."""
         await super().async_start()
+        if not self.advanced_mode:
+            return
         self._unsubs.append(
             self.hass.bus.async_listen(
                 EVENT_CALL_SERVICE, self._async_cover_service_called
@@ -158,6 +160,8 @@ class HomeAssistantServiceDetectionMixin:
 
     async def _async_cover_service_called(self, event) -> None:
         """Record external HA cover intent; pause only after that entity moves."""
+        if not self.advanced_mode:
+            return
         if event.data.get(ATTR_DOMAIN) != "cover":
             return
         service = str(event.data.get(ATTR_SERVICE) or "")

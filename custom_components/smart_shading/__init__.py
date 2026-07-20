@@ -12,6 +12,7 @@ from .const import (
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
+    CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_ROOMS,
     CONF_TEST_MODE,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
@@ -105,7 +106,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 11:
+    if entry.version >= 12:
         return True
     if entry.version < 10:
         data = _normalize_config(migrate_slat_config(dict(entry.data)))
@@ -125,8 +126,18 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
     if options and int(options.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
         options[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
+    # Existing Advanced installations keep their established pause behavior.
+    # New rooms default to opt-in detection; Easy Mode always disables it.
+    for config in (data, options):
+        if not config:
+            continue
+        advanced = bool(config.get(CONF_ADVANCED_MODE, False))
+        for room in config.get(CONF_ROOMS, []):
+            room[CONF_EXTERNAL_MOVEMENT_DETECTION] = bool(
+                room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, advanced)
+            ) if advanced else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=11
+        entry, data=data, options=options, version=12
     )
     return True
 

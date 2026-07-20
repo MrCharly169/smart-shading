@@ -22,6 +22,7 @@ from .const import (
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
+    CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_ROOMS,
     CONF_SUN_ENTITY,
     CONF_TEST_MODE,
@@ -359,7 +360,7 @@ class SmartShadingEngine:
         )
         await self._async_sync_configured_locks()
         for room_id, runtime in self.rooms.items():
-            if runtime.pause_mode != PAUSE_AUTO:
+            if self.advanced_mode and runtime.pause_mode != PAUSE_AUTO:
                 await self._async_room_pause_state_changed(room_id, True)
         await self.async_evaluate_all("startup")
         notifications_ready = await self.async_sync_card_notifications()
@@ -427,7 +428,6 @@ class SmartShadingEngine:
             card_yaml = (
                 "type: custom:smart-shading-card\n"
                 f"entity: {entity_id}\n"
-                "advanced_mode: false\n"
             )
             if german:
                 title = f"Smart Shading – Dashboard-Karte für {room['name']}"
@@ -517,6 +517,10 @@ class SmartShadingEngine:
 
     async def _async_state_changed(self, event) -> None:
         entity_id = event.data.get("entity_id")
+        if not self.advanced_mode:
+            if entity_id == self.config.get(CONF_SUN_ENTITY, "sun.sun"):
+                await self.async_evaluate_all(f"easy_sun_state:{entity_id}")
+            return
         old_state = event.data.get("old_state")
         new_state = event.data.get("new_state")
         now = dt_util.now()
@@ -840,6 +844,8 @@ class SmartShadingEngine:
 
     async def _async_sync_configured_locks(self) -> None:
         """Reconcile persisted local pauses with configured lock entities."""
+        if not self.advanced_mode:
+            return
         now = dt_util.now()
         for room, _sector, _layer, cover in self._iter_covers():
             pause = self.cover_pauses.get(self._cover_id(cover))
@@ -881,6 +887,15 @@ class SmartShadingEngine:
     def referenced_entities(self) -> set[str]:
         result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
         for room in self.config.get(CONF_ROOMS, []):
+            if not self.advanced_mode:
+                for sector in room.get("sectors", []):
+                    for layer in sector.get("layers", []):
+                        result.update(
+                            cover["entity"]
+                            for cover in layer.get("covers", [])
+                            if cover.get("entity")
+                        )
+                continue
             for key in (
                 "indoor_temperature",
                 "outdoor_temperature",
@@ -1053,12 +1068,39 @@ class SmartShadingEngine:
                 "current_tilt_position": state.attributes.get("current_tilt_position") if state else None,
             }
 
+        disabled_in_easy = [
+            "schedule", "sun_presence", "temperature", "weather", "safety",
+            "pause", "heat", "night", "external_movement_detection",
+            "per_cover_manual_entities", "diagnostics",
+        ]
+        shared_manual_entities: dict[str, list[str]] = {}
+        for room, _sector, _layer, cover in self._iter_covers():
+            if room_id is not None and room.get("id") != room_id:
+                continue
+            manual_entity = str(cover.get("lock") or "")
+            if manual_entity:
+                shared_manual_entities.setdefault(manual_entity, []).append(
+                    str(cover.get("entity") or "")
+                )
+        shared_manual_entities = {
+            entity_id: covers
+            for entity_id, covers in shared_manual_entities.items()
+            if len(covers) > 1
+        }
+        registry = er.async_get(self.hass)
+
         payload = {
             "integration_version": VERSION,
             "schema_version": 2,
             "entry_id": self.entry.entry_id,
             "room_id": room_id,
             "exported_at": now.isoformat(),
+            "mode": {
+                "configured": "advanced" if self.config.get(CONF_ADVANCED_MODE, False) else "easy",
+                "effective": "advanced" if self.advanced_mode else "easy",
+                "forced_off_features": [] if self.advanced_mode else disabled_in_easy,
+            },
+            "shared_manual_override_groups": shared_manual_entities,
             "evaluation_interval_seconds": self.config.get(
                 CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL
             ),
@@ -1078,6 +1120,20 @@ class SmartShadingEngine:
                     "pause_mode": runtime.pause_mode,
                     "pause_until": _serialize_datetime(runtime.pause_until),
                     "manual_master_active": not runtime.enabled,
+                    "manual_override_entity": registry.async_get_entity_id(
+                        "switch", DOMAIN, f"{self.entry.entry_id}_{key}_enable"
+                    ),
+                    "external_movement_detection_configured": bool(
+                        self.room_config(key).get(
+                            CONF_EXTERNAL_MOVEMENT_DETECTION, False
+                        )
+                    ),
+                    "external_movement_detection_effective": bool(
+                        self.advanced_mode
+                        and self.room_config(key).get(
+                            CONF_EXTERNAL_MOVEMENT_DETECTION, False
+                        )
+                    ),
                     "schedule_active": runtime.schedule_active,
                     "schedule_reason": runtime.schedule_reason,
                     "night_active": runtime.night_active,
@@ -1461,6 +1517,8 @@ class SmartShadingEngine:
         await self.store.async_set_day_key(key)
 
     async def _update_all_sun_presence(self, now: datetime) -> None:
+        if not self.advanced_mode:
+            return
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
                 if sector.get("lux_sensor"):
@@ -1900,6 +1958,9 @@ class SmartShadingEngine:
                 sector_runtime.mode = MODE_IDLE
                 sector_runtime.status = "not_evaluated"
                 sector_runtime.status_reason = "Evaluation started"
+        if not self.advanced_mode:
+            await self._evaluate_easy_room(room, runtime, now)
+            return
         schedule_active, schedule_reason, next_change = self._schedule_status(room, now)
         runtime.schedule_active = schedule_active
         runtime.schedule_reason = schedule_reason
@@ -2377,6 +2438,96 @@ class SmartShadingEngine:
         )
         return now >= release
 
+    async def _evaluate_easy_room(
+        self, room: dict[str, Any], runtime: RoomRuntime, now: datetime
+    ) -> None:
+        """Easy Mode uses only sun geometry and the room Manual Override."""
+        runtime.schedule_active = True
+        runtime.schedule_reason = "Easy Mode has no schedule"
+        runtime.next_schedule_change = None
+        runtime.pause_mode = PAUSE_AUTO
+        runtime.pause_until = None
+        runtime.heat_active = False
+        runtime.finished_today = False
+        runtime.night_active = False
+        runtime.night_blocked = False
+        runtime.night_reason = "Night Mode is unavailable in Easy Mode"
+
+        if not runtime.enabled:
+            runtime.mode = MODE_DISABLED
+            runtime.reason = "Manual Override is active"
+            self._mark_room_sectors(
+                room, status="disabled", reason=runtime.reason,
+                mode=MODE_DISABLED, active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        sun_state = self.hass.states.get(sun_entity)
+        azimuth = parse_numeric_value(
+            sun_state.attributes.get("azimuth") if sun_state else None
+        )
+        elevation = parse_numeric_value(
+            sun_state.attributes.get("elevation") if sun_state else None
+        )
+        if (
+            sun_state is None
+            or sun_state.state in {"unknown", "unavailable"}
+            or azimuth is None
+            or elevation is None
+        ):
+            runtime.mode = MODE_IDLE
+            runtime.reason = "Sun position is unavailable; cover positions held"
+            self._mark_room_sectors(
+                room, status="not_evaluated", reason=runtime.reason,
+                mode=MODE_IDLE, active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        sun_up = sun_state.state == "above_horizon"
+        active_count = 0
+        for sector in room.get("sectors", []):
+            start = float(sector.get("azimuth_start", 0))
+            end = float(sector.get("azimuth_end", 359))
+            minimum = float(sector.get("elevation_min", 0))
+            active = bool(
+                sun_up
+                and azimuth_inside(azimuth, start, end)
+                and elevation >= minimum
+            )
+            sector_runtime = self.sun_runtime[sector["id"]]
+            sector_runtime.geometry_active = active
+            sector_runtime.shading_active = active
+            sector_runtime.is_on = active
+            sector_runtime.mode = MODE_SOLAR if active else MODE_OPEN
+            sector_runtime.status = (
+                "sun_detected" if active else
+                "sun_below_horizon" if not sun_up else
+                "outside_sun_sector"
+            )
+            sector_runtime.status_reason = (
+                "Sun is inside this facade sector"
+                if active else "Sun is outside this facade sector"
+            )
+            if active:
+                active_count += 1
+                runtime.active_sectors.append(sector.get("name", ""))
+            await self._apply_sector_mode(
+                room, sector, runtime,
+                MODE_SOLAR if active else MODE_OPEN,
+                elevation,
+                sector_runtime.status_reason,
+            )
+
+        runtime.mode = MODE_SOLAR if active_count else MODE_OPEN
+        runtime.reason = (
+            "Sun is inside a configured facade sector"
+            if active_count else "Sun is outside all configured facade sectors"
+        )
+        await self._save_room_runtime(runtime)
+
     async def _apply_room_mode(
         self,
         room: dict[str, Any],
@@ -2529,11 +2680,13 @@ class SmartShadingEngine:
         )
         suppressions: list[str] = []
 
-        pause_info = self.cover_pause_info(cover)
+        pause_info = self.cover_pause_info(cover) if self.advanced_mode else {
+            "active": False, "until": None, "reason": "", "pause_mode": PAUSE_AUTO,
+        }
         lock = cover.get("lock", "")
-        if pause_info["active"] and mode != MODE_SAFETY:
+        if self.advanced_mode and pause_info["active"] and mode != MODE_SAFETY:
             suppressions.append("cover_paused_until_morning")
-        elif lock and _is_on(self.hass, lock) and mode != MODE_SAFETY:
+        elif self.advanced_mode and lock and _is_on(self.hass, lock) and mode != MODE_SAFETY:
             suppressions.append("automation_lock")
 
         window = cover.get("window", "")
@@ -2541,7 +2694,7 @@ class SmartShadingEngine:
         window_unsafe = bool(window) and not self.hass.states.is_state(
             window, window_safe_state
         )
-        if window_unsafe and mode != MODE_SAFETY:
+        if self.advanced_mode and window_unsafe and mode != MODE_SAFETY:
             policy = cover.get("window_policy", WINDOW_POLICY_BLOCK_CLOSING)
             if policy == WINDOW_POLICY_BLOCK_ALL:
                 suppressions.append("unsafe_window")
