@@ -25,9 +25,10 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 9", flow)
-        self.assertIn("if entry.version >= 9", migration)
-        self.assertIn("version=9", migration)
+        self.assertIn("VERSION = 10", flow)
+        self.assertIn("if entry.version >= 10", migration)
+        self.assertIn("version=10", migration)
+        self.assertIn("migrate_slat_config", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
         self.assertIn('room.setdefault("normal_shading_temperature"', migration)
 
@@ -52,7 +53,8 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(profile["comfort_position"], 0.0)
         self.assertEqual(profile["solar_position"], 0.0)
         self.assertEqual(profile["heat_position"], 0.0)
-        self.assertEqual(profile["heat_tilt"], 0.0)
+        self.assertEqual(profile["heat_tilt"], 100.0)
+        self.assertEqual(profile["open_tilt"], 0.0)
         self.assertEqual(profile["open_position"], 100.0)
         self.assertEqual(profile["safety_position"], 100.0)
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
@@ -66,11 +68,11 @@ class PackageTests(unittest.TestCase):
         self.assertIn('if key in {"comfort_temperature", "solar_temperature"}', number)
         self.assertIn('return not venetian_only', number)
 
-    def test_balanced_tilt_curve_uses_ha_opening_semantics(self):
+    def test_balanced_tilt_curve_uses_knx_closedness_semantics(self):
         curve = const.TILT_CURVE_PRESETS[const.TILT_PRESET_BALANCED]
         self.assertEqual(
             [(point["elevation"], point["tilt"]) for point in curve],
-            [(10.0, 10.0), (20.0, 35.0), (40.0, 65.0), (60.0, 85.0)],
+            [(10.0, 90.0), (20.0, 65.0), (40.0, 35.0), (60.0, 15.0)],
         )
 
     def test_all_cover_profiles_exist(self):

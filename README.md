@@ -52,6 +52,18 @@ advanced_mode: true
 
 Do not change the resource URL and do not append a version query.
 
+## Cover and slat semantics
+
+Cover height keeps the Home Assistant convention: `0%` is closed and `100%`
+is open. Slat position uses the KNX convention confirmed for exterior venetian
+blinds: `0%` is fully open and lets light through; `100%` is fully closed and
+blocks sunlight.
+
+Accordingly, Open and Safety use a `0%` slat target, Heat Protection uses
+`100%`, and normal shading follows the adaptive KNX-scale slat curve. The
+per-cover **Invert slats** option remains available only for covers that expose
+the opposite direction.
+
 ## Version and change management
 
 The repository uses the following sources of truth:

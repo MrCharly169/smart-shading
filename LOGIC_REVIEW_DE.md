@@ -39,8 +39,8 @@ Sun Presence bewertet ausschließlich Lux mit Hysterese und Verzögerung. Die ef
 ## Außenjalousien
 
 - normale Sonnenbeschattung: 0 % Position, Tilt adaptiv
-- Heat: 0 % Position, Tilt 0 %
-- Open/Safety: 100 % Position, Tilt 100 %
+- Heat: 0 % Position, Tilt 100 % (Lamellen vollständig geschlossen)
+- Open/Safety: 100 % Position, Tilt 0 % (Lamellen vollständig geöffnet)
 
 ## Persistenz
 

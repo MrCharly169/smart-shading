@@ -26,6 +26,7 @@ from .const import (
     TILT_PRESET_BALANCED,
 )
 from .controller import SmartShadingEngine
+from .logic import migrate_slat_config
 from .storage import RuntimeStore
 
 
@@ -39,7 +40,8 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     result.setdefault(CONF_ADVANCED_MODE, False)
     result.setdefault(CONF_DIAGNOSTIC_LEVEL, "events" if result.get(CONF_TEST_MODE, False) else "off")
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
-    old_curve = [(10.0, 90.0), (20.0, 50.0), (40.0, 15.0), (60.0, 10.0)]
+    # An obsolete pre-V4 curve after conversion to the KNX slat scale.
+    old_curve = [(10.0, 10.0), (20.0, 50.0), (40.0, 85.0), (60.0, 90.0)]
 
     for room in result[CONF_ROOMS]:
         for key, value in ROOM_DEFAULTS.items():
@@ -103,10 +105,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 9:
+    if entry.version >= 10:
         return True
-    data = _normalize_config(dict(entry.data))
-    options = _normalize_config(dict(entry.options)) if entry.options else {}
+    data = _normalize_config(migrate_slat_config(dict(entry.data)))
+    options = (
+        _normalize_config(migrate_slat_config(dict(entry.options)))
+        if entry.options
+        else {}
+    )
     # Earlier beta versions defaulted to 120 seconds. Move untouched defaults
     # to the new customer-friendly 20-minute interval.
     if int(data.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
@@ -114,7 +120,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if options and int(options.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
         options[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=9
+        entry, data=data, options=options, version=10
     )
     return True
 

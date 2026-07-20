@@ -118,22 +118,22 @@ TILT_PRESET_OPTIONS = [
 ]
 TILT_CURVE_PRESETS = {
     TILT_PRESET_GLARE: [
-        {"elevation": 10.0, "tilt": 5.0},
-        {"elevation": 20.0, "tilt": 20.0},
-        {"elevation": 40.0, "tilt": 45.0},
-        {"elevation": 60.0, "tilt": 65.0},
+        {"elevation": 10.0, "tilt": 95.0},
+        {"elevation": 20.0, "tilt": 80.0},
+        {"elevation": 40.0, "tilt": 55.0},
+        {"elevation": 60.0, "tilt": 35.0},
     ],
     TILT_PRESET_BALANCED: [
-        {"elevation": 10.0, "tilt": 10.0},
-        {"elevation": 20.0, "tilt": 35.0},
-        {"elevation": 40.0, "tilt": 65.0},
-        {"elevation": 60.0, "tilt": 85.0},
+        {"elevation": 10.0, "tilt": 90.0},
+        {"elevation": 20.0, "tilt": 65.0},
+        {"elevation": 40.0, "tilt": 35.0},
+        {"elevation": 60.0, "tilt": 15.0},
     ],
     TILT_PRESET_DAYLIGHT: [
-        {"elevation": 10.0, "tilt": 20.0},
+        {"elevation": 10.0, "tilt": 80.0},
         {"elevation": 20.0, "tilt": 50.0},
-        {"elevation": 40.0, "tilt": 80.0},
-        {"elevation": 60.0, "tilt": 95.0},
+        {"elevation": 40.0, "tilt": 20.0},
+        {"elevation": 60.0, "tilt": 5.0},
     ],
 }
 
@@ -154,8 +154,9 @@ DEVICE_TYPES = [
     DEVICE_BINARY,
 ]
 
-# Home Assistant cover semantics are used throughout: 0 = closed, 100 = open.
-# The KNX integration handles KNX-side inversion.
+# Cover height keeps Home Assistant semantics: 0 = closed, 100 = open.
+# Slat tilt uses the KNX convention confirmed by the pilot installation:
+# 0 = fully open/light passes, 100 = fully closed/light blocked.
 PROFILE_DEFAULTS = {
     DEVICE_VENETIAN: {
         "supports_position": True,
@@ -163,17 +164,17 @@ PROFILE_DEFAULTS = {
         "adaptive_tilt": True,
         "tilt_preset": TILT_PRESET_BALANCED,
         "open_position": 100.0,
-        "open_tilt": 100.0,
+        "open_tilt": 0.0,
         # Comfort and Solar intentionally use the same physical strategy:
         # blind fully down, slats guided by sun elevation.
         "comfort_position": 0.0,
-        "comfort_tilt": 35.0,
+        "comfort_tilt": 65.0,
         "solar_position": 0.0,
-        "solar_tilt": 35.0,
+        "solar_tilt": 65.0,
         "heat_position": 0.0,
-        "heat_tilt": 0.0,
+        "heat_tilt": 100.0,
         "safety_position": 100.0,
-        "safety_tilt": 100.0,
+        "safety_tilt": 0.0,
         "tilt_curve": TILT_CURVE_PRESETS[TILT_PRESET_BALANCED],
     },
     DEVICE_ROLLER: {
@@ -215,15 +216,15 @@ PROFILE_DEFAULTS = {
         "adaptive_tilt": True,
         "tilt_preset": TILT_PRESET_BALANCED,
         "open_position": 100.0,
-        "open_tilt": 100.0,
+        "open_tilt": 0.0,
         "comfort_position": 0.0,
-        "comfort_tilt": 65.0,
+        "comfort_tilt": 35.0,
         "solar_position": 0.0,
-        "solar_tilt": 35.0,
+        "solar_tilt": 65.0,
         "heat_position": 0.0,
-        "heat_tilt": 0.0,
+        "heat_tilt": 100.0,
         "safety_position": 100.0,
-        "safety_tilt": 100.0,
+        "safety_tilt": 0.0,
         "tilt_curve": TILT_CURVE_PRESETS[TILT_PRESET_BALANCED],
     },
     DEVICE_AWNING: {

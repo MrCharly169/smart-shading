@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, STORAGE_VERSION
+from .logic import migrate_slat_overrides
 
 
 class RuntimeStore:
@@ -23,7 +24,7 @@ class RuntimeStore:
             "cover_runtime": {},
             "card_notification_ids": [],
             "day_key": None,
-            "runtime_schema": 2,
+            "runtime_schema": 3,
         }
 
     async def async_load(self) -> None:
@@ -31,6 +32,7 @@ class RuntimeStore:
         if isinstance(loaded, dict):
             self.data.update(loaded)
             schema = int(self.data.get("runtime_schema", 1))
+            changed = False
             if schema < 2:
                 # Earlier betas counted routine "already correct" and cooldown
                 # checks as blocked commands. Reset only that misleading statistic
@@ -38,7 +40,14 @@ class RuntimeStore:
                 for runtime in self.data.get("room_runtime", {}).values():
                     if isinstance(runtime, dict):
                         runtime["suppressed_commands"] = 0
-                self.data["runtime_schema"] = 2
+                changed = True
+            if schema < 3:
+                self.data["overrides"] = migrate_slat_overrides(
+                    self.data.get("overrides", {})
+                )
+                changed = True
+            if changed:
+                self.data["runtime_schema"] = 3
                 await self.async_save()
 
     async def async_save(self) -> None:

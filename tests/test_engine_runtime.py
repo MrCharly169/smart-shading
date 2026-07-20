@@ -235,10 +235,86 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "cover_runtime": {"cover_one": {"active": True}},
         }
         await store.async_load()
-        self.assertEqual(store.data["runtime_schema"], 2)
+        self.assertEqual(store.data["runtime_schema"], 3)
         self.assertEqual(store.data["room_runtime"]["room"]["suppressed_commands"], 0)
         self.assertEqual(store.data["room_runtime"]["room"]["sent_commands"], 5)
         self.assertTrue(store.data["cover_runtime"]["cover_one"]["active"])
+
+    async def test_runtime_store_migrates_persisted_slat_overrides_once(self):
+        store = self.engine.store
+        store._store.value = {
+            "runtime_schema": 2,
+            "overrides": {
+                "layer": {
+                    "layer": {
+                        "tilt_value_1": 10,
+                        "heat_tilt": 0,
+                        "open_position": 100,
+                    }
+                }
+            },
+        }
+        await store.async_load()
+        layer = store.data["overrides"]["layer"]["layer"]
+        self.assertEqual(store.data["runtime_schema"], 3)
+        self.assertEqual(layer["tilt_value_1"], 90.0)
+        self.assertEqual(layer["heat_tilt"], 100.0)
+        self.assertEqual(layer["open_position"], 100)
+
+        await store.async_load()
+        layer = store.data["overrides"]["layer"]["layer"]
+        self.assertEqual(layer["tilt_value_1"], 90.0)
+        self.assertEqual(layer["heat_tilt"], 100.0)
+
+    async def test_venetian_modes_use_knx_slat_semantics(self):
+        layer = self.engine.layer_config("layer")
+        self.assertEqual(self.engine._targets(layer, "open", 35), (100.0, 0.0))
+        self.assertEqual(self.engine._targets(layer, "solar", 35), (0.0, 65.0))
+        self.assertEqual(self.engine._targets(layer, "heat", 35), (0.0, 100.0))
+        self.assertEqual(self.engine._targets(layer, "safety", 35), (100.0, 0.0))
+
+    async def test_per_cover_slat_inversion_changes_only_command_value(self):
+        layer = self.engine.layer_config("layer")
+        second = deepcopy(layer["covers"][0])
+        second.update({
+            "id": "cover_two",
+            "entity": "cover.two",
+            "name": "Cover two",
+            "short": "C2",
+            "lock": "",
+            "invert_tilt": True,
+        })
+        layer["covers"].append(second)
+        self.hass.states.values["cover.one"] = FakeState(
+            "closed", current_position=0, current_tilt_position=50
+        )
+        self.hass.states.values["cover.two"] = FakeState(
+            "closed", current_position=0, current_tilt_position=50
+        )
+        self.hass.services.calls.clear()
+
+        await self.engine._apply_sector_mode(
+            self.engine.room_config("room"),
+            self.engine.sector_config("south"),
+            self.engine.rooms["room"],
+            "heat",
+            35,
+            "test",
+        )
+
+        tilt_calls = {
+            call[2]["entity_id"]: call[2]["tilt_position"]
+            for call in self.hass.services.calls
+            if call[0:2] == ("cover", "set_cover_tilt_position")
+        }
+        self.assertEqual(tilt_calls, {"cover.one": 100, "cover.two": 0})
+        targets = {target["entity_id"]: target for target in self.engine.rooms["room"].targets}
+        self.assertEqual(targets["cover.one"]["tilt"], 100.0)
+        self.assertEqual(targets["cover.one"]["command_tilt"], 100.0)
+        self.assertEqual(targets["cover.one"]["tilt_mapping"], "knx_default")
+        self.assertEqual(targets["cover.two"]["tilt"], 100.0)
+        self.assertEqual(targets["cover.two"]["command_tilt"], 0.0)
+        self.assertEqual(targets["cover.two"]["tilt_mapping"], "inverted")
 
     async def test_real_ha_lux_state_turns_balanced_sector_on_after_three_minutes(self):
         start = datetime(2026, 7, 15, 14, 0, tzinfo=timezone.utc)
