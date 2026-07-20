@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Night Mode
+
+- added an Advanced Mode-only Night Mode that can be configured per room from a schedule, helper, binary entity, or sunset/sunrise with offsets
+- Night Mode uses dedicated per-layer targets, including KNX slat semantics where `0%` is open and `100%` is closed, while Safety and explicit pauses retain higher priority
+- evening and morning transition windows prevent unnecessary open-close movement and hand directly from Night Mode to active solar shading when possible
+- unknown or unavailable Night sources hold the current positions instead of issuing unsafe fallback movements
+- added an optional pause duration until the end of the next Night; only pauses created with that duration are released at the Night transition
+- exposed Night configuration and runtime details in the English and German setup flow, room card, entities, and diagnostics
 
 ## 4.6.0-beta.8 - 2026-07-20
 

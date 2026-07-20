@@ -220,6 +220,7 @@
           "select_sector": "Sonnensektor verwalten",
           "delete_room": "Raum löschen",
           "edit_room_pause": "Pause / Manual Override",
+          "edit_room_night": "Nachtfunktion",
           "back_to_overview": "Zurück zur Einrichtungsübersicht"
         }
       },
@@ -405,9 +406,11 @@
           "comfort_position": "Comfort-Position",
           "solar_position": "Solar-Position",
           "heat_position": "Heat-Position",
+          "night_position": "Nachtposition",
           "safety_position": "Safety-Position",
           "comfort_tilt": "Comfort-Lamellenposition",
-          "heat_tilt": "Heat-Lamellenposition"
+          "heat_tilt": "Heat-Lamellenposition",
+          "night_tilt": "Nacht-Lamellenposition"
         }
       },
       "select_cover": {
@@ -537,6 +540,35 @@
           "pause_sun_offset_minutes": "0 Minuten bedeutet exakt zum Sonnenereignis. Positive Werte verlängern die Pause.",
           "pause_duration_hours": "Wird nur verwendet, wenn die Pause als feste Dauer gestartet wird.",
           "heat_during_pause": "Safety übersteuert eine Pause immer. Diese Option betrifft nur Heat Protection."
+        }
+      },
+      "edit_room_night": {
+        "title": "Nachtfunktion",
+        "description": "Nur im erweiterten Modus. Die Nachtfunktion positioniert diesen Raum über eine Quelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
+        "data": {
+          "night_enabled": "Nachtfunktion aktivieren",
+          "night_source": "Nachtquelle",
+          "night_morning_transition_minutes": "Morgendliches Übergangsfenster",
+          "night_evening_transition_minutes": "Abendliches Übergangsfenster"
+        },
+        "data_description": {
+          "night_morning_transition_minutes": "Hält das Nachtziel, während ein geometrisch relevanter Sektor auf seine Beschattungsbedingungen wartet. 0 deaktiviert das Halten.",
+          "night_evening_transition_minutes": "Hält das aktuelle Ziel, wenn die Nacht kurz nach der Abendfreigabe beginnt. 0 deaktiviert das Halten."
+        }
+      },
+      "edit_room_night_entity": {
+        "title": "Entität für Nachtquelle auswählen",
+        "description": "Für Wochenpläne wird ein Home-Assistant-Zeitplan empfohlen. Ein bedeutet Nacht aktiv; Aus bedeutet Tagesauswertung.",
+        "data": {
+          "night_entity": "Zeitplan oder Ein/Aus-Entität"
+        }
+      },
+      "edit_room_night_sun": {
+        "title": "Nacht relativ zur Sonne",
+        "description": "Legen Sie getrennte Offsets für Nachtbeginn bei Sonnenuntergang und Nachtende bei Sonnenaufgang fest.",
+        "data": {
+          "night_start_offset_minutes": "Offset zu Sonnenuntergang",
+          "night_end_offset_minutes": "Offset zu Sonnenaufgang"
         }
       },
       "room_pause_sun_setup": {
@@ -912,6 +944,7 @@
           "select_sector": "Sonnensektor verwalten",
           "delete_room": "Raum löschen",
           "edit_room_pause": "Pause / Manual Override",
+          "edit_room_night": "Nachtfunktion",
           "back_to_overview": "Zurück zur Einrichtungsübersicht"
         }
       },
@@ -1097,9 +1130,11 @@
           "comfort_position": "Comfort-Position",
           "solar_position": "Solar-Position",
           "heat_position": "Heat-Position",
+          "night_position": "Nachtposition",
           "safety_position": "Safety-Position",
           "comfort_tilt": "Comfort-Lamellenposition",
-          "heat_tilt": "Heat-Lamellenposition"
+          "heat_tilt": "Heat-Lamellenposition",
+          "night_tilt": "Nacht-Lamellenposition"
         }
       },
       "select_cover": {
@@ -1229,6 +1264,35 @@
           "pause_sun_offset_minutes": "0 Minuten bedeutet exakt zum Sonnenereignis. Positive Werte verlängern die Pause.",
           "pause_duration_hours": "Wird nur verwendet, wenn die Pause als feste Dauer gestartet wird.",
           "heat_during_pause": "Safety übersteuert eine Pause immer. Diese Option betrifft nur Heat Protection."
+        }
+      },
+      "edit_room_night": {
+        "title": "Nachtfunktion",
+        "description": "Nur im erweiterten Modus. Die Nachtfunktion positioniert diesen Raum über eine Quelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
+        "data": {
+          "night_enabled": "Nachtfunktion aktivieren",
+          "night_source": "Nachtquelle",
+          "night_morning_transition_minutes": "Morgendliches Übergangsfenster",
+          "night_evening_transition_minutes": "Abendliches Übergangsfenster"
+        },
+        "data_description": {
+          "night_morning_transition_minutes": "Hält das Nachtziel, während ein geometrisch relevanter Sektor auf seine Beschattungsbedingungen wartet. 0 deaktiviert das Halten.",
+          "night_evening_transition_minutes": "Hält das aktuelle Ziel, wenn die Nacht kurz nach der Abendfreigabe beginnt. 0 deaktiviert das Halten."
+        }
+      },
+      "edit_room_night_entity": {
+        "title": "Entität für Nachtquelle auswählen",
+        "description": "Für Wochenpläne wird ein Home-Assistant-Zeitplan empfohlen. Ein bedeutet Nacht aktiv; Aus bedeutet Tagesauswertung.",
+        "data": {
+          "night_entity": "Zeitplan oder Ein/Aus-Entität"
+        }
+      },
+      "edit_room_night_sun": {
+        "title": "Nacht relativ zur Sonne",
+        "description": "Legen Sie getrennte Offsets für Nachtbeginn bei Sonnenuntergang und Nachtende bei Sonnenaufgang fest.",
+        "data": {
+          "night_start_offset_minutes": "Offset zu Sonnenuntergang",
+          "night_end_offset_minutes": "Offset zu Sonnenaufgang"
         }
       },
       "room_pause_sun_setup": {
@@ -1419,8 +1483,15 @@
         "auto": "Nicht pausiert",
         "next_sunrise": "Bis zum nächsten Morgen",
         "next_sunset": "Bis zum nächsten Sonnenuntergang",
+        "next_night_end": "Bis zum Ende der nächsten Nacht",
         "timed": "Für eine feste Dauer",
         "manual": "Bis manuell fortgesetzt"
+      }
+    },
+    "night_source": {
+      "options": {
+        "entity": "Entität / Zeitplan",
+        "sun": "Sonnenuntergang und Sonnenaufgang"
       }
     }
   }

@@ -105,14 +105,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 10:
+    if entry.version >= 11:
         return True
-    data = _normalize_config(migrate_slat_config(dict(entry.data)))
-    options = (
-        _normalize_config(migrate_slat_config(dict(entry.options)))
-        if entry.options
-        else {}
-    )
+    if entry.version < 10:
+        data = _normalize_config(migrate_slat_config(dict(entry.data)))
+        options = (
+            _normalize_config(migrate_slat_config(dict(entry.options)))
+            if entry.options
+            else {}
+        )
+    else:
+        # The beta.8 KNX slat migration must run exactly once. Version 10
+        # entries only receive the new Night Mode defaults.
+        data = _normalize_config(dict(entry.data))
+        options = _normalize_config(dict(entry.options)) if entry.options else {}
     # Earlier beta versions defaulted to 120 seconds. Move untouched defaults
     # to the new customer-friendly 20-minute interval.
     if int(data.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
@@ -120,7 +126,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if options and int(options.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
         options[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=10
+        entry, data=data, options=options, version=11
     )
     return True
 

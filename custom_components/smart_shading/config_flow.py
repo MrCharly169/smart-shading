@@ -45,6 +45,7 @@ from .const import (
     OUTSIDE_OPEN,
     OUTSIDE_OPTIONS,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
     PAUSE_TIMED,
@@ -184,7 +185,8 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
     "safe_state": {"on": "Ein / ON ist sicher", "off": "Aus / OFF ist sicher"},
     "window_policy": {"block_all": "Alle Automatikfahrten blockieren", "block_closing": "Nur Schließen blockieren", "ignore": "Fensterkontakt ignorieren"},
     "diagnostic_level": {"off": "Aus", "events": "Ereignisse", "full": "Vollständig"},
-    "pause_mode": {"next_sunrise": "Bis zum nächsten Morgen", "next_sunset": "Bis zum nächsten Sonnenuntergang", "timed": "Für eine feste Dauer", "manual": "Bis manuell fortgesetzt", "auto": "Nicht pausiert"},
+    "pause_mode": {"next_sunrise": "Bis zum nächsten Morgen", "next_sunset": "Bis zum nächsten Sonnenuntergang", "next_night_end": "Bis zum Ende der nächsten Nacht", "timed": "Für eine feste Dauer", "manual": "Bis manuell fortgesetzt", "auto": "Nicht pausiert"},
+    "night_source": {"entity": "Entität / Zeitplan", "sun": "Sonnenuntergang und Sonnenaufgang"},
     "months": {str(i): name for i, name in enumerate(("", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")) if i},
     "weekdays": {str(i): name for i, name in enumerate(("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"))},
 }
@@ -202,7 +204,8 @@ SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "safe_state": {"on": "On is safe", "off": "Off is safe"},
     "window_policy": {"block_all": "Block every automatic move", "block_closing": "Only block closing", "ignore": "Ignore window contact"},
     "diagnostic_level": {"off": "Off", "events": "Events", "full": "Full"},
-    "pause_mode": {"next_sunrise": "Until next morning", "next_sunset": "Until next sunset", "timed": "For a fixed duration", "manual": "Until manually resumed", "auto": "Not paused"},
+    "pause_mode": {"next_sunrise": "Until next morning", "next_sunset": "Until next sunset", "next_night_end": "Until the end of the next Night", "timed": "For a fixed duration", "manual": "Until manually resumed", "auto": "Not paused"},
+    "night_source": {"entity": "Entity / schedule", "sun": "Sunset and sunrise"},
     "months": {str(i): name for i, name in enumerate(("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")) if i},
     "weekdays": {str(i): name for i, name in enumerate(("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))},
 }
@@ -221,6 +224,7 @@ MENU_LABELS_DE: dict[str, str] = {
     "edit_room_basic": "Raumname und Sensoren",
     "edit_room_schedule": "Aktivitätszeitplan",
     "edit_room_pause": "Pause und manueller Override",
+    "edit_room_night": "Nachtfunktion",
     "room_advanced": "Erweiterte Raumeinstellungen",
     "add_sector": "Sonnensektor hinzufügen",
     "select_sector": "Sonnensektor verwalten",
@@ -253,6 +257,7 @@ MENU_LABELS_EN: dict[str, str] = {
     "edit_room_basic": "Room name and sensors",
     "edit_room_schedule": "Activity schedule",
     "edit_room_pause": "Pause and manual override",
+    "edit_room_night": "Night Mode",
     "room_advanced": "Advanced room settings",
     "add_sector": "Add sun sector",
     "select_sector": "Manage sun sector",
@@ -1057,18 +1062,23 @@ class _SmartShadingWizardMixin:
         )
 
     async def async_step_room_actions(self, user_input=None) -> ConfigFlowResult:
+        options = [
+            "edit_room_basic",
+            "edit_room_schedule",
+            "edit_room_pause",
+        ]
+        if self.advanced_mode:
+            options.append("edit_room_night")
+        options.extend([
+            "room_advanced",
+            "add_sector",
+            "select_sector",
+            "delete_room",
+            "back_to_overview",
+        ])
         return self.async_show_menu(
             step_id="room_actions",
-            menu_options=self._menu([
-                "edit_room_basic",
-                "edit_room_schedule",
-                "edit_room_pause",
-                "room_advanced",
-                "add_sector",
-                "select_sector",
-                "delete_room",
-                "back_to_overview",
-            ]),
+            menu_options=self._menu(options),
         )
 
     async def async_step_edit_room_basic(
@@ -1194,11 +1204,18 @@ class _SmartShadingWizardMixin:
         if user_input is not None:
             room.update(user_input)
             return await self.async_step_room_actions()
+        pause_modes = [
+            PAUSE_NEXT_SUNRISE,
+            PAUSE_NEXT_SUNSET,
+            PAUSE_TIMED,
+            PAUSE_MANUAL,
+        ]
+        if self.advanced_mode and room.get("night_enabled", False):
+            pause_modes.insert(2, PAUSE_NEXT_NIGHT_END)
         schema = vol.Schema(
             {
                 vol.Required("default_pause_mode"): self._choice(
-                    [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
-                    "pause_mode",
+                    pause_modes, "pause_mode",
                 ),
                 vol.Required("pause_sun_offset_minutes"): _number(-120, 240, 5, "min"),
                 vol.Required("pause_duration_hours"): _number(0.5, 72, 0.5, "h"),
@@ -1207,6 +1224,81 @@ class _SmartShadingWizardMixin:
         )
         return self.async_show_form(
             step_id="edit_room_pause",
+            data_schema=self.add_suggested_values_to_schema(schema, room),
+        )
+
+    async def async_step_edit_room_night(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if not self.advanced_mode:
+            return await self.async_step_room_actions()
+        room = self.room()
+        if user_input is not None:
+            room.update(user_input)
+            if not room.get("night_enabled", False):
+                if room.get("default_pause_mode") == PAUSE_NEXT_NIGHT_END:
+                    room["default_pause_mode"] = PAUSE_MANUAL
+                return await self.async_step_room_actions()
+            if room.get("night_source") == "sun":
+                return await self.async_step_edit_room_night_sun()
+            return await self.async_step_edit_room_night_entity()
+        schema = vol.Schema(
+            {
+                vol.Required("night_enabled"): selector.BooleanSelector(),
+                vol.Required("night_source"): self._choice(
+                    ["entity", "sun"], "night_source"
+                ),
+                vol.Required("night_morning_transition_minutes"): _number(
+                    0, 120, 5, "min"
+                ),
+                vol.Required("night_evening_transition_minutes"): _number(
+                    0, 120, 5, "min"
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_room_night",
+            data_schema=self.add_suggested_values_to_schema(schema, room),
+        )
+
+    async def async_step_edit_room_night_entity(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        room = self.room()
+        if user_input is not None:
+            room.update(user_input)
+            return await self.async_step_room_actions()
+        schema = vol.Schema(
+            {
+                vol.Required("night_entity"): _entity(
+                    ["schedule", "input_boolean", "binary_sensor", "switch"]
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_room_night_entity",
+            data_schema=self.add_suggested_values_to_schema(schema, room),
+        )
+
+    async def async_step_edit_room_night_sun(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        room = self.room()
+        if user_input is not None:
+            room.update(user_input)
+            return await self.async_step_room_actions()
+        schema = vol.Schema(
+            {
+                vol.Required("night_start_offset_minutes"): _number(
+                    -240, 240, 5, "min"
+                ),
+                vol.Required("night_end_offset_minutes"): _number(
+                    -240, 240, 5, "min"
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_room_night_sun",
             data_schema=self.add_suggested_values_to_schema(schema, room),
         )
 
@@ -1550,6 +1642,8 @@ class _SmartShadingWizardMixin:
         if profile == DEVICE_VENETIAN:
             fields = {
                 vol.Required("open_position"): _number(0, 100, 1, "%"),
+                vol.Required("night_position"): _number(0, 100, 1, "%"),
+                vol.Required("night_tilt"): _number(0, 100, 1, "%"),
                 vol.Required("safety_position"): _number(0, 100, 1, "%"),
             }
         elif profile == DEVICE_VERTICAL:
@@ -1557,6 +1651,8 @@ class _SmartShadingWizardMixin:
                 vol.Required("open_position"): _number(0, 100, 1, "%"),
                 vol.Required("comfort_tilt"): _number(0, 100, 1, "%"),
                 vol.Required("heat_tilt"): _number(0, 100, 1, "%"),
+                vol.Required("night_position"): _number(0, 100, 1, "%"),
+                vol.Required("night_tilt"): _number(0, 100, 1, "%"),
                 vol.Required("safety_position"): _number(0, 100, 1, "%"),
             }
         else:
@@ -1565,6 +1661,7 @@ class _SmartShadingWizardMixin:
                 vol.Required("comfort_position"): _number(0, 100, 1, "%"),
                 vol.Required("solar_position"): _number(0, 100, 1, "%"),
                 vol.Required("heat_position"): _number(0, 100, 1, "%"),
+                vol.Required("night_position"): _number(0, 100, 1, "%"),
                 vol.Required("safety_position"): _number(0, 100, 1, "%"),
             }
         return self.async_show_form(
@@ -1699,7 +1796,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 10
+    VERSION = 11
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

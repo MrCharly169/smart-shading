@@ -32,6 +32,7 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
         values = [room.mode for room in self.engine.rooms.values()]
         for priority in (
             "safety",
+            "night",
             "heat",
             "solar",
             "comfort",
@@ -90,6 +91,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
     def icon(self):
         return {
             "heat": "mdi:shield-sun",
+            "night": "mdi:weather-night",
             "solar": "mdi:weather-sunny-alert",
             "comfort": "mdi:sun-angle",
             "safety": "mdi:shield-alert",
@@ -155,6 +157,27 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "schedule_active": self.runtime.schedule_active,
                 "schedule_reason": self.runtime.schedule_reason,
                 "next_schedule_change": self.runtime.next_schedule_change,
+                "night_enabled": bool(
+                    self.engine.config.get("advanced_mode", False)
+                    and room.get("night_enabled", False)
+                ),
+                "night_active": self.runtime.night_active,
+                "night_blocked": self.runtime.night_blocked,
+                "night_reason": self.runtime.night_reason,
+                "night_source": room.get("night_source", "entity"),
+                "night_entity": room.get("night_entity", ""),
+                "night_source_state": self.runtime.night_source_state,
+                "night_next_transition": self.runtime.night_next_transition,
+                "night_morning_hold_until": self.runtime.night_morning_hold_until,
+                "night_morning_handover_pending": (
+                    self.runtime.night_morning_handover_pending
+                ),
+                "night_morning_transition_minutes": room.get(
+                    "night_morning_transition_minutes", 0
+                ),
+                "night_evening_transition_minutes": room.get(
+                    "night_evening_transition_minutes", 0
+                ),
                 "sun_entity": self.engine.config.get("sun_entity", "sun.sun"),
                 "evaluation_interval_seconds": self.engine.config.get("evaluation_interval", 1200),
                 "temperature_settings": {
@@ -229,6 +252,9 @@ class SectorStatusSensor(SmartShadingEntity, SensorEntity):
             "schedule_blocked": "mdi:calendar-remove",
             "paused": "mdi:pause-circle",
             "heat": "mdi:shield-sun",
+            "night": "mdi:weather-night",
+            "night_blocked": "mdi:weather-night-partly-cloudy",
+            "night_transition_hold": "mdi:weather-sunset",
             "safety": "mdi:shield-alert",
             "disabled": "mdi:power",
         }.get(self.runtime.status, "mdi:sun-compass")

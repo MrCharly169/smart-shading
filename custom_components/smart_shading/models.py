@@ -68,6 +68,15 @@ class RoomRuntime:
     schedule_active: bool = True
     schedule_reason: str = "Not evaluated"
     next_schedule_change: datetime | None = None
+    night_initialized: bool = False
+    night_active: bool = False
+    night_blocked: bool = False
+    night_reason: str = "Disabled"
+    night_source_state: str | None = None
+    night_next_transition: datetime | None = None
+    night_morning_hold_until: datetime | None = None
+    night_morning_handover_pending: bool = False
+    pause_waiting_for_night: bool = False
 
 
 @dataclass(slots=True)
@@ -80,3 +89,5 @@ class CoverPauseRuntime:
     reason: str = ""
     lock_owned: bool = False
     started_at: datetime | None = None
+    pause_mode: str = "auto"
+    waiting_for_night: bool = False
