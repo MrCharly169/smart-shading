@@ -998,6 +998,12 @@ class SmartShadingEngine:
             for room, _sector, _layer, cover in self._iter_covers()
             if room_id is None or room.get("id") == room_id
         }
+        selected_cover_entities = {
+            str(cover.get("entity") or "")
+            for room, _sector, _layer, cover in self._iter_covers()
+            if (room_id is None or room.get("id") == room_id)
+            and cover.get("entity")
+        }
 
         input_states = {}
         for entity_id in sorted(self.referenced_entities()):
@@ -1012,6 +1018,7 @@ class SmartShadingEngine:
 
         payload = {
             "integration_version": VERSION,
+            "schema_version": 2,
             "entry_id": self.entry.entry_id,
             "room_id": room_id,
             "exported_at": now.isoformat(),
@@ -1066,6 +1073,52 @@ class SmartShadingEngine:
                 }
                 for key, pause in self.cover_pauses.items()
                 if key in selected_cover_ids
+            },
+            "cover_motion_detection": {
+                entity_id: {
+                    "phase": observation.phase,
+                    "baseline_position": observation.baseline_position,
+                    "baseline_tilt": observation.baseline_tilt,
+                    "last_position": observation.last_position,
+                    "last_tilt": observation.last_tilt,
+                    "last_state_informational_only": observation.last_state,
+                    "candidate_axis": observation.candidate_axis,
+                    "candidate_direction": observation.candidate_direction,
+                    "candidate_started_at": _serialize_datetime(
+                        observation.candidate_started_at
+                    ),
+                    "candidate_last_changed_at": _serialize_datetime(
+                        observation.candidate_last_changed_at
+                    ),
+                    "candidate_start_position": observation.candidate_start_position,
+                    "candidate_start_tilt": observation.candidate_start_tilt,
+                    "candidate_latest_position": observation.candidate_latest_position,
+                    "candidate_latest_tilt": observation.candidate_latest_tilt,
+                    "candidate_changed_updates": observation.candidate_updates,
+                    "candidate_stable_updates": observation.candidate_stable_updates,
+                    "stability_timer_pending": entity_id
+                    in getattr(self, "_external_candidate_timer_unsubs", {}),
+                    "last_decision_reason": observation.last_decision_reason,
+                }
+                for entity_id, observation in getattr(
+                    self, "cover_motion", {}
+                ).items()
+                if entity_id in selected_cover_entities
+            },
+            "window_automation_contexts": {
+                entity_id: {
+                    "window_entity_id": context.window_entity_id,
+                    "phase": context.phase,
+                    "started_at": _serialize_datetime(context.started_at),
+                    "expires_at": _serialize_datetime(context.expires_at),
+                    "last_feedback_at": _serialize_datetime(
+                        context.last_feedback_at
+                    ),
+                }
+                for entity_id, context in getattr(
+                    self, "window_automation_contexts", {}
+                ).items()
+                if entity_id in selected_cover_entities
             },
             "events": self.recent_diagnostics(room_id, 500),
         }

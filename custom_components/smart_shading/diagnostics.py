@@ -29,7 +29,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "configuration": async_redact_data(engine.config, []),
         "diagnostic_level": engine.diagnostic_level,
         "diagnostic_journal": engine.recent_diagnostics(limit=500),
-        "schema_version": 4,
+        "schema_version": 5,
         "integration_version": VERSION,
         "evaluation_interval_seconds": engine.config.get("evaluation_interval", 1200),
         "test_mode_legacy": engine.test_mode,
@@ -93,9 +93,23 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "candidate_latest_tilt": observation.candidate_latest_tilt,
                 "candidate_changed_updates": observation.candidate_updates,
                 "candidate_stable_updates": observation.candidate_stable_updates,
+                "stability_timer_pending": entity_id
+                in getattr(engine, "_external_candidate_timer_unsubs", {}),
                 "last_decision_reason": observation.last_decision_reason,
             }
             for entity_id, observation in getattr(engine, "cover_motion", {}).items()
+        },
+        "window_automation_contexts": {
+            entity_id: {
+                "window_entity_id": context.window_entity_id,
+                "phase": context.phase,
+                "started_at": context.started_at,
+                "expires_at": context.expires_at,
+                "last_feedback_at": context.last_feedback_at,
+            }
+            for entity_id, context in getattr(
+                engine, "window_automation_contexts", {}
+            ).items()
         },
         "sun_presence": {
             sector_id: {
