@@ -769,11 +769,163 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_evaluate_all("test_evening_release")
         self.assertFalse(engine.rooms["room"].heat_active)
         self.assertTrue(engine.rooms["room"].finished_today)
-        self.assertEqual(engine.rooms["room"].mode, "finished")
+        self.assertEqual(engine.rooms["room"].mode, "open")
 
         await engine.async_evaluate_all("test_no_second_cycle")
         self.assertFalse(engine.rooms["room"].heat_active)
         self.assertTrue(engine.rooms["room"].finished_today)
+
+    async def test_advanced_night_entity_moves_directly_to_knx_night_target(self):
+        config = base_config()
+        config["advanced_mode"] = True
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        self.hass.states.values["cover.one"] = FakeState(
+            "open", current_position=100, current_tilt_position=0
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("night_started")
+
+        self.assertEqual(engine.rooms["room"].mode, "night")
+        commands = [call for call in self.hass.services.calls if call[0] == "cover"]
+        self.assertTrue(any(call[2].get("position") == 0 for call in commands))
+        self.assertTrue(any(call[2].get("tilt_position") == 100 for call in commands))
+
+    async def test_basic_mode_ignores_stored_night_configuration(self):
+        config = base_config()
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("basic_mode")
+
+        self.assertNotEqual(engine.rooms["room"].mode, "night")
+        self.assertFalse(engine.rooms["room"].night_active)
+
+    async def test_unavailable_night_source_holds_cover_position(self):
+        config = base_config()
+        config["advanced_mode"] = True
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        self.hass.states.values["schedule.night"] = FakeState("unavailable")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("night_unavailable")
+
+        self.assertTrue(engine.rooms["room"].night_blocked)
+        self.assertEqual(engine.rooms["room"].mode, "idle")
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+
+    async def test_night_end_hands_directly_to_solar_without_open_target(self):
+        config = base_config()
+        config["advanced_mode"] = True
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        room["sectors"][0]["lux_sensor"] = ""
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        await engine.async_evaluate_all("night_active")
+        self.hass.services.calls.clear()
+        self.hass.states.values["cover.one"] = FakeState(
+            "closed", current_position=0, current_tilt_position=100
+        )
+        self.hass.states.values["schedule.night"] = FakeState("off")
+
+        await engine.async_evaluate_all("night_ended")
+
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+        position_targets = [
+            call[2].get("position")
+            for call in self.hass.services.calls
+            if call[0] == "cover" and "position" in call[2]
+        ]
+        self.assertNotIn(100, position_targets)
+
+    async def test_morning_transition_opens_after_conditions_miss_window(self):
+        config = base_config()
+        config["advanced_mode"] = True
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+            "night_morning_transition_minutes": 10,
+            "indoor_temperature": "sensor.indoor",
+        })
+        self.hass.states.values["sensor.indoor"] = FakeState(
+            "20", unit_of_measurement="°C"
+        )
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        await engine.async_evaluate_all("night_active")
+        self.hass.states.values["schedule.night"] = FakeState("off")
+        morning = datetime.now(timezone.utc)
+
+        await engine._evaluate_room(room, morning)
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.mode, "idle")
+        self.assertTrue(runtime.night_morning_handover_pending)
+
+        await engine._evaluate_room(room, morning + timedelta(minutes=11))
+
+        self.assertEqual(runtime.mode, "open")
+        self.assertFalse(runtime.night_morning_handover_pending)
+        self.assertIsNone(runtime.night_morning_hold_until)
+
+    async def test_next_night_end_pause_releases_but_manual_pause_does_not(self):
+        config = base_config()
+        config["advanced_mode"] = True
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        self.hass.states.values["schedule.night"] = FakeState("off")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        await engine.async_evaluate_all("day")
+        await engine.async_set_pause_mode("room", "next_night_end")
+        self.assertTrue(engine.rooms["room"].pause_waiting_for_night)
+
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        await engine.async_evaluate_all("night_started")
+        self.assertFalse(engine.rooms["room"].pause_waiting_for_night)
+        self.hass.states.values["schedule.night"] = FakeState("off")
+        await engine.async_evaluate_all("night_ended")
+        self.assertEqual(engine.rooms["room"].pause_mode, "auto")
+
+        await engine.async_set_pause_mode("room", "manual")
+        self.hass.states.values["schedule.night"] = FakeState("on")
+        await engine.async_evaluate_all("second_night")
+        self.hass.states.values["schedule.night"] = FakeState("off")
+        await engine.async_evaluate_all("second_morning")
+        self.assertEqual(engine.rooms["room"].pause_mode, "manual")
 
     async def test_room_sun_transition_triggers_immediate_heat_evaluation(self):
         engine, _ = await self._make_heat_engine()

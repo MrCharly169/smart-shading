@@ -44,17 +44,20 @@ MODE_OPEN = "open"
 MODE_COMFORT = "comfort"
 MODE_SOLAR = "solar"
 MODE_HEAT = "heat"
+MODE_NIGHT = "night"
 MODE_FINISHED = "finished"
 
 PAUSE_AUTO = "auto"
 PAUSE_NEXT_SUNRISE = "next_sunrise"
 PAUSE_NEXT_SUNSET = "next_sunset"
+PAUSE_NEXT_NIGHT_END = "next_night_end"
 PAUSE_TIMED = "timed"
 PAUSE_MANUAL = "manual"
 PAUSE_OPTIONS = [
     PAUSE_AUTO,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_TIMED,
     PAUSE_MANUAL,
 ]
@@ -173,6 +176,8 @@ PROFILE_DEFAULTS = {
         "solar_tilt": 65.0,
         "heat_position": 0.0,
         "heat_tilt": 100.0,
+        "night_position": 0.0,
+        "night_tilt": 100.0,
         "safety_position": 100.0,
         "safety_tilt": 0.0,
         "tilt_curve": TILT_CURVE_PRESETS[TILT_PRESET_BALANCED],
@@ -185,6 +190,7 @@ PROFILE_DEFAULTS = {
         "comfort_position": 65.0,
         "solar_position": 25.0,
         "heat_position": 0.0,
+        "night_position": 0.0,
         "safety_position": 100.0,
     },
     DEVICE_SCREEN: {
@@ -195,6 +201,7 @@ PROFILE_DEFAULTS = {
         "comfort_position": 60.0,
         "solar_position": 15.0,
         "heat_position": 0.0,
+        "night_position": 0.0,
         "safety_position": 100.0,
     },
     DEVICE_CURTAIN: {
@@ -207,6 +214,7 @@ PROFILE_DEFAULTS = {
         # Interior curtains default to the solar position in heat mode.
         # Full closure can be enabled in advanced settings.
         "heat_position": 30.0,
+        "night_position": 0.0,
         "heat_close_enabled": False,
         "safety_position": 100.0,
     },
@@ -223,6 +231,8 @@ PROFILE_DEFAULTS = {
         "solar_tilt": 65.0,
         "heat_position": 0.0,
         "heat_tilt": 100.0,
+        "night_position": 0.0,
+        "night_tilt": 100.0,
         "safety_position": 100.0,
         "safety_tilt": 0.0,
         "tilt_curve": TILT_CURVE_PRESETS[TILT_PRESET_BALANCED],
@@ -236,6 +246,7 @@ PROFILE_DEFAULTS = {
         "comfort_position": 60.0,
         "solar_position": 100.0,
         "heat_position": 100.0,
+        "night_position": 0.0,
         "safety_position": 0.0,
     },
     DEVICE_BINARY: {
@@ -246,6 +257,7 @@ PROFILE_DEFAULTS = {
         "comfort_position": 0.0,
         "solar_position": 0.0,
         "heat_position": 0.0,
+        "night_position": 0.0,
         "safety_position": 100.0,
     },
 }
@@ -270,6 +282,13 @@ ROOM_DEFAULTS = {
     "pause_sun_offset_minutes": 0,
     "pause_duration_hours": 2.0,
     "heat_during_pause": False,
+    "night_enabled": False,
+    "night_source": "entity",
+    "night_entity": "",
+    "night_start_offset_minutes": 0,
+    "night_end_offset_minutes": 0,
+    "night_morning_transition_minutes": 0,
+    "night_evening_transition_minutes": 0,
     "indoor_temperature_name": "",
     "display_name": "",
     "outdoor_temperature_name": "",

@@ -45,6 +45,7 @@ from .const import (
     MODE_FINISHED,
     MODE_HEAT,
     MODE_IDLE,
+    MODE_NIGHT,
     MODE_OPEN,
     MODE_PAUSED,
     MODE_SAFETY,
@@ -52,6 +53,7 @@ from .const import (
     OUTSIDE_OPEN,
     PAUSE_AUTO,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
     PAUSE_TIMED,
@@ -158,6 +160,7 @@ class SmartShadingEngine:
         self.cover_pauses: dict[str, CoverPauseRuntime] = {}
         self._cover_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._room_pause_timer_unsubs: dict[str, Callable[[], None]] = {}
+        self._night_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._owned_lock_changes: dict[str, tuple[str, datetime]] = {}
         self.diagnostic_journal: deque[dict[str, Any]] = deque(maxlen=1000)
         self._last_logged_mode: dict[str, str] = {}
@@ -247,6 +250,9 @@ class SmartShadingEngine:
             runtime.pause_mode = legacy_pause_modes.get(saved_pause_mode, saved_pause_mode)
             runtime.pause_hours = float(saved.get("pause_hours", room.get("pause_duration_hours", 2.0)))
             runtime.pause_until = _parse_datetime(saved.get("pause_until"))
+            runtime.pause_waiting_for_night = bool(
+                saved.get("pause_waiting_for_night", False)
+            )
             runtime.heat_active = bool(saved.get("heat_active", False))
             runtime.shading_active = bool(saved.get("shading_active", False))
             runtime.finished_today = bool(saved.get("finished_today", False))
@@ -311,6 +317,10 @@ class SmartShadingEngine:
                         pause.reason = str(saved_cover.get("reason", ""))
                         pause.lock_owned = bool(saved_cover.get("lock_owned", False))
                         pause.started_at = _parse_datetime(saved_cover.get("started_at"))
+                        pause.pause_mode = str(saved_cover.get("pause_mode", PAUSE_AUTO))
+                        pause.waiting_for_night = bool(
+                            saved_cover.get("waiting_for_night", False)
+                        )
                         self.cover_pauses[cover_id] = pause
                         if pause.active and pause.until:
                             self._schedule_cover_pause_timer(cover_id, pause.until)
@@ -488,6 +498,9 @@ class SmartShadingEngine:
         for unsub in self._room_pause_timer_unsubs.values():
             unsub()
         self._room_pause_timer_unsubs.clear()
+        for unsub in self._night_timer_unsubs.values():
+            unsub()
+        self._night_timer_unsubs.clear()
 
     def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         self._listeners.append(listener)
@@ -658,6 +671,14 @@ class SmartShadingEngine:
 
     def _is_critical_entity(self, entity_id: str) -> bool:
         if any(
+            bool(self.config.get(CONF_ADVANCED_MODE, False))
+            and room.get("night_enabled", False)
+            and room.get("night_source", "entity") == "entity"
+            and room.get("night_entity") == entity_id
+            for room in self.config.get(CONF_ROOMS, [])
+        ):
+            return True
+        if any(
             entity_id in room.get("safety_blockers", [])
             for room in self.config.get(CONF_ROOMS, [])
         ):
@@ -780,6 +801,8 @@ class SmartShadingEngine:
         pause.until = None
         pause.reason = ""
         pause.lock_owned = False
+        pause.pause_mode = PAUSE_AUTO
+        pause.waiting_for_night = False
         timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
         if timer:
             timer()
@@ -798,6 +821,8 @@ class SmartShadingEngine:
         await self.store.async_save_cover_runtime(pause.cover_id, {
             "active": pause.active, "until": _serialize_datetime(pause.until), "reason": pause.reason,
             "lock_owned": pause.lock_owned, "started_at": _serialize_datetime(pause.started_at),
+            "pause_mode": pause.pause_mode,
+            "waiting_for_night": pause.waiting_for_night,
         })
 
     def _schedule_cover_pause_timer(self, cover_id: str, due: datetime) -> None:
@@ -846,7 +871,12 @@ class SmartShadingEngine:
     def cover_pause_info(self, cover: dict[str, Any]) -> dict[str, Any]:
         pause = self.cover_pauses.get(self._cover_id(cover))
         active = bool(pause and pause.active and (pause.until is None or pause.until > dt_util.now()))
-        return {"active": active, "until": pause.until if active else None, "reason": pause.reason if active else ""}
+        return {
+            "active": active,
+            "until": pause.until if active else None,
+            "reason": pause.reason if active else "",
+            "pause_mode": pause.pause_mode if active else PAUSE_AUTO,
+        }
 
     def referenced_entities(self) -> set[str]:
         result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
@@ -862,6 +892,13 @@ class SmartShadingEngine:
             ):
                 if room.get(key):
                     result.add(room[key])
+            if (
+                self.config.get(CONF_ADVANCED_MODE, False)
+                and room.get("night_enabled", False)
+                and room.get("night_source", "entity") == "entity"
+                and room.get("night_entity")
+            ):
+                result.add(room["night_entity"])
             result.update(room.get("safety_blockers", []))
             for sector in room.get("sectors", []):
                 if sector.get("lux_sensor"):
@@ -1043,6 +1080,19 @@ class SmartShadingEngine:
                     "manual_master_active": not runtime.enabled,
                     "schedule_active": runtime.schedule_active,
                     "schedule_reason": runtime.schedule_reason,
+                    "night_active": runtime.night_active,
+                    "night_blocked": runtime.night_blocked,
+                    "night_reason": runtime.night_reason,
+                    "night_source_state": runtime.night_source_state,
+                    "night_next_transition": _serialize_datetime(
+                        runtime.night_next_transition
+                    ),
+                    "night_morning_hold_until": _serialize_datetime(
+                        runtime.night_morning_hold_until
+                    ),
+                    "night_morning_handover_pending": (
+                        runtime.night_morning_handover_pending
+                    ),
                 }
                 for key, runtime in selected_rooms.items()
             },
@@ -1070,6 +1120,8 @@ class SmartShadingEngine:
                     "until": _serialize_datetime(pause.until),
                     "reason": pause.reason,
                     "lock_owned": pause.lock_owned,
+                    "pause_mode": pause.pause_mode,
+                    "waiting_for_night": pause.waiting_for_night,
                 }
                 for key, pause in self.cover_pauses.items()
                 if key in selected_cover_ids
@@ -1265,6 +1317,26 @@ class SmartShadingEngine:
             self.hass, seconds, _expire
         )
 
+    def _schedule_night_timer(
+        self, room_id: str, due: datetime | None
+    ) -> None:
+        previous = self._night_timer_unsubs.pop(room_id, None)
+        if previous:
+            previous()
+        if due is None:
+            return
+        seconds = (due - dt_util.now()).total_seconds()
+        if seconds <= 0:
+            return
+
+        async def _transition(_now) -> None:
+            self._night_timer_unsubs.pop(room_id, None)
+            await self.async_evaluate_all(f"night_transition:{room_id}")
+
+        self._night_timer_unsubs[room_id] = async_call_later(
+            self.hass, max(0.1, seconds), _transition
+        )
+
     async def async_set_pause_mode(self, room_id: str, mode: str) -> None:
         runtime = self.rooms[room_id]
         runtime.pause_mode = mode
@@ -1281,8 +1353,12 @@ class SmartShadingEngine:
             runtime.pause_hours = duration
             runtime.pause_until = now + timedelta(hours=duration)
             self._schedule_room_pause_timer(room_id, runtime.pause_until)
+        elif mode == PAUSE_NEXT_NIGHT_END:
+            runtime.pause_until = None
+            runtime.pause_waiting_for_night = not runtime.night_active
         elif mode in {PAUSE_AUTO, PAUSE_MANUAL}:
             runtime.pause_until = None
+            runtime.pause_waiting_for_night = False
         if mode != PAUSE_AUTO:
             runtime.mode = MODE_PAUSED
             runtime.reason = "Automatic shading is paused"
@@ -1304,7 +1380,7 @@ class SmartShadingEngine:
             await self.async_evaluate_all("pause_released")
 
     async def _async_room_pause_state_changed(
-        self, room_id: str, paused: bool
+        self, room_id: str, paused: bool, release_mode: str | None = None
     ) -> None:
         """Allow runtime controllers to mirror room pauses to manual entities."""
 
@@ -1327,6 +1403,7 @@ class SmartShadingEngine:
         runtime = self.rooms[room_id]
         runtime.pause_mode = PAUSE_AUTO
         runtime.pause_until = None
+        runtime.pause_waiting_for_night = False
         await self._save_room_runtime(runtime)
         await self._async_room_pause_state_changed(room_id, False)
         await self.async_evaluate_all("resume")
@@ -1539,7 +1616,7 @@ class SmartShadingEngine:
         return passed, [name for name, value in tests if not value]
 
     def _pause_active(self, runtime: RoomRuntime, now: datetime) -> bool:
-        if runtime.pause_mode == PAUSE_MANUAL:
+        if runtime.pause_mode in {PAUSE_MANUAL, PAUSE_NEXT_NIGHT_END}:
             return True
         if runtime.pause_mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED}:
             if runtime.pause_until and runtime.pause_until > now:
@@ -1641,6 +1718,173 @@ class SmartShadingEngine:
             reason = "Schedule permits normal shading"
         return active, reason, self._next_schedule_change(room, now, active)
 
+    def _night_status(
+        self, room: dict[str, Any], now: datetime
+    ) -> tuple[bool, bool, str, str | None, datetime | None]:
+        """Return active, blocked, reason, source state and next transition."""
+        if not self.config.get(CONF_ADVANCED_MODE, False):
+            return False, False, "Night Mode requires Advanced Mode", None, None
+        if not room.get("night_enabled", False):
+            return False, False, "Night Mode disabled", None, None
+
+        source = str(room.get("night_source", "entity"))
+        if source == "entity":
+            entity_id = str(room.get("night_entity") or "")
+            state = self.hass.states.get(entity_id) if entity_id else None
+            source_state = state.state if state else None
+            if state is None or source_state in {
+                "unknown", "unavailable", "none", "",
+            }:
+                return (
+                    False,
+                    True,
+                    "Night source is unknown or unavailable; positions held",
+                    source_state,
+                    None,
+                )
+            next_value = state.attributes.get("next_event")
+            next_transition = _parse_datetime(next_value)
+            if next_transition is not None:
+                next_transition = dt_util.as_local(next_transition)
+            return (
+                source_state == STATE_ON,
+                False,
+                "Night source is on" if source_state == STATE_ON else "Night source is off",
+                source_state,
+                next_transition,
+            )
+
+        sun = self.hass.states.get(self.config.get(CONF_SUN_ENTITY, "sun.sun"))
+        if sun is None or sun.state in {"unknown", "unavailable", "none", ""}:
+            return False, True, "Sun source unavailable; positions held", None, None
+        rising = _parse_datetime(sun.attributes.get("next_rising"))
+        setting = _parse_datetime(sun.attributes.get("next_setting"))
+        if rising is None or setting is None:
+            return False, True, "Sun transitions unavailable; positions held", sun.state, None
+        rising = dt_util.as_local(rising)
+        setting = dt_util.as_local(setting)
+        start_offset = timedelta(
+            minutes=float(room.get("night_start_offset_minutes", 0))
+        )
+        end_offset = timedelta(
+            minutes=float(room.get("night_end_offset_minutes", 0))
+        )
+        events: list[tuple[datetime, bool]] = []
+        for delta_days in (-1, 0, 1):
+            events.append((setting + timedelta(days=delta_days) + start_offset, True))
+            events.append((rising + timedelta(days=delta_days) + end_offset, False))
+        events.sort(key=lambda item: item[0])
+        previous = [item for item in events if item[0] <= now]
+        future = [item for item in events if item[0] > now]
+        active = previous[-1][1] if previous else sun.state == "below_horizon"
+        next_transition = future[0][0] if future else None
+        return (
+            active,
+            False,
+            "Inside configured sun Night window" if active else "Outside configured sun Night window",
+            sun.state,
+            next_transition,
+        )
+
+    async def _async_arm_night_end_pauses(self, room_id: str) -> None:
+        runtime = self.rooms[room_id]
+        if (
+            runtime.pause_mode == PAUSE_NEXT_NIGHT_END
+            and runtime.pause_waiting_for_night
+        ):
+            runtime.pause_waiting_for_night = False
+            await self._save_room_runtime(runtime)
+        for pause in self.cover_pauses.values():
+            if (
+                str(pause.room_id) == str(room_id)
+                and pause.active
+                and pause.pause_mode == PAUSE_NEXT_NIGHT_END
+                and pause.waiting_for_night
+            ):
+                pause.waiting_for_night = False
+                await self._save_cover_pause(pause)
+
+    async def _async_release_night_end_pauses(self, room_id: str) -> None:
+        runtime = self.rooms[room_id]
+        room_pause_released = bool(
+            runtime.pause_mode == PAUSE_NEXT_NIGHT_END
+            and not runtime.pause_waiting_for_night
+        )
+        cover_pause_released = any(
+            str(pause.room_id) == str(room_id)
+            and pause.active
+            and pause.pause_mode == PAUSE_NEXT_NIGHT_END
+            and not pause.waiting_for_night
+            for pause in self.cover_pauses.values()
+        )
+        if not room_pause_released and not cover_pause_released:
+            return
+        await self._async_room_pause_state_changed(
+            room_id, False, release_mode=PAUSE_NEXT_NIGHT_END
+        )
+        if room_pause_released:
+            runtime.pause_mode = PAUSE_AUTO
+            runtime.pause_until = None
+            runtime.pause_waiting_for_night = False
+            await self._save_room_runtime(runtime)
+        self._diag(
+            "night_end_pauses_released",
+            room_id=room_id,
+            room_pause=room_pause_released,
+            cover_pause=cover_pause_released,
+        )
+
+    async def _async_update_night_state(
+        self, room: dict[str, Any], now: datetime
+    ) -> None:
+        runtime = self.rooms[room["id"]]
+        active, blocked, reason, source_state, next_transition = self._night_status(
+            room, now
+        )
+        runtime.night_blocked = blocked
+        runtime.night_reason = reason
+        runtime.night_source_state = source_state
+        runtime.night_next_transition = next_transition
+        if blocked:
+            self._schedule_night_timer(room["id"], None)
+            return
+
+        previous = runtime.night_active
+        runtime.night_active = active
+        if not runtime.night_initialized:
+            runtime.night_initialized = True
+            if active:
+                await self._async_arm_night_end_pauses(room["id"])
+            else:
+                await self._async_release_night_end_pauses(room["id"])
+        elif previous != active:
+            if active:
+                runtime.night_morning_hold_until = None
+                runtime.night_morning_handover_pending = False
+                await self._async_arm_night_end_pauses(room["id"])
+            else:
+                minutes = max(
+                    0,
+                    min(120, int(room.get("night_morning_transition_minutes", 0))),
+                )
+                runtime.night_morning_hold_until = now + timedelta(minutes=minutes)
+                runtime.night_morning_handover_pending = True
+                await self._async_release_night_end_pauses(room["id"])
+            self._diag(
+                "night_state_changed",
+                room_id=room["id"],
+                active=active,
+                reason=reason,
+            )
+
+        timer_due = next_transition
+        hold_until = runtime.night_morning_hold_until
+        if hold_until and hold_until > now and (
+            timer_due is None or hold_until < timer_due
+        ):
+            timer_due = hold_until
+        self._schedule_night_timer(room["id"], timer_due)
+
     async def _evaluate_room(
         self, room: dict[str, Any], now: datetime
     ) -> None:
@@ -1660,6 +1904,7 @@ class SmartShadingEngine:
         runtime.schedule_active = schedule_active
         runtime.schedule_reason = schedule_reason
         runtime.next_schedule_change = next_change
+        await self._async_update_night_state(room, now)
 
         # Safety has the highest priority. It remains active even when the
         # customer pauses or disables normal room automation.
@@ -1692,13 +1937,6 @@ class SmartShadingEngine:
             await self._save_room_runtime(runtime)
             return
 
-        if runtime.finished_today:
-            runtime.mode = MODE_FINISHED
-            runtime.reason = "Heat protection finished for today"
-            self._mark_room_sectors(room, status="finished", reason=runtime.reason, mode=MODE_FINISHED, active=False)
-            await self._save_room_runtime(runtime)
-            return
-
         sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
         sun_state = self.hass.states.get(sun_entity)
         sun_up = bool(sun_state and sun_state.state == "above_horizon")
@@ -1710,6 +1948,49 @@ class SmartShadingEngine:
         )
         azimuth = azimuth_value if azimuth_value is not None else -999.0
         elevation = elevation_value if elevation_value is not None else -999.0
+
+        if pause_active and (runtime.night_active or runtime.night_blocked):
+            runtime.mode = MODE_PAUSED
+            runtime.reason = "Automatic shading is paused"
+            self._mark_room_sectors(
+                room,
+                status="paused",
+                reason=runtime.reason,
+                mode=MODE_PAUSED,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        if runtime.night_blocked:
+            runtime.mode = MODE_IDLE
+            runtime.reason = runtime.night_reason
+            self._mark_room_sectors(
+                room,
+                status="night_blocked",
+                reason=runtime.reason,
+                mode=MODE_IDLE,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        if runtime.night_active:
+            if runtime.heat_active:
+                runtime.heat_active = False
+                runtime.finished_today = True
+            runtime.mode = MODE_NIGHT
+            runtime.reason = runtime.night_reason
+            self._mark_room_sectors(
+                room,
+                status="night",
+                reason=runtime.reason,
+                mode=MODE_NIGHT,
+                active=True,
+            )
+            await self._apply_room_mode(room, runtime, MODE_NIGHT, elevation)
+            await self._save_room_runtime(runtime)
+            return
 
         indoor_entity = room.get("indoor_temperature", "")
         indoor = _state_number(self.hass, indoor_entity)
@@ -1755,7 +2036,7 @@ class SmartShadingEngine:
         heat_start = float(
             self.room_value(room["id"], "heat_temperature", 27.0)
         )
-        if not runtime.heat_active and (
+        if not runtime.heat_active and not runtime.finished_today and (
             indoor_valid
             and indoor >= heat_start
             and heat_sun_pass
@@ -1769,16 +2050,61 @@ class SmartShadingEngine:
             runtime.heat_active = True
 
         if runtime.heat_active and self._evening_release_reached(now):
-            await self._apply_room_mode(room, runtime, MODE_OPEN, elevation)
             runtime.heat_active = False
             runtime.finished_today = True
-            runtime.mode = MODE_FINISHED
+            evening_window = max(
+                0,
+                min(120, int(room.get("night_evening_transition_minutes", 0))),
+            )
+            next_night = runtime.night_next_transition
+            hold_for_night = bool(
+                evening_window
+                and next_night
+                and now < next_night <= now + timedelta(minutes=evening_window)
+            )
+            if hold_for_night:
+                runtime.mode = MODE_IDLE
+                runtime.reason = "Evening release held for imminent Night Mode"
+                self._mark_room_sectors(
+                    room,
+                    status="night_transition_hold",
+                    reason=runtime.reason,
+                    mode=MODE_IDLE,
+                    active=False,
+                )
+                await self._save_room_runtime(runtime)
+                return
+            runtime.mode = MODE_OPEN
             runtime.reason = "Heat protection released for evening"
+            await self._apply_room_mode(room, runtime, MODE_OPEN, elevation)
             self._mark_room_sectors(
                 room,
                 status="outside_sun_sector",
                 reason=runtime.reason,
-                mode=MODE_FINISHED,
+                mode=MODE_OPEN,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        evening_window = max(
+            0,
+            min(120, int(room.get("night_evening_transition_minutes", 0))),
+        )
+        next_night = runtime.night_next_transition
+        if (
+            evening_window
+            and next_night
+            and self._evening_release_reached(now)
+            and now < next_night <= now + timedelta(minutes=evening_window)
+        ):
+            runtime.mode = MODE_IDLE
+            runtime.reason = "Evening release held for imminent Night Mode"
+            self._mark_room_sectors(
+                room,
+                status="night_transition_hold",
+                reason=runtime.reason,
+                mode=MODE_IDLE,
                 active=False,
             )
             await self._save_room_runtime(runtime)
@@ -1852,6 +2178,8 @@ class SmartShadingEngine:
                 runtime.active_sectors.append(sector["name"])
 
         if runtime.heat_active:
+            runtime.night_morning_handover_pending = False
+            runtime.night_morning_hold_until = None
             runtime.mode = MODE_HEAT
             runtime.reason = "Heat threshold / hysteresis active"
             self._mark_room_sectors(room, status="heat", reason=runtime.reason, mode=MODE_HEAT, active=True)
@@ -1862,11 +2190,19 @@ class SmartShadingEngine:
         if pause_active:
             runtime.mode = MODE_PAUSED
             runtime.reason = "Automatic shading is paused; heat protection is not active"
-            self._mark_room_sectors(room, status="paused", reason=runtime.reason, mode=MODE_PAUSED, active=False)
+            self._mark_room_sectors(
+                room,
+                status="paused",
+                reason=runtime.reason,
+                mode=MODE_PAUSED,
+                active=False,
+            )
             await self._save_room_runtime(runtime)
             return
 
         if not schedule_active:
+            runtime.night_morning_handover_pending = False
+            runtime.night_morning_hold_until = None
             behavior = room.get("outside_schedule_behavior", OUTSIDE_OPEN)
             if behavior == OUTSIDE_OPEN:
                 runtime.mode = MODE_OPEN
@@ -1916,6 +2252,7 @@ class SmartShadingEngine:
 
         highest_mode = MODE_OPEN
         reasons: list[str] = []
+        morning_transition_waiting = False
         for sector in room.get("sectors", []):
             if sector in active_sectors:
                 if venetian_only:
@@ -1957,6 +2294,25 @@ class SmartShadingEngine:
                 mode = MODE_OPEN
                 reason = "Sun outside this sector"
 
+            morning_handover = bool(
+                runtime.night_morning_handover_pending
+                and self.sun_runtime[sector["id"]].geometry_active
+                and mode not in {MODE_COMFORT, MODE_SOLAR, MODE_HEAT}
+            )
+            morning_hold = bool(
+                morning_handover
+                and runtime.night_morning_hold_until
+                and runtime.night_morning_hold_until > now
+            )
+            if morning_handover:
+                if morning_hold:
+                    mode = MODE_IDLE
+                    morning_transition_waiting = True
+                    reason = "Morning transition holds Night target while shading conditions settle"
+                else:
+                    mode = MODE_OPEN
+                    reason = "Morning transition window ended; cover opened"
+
             if mode != MODE_IDLE:
                 await self._apply_sector_mode(
                     room, sector, runtime, mode, elevation, reason
@@ -1967,13 +2323,22 @@ class SmartShadingEngine:
             if mode in {MODE_COMFORT, MODE_SOLAR}:
                 sector_runtime.status = "shading_active"
             elif mode == MODE_IDLE and sector_runtime.geometry_active:
-                sector_runtime.status = "waiting_conditions"
+                sector_runtime.status = (
+                    "night_transition_hold" if morning_hold else "waiting_conditions"
+                )
             sector_runtime.status_reason = reason
             reasons.append(f"{sector['name']}: {reason}")
             if self._mode_priority(mode) > self._mode_priority(highest_mode):
                 highest_mode = mode
 
-        runtime.mode = highest_mode if room.get("sectors") else MODE_IDLE
+        if runtime.night_morning_handover_pending and not morning_transition_waiting:
+            runtime.night_morning_handover_pending = False
+            runtime.night_morning_hold_until = None
+        runtime.mode = (
+            MODE_IDLE
+            if morning_transition_waiting and highest_mode == MODE_OPEN
+            else highest_mode if room.get("sectors") else MODE_IDLE
+        )
         runtime.reason = " · ".join(reasons) if reasons else "No sectors configured"
         await self._save_room_runtime(runtime)
 
@@ -1985,7 +2350,8 @@ class SmartShadingEngine:
             MODE_COMFORT: 2,
             MODE_SOLAR: 3,
             MODE_HEAT: 4,
-            MODE_SAFETY: 5,
+            MODE_NIGHT: 5,
+            MODE_SAFETY: 6,
         }.get(mode, 0)
 
     def _evening_release_reached(self, now: datetime) -> bool:
@@ -2087,6 +2453,10 @@ class SmartShadingEngine:
                 return 0.0, adaptive(float(defaults["solar_tilt"]))
             if mode == MODE_HEAT:
                 return 0.0, value("heat_tilt", float(defaults["heat_tilt"]))
+            if mode == MODE_NIGHT:
+                return value("night_position", 0.0), value(
+                    "night_tilt", float(defaults["night_tilt"])
+                )
             if mode == MODE_SAFETY:
                 return value("safety_position", 100.0), value(
                     "safety_tilt", float(defaults["safety_tilt"])
@@ -2103,6 +2473,10 @@ class SmartShadingEngine:
                 return 0.0, adaptive(float(defaults["solar_tilt"]))
             if mode == MODE_HEAT:
                 return 0.0, value("heat_tilt", float(defaults["heat_tilt"]))
+            if mode == MODE_NIGHT:
+                return value("night_position", 0.0), value(
+                    "night_tilt", float(defaults["night_tilt"])
+                )
             if mode == MODE_SAFETY:
                 return value("safety_position", 100.0), value(
                     "safety_tilt", float(defaults["safety_tilt"])
@@ -2397,6 +2771,7 @@ class SmartShadingEngine:
                 "pause_mode": runtime.pause_mode,
                 "pause_hours": runtime.pause_hours,
                 "pause_until": _serialize_datetime(runtime.pause_until),
+                "pause_waiting_for_night": runtime.pause_waiting_for_night,
                 "heat_active": runtime.heat_active,
                 "shading_active": runtime.shading_active,
                 "finished_today": runtime.finished_today,

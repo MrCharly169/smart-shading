@@ -182,6 +182,7 @@
           "select_sector": "Manage sun sector",
           "delete_room": "Delete room",
           "edit_room_pause": "Pause / manual override",
+          "edit_room_night": "Night Mode",
           "back_to_overview": "Back to setup overview"
         }
       },
@@ -364,9 +365,11 @@
           "comfort_position": "Comfort position",
           "solar_position": "Solar position",
           "heat_position": "Heat position",
+          "night_position": "Night position",
           "safety_position": "Safety position",
           "comfort_tilt": "Comfort slat position",
-          "heat_tilt": "Heat slat position"
+          "heat_tilt": "Heat slat position",
+          "night_tilt": "Night slat position"
         }
       },
       "select_cover": {
@@ -493,6 +496,35 @@
           "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
           "pause_duration_hours": "Only used when a fixed-duration pause is started.",
           "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
+        }
+      },
+      "edit_room_night": {
+        "title": "Night Mode",
+        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
+        "data": {
+          "night_enabled": "Enable Night Mode",
+          "night_source": "Night source",
+          "night_morning_transition_minutes": "Morning transition window",
+          "night_evening_transition_minutes": "Evening transition window"
+        },
+        "data_description": {
+          "night_morning_transition_minutes": "Hold the Night target while a geometrically relevant sector waits for its shading conditions. 0 disables the hold.",
+          "night_evening_transition_minutes": "Hold the current target when Night starts shortly after evening release. 0 disables the hold."
+        }
+      },
+      "edit_room_night_entity": {
+        "title": "Select Night source entity",
+        "description": "Use a Home Assistant Schedule Helper for weekly planning. On means Night active; off means daytime evaluation.",
+        "data": {
+          "night_entity": "Schedule or on/off entity"
+        }
+      },
+      "edit_room_night_sun": {
+        "title": "Night relative to the sun",
+        "description": "Set separate offsets for the Night start at sunset and Night end at sunrise.",
+        "data": {
+          "night_start_offset_minutes": "Offset from sunset",
+          "night_end_offset_minutes": "Offset from sunrise"
         }
       },
       "room_pause_sun_setup": {
@@ -824,6 +856,7 @@
           "select_sector": "Manage sun sector",
           "delete_room": "Delete room",
           "edit_room_pause": "Pause / manual override",
+          "edit_room_night": "Night Mode",
           "back_to_overview": "Back to setup overview"
         }
       },
@@ -1006,9 +1039,11 @@
           "comfort_position": "Comfort position",
           "solar_position": "Solar position",
           "heat_position": "Heat position",
+          "night_position": "Night position",
           "safety_position": "Safety position",
           "comfort_tilt": "Comfort slat position",
-          "heat_tilt": "Heat slat position"
+          "heat_tilt": "Heat slat position",
+          "night_tilt": "Night slat position"
         }
       },
       "select_cover": {
@@ -1135,6 +1170,35 @@
           "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
           "pause_duration_hours": "Only used when a fixed-duration pause is started.",
           "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
+        }
+      },
+      "edit_room_night": {
+        "title": "Night Mode",
+        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
+        "data": {
+          "night_enabled": "Enable Night Mode",
+          "night_source": "Night source",
+          "night_morning_transition_minutes": "Morning transition window",
+          "night_evening_transition_minutes": "Evening transition window"
+        },
+        "data_description": {
+          "night_morning_transition_minutes": "Hold the Night target while a geometrically relevant sector waits for its shading conditions. 0 disables the hold.",
+          "night_evening_transition_minutes": "Hold the current target when Night starts shortly after evening release. 0 disables the hold."
+        }
+      },
+      "edit_room_night_entity": {
+        "title": "Select Night source entity",
+        "description": "Use a Home Assistant Schedule Helper for weekly planning. On means Night active; off means daytime evaluation.",
+        "data": {
+          "night_entity": "Schedule or on/off entity"
+        }
+      },
+      "edit_room_night_sun": {
+        "title": "Night relative to the sun",
+        "description": "Set separate offsets for the Night start at sunset and Night end at sunrise.",
+        "data": {
+          "night_start_offset_minutes": "Offset from sunset",
+          "night_end_offset_minutes": "Offset from sunrise"
         }
       },
       "room_pause_sun_setup": {
@@ -1325,8 +1389,15 @@
         "auto": "Not paused",
         "next_sunrise": "Until next morning",
         "next_sunset": "Until next sunset",
+        "next_night_end": "Until the end of the next Night",
         "timed": "For a fixed duration",
         "manual": "Until manually resumed"
+      }
+    },
+    "night_source": {
+      "options": {
+        "entity": "Entity / schedule",
+        "sun": "Sunset and sunrise"
       }
     }
   }

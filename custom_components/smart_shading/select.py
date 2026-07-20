@@ -10,6 +10,7 @@ from .const import (
     DIAGNOSTIC_OPTIONS,
     PAUSE_AUTO,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
     PAUSE_OPTIONS,
@@ -74,11 +75,19 @@ class RoomPauseSelect(SmartShadingEntity, SelectEntity):
             PAUSE_AUTO: localized(engine, "Not paused", "Nicht pausiert"),
             PAUSE_NEXT_SUNRISE: localized(engine, "Until next morning", "Bis zum nächsten Morgen"),
             PAUSE_NEXT_SUNSET: localized(engine, "Until next sunset", "Bis zum nächsten Sonnenuntergang"),
+            PAUSE_NEXT_NIGHT_END: localized(engine, "Until the end of the next Night", "Bis zum Ende der nächsten Nacht"),
             PAUSE_TIMED: localized(engine, "For a fixed duration", "Für eine feste Dauer"),
             PAUSE_MANUAL: localized(engine, "Until manually resumed", "Bis manuell fortgesetzt"),
         }
         self._reverse = {label: key for key, label in self._labels.items()}
-        self._attr_options = [self._labels[key] for key in PAUSE_OPTIONS]
+        room = engine.room_config(room_id)
+        pause_options = list(PAUSE_OPTIONS)
+        if not (
+            engine.config.get("advanced_mode", False)
+            and room.get("night_enabled", False)
+        ):
+            pause_options.remove(PAUSE_NEXT_NIGHT_END)
+        self._attr_options = [self._labels[key] for key in pause_options]
 
     @property
     def current_option(self):

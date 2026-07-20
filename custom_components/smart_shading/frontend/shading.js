@@ -92,6 +92,14 @@ class SmartShadingV4Dialog extends HTMLElement {
       pending: "Umschaltung geplant",
       locked: "Manuell gesperrt",
       unsafeWindow: "Fenster nicht sicher",
+      night: "Nachtfunktion",
+      source: "Quelle",
+      sourceState: "Quellstatus",
+      nextTransition: "Nächster Wechsel",
+      morningWindow: "Morgenfenster",
+      eveningWindow: "Abendfenster",
+      openSchedule: "Zeitplan öffnen",
+      blocked: "blockiert",
     } : {
       title: "Smart Shading · Advanced view",
       close: "Close",
@@ -127,6 +135,14 @@ class SmartShadingV4Dialog extends HTMLElement {
       pending: "Transition scheduled",
       locked: "Manually locked",
       unsafeWindow: "Window not safe",
+      night: "Night Mode",
+      source: "Source",
+      sourceState: "Source state",
+      nextTransition: "Next transition",
+      morningWindow: "Morning window",
+      eveningWindow: "Evening window",
+      openSchedule: "Open schedule",
+      blocked: "blocked",
     };
   }
 
@@ -136,10 +152,12 @@ class SmartShadingV4Dialog extends HTMLElement {
       safety: "Safety", heat: "Heat Protection", solar: "Sonnenschutz",
       comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
       disabled: "Master aktiv", finished: "Für heute beendet",
+      night: "Nacht",
     } : {
       safety: "Safety", heat: "Heat protection", solar: "Solar shading",
       comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready",
       disabled: "Master active", finished: "Finished today",
+      night: "Night",
     };
     return values[mode] || String(mode || "–");
   }
@@ -152,12 +170,14 @@ class SmartShadingV4Dialog extends HTMLElement {
       shading_active: "Beschattung aktiv", waiting_conditions: "Wartet auf Bedingungen",
       sun_below_horizon: "Sonne unter Horizont", schedule_blocked: "Zeitplan blockiert",
       paused: "Pausiert", heat: "Heat Protection", safety: "Safety", disabled: "Deaktiviert",
+      night: "Nacht", night_blocked: "Nachtquelle blockiert", night_transition_hold: "Nachtübergang hält",
     } : {
       not_evaluated: "Not evaluated", outside_sun_sector: "Sun outside sector",
       waiting_for_lux: "Waiting for Sun Presence", sun_detected: "Sun detected",
       shading_active: "Shading active", waiting_conditions: "Waiting for conditions",
       sun_below_horizon: "Sun below horizon", schedule_blocked: "Schedule blocked",
       paused: "Paused", heat: "Heat protection", safety: "Safety", disabled: "Disabled",
+      night: "Night", night_blocked: "Night source blocked", night_transition_hold: "Night transition hold",
     };
     return values[status] || String(status || "–");
   }
@@ -193,6 +213,12 @@ class SmartShadingV4Dialog extends HTMLElement {
     if (service) this._hass.callService(domain, service, { entity_id: entityId });
   }
 
+  _more(entityId) {
+    if (!entityId) return;
+    if (this._owner?._more) this._owner._more(entityId);
+    else this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
+  }
+
   _formatDate(value) {
     if (!value) return "–";
     const date = new Date(value);
@@ -221,6 +247,19 @@ class SmartShadingV4Dialog extends HTMLElement {
     const evaluate = this._control("evaluate");
     const exportLog = this._control("export_room_diagnostics") || this._control("export_diagnostics");
     const master = this._control("manual_master");
+    const nightSource = attrs.night_source === "entity" ? attrs.night_entity : "sun.sun";
+    const nightHtml = attrs.night_enabled ? `
+      <section><h3>${htmlEscape(L.night)}</h3><div class="summary">
+        <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(attrs.night_blocked ? L.blocked : attrs.night_active ? L.active : L.inactive)}</strong></div>
+        <div><small>${htmlEscape(L.source)}</small><strong>${htmlEscape(attrs.night_source || "–")}</strong></div>
+        <div><small>${htmlEscape(L.sourceState)}</small><strong>${htmlEscape(attrs.night_source_state || "–")}</strong></div>
+        <div><small>${htmlEscape(L.nextTransition)}</small><strong>${htmlEscape(this._formatDate(attrs.night_next_transition))}</strong></div>
+        <div><small>${htmlEscape(L.morningWindow)}</small><strong>${htmlEscape(attrs.night_morning_transition_minutes ?? 0)} min</strong></div>
+        <div><small>${htmlEscape(L.eveningWindow)}</small><strong>${htmlEscape(attrs.night_evening_transition_minutes ?? 0)} min</strong></div>
+      </div>
+      ${attrs.night_entity ? `<div class="actions"><button data-more="${htmlEscape(nightSource)}"><ha-icon icon="mdi:calendar-clock"></ha-icon>${htmlEscape(L.openSchedule)}</button></div>` : ""}
+      ${attrs.night_reason ? `<div class="muted">${htmlEscape(attrs.night_reason)}</div>` : ""}
+      </section>` : "";
 
     const sectorHtml = sectors.map((sector) => {
       const settings = sector.sun_settings || {};
@@ -310,6 +349,7 @@ class SmartShadingV4Dialog extends HTMLElement {
             <div><small>${htmlEscape(L.sent)}</small><strong>${htmlEscape(attrs.sent_commands ?? 0)}</strong></div>
             <div><small>${htmlEscape(L.suppressed)}</small><strong>${htmlEscape(attrs.suppressed_commands ?? 0)}</strong></div>
           </div></section>
+          ${nightHtml}
           <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
             ${attrs.pause_mode && attrs.pause_mode !== "auto" ? `<button data-press="${htmlEscape(resume?.entity_id || "")}"><ha-icon icon="mdi:play"></ha-icon>${htmlEscape(L.resume)}</button>` : `<button data-press="${htmlEscape(pause?.entity_id || "")}"><ha-icon icon="mdi:pause"></ha-icon>${htmlEscape(L.pause)}</button>`}
             <button data-press="${htmlEscape(evaluate?.entity_id || "")}"><ha-icon icon="mdi:refresh"></ha-icon>${htmlEscape(L.evaluate)}</button>
@@ -324,6 +364,7 @@ class SmartShadingV4Dialog extends HTMLElement {
 
     this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
     this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
+    this.shadowRoot.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
   }
 }
 
@@ -377,7 +418,7 @@ class SmartShadingV4Card extends HTMLElement {
     return de ? {
       title: "Shading", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
-      safety: "Safety", heat: "Heat", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
+      safety: "Safety", heat: "Heat", night: "Nacht", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Erweiterte Ansicht",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
@@ -385,7 +426,7 @@ class SmartShadingV4Card extends HTMLElement {
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
-      safety: "Safety", heat: "Heat", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
+      safety: "Safety", heat: "Heat", night: "Night", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
       blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Advanced view",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
@@ -446,6 +487,7 @@ class SmartShadingV4Card extends HTMLElement {
   _modeInfo(mode, L) {
     return ({
       safety: ["mdi:shield-alert", L.safety, "danger"], heat: ["mdi:shield-sun", L.heat, "heat"],
+      night: ["mdi:weather-night", L.night, "night"],
       solar: ["mdi:weather-sunny-alert", L.solar, "solar"], comfort: ["mdi:sun-angle", L.comfort, "comfort"],
       paused: ["mdi:pause-circle", L.paused, "paused"], disabled: ["mdi:power", L.disabled, "disabled"],
       finished: ["mdi:calendar-check", L.finished, "done"], open: ["mdi:blinds-open", L.open, "open"],
@@ -505,6 +547,7 @@ class SmartShadingV4Card extends HTMLElement {
       shading_active: L.active, sun_detected: L.detected, waiting_for_lux: L.waitingLux,
       waiting_conditions: L.waiting, outside_sun_sector: L.outsideSector, sun_below_horizon: L.belowHorizon,
       schedule_blocked: L.blocked, paused: L.paused, heat: L.heat, safety: L.safety, disabled: L.disabled,
+      night: L.night, night_blocked: L.blocked, night_transition_hold: L.waiting,
     })[status] || L.waiting;
   }
 

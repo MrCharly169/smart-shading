@@ -11,6 +11,7 @@ from .const import (
     DEFAULT_POSITION_TOLERANCE,
     DEFAULT_TILT_TOLERANCE,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
     PAUSE_TIMED,
@@ -224,11 +225,17 @@ class HomeAssistantServiceDetectionMixin:
             )
 
     async def _async_room_pause_state_changed(
-        self, room_id: str, paused: bool
+        self, room_id: str, paused: bool, release_mode: str | None = None
     ) -> None:
         """Mirror a room pause to every configured cover manual entity."""
         now = dt_util.now()
         intents = self._manual_service_intents()
+        changed_locks: set[str] = set()
+        room_pause_matches = bool(
+            release_mode
+            and self.rooms.get(room_id)
+            and self.rooms[room_id].pause_mode == release_mode
+        )
 
         for room, _sector, _layer, cover in self._iter_covers():
             if str(room.get("id")) != str(room_id):
@@ -245,7 +252,9 @@ class HomeAssistantServiceDetectionMixin:
                 if (
                     lock
                     and domain in {"switch", "input_boolean"}
+                    and lock not in changed_locks
                 ):
+                    changed_locks.add(lock)
                     self._owned_lock_changes[lock] = (STATE_ON, now)
                     await self.hass.services.async_call(
                         domain,
@@ -256,12 +265,44 @@ class HomeAssistantServiceDetectionMixin:
                 continue
 
             pause = self.cover_pauses.get(self._cover_id(cover))
-            if pause and pause.active:
+            pause_matches_release = bool(
+                pause
+                and pause.active
+                and release_mode is not None
+                and pause.pause_mode == release_mode
+            )
+            if (
+                pause
+                and pause.active
+                and (release_mode is None or pause.pause_mode == release_mode)
+            ):
                 await self._clear_cover_pause(
                     room, cover, unlock=False, evaluate=False
                 )
 
-            if lock and domain in {"switch", "input_boolean"}:
+            other_pause_uses_lock = any(
+                candidate_pause.active
+                and candidate_pause.pause_mode != release_mode
+                and any(
+                    self._cover_id(candidate) == candidate_pause.cover_id
+                    and candidate.get("lock") == lock
+                    for candidate_room, _s, _l, candidate in self._iter_covers()
+                    if str(candidate_room.get("id")) == str(room_id)
+                )
+                for candidate_pause in self.cover_pauses.values()
+            )
+            if (
+                lock
+                and domain in {"switch", "input_boolean"}
+                and lock not in changed_locks
+                and not other_pause_uses_lock
+                and (
+                    release_mode is None
+                    or room_pause_matches
+                    or pause_matches_release
+                )
+            ):
+                changed_locks.add(lock)
                 self._owned_lock_changes[lock] = ("off", now)
                 await self.hass.services.async_call(
                     domain,
@@ -270,7 +311,9 @@ class HomeAssistantServiceDetectionMixin:
                     blocking=False,
                 )
 
-        await super()._async_room_pause_state_changed(room_id, paused)
+        await super()._async_room_pause_state_changed(
+            room_id, paused, release_mode=release_mode
+        )
 
     async def _async_state_changed(self, event) -> None:
         entity_id = str(event.data.get("entity_id") or "")
@@ -361,6 +404,8 @@ class HomeAssistantServiceDetectionMixin:
             return mode, now + timedelta(hours=hours)
         if mode == PAUSE_MANUAL:
             return mode, None
+        if mode == PAUSE_NEXT_NIGHT_END:
+            return mode, None
 
         # A malformed legacy value must not create an unintended endless pause.
         due = self._pause_until_from_sun(room_id, PAUSE_NEXT_SUNRISE, now)
@@ -405,6 +450,11 @@ class HomeAssistantServiceDetectionMixin:
             pause.reason = reason
             pause.started_at = now
             pause.lock_owned = False
+            pause.pause_mode = pause_mode
+            pause.waiting_for_night = (
+                pause_mode == PAUSE_NEXT_NIGHT_END
+                and not self.rooms[room["id"]].night_active
+            )
 
         lock = str(cover.get("lock") or "")
         if set_lock and lock:

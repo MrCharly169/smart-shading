@@ -57,6 +57,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "schedule_active": runtime.schedule_active,
                 "schedule_reason": runtime.schedule_reason,
                 "next_schedule_change": runtime.next_schedule_change,
+                "night_active": runtime.night_active,
+                "night_blocked": runtime.night_blocked,
+                "night_reason": runtime.night_reason,
+                "night_source_state": runtime.night_source_state,
+                "night_next_transition": runtime.night_next_transition,
+                "night_morning_hold_until": runtime.night_morning_hold_until,
+                "night_morning_handover_pending": (
+                    runtime.night_morning_handover_pending
+                ),
             }
             for room_id, runtime in engine.rooms.items()
         },
@@ -65,6 +74,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "active": pause.active,
                 "until": pause.until,
                 "reason": pause.reason,
+                "pause_mode": pause.pause_mode,
+                "waiting_for_night": pause.waiting_for_night,
                 "lock_owned": pause.lock_owned,
                 "entity_id": pause.entity_id,
                 "room_id": pause.room_id,

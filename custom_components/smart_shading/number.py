@@ -50,12 +50,16 @@ SUN_NUMBERS = (
 PROFILE_NUMBER_KEYS = {
     DEVICE_VENETIAN: (
         ("open_position", "Open position", "mdi:blinds-open"),
+        ("night_position", "Night position", "mdi:weather-night"),
+        ("night_tilt", "Night slat position", "mdi:weather-night"),
         ("safety_position", "Safety position", "mdi:shield-alert"),
     ),
     DEVICE_VERTICAL: (
         ("open_position", "Open position", "mdi:blinds-open"),
         ("comfort_tilt", "Comfort tilt", "mdi:rotate-right"),
         ("heat_tilt", "Heat tilt", "mdi:rotate-right"),
+        ("night_position", "Night position", "mdi:weather-night"),
+        ("night_tilt", "Night slat position", "mdi:weather-night"),
         ("safety_position", "Safety position", "mdi:shield-alert"),
     ),
 }
@@ -65,6 +69,7 @@ DEFAULT_POSITION_KEYS = (
     ("comfort_position", "Comfort position", "mdi:sun-angle"),
     ("solar_position", "Solar position", "mdi:weather-sunny-alert"),
     ("heat_position", "Heat position", "mdi:shield-sun"),
+    ("night_position", "Night position", "mdi:weather-night"),
     ("safety_position", "Safety position", "mdi:shield-alert"),
 )
 
@@ -101,6 +106,11 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                     continue
                 keys = PROFILE_NUMBER_KEYS.get(profile, DEFAULT_POSITION_KEYS)
                 for key, name, icon in keys:
+                    if key.startswith("night_") and not (
+                        engine.config.get("advanced_mode", False)
+                        and room.get("night_enabled", False)
+                    ):
+                        continue
                     entities.append(
                         LayerSettingNumber(
                             engine, room_id, sector_id, layer["id"],
@@ -191,6 +201,8 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
             "Solar position": "Solar-Position",
             "Solar tilt": "Solar-Lamelle",
             "Heat position": "Heat-Position",
+            "Night position": "Nachtposition",
+            "Night slat position": "Nacht-Lamellenposition",
             "Heat tilt": "Heat-Lamelle",
             "Safety position": "Safety-Position",
             "Safety tilt": "Safety-Lamelle",
@@ -348,7 +360,7 @@ class LayerSettingNumber(BaseSettingNumber):
         layer = engine.layer_config(layer_id)
         named = NumberDefinition(
             definition.key,
-            f"{layer['name']} · {localized(engine, definition.name, {'Open position': 'Öffnungsposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(definition.name, definition.name))}",
+            f"{layer['name']} · {localized(engine, definition.name, {'Open position': 'Öffnungsposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Night position': 'Nachtposition', 'Night slat position': 'Nacht-Lamellenposition', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(definition.name, definition.name))}",
             definition.minimum,
             definition.maximum,
             definition.step,
