@@ -340,11 +340,12 @@ class PackageTests(unittest.TestCase):
         self.assertIn('"evaluation_interval_minutes", default=20', flow)
         self.assertIn('interval_minutes * 60', flow)
 
-    def test_card_footer_icons_are_compact(self):
+    def test_card_icons_use_centered_fixed_boxes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
-        self.assertIn('.round{width:34px;height:34px', card)
-        self.assertIn('.round ha-icon{width:16px;height:16px', card)
-        for token in ("--mdc-icon-size:12px", "--mdc-icon-size:14px", "--mdc-icon-size:15px", "--mdc-icon-size:16px"):
+        self.assertIn('.round{width:36px;height:36px', card)
+        self.assertIn('display:grid;place-items:center;line-height:0', card)
+        self.assertIn('.icon-box>ha-icon{display:block', card)
+        for token in ("--icon-size:12px", "--icon-size:14px", "--icon-size:15px", "--icon-size:16px"):
             self.assertIn(token, card)
 
     def test_card_routes_button_and_switch_actions(self):

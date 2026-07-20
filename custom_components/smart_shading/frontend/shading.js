@@ -8,6 +8,7 @@ const asNumber = (value, fallback = null) => {
 };
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
+const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 
 function cleanDisplayName(value, fallback) {
   let name = String(value || "").trim();
@@ -224,10 +225,17 @@ class SmartShadingV4Dialog extends HTMLElement {
     if (service) this._hass.callService(domain, service, { entity_id: entityId });
   }
 
-  _more(entityId) {
+  _more(entityId, view = null) {
     if (!entityId) return;
-    if (this._owner?._more) this._owner._more(entityId);
-    else this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
+    if (this._owner?._more) this._owner._more(entityId, view);
+    else {
+      const detail = view ? { entityId, view } : { entityId };
+      this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail }));
+    }
+  }
+
+  _openNightSource(entityId) {
+    this._more(entityId, String(entityId || "").startsWith("schedule.") ? "settings" : null);
   }
 
   _formatDate(value) {
@@ -272,7 +280,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.morningWindow)}</small><strong>${htmlEscape(attrs.night_morning_transition_minutes ?? 0)} min</strong></div>
         <div><small>${htmlEscape(L.eveningWindow)}</small><strong>${htmlEscape(attrs.night_evening_transition_minutes ?? 0)} min</strong></div>
       </div>
-      ${attrs.night_entity ? `<div class="actions"><button data-more="${htmlEscape(nightSource)}"><ha-icon icon="mdi:calendar-clock"></ha-icon>${htmlEscape(L.openSchedule)}</button></div>` : ""}
+      ${attrs.night_entity ? `<div class="actions"><button data-night-source="${htmlEscape(nightSource)}">${iconBox("mdi:calendar-clock", "action-icon")}${htmlEscape(L.openSchedule)}</button></div>` : ""}
       ${attrs.night_reason ? `<div class="muted">${htmlEscape(attrs.night_reason)}</div>` : ""}
       </section>` : "";
 
@@ -340,10 +348,10 @@ class SmartShadingV4Dialog extends HTMLElement {
       </div></section>
       ${nightHtml}
       <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
-        ${attrs.pause_mode && attrs.pause_mode !== "auto" ? `<button data-press="${htmlEscape(resume?.entity_id || "")}"><ha-icon icon="mdi:play"></ha-icon>${htmlEscape(L.resume)}</button>` : `<button data-press="${htmlEscape(pause?.entity_id || "")}"><ha-icon icon="mdi:pause"></ha-icon>${htmlEscape(L.pause)}</button>`}
-        <button data-press="${htmlEscape(evaluate?.entity_id || "")}"><ha-icon icon="mdi:refresh"></ha-icon>${htmlEscape(L.evaluate)}</button>
-        ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}"><ha-icon icon="mdi:hand-back-right"></ha-icon>${htmlEscape(L.master)}</button>` : ""}
-        ${exportLog?.entity_id ? `<button data-press="${htmlEscape(exportLog.entity_id)}"><ha-icon icon="mdi:file-download-outline"></ha-icon>${htmlEscape(L.exportLog)}</button>` : ""}
+        ${attrs.pause_mode && attrs.pause_mode !== "auto" ? `<button data-press="${htmlEscape(resume?.entity_id || "")}">${iconBox("mdi:play", "action-icon")}${htmlEscape(L.resume)}</button>` : `<button data-press="${htmlEscape(pause?.entity_id || "")}">${iconBox("mdi:pause", "action-icon")}${htmlEscape(L.pause)}</button>`}
+        <button data-press="${htmlEscape(evaluate?.entity_id || "")}">${iconBox("mdi:refresh", "action-icon")}${htmlEscape(L.evaluate)}</button>
+        ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}">${iconBox("mdi:hand-back-right", "action-icon")}${htmlEscape(L.master)}</button>` : ""}
+        ${exportLog?.entity_id ? `<button data-press="${htmlEscape(exportLog.entity_id)}">${iconBox("mdi:file-download-outline", "action-icon")}${htmlEscape(L.exportLog)}</button>` : ""}
       </div></section>
       <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
       <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
@@ -357,7 +365,8 @@ class SmartShadingV4Dialog extends HTMLElement {
         .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 24px));max-height:min(900px,calc(100vh - 24px));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;background:var(--ha-card-background,var(--card-background-color,#1d1d1d));border:1px solid rgba(255,255,255,.13);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
         header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color,#1d1d1d)) 94%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
         h2{margin:0;font-size:19px} .room{font-size:12px;opacity:.62;margin-top:3px}
-        button{border:0;border-radius:999px;background:rgba(255,255,255,.09);color:inherit;min-width:34px;height:34px;cursor:pointer;font:inherit}button ha-icon{--mdc-icon-size:14px;width:14px;height:14px} button:hover{background:rgba(255,255,255,.16)}
+        button{border:0;border-radius:999px;background:rgba(255,255,255,.09);color:inherit;min-width:34px;height:34px;cursor:pointer;font:inherit}button:hover{background:rgba(255,255,255,.16)}
+        .icon-box{--icon-box-size:16px;--icon-size:14px;width:var(--icon-box-size);height:var(--icon-box-size);flex:0 0 var(--icon-box-size);display:grid;place-items:center;line-height:0;margin:0;padding:0}.icon-box>ha-icon{display:block;width:var(--icon-size);height:var(--icon-size);min-width:var(--icon-size);--mdc-icon-size:var(--icon-size);line-height:0;margin:0;padding:0}.dialog-close-icon{--icon-box-size:18px;--icon-size:16px}.action-icon{--icon-box-size:16px;--icon-size:15px}
         main{padding:18px 20px 24px;display:grid;gap:18px}
         section{display:grid;gap:9px} h3{margin:0;font-size:14px;letter-spacing:.2px}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:9px;min-width:0}
@@ -365,7 +374,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         .data-title{display:flex;gap:10px;justify-content:space-between;align-items:center;font-size:12px}.data-title span{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.data-title strong{font-size:10px;opacity:.7;text-transform:uppercase;white-space:nowrap}
         .muted,.empty{font-size:11px;opacity:.62;line-height:1.35;margin-top:5px}.facts{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;opacity:.78;margin-top:7px}.warning{font-size:10px;color:var(--warning-color,#ffbf69);margin-top:7px;overflow-wrap:anywhere}.details{display:grid;gap:3px;font-size:10px;opacity:.55;margin-top:8px}.pause-card{border-color:rgba(255,90,72,.35)}
         .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.summary div{padding:11px;border-radius:14px;background:rgba(255,255,255,.055)}.summary small{display:block;opacity:.55;margin-bottom:4px}.summary strong{font-size:12px;overflow-wrap:anywhere}
-        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-size:12px}.actions ha-icon{width:15px;height:15px;--mdc-icon-size:15px}
+        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;line-height:1}
         .event{display:grid;grid-template-columns:95px minmax(100px,170px) 1fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:10px;align-items:start}.event time{opacity:.55}.event strong{font-size:10px}.event span{opacity:.66;overflow-wrap:anywhere}
         @media(max-width:560px){header,main{padding-left:14px;padding-right:14px}.event{grid-template-columns:1fr}.dialog{border-radius:18px}.summary{grid-template-columns:1fr 1fr}}
       </style>
@@ -373,7 +382,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       <article class="dialog" role="dialog" aria-modal="true" aria-label="${htmlEscape(L.title)}">
         <header>
           <div><h2>${htmlEscape(L.title)}</h2><div class="room">${htmlEscape(roomName)}</div></div>
-          <button data-close title="${htmlEscape(L.close)}"><ha-icon icon="mdi:close"></ha-icon></button>
+          <button data-close title="${htmlEscape(L.close)}">${iconBox("mdi:close", "dialog-close-icon")}</button>
         </header>
         <main>${mainHtml}</main>
       </article>`;
@@ -384,6 +393,7 @@ class SmartShadingV4Dialog extends HTMLElement {
     if (!existingDialog) this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
     main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
     main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
+    main?.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", () => this._openNightSource(element.dataset.nightSource)));
     if (dialog) dialog.scrollTop = previousScrollTop;
   }
 }
@@ -442,6 +452,7 @@ class SmartShadingV4Card extends HTMLElement {
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Erweiterte Ansicht",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
       belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
+      automatic: "Automatik", manualOverride: "Manuelle Sperre", sunInSector: "Sonne im Sektor", sunOutsideSector: "Sonne außerhalb", nightSchedule: "Nachtzeitplan bearbeiten",
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
@@ -450,6 +461,7 @@ class SmartShadingV4Card extends HTMLElement {
       blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Advanced view",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
       belowHorizon: "Night", outsideSector: "Outside", waitingLux: "Waiting for sun", waiting: "Waiting", active: "Active", detected: "Sun detected",
+      automatic: "Automatic", manualOverride: "Manual Override", sunInSector: "Sun in sector", sunOutsideSector: "Sun outside sector", nightSchedule: "Edit night schedule",
     };
   }
 
@@ -534,9 +546,14 @@ class SmartShadingV4Card extends HTMLElement {
     return new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
   }
 
-  _more(entityId) {
+  _more(entityId, view = null) {
     if (!entityId) return;
-    this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId } }));
+    const detail = view ? { entityId, view } : { entityId };
+    this.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail }));
+  }
+
+  _openNightSource(entityId) {
+    this._more(entityId, String(entityId || "").startsWith("schedule.") ? "settings" : null);
   }
 
   _callEntity(entityId) {
@@ -635,7 +652,7 @@ class SmartShadingV4Card extends HTMLElement {
       const token = `${friendly} ${state?.attributes?.device_class || ""}`.toLowerCase();
       const icon = token.includes("wind") ? "mdi:weather-windy" : token.includes("frost") || token.includes("cold") ? "mdi:snowflake-alert" : token.includes("rain") || token.includes("moist") ? "mdi:weather-pouring" : "mdi:shield-alert";
       const active = state?.state === "on";
-      return `<button class="chip ${active ? "alert" : ""}" data-more="${htmlEscape(entity)}" title="${htmlEscape(friendly)}"><ha-icon icon="${icon}"></ha-icon></button>`;
+      return `<button class="chip icon-only ${active ? "alert" : ""}" data-more="${htmlEscape(entity)}" title="${htmlEscape(friendly)}">${iconBox(icon, "chip-icon")}</button>`;
     }).join("");
     const windows = covers.filter((cover) => cover.window);
     const unsafeWindows = windows.filter((cover) => this._state(cover.window)?.state !== (cover.window_safe_state || "on"));
@@ -665,7 +682,7 @@ class SmartShadingV4Card extends HTMLElement {
       const range = `${Math.round(asNumber(sector.azimuth_start, 0))}°–${Math.round(asNumber(sector.azimuth_end, 359))}°`;
       return `<button class="sector-card ${active ? "active" : ""}" data-more="${htmlEscape(runtime.sun_presence_entity_id || sunEntity)}">
         <span><strong>${htmlEscape(name)}</strong><small>${htmlEscape(`${range} · ${this._sectorStatusText(status, L)}`)}</small></span>
-        <ha-icon icon="${active ? "mdi:weather-sunny" : "mdi:circle-outline"}"></ha-icon>
+        ${iconBox(active ? "mdi:weather-sunny" : "mdi:circle-outline", "sector-icon")}
       </button>`;
     }).join("");
 
@@ -686,7 +703,7 @@ class SmartShadingV4Card extends HTMLElement {
       const leadingIcon = manualMaster ? "mdi:hand-back-right" : (roomPaused || locallyPaused) ? "mdi:pause-circle" : locked ? "mdi:lock" : unsafe ? "mdi:window-open-variant" : "mdi:autorenew";
       return `<div class="cover-row ${rowClass}">
         <button class="cover-head" data-more="${htmlEscape(cover.entity)}" title="${htmlEscape(locallyPaused ? `${L.pauseUntil} ${this._formatDate(localPause.until)}` : name)}">
-          <span class="cover-name"><ha-icon icon="${leadingIcon}"></ha-icon><strong>${htmlEscape(name)}</strong></span>
+          <span class="cover-name">${iconBox(leadingIcon, "cover-icon")}<strong>${htmlEscape(name)}</strong></span>
           <span class="values">${manualMaster ? `${L.master} · ` : (roomPaused || locallyPaused) ? `${L.paused} · ` : locked ? `${L.manual} · ` : ""}${Math.round(position)}%${tilt == null ? "" : ` · ${L.tilt} ${Math.round(tilt)}%`}</span>
         </button>
         <div class="bar"><i style="width:${position}%"></i></div>
@@ -695,16 +712,44 @@ class SmartShadingV4Card extends HTMLElement {
       </div>`;
     }).join("");
 
+    const easyCoverRows = covers.map((cover, index) => {
+      const state = this._state(cover.entity);
+      const fallback = `${L.cover} ${index + 1}`;
+      const name = this._displayName(cover.entity, cover.name, fallback);
+      const position = clamp(asNumber(
+        state?.attributes?.current_position,
+        state?.state === "open" ? 100 : state?.state === "closed" ? 0 : 0,
+      ), 0, 100);
+      const coverIcon = attrs.manual_master_active
+        ? "mdi:hand-back-right"
+        : state?.state === "closed"
+          ? "mdi:blinds"
+          : "mdi:blinds-open";
+      return `<button class="easy-cover-row ${attrs.manual_master_active ? "manual" : ""}" data-more="${htmlEscape(cover.entity)}" title="${htmlEscape(name)}">
+        ${iconBox(coverIcon, "easy-cover-icon")}
+        <span class="easy-cover-name">${htmlEscape(name)}</span>
+        <strong class="easy-cover-value">${Math.round(position)}%</strong>
+        <span class="easy-cover-progress" aria-hidden="true"><i style="width:${position}%"></i></span>
+      </button>`;
+    }).join("");
+
     const anyLocalPause = asArray(attrs.cover_pauses).some((item) => item.active);
     const anyLock = covers.some((cover) => cover.lock && this._state(cover.lock)?.state === "on");
     const manualIntervention = Boolean(attrs.manual_master_active || anyLocalPause || anyLock);
-    const anySunPresence = asArray(attrs.sector_statuses).some((item) => item.sun_presence);
+    const anySunPresence = asArray(attrs.sector_statuses).some((item) =>
+      item.sun_presence || item.geometry_active || ["shading_active", "sun_detected", "heat", "safety"].includes(item.status)
+    );
+    const sunAboveHorizon = sunState?.state === "above_horizon" || elevation > 0;
+    const easySunActive = sunAboveHorizon && anySunPresence;
+    const easySunLabel = !sunAboveHorizon ? L.belowHorizon : easySunActive ? L.sunInSector : L.sunOutsideSector;
+    const easySunIcon = !sunAboveHorizon ? "mdi:weather-night" : easySunActive ? "mdi:white-balance-sunny" : "mdi:weather-sunset";
 
     const pauseButton = this._control(controls, "pause_default");
     const resumeButton = this._control(controls, "resume");
     const evaluateButton = this._control(controls, "evaluate");
     const masterButton = this._control(controls, "manual_master");
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
+    const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -715,45 +760,67 @@ class SmartShadingV4Card extends HTMLElement {
         ha-card.solar{background:linear-gradient(135deg,rgba(255,154,65,.18),rgba(30,29,27,.97))} ha-card.comfort{background:linear-gradient(135deg,rgba(80,200,115,.16),rgba(24,34,28,.97))}
         ha-card.temp-ok.open,ha-card.temp-ok.idle{background:linear-gradient(135deg,rgba(55,190,105,.13),rgba(25,32,28,.97))} ha-card.temp-warm.open,ha-card.temp-warm.idle{background:linear-gradient(135deg,rgba(255,164,65,.14),rgba(33,29,25,.97))} ha-card.temp-hot{background:linear-gradient(135deg,rgba(255,74,56,.24),rgba(35,25,25,.97))}
         ha-card.paused,ha-card.muted{background:linear-gradient(135deg,rgba(80,120,190,.18),rgba(24,28,36,.97))} ha-card.disabled,ha-card.master:not(.danger):not(.heat){background:linear-gradient(135deg,rgba(185,55,55,.28),rgba(38,22,22,.98))} ha-card.manual:not(.paused):not(.disabled):not(.danger):not(.heat){background:linear-gradient(135deg,rgba(190,62,54,.20),rgba(37,24,24,.97))}
+        .icon-box{--icon-box-size:18px;--icon-size:16px;width:var(--icon-box-size);height:var(--icon-box-size);min-width:var(--icon-box-size);flex:0 0 var(--icon-box-size);display:grid;place-items:center;line-height:0;margin:0;padding:0;overflow:visible}.icon-box>ha-icon{display:block;width:var(--icon-size);height:var(--icon-size);min-width:var(--icon-size);--mdc-icon-size:var(--icon-size);line-height:0;margin:0;padding:0;transform:none}.mode-icon{--icon-box-size:16px;--icon-size:14px}.chip-icon{--icon-box-size:14px;--icon-size:12px}.sector-icon{--icon-box-size:18px;--icon-size:14px;opacity:.7}.cover-icon{--icon-box-size:14px;--icon-size:12px}.action-icon{--icon-box-size:18px;--icon-size:16px}.advanced-icon{--icon-box-size:17px;--icon-size:15px}.easy-status-icon{--icon-box-size:18px;--icon-size:16px}.easy-sun-icon{--icon-box-size:30px;--icon-size:23px}.easy-cover-icon{--icon-box-size:24px;--icon-size:18px}
         .wrap{width:100%;padding:16px;display:grid;gap:11px;overflow:hidden}
         .header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.heading{flex:1;overflow:hidden}.title{font-size:18px;font-weight:850;line-height:1.08}.room-name{font-size:11px;opacity:.56;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.important{font-size:11px;opacity:.72;margin-top:4px;line-height:1.3;overflow-wrap:anywhere}
-        .mode{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap}.mode ha-icon{width:14px;height:14px;--mdc-icon-size:14px;display:grid;place-items:center}.danger .mode,.heat .mode,.paused .mode,.disabled .mode,.manual .mode{animation:pulse 3.6s ease-in-out infinite}.danger,.heat,.master{animation:cardGlow 4s ease-in-out infinite}@keyframes cardGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.035)}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,105,85,.22)}50%{box-shadow:0 0 0 6px rgba(255,105,85,0)}}
-        .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;cursor:pointer}.chip ha-icon{width:12px;height:12px;--mdc-icon-size:12px}.parts{display:inline-flex;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
+        .mode{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap;line-height:1}.danger .mode,.heat .mode,.paused .mode,.disabled .mode,.manual .mode{animation:pulse 3.6s ease-in-out infinite}.danger,.heat,.master{animation:cardGlow 4s ease-in-out infinite}@keyframes cardGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.035)}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,105,85,.22)}50%{box-shadow:0 0 0 6px rgba(255,105,85,0)}}
+        .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;line-height:1;cursor:pointer}.chip.icon-only{width:26px;padding:0}.parts{display:inline-flex;align-items:center;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;line-height:1;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
         .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.35)}.sun-dot.active{animation:sunPulse 3.8s ease-in-out infinite}@keyframes sunPulse{0%,100%{box-shadow:0 0 10px rgba(255,200,75,.32);transform:translate(-50%,-50%) scale(1)}50%{box-shadow:0 0 22px rgba(255,200,75,.68);transform:translate(-50%,-50%) scale(1.10)}}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
-        .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}.sector-card ha-icon{width:14px;height:14px;--mdc-icon-size:14px;opacity:.7;flex:none}
-        .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name ha-icon{width:12px;height:12px;--mdc-icon-size:12px;flex:none}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
-        .footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}.actions{display:flex;align-items:center;gap:6px;margin-left:auto}.round{width:34px;height:34px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.075);color:inherit;cursor:pointer;padding:0}.round:hover{background:rgba(255,255,255,.14)}.round.active-master{background:rgba(255,70,60,.34);animation:pulse 3.6s ease-in-out infinite}.round ha-icon{width:16px;height:16px;--mdc-icon-size:16px;display:grid;place-items:center;margin:0}.advanced-button{width:auto;border-radius:999px;padding:0 11px;gap:6px;display:flex;align-items:center;justify-content:center;font-size:10px}.advanced-button ha-icon{width:15px;height:15px;--mdc-icon-size:15px}
+        .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}
+        .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
+        .footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}.actions{display:flex;align-items:center;gap:6px;margin-left:auto}.round{width:36px;height:36px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.075);color:inherit;cursor:pointer;padding:0;line-height:0}.round:hover{background:rgba(255,255,255,.14)}.round.active-master{background:rgba(255,70,60,.34);animation:pulse 3.6s ease-in-out infinite}.advanced-button{width:auto;border-radius:999px;padding:0 11px;gap:6px;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1}
+        .easy-wrap{width:100%;padding:16px;display:grid;gap:12px;overflow:hidden}.easy-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.easy-brand{font-size:9px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;opacity:.45}.easy-room{margin-top:3px;font-size:19px;font-weight:850;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.easy-status{height:30px;max-width:48%;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.085);font-size:10px;font-weight:850;line-height:1;white-space:nowrap}.easy-status span:last-child{overflow:hidden;text-overflow:ellipsis}.master .easy-status{background:rgba(255,70,60,.28);animation:pulse 3.6s ease-in-out infinite}
+        .easy-sun{width:100%;border:0;border-radius:17px;padding:11px 12px 9px;background:rgba(255,255,255,.048);color:inherit;display:grid;gap:3px;text-align:left;cursor:pointer}.easy-sun-head{display:flex;align-items:center;gap:9px}.easy-sun-copy{display:grid;gap:1px}.easy-sun-copy small{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.48}.easy-sun-copy strong{font-size:12px}.easy-track{height:23px;margin:2px 0 0}.easy-track .sector-bar{height:6px}.easy-track .sector-bar.ready{height:8px}.easy-track .sun-dot{width:13px;height:13px}
+        .easy-covers{display:grid;gap:6px}.easy-cover-row{position:relative;width:100%;min-height:43px;border:0;border-radius:13px;padding:8px 10px 10px;display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-rows:auto 3px;align-items:center;gap:7px 9px;background:rgba(255,255,255,.035);color:inherit;text-align:left;cursor:pointer}.easy-cover-row.manual{background:rgba(255,76,63,.12)}.easy-cover-name{font-size:11px;font-weight:720;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.easy-cover-value{font-size:11px;opacity:.72}.easy-cover-progress{grid-column:2/4;width:100%;height:3px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}.easy-cover-progress i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.56)}.easy-cover-row.manual .easy-cover-progress i{background:rgba(255,104,88,.80)}
+        .easy-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.easy-action{height:38px;border:0;border-radius:13px;padding:0 11px;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:rgba(255,255,255,.07);color:inherit;font-size:10px;font-weight:760;line-height:1;cursor:pointer}.easy-action:only-child{grid-column:1/-1}.easy-action.active-master{background:rgba(255,70,60,.28);animation:pulse 3.6s ease-in-out infinite}
         .message{padding:18px;font-size:13px;opacity:.75}
-        @media(max-width:480px){.wrap{padding:13px}.values{font-size:9px}.mode span{display:none}.advanced-button span{display:none}.advanced-button{width:34px;padding:0;justify-content:center}}
+        @media(max-width:480px){.wrap,.easy-wrap{padding:13px}.values{font-size:9px}.mode{max-width:52%;font-size:9px}.mode span:last-child{overflow:hidden;text-overflow:ellipsis}.advanced-button span:last-child{display:none}.advanced-button{width:36px;padding:0;justify-content:center}.easy-status{max-width:52%;font-size:9px}.easy-action{padding:0 8px}.easy-action span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
         @media(prefers-reduced-motion:reduce){.mode,.danger,.heat,.master,.sun-dot,.active-master{animation:none!important}}
       </style>
-      <ha-card class="${htmlEscape(`${modeClass} ${temperatureClass} ${manualIntervention ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`)}">
-        <div class="wrap">
+      ${advancedMode ? `<ha-card data-card-mode="advanced" class="${cardClass}">
+        <div class="wrap" data-advanced-layout>
           <div class="header">
             <div class="heading"><div class="title">${htmlEscape(this._config.title || L.title)}</div><div class="room-name">${htmlEscape(roomName)}</div>${important ? `<div class="important">${htmlEscape(important)}</div>` : ""}</div>
-            <div class="mode"><ha-icon icon="${htmlEscape(modeIcon)}"></ha-icon><span>${htmlEscape(detailedModeLabel)}</span></div>
+            <div class="mode">${iconBox(modeIcon, "mode-icon")}<span>${htmlEscape(detailedModeLabel)}</span></div>
           </div>
-          ${advancedMode ? `<div class="chips">
-            ${covers.length ? `<span class="chip"><ha-icon icon="mdi:autorenew"></ha-icon><span class="parts">${coverChips}</span></span>` : ""}
+          <div class="chips">
+            ${covers.length ? `<span class="chip">${iconBox("mdi:autorenew", "chip-icon")}<span class="parts">${coverChips}</span></span>` : ""}
             ${safetyChips}
-            ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}"><ha-icon icon="mdi:window-closed-variant"></ha-icon><span class="parts">${windowParts}</span></span>` : ""}
-            ${sectors.length ? `<span class="chip"><ha-icon icon="mdi:white-balance-sunny"></ha-icon><span class="parts">${sectorChips}</span></span>` : ""}
-            ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}"><ha-icon icon="mdi:thermometer"></ha-icon>${temperature.toFixed(1)}°</button>` : ""}
-          </div>` : ""}
+            ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}">${iconBox("mdi:window-closed-variant", "chip-icon")}<span class="parts">${windowParts}</span></span>` : ""}
+            ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
+            ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
+          </div>
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(L.sun)}</span><span>Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°</span></div><div class="track">${sectorBars}<span class="sun-dot ${anySunPresence ? "active" : ""}"></span></div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
-          ${advancedMode && sectors.length ? `<div class="sectors">${sectorCards}</div>` : ""}
+          ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}
           ${this._config.show_covers !== false ? `<div class="covers">${coverRows || `<div class="message">${htmlEscape(L.noCovers)}</div>`}</div>` : ""}
           ${this._config.show_actions !== false ? `<div class="footer"><div class="actions">
-            ${advancedMode ? `<button class="round" data-press="${htmlEscape(paused ? resumeButton?.entity_id || "" : pauseButton?.entity_id || "")}" title="${htmlEscape(paused ? L.resume : L.pause)}"><ha-icon icon="${paused ? "mdi:play" : "mdi:pause"}"></ha-icon></button>` : ""}
-            <button class="round" data-press="${htmlEscape(evaluateButton?.entity_id || "")}" title="${htmlEscape(L.evaluate)}"><ha-icon icon="mdi:refresh"></ha-icon></button>
-            ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}"><ha-icon icon="mdi:hand-back-right"></ha-icon></button>` : ""}
-            ${advancedMode && attrs.night_enabled && attrs.night_entity ? `<button class="round" data-more="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.night)}"><ha-icon icon="mdi:calendar-clock"></ha-icon></button>` : ""}
-            ${advancedMode ? `<button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${htmlEscape(L.advanced)}</span></button>` : ""}
+            <button class="round" data-press="${htmlEscape(paused ? resumeButton?.entity_id || "" : pauseButton?.entity_id || "")}" title="${htmlEscape(paused ? L.resume : L.pause)}">${iconBox(paused ? "mdi:play" : "mdi:pause", "action-icon")}</button>
+            <button class="round" data-press="${htmlEscape(evaluateButton?.entity_id || "")}" title="${htmlEscape(L.evaluate)}">${iconBox("mdi:refresh", "action-icon")}</button>
+            ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}">${iconBox("mdi:hand-back-right", "action-icon")}</button>` : ""}
+            ${attrs.night_enabled && attrs.night_entity ? `<button class="round" data-night-source="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.nightSchedule)}">${iconBox("mdi:calendar-clock", "action-icon")}</button>` : ""}
+            <button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}">${iconBox("mdi:tune-variant", "advanced-icon")}<span>${htmlEscape(L.advanced)}</span></button>
           </div></div>` : ""}
         </div>
-      </ha-card>`;
+      </ha-card>` : `<ha-card data-card-mode="easy" class="easy-card ${cardClass}">
+        <div class="easy-wrap" data-easy-layout>
+          <div class="easy-header">
+            <div class="heading"><div class="easy-brand">${htmlEscape(this._config.title || L.title)}</div><div class="easy-room">${htmlEscape(roomName)}</div></div>
+            <div class="easy-status">${iconBox(attrs.manual_master_active ? "mdi:hand-back-right" : modeIcon, "easy-status-icon")}<span>${htmlEscape(attrs.manual_master_active ? L.manualOverride : modeLabel)}</span></div>
+          </div>
+          ${this._config.show_sun_track !== false && sectors.length ? `<button class="easy-sun" data-easy-sun data-more="${htmlEscape(sunEntity)}">
+            <span class="easy-sun-head">${iconBox(easySunIcon, "easy-sun-icon")}<span class="easy-sun-copy"><small>${htmlEscape(L.sun)}</small><strong>${htmlEscape(easySunLabel)}</strong></span></span>
+            <span class="track easy-track">${sectorBars}<span class="sun-dot ${easySunActive ? "active" : ""}"></span></span>
+          </button>` : ""}
+          ${this._config.show_covers !== false ? `<div class="easy-covers" data-easy-covers>${easyCoverRows || `<div class="message">${htmlEscape(L.noCovers)}</div>`}</div>` : ""}
+          ${this._config.show_actions !== false ? `<div class="easy-actions">
+            <button class="easy-action" data-press="${htmlEscape(evaluateButton?.entity_id || "")}" title="${htmlEscape(L.evaluate)}">${iconBox("mdi:refresh", "action-icon")}<span>${htmlEscape(L.evaluate)}</span></button>
+            ${masterButton ? `<button class="easy-action ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(L.manualOverride)}">${iconBox("mdi:hand-back-right", "action-icon")}<span>${htmlEscape(L.manualOverride)}</span></button>` : ""}
+          </div>` : ""}
+        </div>
+      </ha-card>`}`;
 
     this.shadowRoot.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); this._more(element.dataset.more); }));
+    this.shadowRoot.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); this._openNightSource(element.dataset.nightSource); }));
     this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
     this.shadowRoot.querySelector?.("[data-advanced]")?.addEventListener("click", () => this._openAdvanced(roomState, controls));
   }
