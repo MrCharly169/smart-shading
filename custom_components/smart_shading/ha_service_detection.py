@@ -192,6 +192,15 @@ class HomeAssistantServiceDetectionMixin:
             ):
                 continue
             room, cover = match
+            if not self._external_movement_detection_enabled(room):
+                self._diag(
+                    "manual_cover_service_detection_disabled",
+                    full=True,
+                    room_id=room["id"],
+                    entity_id=entity_id,
+                    service=service,
+                )
+                continue
             if (
                 not user_initiated
                 and self._window_automation_context_active(cover, now=now)
@@ -424,71 +433,107 @@ class HomeAssistantServiceDetectionMixin:
         set_lock: bool = True,
         notify: bool = True,
     ) -> None:
-        """Activate only this cover using the pause mode chosen in the wizard."""
-        entity_id = str(cover.get("entity") or "")
-        self._cancel_own_command_session(entity_id)
-        observation = self.cover_motion.get(entity_id)
-        if observation is not None:
-            self._clear_motion_candidate(observation)
-            observation.phase = "paused"
-
-        cover_id = self._cover_id(cover)
-        pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
-            cover_id, entity_id, room["id"]
-        )
+        """Pause one room-local Manual group with one shared release point."""
+        members = self._manual_group_members(room, cover)
         now = dt_util.now()
-        already_active = bool(
-            pause.active and (pause.until is None or pause.until > now)
-        )
-        pause_mode = str(
-            self.room_value(
-                room["id"],
-                "default_pause_mode",
-                room.get("default_pause_mode", PAUSE_NEXT_SUNRISE),
-            )
-        )
+        intents = self._manual_service_intents()
+        for member in members:
+            entity_id = str(member.get("entity") or "")
+            intents.pop(entity_id, None)
+            self._cancel_own_command_session(entity_id)
+            observation = self.cover_motion.get(entity_id)
+            if observation is not None:
+                self._clear_motion_candidate(observation)
+                observation.phase = "paused"
 
-        if not already_active:
-            pause.active = True
-            pause_mode, pause.until = self._configured_cover_pause_until(room, now)
-            pause.reason = reason
-            pause.started_at = now
-            pause.lock_owned = False
+        active_pause = next(
+            (
+                candidate
+                for member in members
+                if (
+                    (candidate := self.cover_pauses.get(self._cover_id(member)))
+                    and candidate.active
+                    and (candidate.until is None or candidate.until > now)
+                )
+            ),
+            None,
+        )
+        if active_pause is None:
+            pause_mode, shared_until = self._configured_cover_pause_until(room, now)
+            shared_started_at = now
+            shared_reason = reason
+        else:
+            pause_mode = active_pause.pause_mode
+            shared_until = active_pause.until
+            shared_started_at = active_pause.started_at or now
+            shared_reason = active_pause.reason or reason
+
+        lock = str(cover.get("lock") or "").strip()
+        domain = lock.split(".", 1)[0] if "." in lock else ""
+        wrote_lock = bool(
+            set_lock
+            and lock
+            and domain in {"switch", "input_boolean"}
+            and not self.hass.states.is_state(lock, STATE_ON)
+        )
+        if wrote_lock:
+            self._owned_lock_changes[lock] = (STATE_ON, now)
+            await self.hass.services.async_call(
+                domain,
+                "turn_on",
+                {"entity_id": lock},
+                blocking=False,
+            )
+
+        group_owned_lock = wrote_lock or any(
+            bool(
+                (candidate := self.cover_pauses.get(self._cover_id(member)))
+                and candidate.active
+                and candidate.lock_owned
+            )
+            for member in members
+        )
+        started: list[str] = []
+        for member in members:
+            entity_id = str(member.get("entity") or "")
+            cover_id = self._cover_id(member)
+            pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
+                cover_id, entity_id, room["id"]
+            )
+            already_active = bool(
+                pause.active and (pause.until is None or pause.until > now)
+            )
+            if not already_active:
+                pause.active = True
+                started.append(entity_id or cover_id)
+            # A shared Manual entity is one logical pause. Normalize legacy or
+            # partially restored member state to the same lifecycle values.
+            pause.until = shared_until
+            pause.reason = shared_reason
+            pause.started_at = shared_started_at
             pause.pause_mode = pause_mode
             pause.waiting_for_night = (
                 pause_mode == PAUSE_NEXT_NIGHT_END
                 and not self.rooms[room["id"]].night_active
             )
+            pause.lock_owned = group_owned_lock
+            self.cover_pauses[cover_id] = pause
+            await self._save_cover_pause(pause)
+            if pause.until:
+                self._schedule_cover_pause_timer(cover_id, pause.until)
+            else:
+                timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
+                if timer:
+                    timer()
 
-        lock = str(cover.get("lock") or "")
-        if set_lock and lock:
-            domain = lock.split(".", 1)[0] if "." in lock else ""
-            if domain in {"switch", "input_boolean"}:
-                self._owned_lock_changes[lock] = (STATE_ON, now)
-                await self.hass.services.async_call(
-                    domain,
-                    "turn_on",
-                    {"entity_id": lock},
-                    blocking=False,
-                )
-                pause.lock_owned = True
-
-        self.cover_pauses[cover_id] = pause
-        await self._save_cover_pause(pause)
-        if pause.until:
-            self._schedule_cover_pause_timer(cover_id, pause.until)
-        else:
-            timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
-            if timer:
-                timer()
-
-        if not already_active:
+        if started:
             self._diag(
-                "cover_pause_started",
+                "manual_override_group_started",
                 room_id=room["id"],
-                cover=cover.get("name", entity_id),
+                manual_entity=lock or None,
+                covers=started,
                 pause_mode=pause_mode,
-                until=pause.until.isoformat() if pause.until else None,
+                until=shared_until.isoformat() if shared_until else None,
                 reason=reason,
             )
         if notify:

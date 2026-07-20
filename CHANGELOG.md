@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Final Easy and Advanced setup
+
+- rebuilt the active setup contract around a sensorless Easy baseline with optional facade lux, binary direct-sun confirmation, coarse weather fallback, and an explicit outdoor-temperature gate
+- kept schedules, Safety, Pause, Heat Protection, Night Mode, per-cover manual entities, and external-movement detection exclusive to Advanced Mode
+- made every optional entity selector genuinely optional and protected existing sectors, cover groups, and cover settings while rooms are edited or reordered
+- kept saved Options on Home Assistant's single reload path so mode, listeners, entities, and card behavior update without duplicate setup races
+- removed Evaluate entities from Easy Mode; its only user control is the indefinite room Manual Override
+- added config-entry migration version 13 without discarding dormant Advanced settings
+
+### Manual overrides and room lifecycle
+
+- grouped identical per-cover Manual Override entities within a room so activation, release, expiry, and external movement operate on the complete group with one entity write
+- room Pause and Resume now synchronize every unique Manual Override entity exactly once, including shared groups
+- card setup notifications are now created only after a new room has a registered status entity and are not recreated by room edits, reloads, or restarts
+
+### Dashboard cards
+
+- refined the separate Easy and Advanced cards with source-aware status text, honest unavailable feedback, centered controls, and one calm reduced-motion-aware pulse language
+- limited the Easy Card to its indefinite room Manual Override while Advanced retains Pause, Evaluate, Night, diagnostics, and detailed sector feedback
+- stopped unrelated Home Assistant updates from rebuilding the main card or Advanced dialog, preserved dialog focus and scroll position, and added lifecycle cleanup for detached cards
+- made the Advanced Night shortcut resolve a configured Schedule helper and open its graphical editor, with normal More Info as the safe fallback for other sources
+
+### Quality
+
+- expanded runtime, migration, shared-entity, notification, card lifecycle, translation, and release regression coverage while retaining the established KNX slat and feedback-based pause behavior
+- removed obsolete bootstrap and duplicate-template files, aligned all repository documentation to English, and updated the release and pilot guides to the current two-stage workflow and Easy/Advanced contracts
 
 ## 4.6.1-beta.1 - 2026-07-20
 

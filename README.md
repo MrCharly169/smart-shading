@@ -48,9 +48,11 @@ separate Easy/Advanced switch.
 
 ## Easy and Advanced Mode
 
-- **Easy Mode** uses only `sun.sun`, the configured facade sector, the cover
-  targets, and one room-level **Manual Override**. The override remains active
-  until a user or an explicit automation turns it off.
+- **Easy Mode** always works from `sun.sun`, the configured facade sector, the
+  cover targets, and one room-level **Manual Override**. Optional illuminance,
+  binary direct-sun, weather, and outdoor-temperature inputs can refine the
+  decision; leaving all of them empty keeps the geometry-only behavior. The
+  override remains active until a user or an explicit automation turns it off.
 - **Advanced Mode** adds Sun Presence/lux, temperatures, weather, schedules,
   Safety, Pause, Heat Protection, Night Mode, diagnostics, per-cover manual
   entities, and optional external-movement detection.
@@ -58,6 +60,13 @@ separate Easy/Advanced switch.
 Advanced settings remain stored while Easy Mode is selected, but Easy Mode
 does not execute them. New rooms keep external-movement pause detection off
 until it is explicitly enabled in Advanced Mode.
+
+Easy Mode evaluates its optional inputs in a predictable order. A facade-level
+binary direct-sun entity has priority over its lux sensor. A weather entity is
+only a coarse fallback when no facade source provides a usable answer. The
+outdoor-temperature minimum is applied only when its dedicated gate is enabled.
+Unavailable optional inputs fall back to sun geometry instead of stopping the
+automation.
 
 ## Updating
 
@@ -125,6 +134,6 @@ scripts/release_changelog.py       Release preparation and note extraction
 .github/workflows/release.yml      Manual beta/stable release automation
 ```
 
-German documentation is available in [README_DE.md](README_DE.md). Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md). Home Assistant presents the integration in English or German according to the user's selected language.
 
 Troubleshooting, including false KNX cover movement caused by readable command objects, is documented in the [FAQ](docs/FAQ.md).

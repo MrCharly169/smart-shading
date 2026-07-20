@@ -15,11 +15,15 @@ Smart Shading separates runtime decisions from configuration presentation.
 
 Safety has higher priority than ordinary shading, room pauses, and local cover pauses.
 
-## Planned configuration views
+## Configuration views
 
-A future Easy/Advanced split must not create two different engines. Both views must write to the same canonical configuration model:
+Both views write to the same canonical configuration model but expose different
+runtime contracts:
 
-- **Easy:** curated presets and essential choices
-- **Advanced:** exact thresholds, delays, geometry, targets, and diagnostics
+- **Easy:** sun geometry, curated cover targets and one indefinite room Manual
+  Override. Optional facade lux or direct-sun confirmation, coarse weather
+  fallback and an explicit outdoor-temperature gate may refine the result.
+- **Advanced:** exact thresholds, delays, geometry, targets, schedules, Safety,
+  Pause, Heat Protection, Night Mode, per-cover manual entities and diagnostics.
 
 Switching the view must never silently reset advanced values.

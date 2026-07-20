@@ -744,11 +744,13 @@ class ManualOverrideDetectionMixin:
             and tilt_complete
             and new_state not in {"opening", "closing"}
         )
-        if target_complete:
-            if session.target_reached_at is None:
-                session.target_reached_at = now
-        else:
-            session.target_reached_at = None
+        if target_complete and session.target_reached_at is None:
+            session.target_reached_at = now
+        # Reaching the target starts a fixed settle grace.  Delayed KNX
+        # feedback remains owned during that grace, but must never restart the
+        # full command-session timeout.  Otherwise a later physical movement
+        # could clear ``target_reached_at`` and remain hidden for up to three
+        # minutes.
         return True
 
     def _classify_confirmed_cover_change(
@@ -1155,20 +1157,23 @@ class ManualOverrideDetectionMixin:
         await super()._activate_cover_pause(room, cover, reason, **kwargs)
 
     async def _clear_cover_pause(self, room, cover, **kwargs) -> None:
-        entity_id = str(cover.get("entity") or "")
-        observation = self.cover_motion.get(entity_id)
-        if observation is not None:
-            state = self.hass.states.get(entity_id)
-            if self._cover_state_valid(state):
-                self._accept_motion_baseline(
-                    observation,
-                    state,
-                    self._state_attribute_number(state, "current_position"),
-                    self._state_attribute_number(state, "current_tilt_position"),
-                    "pause_cleared_baseline",
-                )
-            else:
-                self._clear_motion_candidate(observation)
-                observation.phase = "baseline"
-                observation.last_decision_reason = "pause_cleared_without_state"
+        for member in self._manual_group_members(room, cover):
+            entity_id = str(member.get("entity") or "")
+            observation = self.cover_motion.get(entity_id)
+            if observation is not None:
+                state = self.hass.states.get(entity_id)
+                if self._cover_state_valid(state):
+                    self._accept_motion_baseline(
+                        observation,
+                        state,
+                        self._state_attribute_number(state, "current_position"),
+                        self._state_attribute_number(state, "current_tilt_position"),
+                        "pause_cleared_baseline",
+                    )
+                else:
+                    self._clear_motion_candidate(observation)
+                    observation.phase = "baseline"
+                    observation.last_decision_reason = (
+                        "pause_cleared_without_state"
+                    )
         await super()._clear_cover_pause(room, cover, **kwargs)

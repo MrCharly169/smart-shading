@@ -1,6 +1,0 @@
-# Ein Hausstatussensor bietet in der Card eine Raumauswahl.
-type: custom:smart-shading-card
-entity: sensor.replace_with_generated_house_status
-show_sun_track: true
-show_covers: true
-show_actions: true

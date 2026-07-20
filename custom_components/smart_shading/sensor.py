@@ -132,6 +132,10 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                         "reason": self.engine.sun_runtime[sector["id"]].status_reason,
                         "geometry_active": self.engine.sun_runtime[sector["id"]].geometry_active,
                         "sun_presence": self.engine.sun_runtime[sector["id"]].is_on,
+                        "confirmation_source": self.engine.sun_runtime[sector["id"]].confirmation_source,
+                        "confirmation_entity": self.engine.sun_runtime[sector["id"]].confirmation_entity,
+                        "confirmation_state": self.engine.sun_runtime[sector["id"]].confirmation_state,
+                        "effective_active": self.engine.sun_runtime[sector["id"]].effective_active,
                         "lux": self.engine.sun_runtime[sector["id"]].current_lux,
                         "lux_raw_state": (
                             self.engine.hass.states.get(sector.get("lux_sensor", "")).state
@@ -163,12 +167,26 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     "switch", "smart_shading",
                     f"{self.entry.entry_id}_{self.room_id}_enable",
                 ),
+                "manual_override_groups": (
+                    self.engine.manual_override_groups(self.room_id)
+                    if self.engine.advanced_mode
+                    else []
+                ),
                 "configured_mode": (
                     "advanced"
                     if self.engine.config.get("advanced_mode", False)
                     else "easy"
                 ),
                 "effective_mode": "advanced" if self.engine.advanced_mode else "easy",
+                "easy_confirmation_state": self.runtime.easy_confirmation_state,
+                "easy_source_summary": self.runtime.easy_source_summary,
+                "easy_temperature_gate": {
+                    "enabled": self.runtime.easy_temperature_gate_enabled,
+                    "source_entity": self.runtime.easy_temperature_source,
+                    "value": self.runtime.easy_temperature_value,
+                    "threshold": self.runtime.easy_temperature_threshold,
+                    "passed": self.runtime.easy_temperature_passed,
+                },
                 "external_movement_detection_configured": bool(
                     room.get("external_movement_detection", False)
                 ),
@@ -178,8 +196,8 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 ),
                 "easy_mode_disabled_features": (
                     [] if self.engine.advanced_mode else [
-                        "schedule", "sun_presence", "temperature", "weather",
-                        "safety", "pause", "heat", "night",
+                        "schedule", "advanced_temperature_profiles",
+                        "advanced_weather_logic", "safety", "pause", "heat", "night",
                         "external_movement_detection", "per_cover_manual_entities",
                     ]
                 ),

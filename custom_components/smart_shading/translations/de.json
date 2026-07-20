@@ -4,51 +4,111 @@
     "step": {
       "user": {
         "title": "Smart Shading einrichten",
-        "description": "Voraussetzung: Die Home-Assistant-Sonnenintegration und die Entität `sun.sun` müssen vorhanden und verfügbar sein. Smart Shading verwendet sie automatisch für Sonnenrichtung und Sonnenhöhe. Fehlt die Entität, zeigt der Assistent einen konkreten Fehler und beendet die Einrichtung nicht.",
+        "description": "Smart Shading benötigt die Home-Assistant-Sonnenintegration. Easy Mode regelt gezielt nach Sonnenstand; Advanced Mode ergänzt Zeitpläne, Safety, Pause, Hitze- und Nachtfunktionen.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
-          "advanced_mode": "Erweiterten Modus verwenden",
-          "diagnostic_level": "Diagnoseprotokoll",
-          "evaluation_interval_minutes": "Regelmäßige Prüfung"
+          "advanced_mode": "Advanced Mode verwenden"
         },
         "data_description": {
-          "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
-          "advanced_mode": "Easy nutzt nur Sonnengeometrie und einen Manual Override pro Raum. Advanced aktiviert Sensoren, Zeitpläne, Safety, Pause, Heat Protection, Nachtfunktion und Diagnose.",
-          "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
-          "evaluation_interval_minutes": "Intervall der zusätzlichen Sicherheitsprüfung. Sensoränderungen lösen weiterhin sofort eine Auswertung aus. Standard: 20 Minuten."
+          "house_name": "Kennzeichnet diese Smart-Shading-Installation.",
+          "advanced_mode": "Aus: einfache Sonnenstandsregelung plus unbefristeter Manual Override. Ein: vollständiger Funktionsumfang."
         }
       },
       "room_setup": {
         "title": "Ersten Raum konfigurieren",
-        "description": "Dies ist die einzige Seite zur Raumeinrichtung. Easy fragt nur Himmelsrichtung, Behangtyp und Behänge ab. Advanced ergänzt die optionalen Bedingungen auf derselben Seite.",
-        "data": {
-          "name": "Raumname",
-          "direction": "Himmelsrichtung",
-          "group_name": "Name der Behanggruppe",
-          "profile": "Behangtyp",
-          "cover_entities": "Behänge",
-          "indoor_temperature": "Raumtemperatur (optional)",
-          "outdoor_temperature": "Außentemperatur (optional)",
-          "safety_blockers": "Safety-Bedingungen (optional)",
-          "schedule_profile": "Aktivitätsprofil",
-          "default_pause_mode": "Standard-Pausenmodus",
-          "heat_during_pause": "Heat Protection während Pause erlauben",
-          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
-          "lux_sensor": "Lux-Sensor für Sun Presence (optional)",
-          "sun_preset": "Sun-Presence-Empfindlichkeit",
-          "tilt_preset": "Lamellenprofil"
-          ,"diagnostic_level": "Diagnoseprotokoll"
-          ,"evaluation_interval_minutes": "Regelmäßige Prüfung"
-        },
-        "data_description": {
-          "external_movement_detection": "Nur Advanced Mode. Nur mit zuverlässiger numerischer Positions- oder Lamellenrückmeldung aktivieren. Für neue Räume standardmäßig aus."
-          ,"diagnostic_level": "Ereignisse ist die empfohlene Beta-Einstellung."
-          ,"evaluation_interval_minutes": "Zusätzliche regelmäßige Prüfung; Statusänderungen wirken weiterhin sofort."
+        "description": "Pflichtangaben und optionale Verbesserungen sind auf dieser letzten Einrichtungsseite klar gruppiert.",
+        "sections": {
+          "room_and_covers": {
+            "name": "Raum und Behänge",
+            "description": "Wählen Sie Fassade und alle gemeinsam gesteuerten Behänge.",
+            "data": {
+              "name": "Raumname",
+              "direction": "Fassadenrichtung",
+              "group_name": "Name der Behanggruppe",
+              "profile": "Behangtyp",
+              "cover_entities": "Behänge",
+              "tilt_preset": "Lamellenprofil"
+            },
+            "data_description": {
+              "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Card angezeigt.",
+              "direction": "Die Vorgabe bestimmt, wann die Sonne diese Fassade erreicht.",
+              "group_name": "Optionale Bezeichnung für die gemeinsam gesteuerten Behänge dieses Raums.",
+              "profile": "Der Behangtyp legt passende Fahrpositionen fest.",
+              "cover_entities": "Wählen Sie mindestens einen Home-Assistant-Behang.",
+              "tilt_preset": "Nur Advanced Mode; steuert die adaptive Lamellenführung."
+            }
+          },
+          "sun_control": {
+            "name": "Optionale Sonnenbestätigung",
+            "description": "Der Sonnenstand funktioniert allein. Easy bietet Lux oder Ein/Aus-Bestätigung; Advanced Lux-Tuning und eigene Geometrie.",
+            "data": {
+              "lux_sensor": "Lux-Sensor",
+              "sun_presence_entity": "Entität Sonne erkannt",
+              "sun_preset": "Sonnenempfindlichkeit",
+              "azimuth_start": "Eigener Azimut Start",
+              "azimuth_end": "Eigener Azimut Ende",
+              "elevation_min": "Eigene minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "lux_sensor": "Helligkeitssensor dieser Fassade; ohne Sensor leer lassen.",
+              "sun_presence_entity": "Optionaler Binärsensor, Input Boolean oder Schalter, der bei direkter Sonne ein ist.",
+              "sun_preset": "Steuert Lux-Grenzen und Verzögerungen bei gewähltem Lux-Sensor.",
+              "azimuth_start": "Nur Advanced und Fassadenrichtung Custom.",
+              "azimuth_end": "Nur Advanced und Fassadenrichtung Custom.",
+              "elevation_min": "Nur Advanced und Fassadenrichtung Custom."
+            }
+          },
+          "optional_improvements": {
+            "name": "Optionale Easy-Mode-Verbesserungen",
+            "description": "Diese Angaben verbessern Easy Mode, sind aber nicht erforderlich.",
+            "data": {
+              "weather_entity": "Wetter-Entität",
+              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
+              "outdoor_temperature": "Außentemperatursensor",
+              "outdoor_minimum": "Minimale Außentemperatur"
+            },
+            "data_description": {
+              "weather_entity": "Ungeeignete Wetterzustände können normale Beschattung verhindern.",
+              "easy_temperature_gate": "Optionaler Mindestwert für die Außentemperatur. Fehlende Werte blockieren nie.",
+              "outdoor_temperature": "Optional. Wird zuerst verwendet; die Wettertemperatur dient als Fallback.",
+              "outdoor_minimum": "Mindest-Außentemperatur für die Easy-Mode-Beschattung."
+            }
+          },
+          "advanced_conditions": {
+            "name": "Erweiterte Bedingungen",
+            "description": "Optionale Sensoren und Automatikverhalten für Advanced Mode.",
+            "data": {
+              "weather_entity": "Wetter-Entität",
+              "indoor_temperature": "Raumtemperatur",
+              "outdoor_temperature": "Außentemperatur",
+              "outdoor_minimum": "Minimale Außentemperatur",
+              "safety_blockers": "Safety-Bedingungen",
+              "schedule_profile": "Aktivitätsprofil",
+              "default_pause_mode": "Standard-Pausenmodus",
+              "heat_during_pause": "Heat Protection während Pause erlauben",
+              "external_movement_detection": "Externe Behangfahrt erkennen",
+              "diagnostic_level": "Diagnoseprotokoll",
+              "evaluation_interval_minutes": "Regelmäßige Prüfung"
+            },
+            "data_description": {
+              "weather_entity": "Optionale Home-Assistant-Wetter-Entität.",
+              "indoor_temperature": "Aktiviert Raumkomfort- und Hitzeschwellen.",
+              "outdoor_temperature": "Kann normale Beschattung bei Kälte sperren.",
+              "outdoor_minimum": "Minimale Außentemperatur für normale Beschattung.",
+              "safety_blockers": "Wind, Frost oder andere Binärsensoren; Ein bedeutet gesperrt.",
+              "schedule_profile": "Legt fest, wann normale Beschattung laufen darf. Hitze- und Safety-Regeln bleiben unabhängig.",
+              "default_pause_mode": "Legt fest, wann eine vorübergehende Raumpause automatisch endet.",
+              "heat_during_pause": "Lässt Heat Protection aktiv, während normale Beschattung pausiert ist.",
+              "external_movement_detection": "Pausiert nur nach bestätigter numerischer Positions- oder Lamellenrückmeldung.",
+              "diagnostic_level": "Ereignisse wird während Tests empfohlen.",
+              "evaluation_interval_minutes": "Zusätzliches Prüfintervall; Statusänderungen wirken sofort."
+            }
+          }
         }
       },
       "global_settings": {
         "title": "Allgemeine Einstellungen",
-        "description": "Das Prüfintervall ist immer einstellbar. Weitere technische Werte erscheinen nur im erweiterten Modus.",
+        "description": "Easy zeigt nur den globalen Wetter-Fallback. Prüfintervall und Technik-Tuning erscheinen nur in Advanced.",
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
@@ -58,16 +118,20 @@
           "evening_release_time": "Feste späteste Abendfreigabe",
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
           "advanced_mode": "Erweiterter Modus",
+          "weather_entity": "Wetter-Entität",
           "diagnostic_level": "Diagnoseprotokoll",
           "evaluation_interval_minutes": "Regelmäßige Prüfung"
         },
         "data_description": {
+          "sun_entity": "Liefert Sonnenhöhe und Azimut. Die Home-Assistant-Sonnenentität wird empfohlen.",
           "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Positionsbefehl gesendet.",
           "tilt_tolerance": "Innerhalb dieser Abweichung wird kein neuer Lamellenbefehl gesendet.",
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
+          "unknown_feedback_policy": "Bestimmt, ob die Automatik ohne numerische Positionsrückmeldung weiterlaufen darf.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
           "advanced_mode": "Ändert die wirksame Laufzeit und Card. Easy behält Advanced-Einstellungen gespeichert, führt sie jedoch nicht aus.",
+          "weather_entity": "Optionale Wetterquelle für den gewählten Modus.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
@@ -742,9 +806,16 @@
       "elevation_order": "Die vier Sonnenhöhen müssen streng aufsteigend sein.",
       "cover_already_assigned": "Mindestens eines der ausgewählten Covers ist bereits in diesem Haus zugeordnet.",
       "select_at_least_one": "Wählen Sie mindestens einen Eintrag aus.",
+      "choose_one_sun_confirmation": "Wählen Sie entweder einen Lux-Sensor oder eine Ein/Aus-Entität für erkannte Sonne, nicht beides.",
       "sun_missing": "Die Entität `sun.sun` fehlt. Prüfen Sie unter Einstellungen → System → Allgemein den Standort und die Zeitzone und stellen Sie sicher, dass die Sonnenintegration geladen ist.",
       "sun_unavailable": "Die Entität `sun.sun` ist derzeit nicht verfügbar. Smart Shading benötigt einen gültigen Sonnenstand, bevor die Einrichtung fortgesetzt werden kann.",
-      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection."
+      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection.",
+      "cannot_delete_last_sector": "Ein Raum muss mindestens einen Sonnensektor behalten. Legen Sie zuerst einen weiteren an.",
+      "cannot_delete_last_layer": "Ein Sektor muss mindestens eine Behanggruppe behalten. Legen Sie zuerst eine weitere an.",
+      "cannot_delete_last_cover": "Eine Behanggruppe muss mindestens einen Behang behalten. Fügen Sie zuerst einen weiteren hinzu.",
+      "cannot_delete_last_room": "Ein Smart-Shading-Eintrag muss mindestens einen Raum behalten. Legen Sie zuerst einen weiteren an.",
+      "night_entity_required": "Die Nachtfunktion nutzt die Entitätsquelle. Wählen Sie einen Zeitplan oder eine Ein/Aus-Entität.",
+      "pause_requires_night": "Die Pause bis zum nächsten Nachtende benötigt eine aktivierte Nachtfunktion."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -772,7 +843,7 @@
       },
       "global_settings": {
         "title": "Allgemeine Einstellungen",
-        "description": "Das Prüfintervall ist immer einstellbar. Weitere technische Werte erscheinen nur im erweiterten Modus.",
+        "description": "Easy zeigt nur den globalen Wetter-Fallback. Prüfintervall und Technik-Tuning erscheinen nur in Advanced.",
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
@@ -782,42 +853,97 @@
           "evening_release_time": "Feste späteste Abendfreigabe",
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
           "advanced_mode": "Erweiterter Modus",
+          "weather_entity": "Wetter-Entität",
           "diagnostic_level": "Diagnoseprotokoll",
           "evaluation_interval_minutes": "Regelmäßige Prüfung"
         },
         "data_description": {
+          "sun_entity": "Liefert Sonnenhöhe und Azimut. Die Home-Assistant-Sonnenentität wird empfohlen.",
           "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Positionsbefehl gesendet.",
           "tilt_tolerance": "Innerhalb dieser Abweichung wird kein neuer Lamellenbefehl gesendet.",
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
+          "unknown_feedback_policy": "Bestimmt, ob die Automatik ohne numerische Positionsrückmeldung weiterlaufen darf.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
           "advanced_mode": "Ändert sowohl die wirksame Laufzeit als auch die Card. Advanced-Werte bleiben beim Wechsel zu Easy gespeichert.",
+          "weather_entity": "Optionale Wetterquelle für den gewählten Modus.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
       },
       "add_room": {
         "title": "Raum anlegen",
-        "description": "Legen Sie den Raum auf einer Seite an. Easy fragt nur Behänge und Fassadenrichtung ab. Advanced bietet zusätzlich optionale Eingänge an.",
-        "data": {
-          "name": "Raumname",
-          "direction": "Fassadenrichtung",
-          "group_name": "Name der Behanggruppe",
-          "profile": "Behangtyp",
-          "cover_entities": "Behänge",
-          "indoor_temperature": "Raumtemperatur",
-          "outdoor_temperature": "Außentemperatur (optional)",
-          "safety_blockers": "Sicherheitsbedingungen (optional)",
-          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
-          "lux_sensor": "Lux-Sensor (optional)",
-          "sun_preset": "Sun-Presence-Empfindlichkeit"
-        },
-        "data_description": {
-          "name": "Neutrales Beispiel: Wohnbereich, Raum A oder Büro.",
-          "indoor_temperature": "Steuert Comfort, Solar und Heat Protection. Ohne Sensor arbeitet nur die sonnenabhängige Logik.",
-          "outdoor_temperature": "Kann normale Beschattung bei kalter Witterung verhindern. Für den ersten Test darf dieses Feld leer bleiben.",
-          "safety_blockers": "Mehrfachauswahl: Wind-, Frost-, Regen- oder Wartungssensoren. Normalerweise bedeutet `on`, dass Gefahr aktiv ist. Ohne solche Sensoren bleibt das Feld leer.",
-          "external_movement_detection": "Nur Advanced Mode. Für neue Räume standardmäßig deaktiviert; benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+        "description": "Fügen Sie einen vollständigen Raum hinzu, ohne den Editor zu verlassen.",
+        "sections": {
+          "room_and_covers": {
+            "name": "Raum und Behänge",
+            "data": {
+              "name": "Raumname",
+              "direction": "Fassadenrichtung",
+              "group_name": "Name der Behanggruppe",
+              "profile": "Behangtyp",
+              "cover_entities": "Behänge"
+            },
+            "data_description": {
+              "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Card angezeigt.",
+              "direction": "Die Vorgabe bestimmt, wann die Sonne diese Fassade erreicht.",
+              "group_name": "Optionale Bezeichnung für die gemeinsam gesteuerten Behänge dieses Raums.",
+              "profile": "Der Behangtyp legt passende Fahrpositionen fest.",
+              "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Behang."
+            }
+          },
+          "sun_control": {
+            "name": "Optionale Sonnenbestätigung",
+            "description": "Easy erlaubt Lux oder Ein/Aus. Advanced erlaubt optional Lux und eigene Geometrie.",
+            "data": {
+              "lux_sensor": "Lux-Sensor",
+              "sun_presence_entity": "Entität Sonne erkannt",
+              "sun_preset": "Sonnenempfindlichkeit",
+              "azimuth_start": "Eigener Azimut Start",
+              "azimuth_end": "Eigener Azimut Ende",
+              "elevation_min": "Eigene minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "lux_sensor": "Helligkeitssensor dieser Fassade.",
+              "sun_presence_entity": "Ein/Aus-Entität zur Bestätigung direkter Sonne.",
+              "sun_preset": "Lux-Empfindlichkeit bei gewähltem Lux-Sensor.",
+              "azimuth_start": "Nur Advanced und Fassadenrichtung Custom.",
+              "azimuth_end": "Nur Advanced und Fassadenrichtung Custom.",
+              "elevation_min": "Nur Advanced und Fassadenrichtung Custom."
+            }
+          },
+          "optional_improvements": {
+            "name": "Optionale Easy-Mode-Verbesserungen",
+            "data": {
+              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
+              "outdoor_temperature": "Außentemperatursensor",
+              "outdoor_minimum": "Minimale Außentemperatur"
+            },
+            "data_description": {
+              "easy_temperature_gate": "Optionaler Mindestwert für die Außentemperatur. Fehlende Werte blockieren nie.",
+              "outdoor_temperature": "Optional. Wird zuerst verwendet; die Wettertemperatur dient als Fallback.",
+              "outdoor_minimum": "Mindest-Außentemperatur für die Easy-Mode-Beschattung."
+            }
+          },
+          "advanced_conditions": {
+            "name": "Erweiterte Bedingungen",
+            "data": {
+              "weather_entity": "Wetter-Entität",
+              "indoor_temperature": "Raumtemperatur",
+              "outdoor_temperature": "Außentemperatur",
+              "outdoor_minimum": "Minimale Außentemperatur",
+              "safety_blockers": "Safety-Bedingungen",
+              "external_movement_detection": "Externe Behangfahrt erkennen"
+            },
+            "data_description": {
+              "weather_entity": "Optionale Home-Assistant-Wetter-Entität.",
+              "indoor_temperature": "Aktiviert Raumkomfort- und Hitzeschwellen.",
+              "outdoor_temperature": "Kann normale Beschattung bei Kälte sperren.",
+              "outdoor_minimum": "Minimale Außentemperatur für normale Beschattung.",
+              "safety_blockers": "Wind, Frost oder andere Binärsensoren; Ein bedeutet gesperrt.",
+              "external_movement_detection": "Benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+            }
+          }
         }
       },
       "room_settings": {
@@ -826,8 +952,11 @@
         "data": {
           "name": "Raumname",
           "delete_room": "Diesen Raum löschen",
+          "weather_entity": "Wetter-Entität",
+          "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
           "indoor_temperature": "Raumtemperatur",
           "outdoor_temperature": "Außentemperatur",
+          "outdoor_minimum": "Minimale Außentemperatur",
           "safety_blockers": "Sicherheitsbedingungen",
           "schedule_profile": "Aktivitätsprofil",
           "default_pause_mode": "Standardaktion für Pause",
@@ -841,7 +970,423 @@
         },
         "data_description": {
           "delete_room": "Der Raum wird nach dem Speichern dieser Seite entfernt.",
+          "weather_entity": "Optionale Wetterquelle für normale Beschattung.",
+          "easy_temperature_gate": "Nur Easy Mode: Der Außensensor muss den Mindestwert erreichen.",
+          "outdoor_temperature": "Optionale Temperaturquelle; leer lassen, wenn ungenutzt.",
+          "outdoor_minimum": "Mindesttemperatur für normale Beschattung.",
           "external_movement_detection": "Nur Advanced Mode. Benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+        }
+      },
+      "manage_room": {
+        "title": "Raumeinstellungen",
+        "description": "Es werden nur Einstellungen des gewählten Easy- oder Advanced-Modus angezeigt. Alle Gruppen bleiben auf dieser einen Seite.",
+        "sections": {
+          "room_basics": {
+            "name": "Raum und Grundeingänge",
+            "description": "Nur Eingänge des gewählten Easy- oder Advanced-Modus werden angezeigt.",
+            "data": {
+              "name": "Raumname",
+              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
+              "indoor_temperature": "Raumtemperatur",
+              "outdoor_temperature": "Außentemperatur",
+              "outdoor_minimum": "Minimale Außentemperatur",
+              "safety_blockers": "Safety-Bedingungen"
+            },
+            "data_description": {
+              "name": "Name in Entitäten und auf der Dashboard-Karte.",
+              "easy_temperature_gate": "Easy beschattet nur oberhalb der Schwelle. Fehlende Werte blockieren nicht.",
+              "indoor_temperature": "Nur Advanced. Wird für normale Beschattung und Heat-Protection-Schwellen verwendet.",
+              "outdoor_temperature": "Optional. Easy nutzt ihn nur bei aktivierter Temperaturfreigabe.",
+              "outdoor_minimum": "Minimale Außentemperatur für normale Beschattung.",
+              "safety_blockers": "Nur Advanced. Wählen Sie Entitäten, bei denen Ein Gefahr bedeutet, etwa Wind oder Frost."
+            }
+          },
+          "schedule_settings": {
+            "name": "Zeitplan",
+            "description": "Nur Advanced. Er erlaubt normale Beschattung; Sonne und Bedingungen entscheiden weiterhin über die Fahrt.",
+            "data": {
+              "schedule_profile": "Aktivitätsprofil",
+              "active_months": "Aktive Monate",
+              "active_weekdays": "Aktive Wochentage",
+              "day_window": "Tägliche Freigabe",
+              "start_time": "Startzeit",
+              "end_time": "Endzeit",
+              "outside_schedule_behavior": "Außerhalb des Zeitplans",
+              "heat_outside_schedule": "Heat Protection außerhalb erlauben"
+            },
+            "data_description": {
+              "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
+              "active_months": "Nur für das eigene Profil.",
+              "active_weekdays": "Nur für das eigene Profil.",
+              "day_window": "Sonne im Sektor, ganztägig oder festes tägliches Zeitfenster.",
+              "start_time": "Nur bei festem Zeitfenster; über Mitternacht ist möglich.",
+              "end_time": "Nur bei festem Zeitfenster.",
+              "outside_schedule_behavior": "Definiert die Neutralposition außerhalb der Freigabe; Safety bleibt aktiv.",
+              "heat_outside_schedule": "Hält Überhitzungsschutz außerhalb normaler Beschattungszeiten verfügbar."
+            }
+          },
+          "pause_settings": {
+            "name": "Pausenverhalten",
+            "description": "Nur Advanced. Safety hat immer Vorrang vor einer Pause.",
+            "data": {
+              "default_pause_mode": "Standardaktion für Pause",
+              "pause_sun_offset_minutes": "Offset zum Sonnenereignis",
+              "pause_duration_hours": "Dauer einer Zeitpause",
+              "heat_during_pause": "Heat Protection während Pause erlauben",
+              "external_movement_detection": "Bestätigte externe Fahrt erkennen"
+            },
+            "data_description": {
+              "default_pause_mode": "Freigabe beim Sonnenereignis, nach einer Dauer oder nur manuell.",
+              "pause_sun_offset_minutes": "Negative Werte lösen vor dem Sonnenereignis.",
+              "pause_duration_hours": "Nur für eine Zeitpause.",
+              "heat_during_pause": "Erlaubt Heat Protection bei weiter pausierter Normalautomatik.",
+              "external_movement_detection": "Nutzt numerische Positions- oder Lamellenrückmeldungen; reine Opening-/Closing-Statuswechsel werden ignoriert."
+            }
+          },
+          "night_settings": {
+            "name": "Nachtfunktion",
+            "description": "Nur Advanced. Verwenden Sie einen Ein/Aus-Zeitplan oder Sonnenauf- und -untergang.",
+            "data": {
+              "night_enabled": "Nachtfunktion aktivieren",
+              "night_source": "Nachtquelle",
+              "night_entity": "Nacht-Zeitplan oder Ein/Aus-Entität",
+              "night_start_offset_minutes": "Offset zu Sonnenuntergang",
+              "night_end_offset_minutes": "Offset zu Sonnenaufgang",
+              "night_morning_transition_minutes": "Morgendliches Übergangsfenster",
+              "night_evening_transition_minutes": "Abendliches Übergangsfenster"
+            },
+            "data_description": {
+              "night_enabled": "Schließt die Behanggruppen während der aktiven Nachtzeit.",
+              "night_source": "Ein/Aus-Entität oder Berechnung aus Sonnenuntergang und -aufgang.",
+              "night_entity": "Nur bei gewählter Entitätsquelle erforderlich.",
+              "night_start_offset_minutes": "Verschiebt den Nachtbeginn relativ zum Sonnenuntergang.",
+              "night_end_offset_minutes": "Verschiebt das Nachtende relativ zum Sonnenaufgang.",
+              "night_morning_transition_minutes": "Prüft Sonnenbedingungen vor der Tagesautomation.",
+              "night_evening_transition_minutes": "Übergangsfenster, bevor die Nachtfunktion übernimmt."
+            }
+          },
+          "temperature_settings": {
+            "name": "Temperaturstufen",
+            "description": "Nur Advanced. Die Hysterese verhindert ein schnelles Wechseln der Modi.",
+            "data": {
+              "normal_shading_temperature": "Normale Beschattung ab",
+              "comfort_temperature": "Comfort ab",
+              "solar_temperature": "Solar ab",
+              "heat_temperature": "Heat Protection ab",
+              "heat_release_temperature": "Heat Protection beenden unter",
+              "reopen_temperature": "Wieder öffnen unter"
+            },
+            "data_description": {
+              "normal_shading_temperature": "Ab dieser Raumtemperatur beginnt normale Jalousie-Beschattung.",
+              "comfort_temperature": "Erste Raumtemperaturschwelle kompatibler Profile.",
+              "solar_temperature": "Stärkere Solar-Schutzschwelle kompatibler Profile.",
+              "heat_temperature": "Oberhalb kann Heat Protection starten.",
+              "heat_release_temperature": "Beim Abend-Release nur unter diesem Wert lösen.",
+              "reopen_temperature": "Untere Hystereseschwelle zum Wiederöffnen."
+            }
+          },
+          "condition_settings": {
+            "name": "Optionale Advanced-Bedingungen",
+            "description": "Lassen Sie jede ungenutzte Entität leer. Kein optionaler Eingang ist erforderlich.",
+            "data": {
+              "irradiance_sensor": "Globalstrahlungssensor",
+              "irradiance_minimum": "Minimale Globalstrahlung",
+              "cloud_cover_sensor": "Bewölkungssensor",
+              "cloud_cover_maximum": "Maximale Bewölkung",
+              "weather_permission": "Wetterfreigabe",
+              "glare_sensor": "Blendsensor",
+              "occupancy_sensor": "Anwesenheitssensor",
+              "weather_logic": "Wetterbedingungen verknüpfen",
+              "heat_ignores_weather": "Heat ignoriert normale Wetterbedingungen",
+              "heat_fail_safe": "Heat-Failsafe verwenden",
+              "heat_requires_sun": "Heat benötigt aktiven Sonnensektor",
+              "comfort_requires_occupancy": "Comfort benötigt Anwesenheit",
+              "safety_behavior": "Safety-Verhalten"
+            },
+            "data_description": {
+              "irradiance_sensor": "Optionaler Sensor für globale Solarstrahlung.",
+              "irradiance_minimum": "Minimale Strahlung bei konfiguriertem Sensor.",
+              "cloud_cover_sensor": "Optionaler Bewölkungssensor.",
+              "cloud_cover_maximum": "Maximaler Bewölkungsgrad für normale Beschattung.",
+              "weather_permission": "Optionale Freigabe; Ein erlaubt normale Beschattung.",
+              "glare_sensor": "Optionale binäre Blendanforderung.",
+              "occupancy_sensor": "Optionale Raumanwesenheit.",
+              "weather_logic": "Alle Wettereingänge oder mindestens einen verlangen.",
+              "heat_ignores_weather": "Heat darf trotz fehlender normaler Wetterbedingungen starten.",
+              "heat_fail_safe": "Hält aktive Heat Protection bei Sensorausfall.",
+              "heat_requires_sun": "Zum Start muss mindestens ein Raumsektor Sonne haben.",
+              "comfort_requires_occupancy": "Comfort nur bei Anwesenheit verwenden.",
+              "safety_behavior": "Zur Safety-Position fahren oder normale Befehle blockieren."
+            }
+          },
+          "room_maintenance": {
+            "name": "Raum entfernen",
+            "description": "Die Löschung wird beim Speichern dieser Seite wirksam.",
+            "data": {
+              "delete_room": "Diesen Raum löschen"
+            },
+            "data_description": {
+              "delete_room": "Der letzte verbleibende Raum kann nicht gelöscht werden."
+            }
+          }
+        }
+      },
+      "manage_sector": {
+        "title": "Sonnensektor einstellen",
+        "description": "Die Fassade bestimmt aktive Sonnengeometrie. Easy nutzt optional Lux oder Ein/Aus, Advanced optional Lux.",
+        "sections": {
+          "sector_identity": {
+            "name": "Fassadengeometrie",
+            "data": {
+              "name": "Sektorname",
+              "short": "Kurzcode",
+              "direction": "Fassadenrichtung",
+              "azimuth_start": "Azimut Start",
+              "azimuth_end": "Azimut Ende",
+              "elevation_min": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "name": "Name auf der Advanced-Karte.",
+              "short": "Kurzes Fassadenkürzel, zum Beispiel S oder SW.",
+              "direction": "Ein Preset setzt passende Geometrie; für eigene Winkel Custom wählen.",
+              "azimuth_start": "Nur Custom. Erste Sonnenrichtung im Sektor.",
+              "azimuth_end": "Nur Custom. Letzte Sonnenrichtung; Norden darf überquert werden.",
+              "elevation_min": "Nur Custom. Sonne unterhalb dieser Höhe ignorieren."
+            }
+          },
+          "sun_confirmation": {
+            "name": "Optionale Sonnenbestätigung",
+            "description": "Easy erlaubt Lux oder Ein/Aus. Advanced erlaubt Lux. Leere oder nicht verfügbare Eingänge fallen sicher zurück.",
+            "data": {
+              "lux_sensor": "Lux-Sensor",
+              "sun_presence_entity": "Entität Sonne erkannt",
+              "sun_preset": "Sonnenempfindlichkeit",
+              "sun_on_lux": "Sonne erkannt über",
+              "sun_off_lux": "Sonne nicht mehr erkannt unter",
+              "sun_on_delay": "Einschaltverzögerung",
+              "sun_off_delay": "Ausschaltverzögerung"
+            },
+            "data_description": {
+              "lux_sensor": "Optionaler Helligkeitssensor für diese Fassade.",
+              "sun_presence_entity": "Nur Easy. Ein bestätigt direkte Sonne; entweder Entität oder Lux wählen.",
+              "sun_preset": "Wählt Lux-Schwellen und Verzögerungen.",
+              "sun_on_lux": "Nur Custom-Lux. Muss höher als die Ausschaltschwelle sein.",
+              "sun_off_lux": "Nur Custom-Lux. Unterhalb wird Sonne aufgehoben.",
+              "sun_on_delay": "Nur Custom-Lux. Filtert kurze Helligkeitsspitzen.",
+              "sun_off_delay": "Nur Custom-Lux. Filtert kurze Wolken."
+            }
+          },
+          "sector_maintenance": {
+            "name": "Sektor entfernen",
+            "data": {
+              "delete_sector": "Diesen Sektor löschen"
+            },
+            "data_description": {
+              "delete_sector": "Ein Raum muss immer mindestens einen Sektor behalten."
+            }
+          }
+        }
+      },
+      "add_sector_flat": {
+        "title": "Sonnensektor hinzufügen",
+        "description": "Erstellen Sie Sektor, erste Behanggruppe und Behänge in einem Schritt.",
+        "sections": {
+          "sector_identity": {
+            "name": "Sonnensektor",
+            "data": {
+              "direction": "Fassadenrichtung",
+              "lux_sensor": "Lux-Sensor",
+              "sun_presence_entity": "Entität Sonne erkannt",
+              "sun_preset": "Sonnenempfindlichkeit",
+              "azimuth_start": "Azimut Start",
+              "azimuth_end": "Azimut Ende",
+              "elevation_min": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "direction": "Fassaden-Preset wählen. Advanced kann eigene Winkel verwenden.",
+              "lux_sensor": "Optionale Helligkeitsbestätigung für diese Fassade.",
+              "sun_presence_entity": "Nur Easy. Entweder diese Ein/Aus-Entität oder Lux wählen.",
+              "sun_preset": "Lux-Empfindlichkeit; ohne Lux-Sensor wirkungslos.",
+              "azimuth_start": "Nur für die Richtung Custom.",
+              "azimuth_end": "Nur für die Richtung Custom.",
+              "elevation_min": "Nur für die Richtung Custom."
+            }
+          },
+          "cover_group": {
+            "name": "Erste Behanggruppe",
+            "data": {
+              "group_name": "Gruppenname",
+              "profile": "Behangtyp",
+              "cover_entities": "Behänge",
+              "tilt_preset": "Lamellenprofil"
+            },
+            "data_description": {
+              "group_name": "Behänge mit gleichem Verhalten gehören in eine Gruppe.",
+              "profile": "Physischen Behangtyp für passende Standardwerte wählen.",
+              "cover_entities": "Einen oder mehrere noch nicht zugeordnete Behänge wählen.",
+              "tilt_preset": "Nur Advanced-Jalousien. Steuert adaptive Lamellenführung."
+            }
+          }
+        }
+      },
+      "manage_layer": {
+        "title": "Behanggruppe einstellen",
+        "description": "Eine Gruppe enthält Behänge mit gleichem physischem Verhalten und gleichen Zielpositionen.",
+        "sections": {
+          "group_identity": {
+            "name": "Gruppe und Profil",
+            "data": {
+              "name": "Gruppenname",
+              "profile": "Behangtyp",
+              "tilt_preset": "Lamellenprofil"
+            },
+            "data_description": {
+              "name": "Name dieser Behanggruppe.",
+              "profile": "Ein Typwechsel setzt Standardwerte und behält zugeordnete Behänge.",
+              "tilt_preset": "Custom wählen, um die vier Stufen unten zu verwenden."
+            }
+          },
+          "slat_curve": {
+            "name": "Eigene Lamellenkurve",
+            "description": "Nur mit dem Profil Custom. Sonnenhöhen müssen ansteigen.",
+            "data": {
+              "elevation_1": "Stufe 1 Sonnenhöhe",
+              "tilt_1": "Stufe 1 Lamellenposition",
+              "elevation_2": "Stufe 2 Sonnenhöhe",
+              "tilt_2": "Stufe 2 Lamellenposition",
+              "elevation_3": "Stufe 3 Sonnenhöhe",
+              "tilt_3": "Stufe 3 Lamellenposition",
+              "elevation_4": "Stufe 4 Sonnenhöhe",
+              "tilt_4": "Stufe 4 Lamellenposition"
+            },
+            "data_description": {
+              "elevation_1": "Niedrigste Sonnenhöhenstufe.",
+              "tilt_1": "0 % ganz offen, 100 % ganz geschlossen.",
+              "elevation_2": "Muss höher als Stufe 1 sein.",
+              "tilt_2": "0 % ganz offen, 100 % ganz geschlossen.",
+              "elevation_3": "Muss höher als Stufe 2 sein.",
+              "tilt_3": "0 % ganz offen, 100 % ganz geschlossen.",
+              "elevation_4": "Muss höher als Stufe 3 sein.",
+              "tilt_4": "0 % ganz offen, 100 % ganz geschlossen."
+            }
+          },
+          "target_positions": {
+            "name": "Erweiterte Zielpositionen",
+            "description": "0 % und 100 % folgen der Home-Assistant-Behangposition. Lamellen: 0 % ganz offen, 100 % ganz geschlossen.",
+            "data": {
+              "open_position": "Offene Position",
+              "open_tilt": "Offene Lamellenposition",
+              "comfort_position": "Comfort-Position",
+              "comfort_tilt": "Comfort-Lamellenposition",
+              "solar_position": "Solar-Position",
+              "solar_tilt": "Solar-Lamellenposition",
+              "heat_position": "Heat-Position",
+              "heat_tilt": "Heat-Lamellenposition",
+              "night_position": "Nachtposition",
+              "night_tilt": "Nacht-Lamellenposition",
+              "safety_position": "Safety-Position",
+              "safety_tilt": "Safety-Lamellenposition"
+            },
+            "data_description": {
+              "open_position": "Neutrale Höhe; Home Assistant nutzt 100 % für offen.",
+              "open_tilt": "Neutrale Lamellenposition; 0 % ist ganz offen.",
+              "comfort_position": "Behanghöhe im Comfort-Modus.",
+              "comfort_tilt": "Lamellenposition im Comfort-Modus.",
+              "solar_position": "Behanghöhe während normaler Beschattung.",
+              "solar_tilt": "Solar-Lamellenposition ohne adaptive Kurve.",
+              "heat_position": "Behanghöhe während Heat Protection.",
+              "heat_tilt": "Lamellenposition während Heat Protection.",
+              "night_position": "Behanghöhe während der Nachtfunktion.",
+              "night_tilt": "Lamellenposition während der Nachtfunktion.",
+              "safety_position": "Von Safety angeforderte Behanghöhe.",
+              "safety_tilt": "Von Safety angeforderte Lamellenposition."
+            }
+          },
+          "group_maintenance": {
+            "name": "Gruppe entfernen",
+            "data": {
+              "delete_layer": "Diese Behanggruppe löschen"
+            },
+            "data_description": {
+              "delete_layer": "Ein Sektor muss mindestens eine Behanggruppe behalten."
+            }
+          }
+        }
+      },
+      "add_layer_flat": {
+        "title": "Behanggruppe hinzufügen",
+        "description": "Erstellen Sie eine Gruppe und ordnen Sie alle passenden Behänge gleichzeitig zu.",
+        "data": {
+          "name": "Gruppenname",
+          "profile": "Behangtyp",
+          "cover_entities": "Behänge",
+          "tilt_preset": "Lamellenprofil"
+        },
+        "data_description": {
+          "name": "Name der neuen Gruppe.",
+          "profile": "Physischen Behangtyp wählen.",
+          "cover_entities": "Nicht zugeordnete Behänge mit gleichem Verhalten wählen.",
+          "tilt_preset": "Nur Advanced-Jalousien."
+        }
+      },
+      "manage_cover": {
+        "title": "Behang einstellen",
+        "description": "Easy zeigt nur Namen. Advanced ergänzt Safety, Manual Entity und Invertierung.",
+        "sections": {
+          "cover_identity": {
+            "name": "Anzeige",
+            "data": {
+              "name": "Anzeigename",
+              "short": "Kurzcode"
+            },
+            "data_description": {
+              "name": "Anzeigename auf der Karte.",
+              "short": "Kompaktes Kürzel bei wenig Platz."
+            }
+          },
+          "cover_automation": {
+            "name": "Erweiterte Automation",
+            "description": "Alle Entitäten sind optional. Behänge mit derselben Manual Entity bilden eine logische Raumgruppe.",
+            "data": {
+              "lock": "Manual Entity",
+              "window": "Fensterkontakt",
+              "window_safe_state": "Sicherer Fensterzustand",
+              "window_policy": "Verhalten bei Unsafe",
+              "window_returns_to_automation": "Nach Schließen zur Automatik zurückkehren",
+              "max_open_position": "Maximale normale Öffnungsposition",
+              "invert_position": "Behangposition invertieren",
+              "invert_tilt": "Lamellenposition invertieren"
+            },
+            "data_description": {
+              "lock": "Nutzen mehrere Behänge dieses Raums dieselbe Entität, pausieren und starten sie gemeinsam.",
+              "window": "Optionaler Binärsensor für Fenster- oder Tür-Safety.",
+              "window_safe_state": "Kontaktzustand, in dem normale Fahrten erlaubt sind.",
+              "window_policy": "Alle oder nur schließende Befehle bei Unsafe blockieren.",
+              "window_returns_to_automation": "Fensterbedingte Safety- und Rückfahrten erzeugen keine manuelle Pause.",
+              "max_open_position": "Begrenzt normales Öffnen; ein Unsafe-Fensterziel darf weiter öffnen.",
+              "invert_position": "Nur verwenden, wenn die Home-Assistant-Höhenskala umgekehrt ist.",
+              "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet."
+            }
+          },
+          "cover_maintenance": {
+            "name": "Behang entfernen",
+            "data": {
+              "remove_cover": "Diesen Behang aus der Gruppe entfernen"
+            },
+            "data_description": {
+              "remove_cover": "Eine Behanggruppe muss mindestens einen Behang behalten."
+            }
+          }
+        }
+      },
+      "add_covers_flat": {
+        "title": "Behänge hinzufügen",
+        "description": "Wählen Sie noch nicht zugeordnete Behänge. Namen können danach in der Hauptübersicht angepasst werden.",
+        "data": {
+          "cover_entities": "Behänge"
+        },
+        "data_description": {
+          "cover_entities": "Mehrfachauswahl möglich; bereits zugeordnete Behänge werden abgelehnt."
         }
       },
       "room_schedule": {
@@ -1409,9 +1954,16 @@
       "elevation_order": "Die vier Sonnenhöhen müssen streng aufsteigend sein.",
       "cover_already_assigned": "Mindestens eines der ausgewählten Covers ist bereits in diesem Haus zugeordnet.",
       "select_at_least_one": "Wählen Sie mindestens einen Eintrag aus.",
+      "choose_one_sun_confirmation": "Wählen Sie entweder einen Lux-Sensor oder eine Ein/Aus-Entität für erkannte Sonne, nicht beides.",
       "sun_missing": "Die Entität `sun.sun` fehlt. Prüfen Sie unter Einstellungen → System → Allgemein den Standort und die Zeitzone und stellen Sie sicher, dass die Sonnenintegration geladen ist.",
       "sun_unavailable": "Die Entität `sun.sun` ist derzeit nicht verfügbar. Smart Shading benötigt einen gültigen Sonnenstand, bevor die Einrichtung fortgesetzt werden kann.",
-      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection."
+      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection.",
+      "cannot_delete_last_sector": "Ein Raum muss mindestens einen Sonnensektor behalten. Legen Sie zuerst einen weiteren an.",
+      "cannot_delete_last_layer": "Ein Sektor muss mindestens eine Behanggruppe behalten. Legen Sie zuerst eine weitere an.",
+      "cannot_delete_last_cover": "Eine Behanggruppe muss mindestens einen Behang behalten. Fügen Sie zuerst einen weiteren hinzu.",
+      "cannot_delete_last_room": "Ein Smart-Shading-Eintrag muss mindestens einen Raum behalten. Legen Sie zuerst einen weiteren an.",
+      "night_entity_required": "Die Nachtfunktion nutzt die Entitätsquelle. Wählen Sie einen Zeitplan oder eine Ein/Aus-Entität.",
+      "pause_requires_night": "Die Pause bis zum nächsten Nachtende benötigt eine aktivierte Nachtfunktion."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -1422,6 +1974,13 @@
     }
   },
   "selector": {
+    "diagnostic_level": {
+      "options": {
+        "off": "Aus",
+        "events": "Ereignisse",
+        "full": "Vollständig"
+      }
+    },
     "direction_preset": {
       "options": {
         "north": "Nord (N)",
