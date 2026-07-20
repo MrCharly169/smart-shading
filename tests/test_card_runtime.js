@@ -3,7 +3,7 @@ const vm = require("vm");
 const path = require("path");
 
 class FakeNode {
-  constructor() { this.isConnected = false; this.dataset = {}; }
+  constructor() { this.isConnected = false; this.dataset = {}; this.dispatchedEvents = []; }
   addEventListener() {}
   setAttribute() {}
   getAttribute() { return ""; }
@@ -16,7 +16,7 @@ class FakeShadowRoot {
 }
 class FakeHTMLElement extends FakeNode {
   attachShadow() { this.shadowRoot = new FakeShadowRoot(); return this.shadowRoot; }
-  dispatchEvent() { return true; }
+  dispatchEvent(event) { this.dispatchedEvents.push(event); return true; }
 }
 class FakeEvent { constructor(type, options = {}) { this.type = type; Object.assign(this, options); } stopPropagation() {} }
 class FakeCustomEvent extends FakeEvent { constructor(type, options = {}) { super(type, options); this.detail = options.detail; } }
@@ -62,6 +62,7 @@ const roomStatus = {
   state: "solar",
   attributes: {
     name: "Raum A",
+    smart_shading_advanced_mode: true,
     smart_shading_entry_id: "entry",
     smart_shading_room_id: "room",
     active_sectors: ["Süd links"],
@@ -73,6 +74,11 @@ const roomStatus = {
     cover_pauses: [{ entity_id: "cover.internal_identifier", name: "Fenstergruppe", short: "B1", active: true, until: "2026-07-16T05:30:00+02:00", reason: "external_or_physical_control" }],
     sent_commands: 2,
     suppressed_commands: 1,
+    night_enabled: true,
+    night_active: false,
+    night_source: "entity",
+    night_entity: "schedule.room_night",
+    night_source_state: "off",
     diagnostic_events: [{ timestamp: "2026-07-14T12:00:00+00:00", event: "room_mode_changed", room_id: "room", mode: "solar" }],
     sector_statuses: [{ id: "south_left", name: "Süd links", short: "S1", status: "shading_active", reason: "Normal shading", geometry_active: true, sun_presence: true, lux: 26398.72, lux_raw_state: "26398.72", lux_unit: "lx", sun_settings: { sun_on_lux: 18000, sun_off_lux: 9000, sun_on_delay: 3, sun_off_delay: 12 }, pending_target: null, pending_until: null, mode: "solar", sun_presence_entity_id: "binary_sensor.south_sun_presence" }],
     configuration: {
@@ -96,6 +102,7 @@ const hass = {
     "switch.cover_lock": { entity_id: "switch.cover_lock", state: "on", attributes: { friendly_name: "Automatiksperre" } },
     "binary_sensor.window_contact": { entity_id: "binary_sensor.window_contact", state: "on", attributes: { friendly_name: "Fensterkontakt" } },
     "binary_sensor.south_sun_presence": { entity_id: "binary_sensor.south_sun_presence", state: "on", attributes: { friendly_name: "Süd links Sonne erkannt" } },
+    "schedule.room_night": { entity_id: "schedule.room_night", state: "off", attributes: { friendly_name: "Nachtzeitplan" } },
     "sensor.room_status": roomStatus,
     "button.pause": { entity_id: "button.pause", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "pause_default" } },
     "button.resume": { entity_id: "button.resume", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "resume" } },
@@ -114,19 +121,45 @@ if (!html.includes("Raum A") || !html.includes("Fenstergruppe") || !html.include
 const visibleHtml = html.replace(/data-(?:more|press|toggle|number|select)="[^"]*"/g, "");
 if (visibleHtml.includes("cover.internal_identifier")) throw new Error("Card exposed a raw cover entity ID as visible content");
 if (html.includes("undefined")) throw new Error("Card rendered undefined");
-if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Compact reference structure missing");
+if (!html.includes('data-card-mode="advanced"') || !html.includes("data-advanced-layout") || !html.includes("data-advanced-sectors")) throw new Error("Advanced card did not use its dedicated layout");
+if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
-if (!html.includes("--mdc-icon-size:12px") || !html.includes("--mdc-icon-size:15px")) throw new Error("Icon sizing variables missing");
+if (!html.includes(".icon-box") || !html.includes("place-items:center;line-height:0") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
+if (!html.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced card did not expose the Night schedule shortcut");
+const cardMarkup = html.slice(html.indexOf("</style>") + 8);
+if (/<button[^>]*>\s*<ha-icon/i.test(cardMarkup)) throw new Error("A card button bypassed the shared icon box");
 card._callEntity("switch.master");
 card._callEntity("button.evaluate");
 if (!hass.calls.some((call) => call.domain === "switch" && call.service === "toggle" && call.data.entity_id === "switch.master")) throw new Error("Master switch was not toggled");
 if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.evaluate")) throw new Error("Evaluate button was not pressed");
+
+card._openNightSource("schedule.room_night");
+const scheduleEvent = card.dispatchedEvents.at(-1);
+if (scheduleEvent?.type !== "hass-more-info" || scheduleEvent.detail?.entityId !== "schedule.room_night" || scheduleEvent.detail?.view !== "settings") throw new Error("Schedule shortcut did not open the graphical helper settings view");
+card._openNightSource("binary_sensor.night_source");
+const fallbackEvent = card.dispatchedEvents.at(-1);
+if (fallbackEvent?.detail?.entityId !== "binary_sensor.night_source" || fallbackEvent.detail?.view) throw new Error("Non-schedule Night source did not retain the More Info fallback");
+
+const easyRoomStatus = JSON.parse(JSON.stringify(roomStatus));
+easyRoomStatus.entity_id = "sensor.easy_room_status";
+easyRoomStatus.attributes.smart_shading_advanced_mode = false;
+hass.states[easyRoomStatus.entity_id] = easyRoomStatus;
+const easyCard = new Card();
+easyCard.setConfig({ entity: easyRoomStatus.entity_id });
+easyCard.hass = hass;
+const easyHtml = easyCard.shadowRoot.innerHTML;
+if (!easyHtml.includes('data-card-mode="easy"') || !easyHtml.includes("data-easy-layout") || !easyHtml.includes("data-easy-sun") || !easyHtml.includes("data-easy-covers")) throw new Error("Easy card did not use its dedicated minimal layout");
+if (!easyHtml.includes("Sonne im Sektor") || easyHtml.includes("Az 180°")) throw new Error("Easy sun track was not simplified");
+if (!easyHtml.includes("easy-cover-row") || !easyHtml.includes("Fenstergruppe") || !easyHtml.includes("100%")) throw new Error("Easy card did not render compact cover feedback");
+if (easyHtml.includes("data-advanced-layout") || easyHtml.includes("data-advanced-sectors") || easyHtml.includes("data-night-source") || easyHtml.includes('data-press="button.pause"')) throw new Error("Easy card exposed Advanced-only controls or details");
+if (!easyHtml.includes("Neu auswerten") || !easyHtml.includes("Manuelle Sperre")) throw new Error("Easy card missed its two approved actions");
 
 card._openAdvanced(roomStatus, card._controls(roomStatus));
 if (!body.children.length) throw new Error("Advanced dialog was not appended to document.body");
 const dialog = body.children[0];
 if (!dialog.shadowRoot.innerHTML.includes("Erweiterte Ansicht")) throw new Error("Advanced dialog did not render");
 if (!dialog.shadowRoot.innerHTML.includes("26") || !dialog.shadowRoot.innerHTML.includes("18") || !dialog.shadowRoot.innerHTML.includes("Pausiert")) throw new Error("Advanced dialog missed lux or local pause details");
+if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector")) throw new Error("Advanced dialog exposed raw internal reason keys");
 const before = dialog.shadowRoot.innerHTML;
 card.hass = hass;

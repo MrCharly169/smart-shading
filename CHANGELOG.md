@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Dashboard Cards
+
+- replaced the shared reduced layout with a dedicated Easy Card that keeps a simplified visual Sun-sector track, compact cover feedback, Evaluate, and the indefinite room Manual Override only
+- retained the detailed Sun geometry, sector status, cover targets, Pause, Night, and diagnostic controls exclusively in the Advanced Card
+- centered every card and Advanced View icon through one fixed square icon-box system instead of browser-dependent icon baselines or mobile offsets
+- the Advanced Night shortcut now opens a configured Home Assistant Schedule helper directly in its graphical settings editor, while non-Schedule Night sources retain the normal More Info fallback
+- added frontend regressions for the separate Easy and Advanced markup, approved Easy controls, icon containers, and Night Schedule editor routing
 
 ## 4.6.1-beta.0 - 2026-07-20
 
