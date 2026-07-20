@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.0 - 2026-07-20
+
 ### Final Easy and Advanced setup
 
 - rebuilt the active setup contract around a sensorless Easy baseline with optional facade lux, binary direct-sun confirmation, coarse weather fallback, and an explicit outdoor-temperature gate
@@ -28,6 +31,7 @@
 
 - expanded runtime, migration, shared-entity, notification, card lifecycle, translation, and release regression coverage while retaining the established KNX slat and feedback-based pause behavior
 - removed obsolete bootstrap and duplicate-template files, aligned all repository documentation to English, and updated the release and pilot guides to the current two-stage workflow and Easy/Advanced contracts
+
 
 ## 4.6.1-beta.1 - 2026-07-20
 
