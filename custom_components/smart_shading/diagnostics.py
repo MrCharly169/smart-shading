@@ -54,6 +54,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "pause_mode": runtime.pause_mode,
                 "pause_until": runtime.pause_until,
                 "manual_master_active": not runtime.enabled,
+                "manual_override_groups": (
+                    engine.manual_override_groups(room_id)
+                    if engine.advanced_mode
+                    else []
+                ),
                 "schedule_active": runtime.schedule_active,
                 "schedule_reason": runtime.schedule_reason,
                 "next_schedule_change": runtime.next_schedule_change,
@@ -66,6 +71,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "night_morning_handover_pending": (
                     runtime.night_morning_handover_pending
                 ),
+                "easy_confirmation_state": runtime.easy_confirmation_state,
+                "easy_source_summary": runtime.easy_source_summary,
+                "easy_temperature_gate": {
+                    "enabled": runtime.easy_temperature_gate_enabled,
+                    "source_entity": runtime.easy_temperature_source,
+                    "value": runtime.easy_temperature_value,
+                    "threshold": runtime.easy_temperature_threshold,
+                    "passed": runtime.easy_temperature_passed,
+                },
             }
             for room_id, runtime in engine.rooms.items()
         },
@@ -136,7 +150,17 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "status_reason": runtime.status_reason,
                 "geometry_active": runtime.geometry_active,
                 "shading_active": runtime.shading_active,
+                "confirmation_source": runtime.confirmation_source,
+                "confirmation_entity": runtime.confirmation_entity,
+                "confirmation_state": runtime.confirmation_state,
+                "effective_active": runtime.effective_active,
                 "mode": runtime.mode,
+                "sun_presence_state": _state_snapshot(
+                    hass,
+                    engine.sector_config(sector_id).get(
+                        "sun_presence_entity", ""
+                    ),
+                ),
                 "lux_state": _state_snapshot(
                     hass, engine.sector_config(sector_id).get("lux_sensor", "")
                 ),

@@ -51,7 +51,7 @@ Do not disable the global KNX state updater as the only workaround. Other KNX en
 ### How Smart Shading handles these events
 
 - `opening`, `closing`, `open`, and `closed` are informational and never prove external movement.
-- Automatic pause detection uses numeric `current_position` and `current_tilt_position` feedback where available.
+- Automatic pause detection uses numeric `current_position` and `current_cover_tilt_position` feedback where available.
 - One numeric change starts a candidate but never pauses the cover immediately.
 - Smart Shading confirms the candidate when its numeric value remains unchanged for five seconds. This also supports actuators that publish only their final position or tilt value.
 - Every additional numeric change restarts the stability timer.
@@ -60,3 +60,12 @@ Do not disable the global KNX state updater as the only workaround. Other KNX en
 - Covers without usable numeric feedback use the configured Manual Override entity only.
 
 Home Assistant does not expose whether every numeric value came directly from a physical protocol feedback object. Smart Shading therefore reports the available evidence and its decision reason in the diagnostics without claiming protocol-level certainty.
+
+## Can several covers share one Manual Override entity?
+
+Yes. When every relevant cover in the same room uses the exact same switch or
+input boolean, Smart Shading treats them as one manual group. Turning the entity
+on pauses every member; turning it off releases every member and evaluates the
+room once. A confirmed external movement of any member also activates the
+complete group. Entities are never grouped across different entity IDs, and a
+room-level pause writes each unique Manual Override entity only once.

@@ -21,11 +21,14 @@ from .const import (
     CARD_RESOURCE,
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
+    CONF_EASY_TEMPERATURE_GATE,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_ROOMS,
+    CONF_SUN_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
     CONF_TEST_MODE,
+    CONF_WEATHER_ENTITY,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
     DEFAULT_COMMAND_COOLDOWN,
@@ -86,6 +89,21 @@ from .storage import RuntimeStore
 _LOGGER = logging.getLogger(__name__)
 OWN_COMMAND_SESSION_TIMEOUT_SECONDS = 180.0
 
+# Home Assistant weather states deliberately classified conservatively.  An
+# ambiguous state must not disable a geometry-only Easy Mode installation.
+_EASY_CLEAR_WEATHER_STATES = {"sunny"}
+_EASY_BAD_WEATHER_STATES = {
+    "cloudy",
+    "fog",
+    "hail",
+    "lightning",
+    "lightning-rainy",
+    "pouring",
+    "rainy",
+    "snowy",
+    "snowy-rainy",
+}
+
 
 def _parse_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
@@ -115,6 +133,47 @@ def _state_number(hass: HomeAssistant, entity_id: str) -> float | None:
     if state is None:
         return None
     return parse_numeric_value(state.state)
+
+
+def _temperature_celsius(value: Any, unit: Any = None) -> float | None:
+    """Normalize a Home Assistant temperature value to degrees Celsius."""
+    parsed = parse_numeric_value(value)
+    if parsed is None:
+        return None
+    normalized_unit = str(unit or "").strip().lower().replace("°", "")
+    if normalized_unit in {"f", "fahrenheit", "degf"}:
+        return (parsed - 32.0) * 5.0 / 9.0
+    if normalized_unit in {"k", "kelvin"}:
+        return parsed - 273.15
+    return parsed
+
+
+def _temperature_state_celsius(
+    hass: HomeAssistant,
+    entity_id: str,
+    *,
+    attribute: str | None = None,
+) -> float | None:
+    """Read a valid entity temperature and normalize it to Celsius."""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None or str(state.state).lower() in {
+        "unknown",
+        "unavailable",
+        "none",
+        "",
+    }:
+        return None
+    if attribute:
+        value = state.attributes.get(attribute)
+        unit = (
+            state.attributes.get(f"{attribute}_unit")
+            or state.attributes.get("temperature_unit")
+            or state.attributes.get("unit_of_measurement")
+        )
+    else:
+        value = state.state
+        unit = state.attributes.get("unit_of_measurement")
+    return _temperature_celsius(value, unit)
 
 
 def _is_on(hass: HomeAssistant, entity_id: str) -> bool:
@@ -263,7 +322,9 @@ class SmartShadingEngine:
             )
             self.rooms[room_id] = runtime
             if (
-                runtime.pause_mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED}
+                self.advanced_mode
+                and runtime.pause_mode
+                in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED}
                 and runtime.pause_until
             ):
                 if runtime.pause_until > dt_util.now():
@@ -323,7 +384,7 @@ class SmartShadingEngine:
                             saved_cover.get("waiting_for_night", False)
                         )
                         self.cover_pauses[cover_id] = pause
-                        if pause.active and pause.until:
+                        if self.advanced_mode and pause.active and pause.until:
                             self._schedule_cover_pause_timer(cover_id, pause.until)
         for cover_id in list(self.cover_pauses):
             if cover_id not in configured_cover_ids:
@@ -405,19 +466,25 @@ class SmartShadingEngine:
         self._unsubs.append(async_call_later(self.hass, delays[attempt - 1], _retry))
 
     async def async_sync_card_notifications(self) -> bool:
-        """Create/update one persistent card-code notification per room.
+        """Create one persistent card-code notification for each new room.
 
         Return True when every configured room status entity was available.
         """
         registry = er.async_get(self.hass)
-        current_ids: set[str] = set()
+        previous_ids = set(self.store.card_notification_ids())
+        configured_ids = {
+            f"smart_shading_card_{self.entry.entry_id}_{room['id']}"
+            for room in self.config.get(CONF_ROOMS, [])
+        }
+        successful_ids = previous_ids & configured_ids
         missing_entities = 0
         german = (getattr(self.hass.config, "language", "en") or "en").lower().startswith("de")
 
         for room in self.config.get(CONF_ROOMS, []):
             room_id = room["id"]
             notification_id = f"smart_shading_card_{self.entry.entry_id}_{room_id}"
-            current_ids.add(notification_id)
+            if notification_id in previous_ids:
+                continue
             unique_id = f"{self.entry.entry_id}_{room_id}_status"
             entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
             if entity_id is None:
@@ -432,8 +499,8 @@ class SmartShadingEngine:
             if german:
                 title = f"Smart Shading – Dashboard-Karte für {room['name']}"
                 message = (
-                    "Der Raum wurde erstellt oder geändert. Der folgende Code ist "
-                    "bereits auf die aktuelle Raumkonfiguration abgestimmt.\n\n"
+                    "Der Raum wurde erstellt. Der folgende Code fügt seine "
+                    "Smart-Shading-Karte zum Dashboard hinzu.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
                     "```\n\n"
@@ -446,8 +513,8 @@ class SmartShadingEngine:
             else:
                 title = f"Smart Shading – Dashboard card for {room['name']}"
                 message = (
-                    "The room was created or changed. The following code matches "
-                    "the current room configuration.\n\n"
+                    "The room was created. The following code adds its Smart "
+                    "Shading card to a dashboard.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
                     "```\n\n"
@@ -468,11 +535,12 @@ class SmartShadingEngine:
                     },
                     blocking=True,
                 )
+                successful_ids.add(notification_id)
             except Exception:
+                missing_entities += 1
                 _LOGGER.exception("Could not create Smart Shading card notification")
 
-        previous_ids = set(self.store.card_notification_ids())
-        for stale_id in previous_ids - current_ids:
+        for stale_id in previous_ids - configured_ids:
             try:
                 await self.hass.services.async_call(
                     "persistent_notification",
@@ -482,7 +550,7 @@ class SmartShadingEngine:
                 )
             except Exception:
                 _LOGGER.exception("Could not dismiss stale Smart Shading notification")
-        await self.store.async_set_card_notification_ids(sorted(current_ids))
+        await self.store.async_set_card_notification_ids(sorted(successful_ids))
         return missing_entities == 0
 
     def async_stop(self) -> None:
@@ -518,8 +586,8 @@ class SmartShadingEngine:
     async def _async_state_changed(self, event) -> None:
         entity_id = event.data.get("entity_id")
         if not self.advanced_mode:
-            if entity_id == self.config.get(CONF_SUN_ENTITY, "sun.sun"):
-                await self.async_evaluate_all(f"easy_sun_state:{entity_id}")
+            if entity_id in self._easy_reactive_entities():
+                await self.async_evaluate_all(f"easy_input_state:{entity_id}")
             return
         old_state = event.data.get("old_state")
         new_state = event.data.get("new_state")
@@ -551,9 +619,8 @@ class SmartShadingEngine:
                     )
             return
 
-        lock_match = self._find_cover_by_lock(entity_id)
-        if lock_match:
-            room, cover = lock_match
+        lock_groups = self._find_cover_groups_by_lock(entity_id)
+        if lock_groups:
             old_value = getattr(old_state, "state", None)
             new_value = getattr(new_state, "state", None)
             owned_change = self._owned_lock_changes.get(entity_id)
@@ -573,9 +640,31 @@ class SmartShadingEngine:
             elif old_value == new_value:
                 return
             if new_value == STATE_ON:
-                await self._activate_cover_pause(room, cover, "manual_lock_entity", set_lock=False)
+                for room, covers in lock_groups:
+                    await self._activate_cover_pause(
+                        room,
+                        covers[0],
+                        "manual_lock_entity",
+                        set_lock=False,
+                    )
             elif new_value == STATE_OFF:
-                await self._clear_cover_pause(room, cover, unlock=False, evaluate=True)
+                changed = False
+                for room, covers in lock_groups:
+                    if any(
+                        bool(
+                            (pause := self.cover_pauses.get(self._cover_id(cover)))
+                            and pause.active
+                        )
+                        for cover in covers
+                    ):
+                        changed = True
+                    await self._clear_cover_pause(
+                        room, covers[0], unlock=False, evaluate=False
+                    )
+                if changed:
+                    await self.async_evaluate_all(
+                        f"manual_group_released:{entity_id}"
+                    )
             return
 
         if self._is_critical_entity(entity_id):
@@ -633,12 +722,97 @@ class SmartShadingEngine:
     def _find_cover_by_lock(self, entity_id: str):
         return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("lock") == entity_id), None)
 
+    def _find_cover_groups_by_lock(
+        self, entity_id: str
+    ) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
+        """Return every room-local group using exactly this Manual entity."""
+        entity_id = str(entity_id or "").strip()
+        if not entity_id:
+            return []
+        groups: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+        for room in self.config.get(CONF_ROOMS, []):
+            covers = [
+                cover
+                for candidate_room, _sector, _layer, cover in self._iter_covers()
+                if str(candidate_room.get("id")) == str(room.get("id"))
+                and str(cover.get("lock") or "").strip() == entity_id
+            ]
+            if covers:
+                groups.append((room, covers))
+        return groups
+
+    def _manual_group_members(
+        self, room: dict[str, Any], cover: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Resolve one exact Manual entity to all covers in the same room."""
+        lock = str(cover.get("lock") or "").strip()
+        if not lock:
+            return [cover]
+        room_id = str(room.get("id"))
+        for candidate_room, covers in self._find_cover_groups_by_lock(lock):
+            if str(candidate_room.get("id")) == room_id:
+                return covers
+        return [cover]
+
+    def manual_override_groups(self, room_id: str) -> list[dict[str, Any]]:
+        """Expose normalized room-local Manual groups for diagnostics and UI."""
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for room, _sector, _layer, cover in self._iter_covers():
+            if str(room.get("id")) != str(room_id):
+                continue
+            lock = str(cover.get("lock") or "").strip()
+            if lock:
+                grouped.setdefault(lock, []).append(cover)
+        return [
+            {
+                "entity_id": entity_id,
+                "covers": [str(cover.get("entity") or "") for cover in covers],
+                "cover_ids": [self._cover_id(cover) for cover in covers],
+                "size": len(covers),
+            }
+            for entity_id, covers in sorted(grouped.items())
+        ]
+
     def _find_sector_by_lux(self, entity_id: str):
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
                 if sector.get("lux_sensor") == entity_id:
                     return sector
         return None
+
+    def _find_sectors_by_source(self, entity_id: str) -> list[dict[str, Any]]:
+        """Return every sector using an Easy Mode confirmation source.
+
+        A single facade sensor is commonly shared by multiple sectors.  The
+        state listener therefore must never stop after the first match.
+        """
+        return [
+            sector
+            for room in self.config.get(CONF_ROOMS, [])
+            for sector in room.get("sectors", [])
+            if entity_id
+            and entity_id
+            in {
+                sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
+                sector.get("lux_sensor", ""),
+            }
+        ]
+
+    def _easy_reactive_entities(self) -> set[str]:
+        result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
+        weather_entity = self.config.get(CONF_WEATHER_ENTITY, "")
+        if weather_entity:
+            result.add(weather_entity)
+        for room in self.config.get(CONF_ROOMS, []):
+            if room.get(CONF_EASY_TEMPERATURE_GATE) and room.get(
+                "outdoor_temperature"
+            ):
+                result.add(room["outdoor_temperature"])
+            for sector in room.get("sectors", []):
+                for key in (CONF_SUN_PRESENCE_ENTITY, "lux_sensor"):
+                    if sector.get(key):
+                        result.add(sector[key])
+        return {entity_id for entity_id in result if entity_id}
 
     def _find_room_for_sector(self, sector_id: str):
         return next(
@@ -756,68 +930,108 @@ class SmartShadingEngine:
         set_lock: bool = True,
         notify: bool = True,
     ) -> None:
-        cover_id = self._cover_id(cover)
-        pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
-            cover_id, cover.get("entity", ""), room["id"]
-        )
         now = dt_util.now()
-        already_active = bool(
-            pause.active and (pause.until is None or pause.until > now)
+        members = self._manual_group_members(room, cover)
+        active_pause = next(
+            (
+                pause
+                for member in members
+                if (
+                    (pause := self.cover_pauses.get(self._cover_id(member)))
+                    and pause.active
+                    and (pause.until is None or pause.until > now)
+                )
+            ),
+            None,
         )
-        if not already_active:
-            pause.active = True
-            pause.until = self._pause_until_from_sun(
+        shared_until = (
+            active_pause.until
+            if active_pause is not None
+            else self._pause_until_from_sun(
                 room["id"], PAUSE_NEXT_SUNRISE, now
             ) or (now + timedelta(hours=12))
-            pause.reason = reason
-            pause.started_at = now
-            pause.lock_owned = False
-
-        lock = cover.get("lock", "")
-        if set_lock and lock and not _is_on(self.hass, lock):
+        )
+        lock = str(cover.get("lock") or "").strip()
+        wrote_lock = bool(set_lock and lock and not _is_on(self.hass, lock))
+        if wrote_lock:
             self._owned_lock_changes[lock] = (STATE_ON, now)
             await _async_set_boolean_entity(self.hass, lock, True)
-            pause.lock_owned = True
 
-        self.cover_pauses[cover_id] = pause
-        await self._save_cover_pause(pause)
-        if pause.until:
-            self._schedule_cover_pause_timer(cover_id, pause.until)
-        if not already_active:
+        started: list[str] = []
+        for member in members:
+            cover_id = self._cover_id(member)
+            pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
+                cover_id, member.get("entity", ""), room["id"]
+            )
+            already_active = bool(
+                pause.active and (pause.until is None or pause.until > now)
+            )
+            if not already_active:
+                pause.active = True
+                pause.until = shared_until
+                pause.reason = reason
+                pause.started_at = now
+                pause.lock_owned = wrote_lock
+                pause.pause_mode = PAUSE_NEXT_SUNRISE
+                started.append(str(member.get("entity") or cover_id))
+            self.cover_pauses[cover_id] = pause
+            await self._save_cover_pause(pause)
+            if pause.until:
+                self._schedule_cover_pause_timer(cover_id, pause.until)
+
+        if started:
             self._diag(
-                "cover_pause_started",
+                "manual_override_group_started",
                 room_id=room["id"],
-                cover=cover.get("name", cover.get("entity")),
-                until=pause.until.isoformat() if pause.until else None,
+                manual_entity=lock or None,
+                covers=started,
+                until=shared_until.isoformat() if shared_until else None,
                 reason=reason,
             )
         if notify:
             self._notify()
 
     async def _clear_cover_pause(self, room: dict[str, Any], cover: dict[str, Any], *, unlock: bool, evaluate: bool) -> None:
-        cover_id = self._cover_id(cover)
-        pause = self.cover_pauses.get(cover_id)
-        if not pause or not pause.active:
-            if evaluate:
-                await self.async_evaluate_all(f"cover_pause_clear:{cover_id}")
+        members = self._manual_group_members(room, cover)
+        cleared: list[str] = []
+        for member in members:
+            cover_id = self._cover_id(member)
+            pause = self.cover_pauses.get(cover_id)
+            if not pause or not pause.active:
+                continue
+            pause.active = False
+            pause.until = None
+            pause.reason = ""
+            pause.lock_owned = False
+            pause.pause_mode = PAUSE_AUTO
+            pause.waiting_for_night = False
+            timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
+            if timer:
+                timer()
+            await self._save_cover_pause(pause)
+            cleared.append(str(member.get("entity") or cover_id))
+
+        # A shared group owns several independently scheduled callbacks.  A
+        # sibling callback may already be queued when the first one cancels its
+        # timer.  Once another callback has cleared the group, the stale one
+        # must not write the Manual entity or trigger another evaluation.
+        if not cleared:
             return
-        pause.active = False
-        pause.until = None
-        pause.reason = ""
-        pause.lock_owned = False
-        pause.pause_mode = PAUSE_AUTO
-        pause.waiting_for_night = False
-        timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
-        if timer:
-            timer()
-        lock = cover.get("lock", "")
+
+        lock = str(cover.get("lock") or "").strip()
         if unlock and lock:
             self._owned_lock_changes[lock] = (STATE_OFF, dt_util.now())
             await _async_set_boolean_entity(self.hass, lock, False)
-        await self._save_cover_pause(pause)
-        self._diag("cover_pause_ended", room_id=room["id"], cover=cover.get("name", cover.get("entity")))
+        self._diag(
+            "manual_override_group_ended",
+            room_id=room["id"],
+            manual_entity=lock or None,
+            covers=cleared,
+        )
         if evaluate:
-            await self.async_evaluate_all(f"cover_pause_ended:{cover_id}")
+            await self.async_evaluate_all(
+                f"manual_group_released:{lock or self._cover_id(cover)}"
+            )
         else:
             self._notify()
 
@@ -847,17 +1061,40 @@ class SmartShadingEngine:
         if not self.advanced_mode:
             return
         now = dt_util.now()
+        processed_groups: set[tuple[str, str]] = set()
         for room, _sector, _layer, cover in self._iter_covers():
-            pause = self.cover_pauses.get(self._cover_id(cover))
-            lock = cover.get("lock", "")
-            if pause and pause.active and pause.until and pause.until <= now:
+            lock = str(cover.get("lock") or "").strip()
+            group_key = (
+                str(room.get("id")),
+                lock or f"cover:{self._cover_id(cover)}",
+            )
+            if group_key in processed_groups:
+                continue
+            processed_groups.add(group_key)
+
+            members = self._manual_group_members(room, cover)
+            pauses = [
+                self.cover_pauses.get(self._cover_id(member))
+                for member in members
+            ]
+            active_pauses = [pause for pause in pauses if pause and pause.active]
+
+            # A Manual entity is one room-local lifecycle.  Clear an expired
+            # persisted group exactly once.  The OFF service is intentionally
+            # asynchronous, so processing sibling covers again could otherwise
+            # observe the stale ON state and recreate the pause immediately.
+            if any(
+                pause.until is not None and pause.until <= now
+                for pause in active_pauses
+            ):
                 await self._clear_cover_pause(
-                    room, cover, unlock=True, evaluate=False
+                    room, cover, unlock=bool(lock), evaluate=False
                 )
                 continue
+
             lock_state = self.hass.states.get(lock) if lock else None
             if lock_state and lock_state.state == STATE_ON:
-                if not pause or not pause.active:
+                if len(active_pauses) != len(members):
                     await self._activate_cover_pause(
                         room,
                         cover,
@@ -865,7 +1102,7 @@ class SmartShadingEngine:
                         set_lock=False,
                         notify=False,
                     )
-            elif lock_state and lock_state.state == STATE_OFF and pause and pause.active:
+            elif lock_state and lock_state.state == STATE_OFF and active_pauses:
                 # The user removed the external lock while Home Assistant was
                 # offline; treat that as an early manual resume. Unknown or
                 # unavailable locks never clear a persisted pause.
@@ -886,16 +1123,10 @@ class SmartShadingEngine:
 
     def referenced_entities(self) -> set[str]:
         result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
+        if not self.advanced_mode:
+            result.update(self._easy_reactive_entities())
+            return {entity for entity in result if entity}
         for room in self.config.get(CONF_ROOMS, []):
-            if not self.advanced_mode:
-                for sector in room.get("sectors", []):
-                    for layer in sector.get("layers", []):
-                        result.update(
-                            cover["entity"]
-                            for cover in layer.get("covers", [])
-                            if cover.get("entity")
-                        )
-                continue
             for key in (
                 "indoor_temperature",
                 "outdoor_temperature",
@@ -950,6 +1181,13 @@ class SmartShadingEngine:
             runtime.status_reason = reason
             runtime.mode = mode
             runtime.shading_active = active
+            # Easy Mode uses this field as its complete shading decision.
+            # Advanced Mode assigns it from the real per-sector sun result
+            # later in the evaluation.  Keeping that value here prevents a
+            # room-wide Safety or Heat mode from falsely lighting every sun
+            # sector in the card.
+            if not self.advanced_mode:
+                runtime.effective_active = active
 
     @property
     def diagnostic_level(self) -> str:
@@ -1069,8 +1307,8 @@ class SmartShadingEngine:
             }
 
         disabled_in_easy = [
-            "schedule", "sun_presence", "temperature", "weather", "safety",
-            "pause", "heat", "night", "external_movement_detection",
+            "schedule", "advanced_temperature_profiles", "advanced_weather_logic",
+            "safety", "pause", "heat", "night", "external_movement_detection",
             "per_cover_manual_entities", "diagnostics",
         ]
         shared_manual_entities: dict[str, list[str]] = {}
@@ -1149,6 +1387,15 @@ class SmartShadingEngine:
                     "night_morning_handover_pending": (
                         runtime.night_morning_handover_pending
                     ),
+                    "easy_confirmation_state": runtime.easy_confirmation_state,
+                    "easy_source_summary": runtime.easy_source_summary,
+                    "easy_temperature_gate": {
+                        "enabled": runtime.easy_temperature_gate_enabled,
+                        "source_entity": runtime.easy_temperature_source,
+                        "value": runtime.easy_temperature_value,
+                        "threshold": runtime.easy_temperature_threshold,
+                        "passed": runtime.easy_temperature_passed,
+                    },
                 }
                 for key, runtime in selected_rooms.items()
             },
@@ -1164,6 +1411,10 @@ class SmartShadingEngine:
                     "reason": runtime.reason,
                     "status": runtime.status,
                     "geometry_active": runtime.geometry_active,
+                    "confirmation_source": runtime.confirmation_source,
+                    "confirmation_entity": runtime.confirmation_entity,
+                    "confirmation_state": runtime.confirmation_state,
+                    "effective_active": runtime.effective_active,
                 }
                 for key, runtime in self.sun_runtime.items()
                 if key in selected_sector_ids
@@ -1517,8 +1768,6 @@ class SmartShadingEngine:
         await self.store.async_set_day_key(key)
 
     async def _update_all_sun_presence(self, now: datetime) -> None:
-        if not self.advanced_mode:
-            return
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
                 if sector.get("lux_sensor"):
@@ -1612,7 +1861,13 @@ class SmartShadingEngine:
             except KeyError:
                 return
             await self._update_sun_presence(sector, dt_util.now())
-            self._notify()
+            if self.advanced_mode:
+                # Preserve the existing Advanced Mode interval behavior.
+                self._notify()
+            else:
+                # Completing a delayed Lux transition changes the effective
+                # Easy decision. Reevaluate now so covers move with the UI.
+                await self.async_evaluate_all(f"sun_presence_timer:{sector_id}")
 
         self._sun_timer_unsubs[sector_id] = async_call_later(
             self.hass, seconds, timer_callback
@@ -1627,6 +1882,86 @@ class SmartShadingEngine:
         if not sector.get("lux_sensor"):
             return True
         return self.sun_runtime[sector["id"]].is_on
+
+    def _easy_weather_confirmation(self) -> tuple[bool | None, str | None]:
+        """Return a conservative weather confirmation for Easy Mode."""
+        entity_id = str(self.config.get(CONF_WEATHER_ENTITY, "") or "")
+        state = self.hass.states.get(entity_id) if entity_id else None
+        value = str(getattr(state, "state", "") or "").lower()
+        if value in _EASY_CLEAR_WEATHER_STATES:
+            return True, entity_id
+        if value in _EASY_BAD_WEATHER_STATES:
+            return False, entity_id
+        return None, entity_id or None
+
+    def _easy_sector_confirmation(
+        self, sector: dict[str, Any]
+    ) -> tuple[bool | None, str, str | None]:
+        """Resolve the optional Easy Mode Sun confirmation by priority.
+
+        Explicit binary confirmation wins over Lux.  Invalid/unavailable
+        values fall through to the next source and eventually to weather.
+        Weather states that are not unambiguously good or bad deliberately
+        return ``None`` so geometry remains sufficient.
+        """
+        binary_entity = str(
+            sector.get(CONF_SUN_PRESENCE_ENTITY, "") or ""
+        )
+        if binary_entity:
+            state = self.hass.states.get(binary_entity)
+            value = str(getattr(state, "state", "") or "").lower()
+            if value == STATE_ON:
+                return True, "binary", binary_entity
+            if value == STATE_OFF:
+                return False, "binary", binary_entity
+
+        lux_entity = str(sector.get("lux_sensor", "") or "")
+        runtime = self.sun_runtime[sector["id"]]
+        if lux_entity and runtime.current_lux is not None:
+            return runtime.is_on, "lux", lux_entity
+
+        weather_value, weather_entity = self._easy_weather_confirmation()
+        if weather_value is not None:
+            return weather_value, "weather", weather_entity
+        return None, "geometry", None
+
+    def _easy_temperature_gate(
+        self, room: dict[str, Any]
+    ) -> tuple[bool, str | None, float | None, float | None]:
+        """Return Easy Mode's optional outdoor-temperature decision.
+
+        Missing values fail open, preserving the base geometry controller.
+        """
+        if not bool(room.get(CONF_EASY_TEMPERATURE_GATE, False)):
+            return True, None, None, None
+
+        threshold = parse_numeric_value(
+            self.room_value(
+                room["id"], "outdoor_minimum", room.get("outdoor_minimum", 18.0)
+            )
+        )
+        if threshold is None:
+            threshold = 18.0
+        source_entity = str(room.get("outdoor_temperature", "") or "")
+        value = (
+            _temperature_state_celsius(self.hass, source_entity)
+            if source_entity
+            else None
+        )
+
+        weather_entity = str(self.config.get(CONF_WEATHER_ENTITY, "") or "")
+        if value is None and weather_entity:
+            value = _temperature_state_celsius(
+                self.hass,
+                weather_entity,
+                attribute="temperature",
+            )
+            if value is not None:
+                source_entity = weather_entity
+
+        if value is None:
+            return True, None, None, threshold
+        return value >= threshold, source_entity, value, threshold
 
     def _weather_pass(self, room: dict[str, Any]) -> tuple[bool, list[str]]:
         tests: list[tuple[str, bool]] = []
@@ -1955,6 +2290,7 @@ class SmartShadingEngine:
             if sector_runtime:
                 sector_runtime.geometry_active = False
                 sector_runtime.shading_active = False
+                sector_runtime.effective_active = False
                 sector_runtime.mode = MODE_IDLE
                 sector_runtime.status = "not_evaluated"
                 sector_runtime.status_reason = "Evaluation started"
@@ -2209,6 +2545,13 @@ class SmartShadingEngine:
             )
             sector_runtime.geometry_active = geometry
             sun_pass = self._sector_sun_pass(sector)
+            lux_sensor = str(sector.get("lux_sensor") or "")
+            sector_runtime.confirmation_source = "lux" if lux_sensor else "geometry"
+            sector_runtime.confirmation_entity = lux_sensor or None
+            sector_runtime.confirmation_state = (
+                bool(sector_runtime.is_on) if lux_sensor else None
+            )
+            sector_runtime.effective_active = bool(geometry and sun_pass)
             if not sun_up:
                 sector_runtime.status = "sun_below_horizon"
                 sector_runtime.status_reason = "Sun below horizon"
@@ -2441,7 +2784,12 @@ class SmartShadingEngine:
     async def _evaluate_easy_room(
         self, room: dict[str, Any], runtime: RoomRuntime, now: datetime
     ) -> None:
-        """Easy Mode uses only sun geometry and the room Manual Override."""
+        """Evaluate the compact geometry-first Easy Mode controller.
+
+        Geometry is always mandatory.  Binary Sun Presence, Lux and weather
+        are optional confirmation layers in that order.  The optional outdoor
+        temperature gate fails open when no usable temperature is available.
+        """
         runtime.schedule_active = True
         runtime.schedule_reason = "Easy Mode has no schedule"
         runtime.next_schedule_change = None
@@ -2449,9 +2797,28 @@ class SmartShadingEngine:
         runtime.pause_until = None
         runtime.heat_active = False
         runtime.finished_today = False
+        runtime.shading_active = False
         runtime.night_active = False
         runtime.night_blocked = False
         runtime.night_reason = "Night Mode is unavailable in Easy Mode"
+        runtime.easy_confirmation_state = "inactive"
+        runtime.easy_source_summary = "Sun geometry"
+
+        temperature_pass, temperature_source, temperature_value, temperature_threshold = (
+            self._easy_temperature_gate(room)
+        )
+        runtime.easy_temperature_gate_enabled = bool(
+            room.get(CONF_EASY_TEMPERATURE_GATE, False)
+        )
+        runtime.easy_temperature_source = temperature_source
+        runtime.easy_temperature_value = temperature_value
+        runtime.easy_temperature_threshold = temperature_threshold
+        runtime.easy_temperature_passed = (
+            temperature_pass
+            if runtime.easy_temperature_gate_enabled
+            and temperature_value is not None
+            else None
+        )
 
         if not runtime.enabled:
             runtime.mode = MODE_DISABLED
@@ -2488,28 +2855,90 @@ class SmartShadingEngine:
 
         sun_up = sun_state.state == "above_horizon"
         active_count = 0
+        geometry_count = 0
+        confirmations: list[bool | None] = []
+        source_labels: set[str] = set()
+        source_label_map = {
+            "binary": "Binary sensor",
+            "lux": "Lux sensor",
+            "weather": "Weather",
+            "geometry": "Sun geometry",
+        }
         for sector in room.get("sectors", []):
+            sector_runtime = self.sun_runtime[sector["id"]]
+            if not bool(self.sector_value(sector["id"], "enabled", True)):
+                sector_runtime.geometry_active = False
+                sector_runtime.shading_active = False
+                sector_runtime.effective_active = False
+                sector_runtime.confirmation_source = "geometry"
+                sector_runtime.confirmation_entity = None
+                sector_runtime.confirmation_state = None
+                sector_runtime.mode = MODE_DISABLED
+                sector_runtime.status = "disabled"
+                sector_runtime.status_reason = "Sector disabled"
+                continue
+
             start = float(sector.get("azimuth_start", 0))
             end = float(sector.get("azimuth_end", 359))
             minimum = float(sector.get("elevation_min", 0))
-            active = bool(
+            geometry = bool(
                 sun_up
                 and azimuth_inside(azimuth, start, end)
                 and elevation >= minimum
             )
-            sector_runtime = self.sun_runtime[sector["id"]]
-            sector_runtime.geometry_active = active
-            sector_runtime.shading_active = active
-            sector_runtime.is_on = active
-            sector_runtime.mode = MODE_SOLAR if active else MODE_OPEN
-            sector_runtime.status = (
-                "sun_detected" if active else
-                "sun_below_horizon" if not sun_up else
-                "outside_sun_sector"
+            confirmation, source, source_entity = self._easy_sector_confirmation(
+                sector
             )
-            sector_runtime.status_reason = (
-                "Sun is inside this facade sector"
-                if active else "Sun is outside this facade sector"
+            confirmed = confirmation is not False
+            active = bool(geometry and confirmed and temperature_pass)
+
+            sector_runtime.geometry_active = geometry
+            sector_runtime.shading_active = active
+            sector_runtime.effective_active = active
+            sector_runtime.confirmation_source = source
+            sector_runtime.confirmation_entity = source_entity
+            sector_runtime.confirmation_state = confirmation
+            sector_runtime.mode = MODE_SOLAR if active else MODE_OPEN
+            source_labels.add(source_label_map[source])
+            if geometry:
+                geometry_count += 1
+                confirmations.append(confirmation)
+
+            if not sun_up:
+                sector_runtime.status = "sun_below_horizon"
+                sector_runtime.status_reason = "Sun is below the horizon"
+            elif not geometry:
+                sector_runtime.status = "outside_sun_sector"
+                sector_runtime.status_reason = "Sun is outside this facade sector"
+            elif confirmation is False:
+                sector_runtime.status = "sun_not_confirmed"
+                sector_runtime.status_reason = (
+                    f"{source_label_map[source]} does not confirm direct sun"
+                )
+            elif not temperature_pass:
+                sector_runtime.status = "temperature_blocked"
+                sector_runtime.status_reason = (
+                    "Outdoor temperature is below the Easy Mode threshold"
+                )
+            else:
+                sector_runtime.status = "sun_detected"
+                sector_runtime.status_reason = (
+                    "Sun is confirmed inside this facade sector"
+                    if confirmation is True
+                    else "Sun geometry is active; optional confirmation is unavailable"
+                )
+
+            self._diag(
+                "easy_sector_inputs",
+                full=True,
+                room_id=room["id"],
+                sector_id=sector["id"],
+                geometry_active=geometry,
+                confirmation_source=source,
+                confirmation_entity=source_entity,
+                confirmation_state=confirmation,
+                temperature_gate_passed=temperature_pass,
+                effective_active=active,
             )
             if active:
                 active_count += 1
@@ -2521,11 +2950,31 @@ class SmartShadingEngine:
                 sector_runtime.status_reason,
             )
 
-        runtime.mode = MODE_SOLAR if active_count else MODE_OPEN
-        runtime.reason = (
-            "Sun is inside a configured facade sector"
-            if active_count else "Sun is outside all configured facade sectors"
+        if not geometry_count:
+            runtime.easy_confirmation_state = "inactive"
+        elif confirmations and all(value is None for value in confirmations):
+            runtime.easy_confirmation_state = "geometry_fallback"
+        elif confirmations and all(value is True for value in confirmations):
+            runtime.easy_confirmation_state = "confirmed"
+        elif confirmations and all(value is False for value in confirmations):
+            runtime.easy_confirmation_state = "blocked"
+        else:
+            runtime.easy_confirmation_state = "mixed"
+        runtime.easy_source_summary = (
+            next(iter(source_labels))
+            if len(source_labels) == 1
+            else "Mixed" if source_labels else "Sun geometry"
         )
+        runtime.mode = MODE_SOLAR if active_count else MODE_OPEN
+        runtime.shading_active = bool(active_count)
+        if active_count:
+            runtime.reason = "Sun is active in a configured facade sector"
+        elif geometry_count and not temperature_pass:
+            runtime.reason = "Outdoor temperature gate blocks Easy Mode shading"
+        elif geometry_count:
+            runtime.reason = "Optional Sun confirmation blocks Easy Mode shading"
+        else:
+            runtime.reason = "Sun is outside all configured facade sectors"
         await self._save_room_runtime(runtime)
 
     async def _apply_room_mode(
@@ -2678,6 +3127,14 @@ class SmartShadingEngine:
         current_tilt = (
             state.attributes.get("current_tilt_position") if state else None
         )
+        displayed_position = (
+            100.0 - target_position
+            if cover.get("invert_position", False)
+            else target_position
+        )
+        displayed_tilt = target_tilt
+        if target_tilt is not None and cover.get("invert_tilt", False):
+            displayed_tilt = 100.0 - target_tilt
         suppressions: list[str] = []
 
         pause_info = self.cover_pause_info(cover) if self.advanced_mode else {
@@ -2699,19 +3156,12 @@ class SmartShadingEngine:
             if policy == WINDOW_POLICY_BLOCK_ALL:
                 suppressions.append("unsafe_window")
             elif policy == WINDOW_POLICY_BLOCK_CLOSING:
-                if current_position is None or target_position < float(
+                # Compare in Home Assistant command/feedback space.  The
+                # logical integration target may be inverted per cover.
+                if current_position is None or displayed_position < float(
                     current_position
                 ):
                     suppressions.append("unsafe_window_closing_blocked")
-
-        displayed_position = (
-            100.0 - target_position
-            if cover.get("invert_position", False)
-            else target_position
-        )
-        displayed_tilt = target_tilt
-        if target_tilt is not None and cover.get("invert_tilt", False):
-            displayed_tilt = 100.0 - target_tilt
 
         target_record = {
             "entity_id": entity_id,

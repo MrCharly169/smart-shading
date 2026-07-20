@@ -13,6 +13,8 @@ from .const import (
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
+    CONF_SUN_PRESENCE_ENTITY,
+    CONF_WEATHER_ENTITY,
     CONF_ROOMS,
     CONF_TEST_MODE,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
@@ -41,6 +43,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     result.setdefault(CONF_ADVANCED_MODE, False)
     result.setdefault(CONF_DIAGNOSTIC_LEVEL, "events" if result.get(CONF_TEST_MODE, False) else "off")
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
+    result.setdefault(CONF_WEATHER_ENTITY, "")
     # An obsolete pre-V4 curve after conversion to the KNX slat scale.
     old_curve = [(10.0, 10.0), (20.0, 50.0), (40.0, 85.0), (60.0, 90.0)]
 
@@ -54,6 +57,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
 
         for sector in room.get("sectors", []):
             sector.setdefault("enabled", True)
+            sector.setdefault(CONF_SUN_PRESENCE_ENTITY, "")
             preset = str(sector.get("sun_preset", "medium"))
             if preset in SUN_PRESETS:
                 sector.update(deepcopy(SUN_PRESETS[preset]))
@@ -106,7 +110,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 12:
+    if entry.version >= 13:
         return True
     if entry.version < 10:
         data = _normalize_config(migrate_slat_config(dict(entry.data)))
@@ -137,7 +141,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, advanced)
             ) if advanced else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=12
+        entry, data=data, options=options, version=13
     )
     return True
 
@@ -151,7 +155,6 @@ async def async_setup_entry(
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await engine.async_start()
     return True
-
 
 async def async_unload_entry(
     hass: HomeAssistant, entry: SmartShadingConfigEntry

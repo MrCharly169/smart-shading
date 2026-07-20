@@ -25,9 +25,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 12", flow)
-        self.assertIn("if entry.version >= 12", migration)
-        self.assertIn("version=12", migration)
+        self.assertIn("VERSION = 13", flow)
+        self.assertIn("if entry.version >= 13", migration)
+        self.assertIn("version=13", migration)
         self.assertIn("if entry.version < 10", migration)
         self.assertIn("migrate_slat_config", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
@@ -112,13 +112,18 @@ class PackageTests(unittest.TestCase):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("async def _evaluate_easy_room", engine)
-        self.assertIn("Easy Mode uses only sun geometry", engine)
+        self.assertIn("Geometry is always mandatory", engine)
+        self.assertIn("Binary Sun Presence, Lux and weather", engine)
         self.assertIn("attrs.smart_shading_advanced_mode === true", card)
         self.assertNotIn("_roomSelector(roomState)", card)
         self.assertNotIn('data-toggle="advanced_mode"', card)
         self.assertIn('step_id="room_setup"', flow)
         self.assertIn('step_id="room_settings"', flow)
-        self.assertIn('f"room_{room[\'id\']}"', flow)
+        self.assertIn('"async_step_manage_"', flow)
+        self.assertIn('"manage_room"', flow)
+        self.assertIn('"manage_sector"', flow)
+        self.assertIn('"manage_layer"', flow)
+        self.assertIn('"manage_cover"', flow)
         self.assertIn("DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False", (COMP / "const.py").read_text(encoding="utf-8"))
 
     def test_full_diagnostics_logs_routine_suppressions_only_in_full_mode(self):
@@ -171,6 +176,118 @@ class PackageTests(unittest.TestCase):
                 advanced = steps["room_advanced_setup"]["data"]
                 self.assertIn("normal_shading_temperature", advanced)
 
+    def test_english_and_german_translation_structures_match(self):
+        translations = {}
+        for language in ("de", "en"):
+            path = COMP / "translations" / f"{language}.json"
+            duplicates = []
+
+            def reject_duplicates(pairs):
+                result = {}
+                for key, value in pairs:
+                    if key in result:
+                        duplicates.append(key)
+                    result[key] = value
+                return result
+
+            translations[language] = json.loads(
+                path.read_text(encoding="utf-8"),
+                object_pairs_hook=reject_duplicates,
+            )
+            self.assertFalse(duplicates, (language, duplicates))
+
+        def key_paths(value, prefix=()):
+            paths = set()
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    path = (*prefix, key)
+                    paths.add(path)
+                    paths.update(key_paths(child, path))
+            return paths
+
+        self.assertEqual(
+            key_paths(translations["en"]),
+            key_paths(translations["de"]),
+        )
+
+    def test_primary_setup_fields_have_customer_help_in_both_languages(self):
+        required = {
+            ("config", "room_setup", "room_and_covers"): {
+                "name", "direction", "group_name", "profile", "cover_entities"
+            },
+            ("config", "room_setup", "advanced_conditions"): {
+                "indoor_temperature", "outdoor_temperature", "outdoor_minimum",
+                "safety_blockers", "schedule_profile", "default_pause_mode",
+                "heat_during_pause", "external_movement_detection",
+            },
+            ("options", "add_room", "room_and_covers"): {
+                "name", "direction", "group_name", "profile", "cover_entities"
+            },
+            ("options", "add_room", "advanced_conditions"): {
+                "indoor_temperature", "outdoor_temperature", "outdoor_minimum",
+                "safety_blockers", "external_movement_detection",
+            },
+        }
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for (section, step, group), fields in required.items():
+                help_text = data[section]["step"][step]["sections"][group][
+                    "data_description"
+                ]
+                self.assertTrue(fields.issubset(help_text), (language, step, group))
+            for section in ("config", "options"):
+                help_text = data[section]["step"]["global_settings"][
+                    "data_description"
+                ]
+                self.assertIn("sun_entity", help_text)
+                self.assertIn("unknown_feedback_policy", help_text)
+
+    def test_final_two_level_setup_has_safe_optional_entities(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        room_settings = flow[flow.index("async def async_step_room_settings"):]
+        self.assertIn('vol.Required("room_and_covers"): section(', flow)
+        self.assertIn('vol.Required("sun_control"): section(', flow)
+        self.assertIn("CONF_SUN_PRESENCE_ENTITY", flow)
+        self.assertIn("CONF_WEATHER_ENTITY", flow)
+        self.assertIn("CONF_EASY_TEMPERATURE_GATE", flow)
+        self.assertIn("_optional_marker", room_settings)
+        self.assertNotIn("sector.update(self._direction_defaults(direction))", room_settings)
+        self.assertLess(
+            room_settings.index("original_covers = list"),
+            room_settings.index('selected = list(user_input.get('),
+        )
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            room_setup = data["config"]["step"]["room_setup"]
+            add_room = data["options"]["step"]["add_room"]
+            for step in (room_setup, add_room):
+                self.assertEqual(
+                    set(step["sections"]),
+                    {
+                        "room_and_covers",
+                        "sun_control",
+                        "optional_improvements",
+                        "advanced_conditions",
+                    },
+                )
+                sun_data = step["sections"]["sun_control"]["data"]
+                self.assertIn("lux_sensor", sun_data)
+                self.assertIn("sun_presence_entity", sun_data)
+            self.assertIn(
+                "choose_one_sun_confirmation", data["config"]["error"]
+            )
+            self.assertIn(
+                "choose_one_sun_confirmation", data["options"]["error"]
+            )
+
     def test_translation_placeholders_are_intentional(self):
         allowed = {"current", "count", "entity_name"}
         pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
@@ -182,7 +299,7 @@ class PackageTests(unittest.TestCase):
     def test_customer_text_is_generic(self):
         paths = [
             COMP / "translations" / "de.json", COMP / "translations" / "en.json",
-            ROOT / "README_DE.md", ROOT / "INSTALL_CHECKLIST_DE.md",
+            ROOT / "README.md", ROOT / "docs" / "FAQ.md",
         ]
         text = "\n".join(path.read_text(encoding="utf-8") for path in paths).lower()
         for banned in ("terrace door", "terrassentür", "terrasse doors", "haus2", "livingarea"):
@@ -208,10 +325,49 @@ class PackageTests(unittest.TestCase):
         self.assertIn("position:fixed;inset:0", card)
         self.assertIn("aria-modal=\"true\"", card)
         self.assertIn("const existingDialog", card)
-        self.assertIn("if (existingDialog && main) main.innerHTML = mainHtml", card)
+        self.assertIn("const contentChanged = !existingDialog || this._mainHtml !== mainHtml", card)
+        self.assertIn("if (contentChanged)", card)
+        self.assertIn("this._contentWriteCount += 1", card)
+        self.assertIn("disconnectedCallback()", card)
         self.assertIn("overscroll-behavior:contain", card)
         self.assertIn("dataset.renderCount", card)
         self.assertNotIn("<details", card)
+
+    def test_options_editor_routes_every_item_directly_from_main_menu(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        options = flow[flow.index("class SmartShadingOptionsFlow"):]
+        self.assertIn("def _add_option_route", options)
+        for action in (
+            "manage_room", "add_sector_flat", "manage_sector",
+            "add_layer_flat", "manage_layer", "add_covers_flat",
+            "manage_cover",
+        ):
+            self.assertIn(f'"{action}"', options)
+            self.assertIn(f"async_step_{action}", options)
+        self.assertIn('return self.async_show_menu(step_id="init"', options)
+
+    def test_new_options_forms_are_fully_translated_in_en_and_de(self):
+        required = {
+            "manage_room", "add_sector_flat", "manage_sector",
+            "add_layer_flat", "manage_layer", "add_covers_flat",
+            "manage_cover",
+        }
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            steps = data["options"]["step"]
+            self.assertTrue(required.issubset(steps), language)
+            for step in required:
+                self.assertTrue(steps[step].get("title"), (language, step))
+            for error in (
+                "cannot_delete_last_sector",
+                "cannot_delete_last_layer",
+                "cannot_delete_last_cover",
+            ):
+                self.assertIn(error, data["options"]["error"])
 
     def test_card_editor_initializes_config_and_emits_changes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
@@ -343,8 +499,9 @@ class PackageTests(unittest.TestCase):
     def test_card_icons_use_centered_fixed_boxes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn('.round{width:36px;height:36px', card)
-        self.assertIn('display:grid;place-items:center;line-height:0', card)
-        self.assertIn('.icon-box>ha-icon{display:block', card)
+        self.assertIn('display:grid;place-items:center;align-content:center;justify-content:center', card)
+        self.assertIn('.icon-box>ha-icon{display:grid;place-items:center', card)
+        self.assertIn('button[data-close]{display:grid;place-items:center', card)
         for token in ("--icon-size:12px", "--icon-size:14px", "--icon-size:15px", "--icon-size:16px"):
             self.assertIn(token, card)
 
@@ -352,6 +509,22 @@ class PackageTests(unittest.TestCase):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
         self.assertIn('domain === "button" ? "press" : domain === "switch" ? "toggle"', card)
         self.assertNotIn('callService("button", "press", { entity_id: entityId })', card)
+
+    def test_easy_mode_exposes_no_evaluate_buttons(self):
+        button = (COMP / "button.py").read_text(encoding="utf-8")
+        easy_branch = button[button.index("if not engine.advanced_mode:"):]
+        easy_branch = easy_branch[:easy_branch.index("entities = [EvaluateHouseButton")]
+        self.assertIn("async_add_entities([])", easy_branch)
+        self.assertNotIn("EvaluateRoomButton", easy_branch)
+
+    def test_options_changes_reload_runtime_and_platform_entities(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        setup = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload)",
+            flow,
+        )
+        self.assertNotIn("entry.add_update_listener(_async_reload_entry)", setup)
 
     def test_local_pause_variable_is_defined_before_use(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")

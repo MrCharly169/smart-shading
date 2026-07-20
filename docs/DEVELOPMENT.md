@@ -45,20 +45,44 @@ Do not remove a regression test merely to make a change pass.
 
 ## Releases
 
-### Beta channel
+Release preparation and publication are separate maintainer gates. Do not edit
+the manifest version, move changelog sections, create tags, or publish releases
+manually.
 
-1. Merge tested feature and fix PRs into `develop`.
-2. Move completed changelog entries into `## X.Y.Z-beta.N`.
-3. Set the manifest to the same `X.Y.Z-beta.N` version.
-4. Merge that release preparation into `develop`.
-5. Run the Release workflow on `develop`, choose `beta`, and confirm the exact version.
+### Prepare a release
 
-### Stable channel
+1. Merge each reviewed feature or fix into `develop` and keep
+   `CHANGELOG.md → Unreleased` current.
+2. Run **Actions → Prepare Release → Run workflow** from the default branch.
+3. Choose `beta` with an `X.Y.Z-beta.N` version or `stable` with an `X.Y.Z`
+   version. Do not include a leading `v`.
+4. Review the generated draft pull request, including its version, changelog,
+   documentation, migration impact, and validation checks.
+5. Mark the pull request ready and merge it only after review.
 
-1. Promote the tested state from `develop` to `main` through a PR.
-2. Prepare a stable `## X.Y.Z` changelog section and matching manifest version.
-3. Run the Release workflow on `main`, choose `stable`, and confirm the exact version.
+For beta releases, preparation branches from `develop` and targets `develop`.
+For stable releases, preparation starts from `main`, integrates the tested
+`develop` state, and targets `main`. Unexpected promotion conflicts abort the
+workflow before it pushes a release branch.
 
-The workflow enforces channel-specific branches and SemVer formats, rejects existing tags, runs all validation, creates the tag, builds the recovery ZIP, and publishes either a GitHub prerelease or latest stable release. Release tags are immutable and must not be created manually.
+The preparation workflow validates the version and channel, rejects existing
+tags or release branches, and runs the full test and package suite. Its release
+metadata commit changes only the manifest and changelog; a stable pull request
+also contains the tested `develop` promotion described above. It then opens a
+reviewable draft pull request and never merges or publishes.
+
+### Publish a reviewed release
+
+After the preparation pull request is merged, run
+**Actions → Release → Run workflow** on the merged target branch:
+
+- Beta: branch `develop`, channel `beta`, exact beta manifest version.
+- Stable: branch `main`, channel `stable`, exact stable manifest version.
+
+The publication workflow repeats validation, creates the immutable tag, builds
+the recovery ZIP, and publishes either a GitHub prerelease or the latest stable
+release. The release body comes directly from the matching changelog section.
+After a stable publication, synchronize `main` back into `develop` before the
+next development cycle.
 
 HACS uses only published releases because `hide_default_branch` is enabled. Beta testers opt into prereleases; production installations stay on stable releases. The repository must remain publicly readable even while it is used only as a custom, non-catalogued HACS repository.

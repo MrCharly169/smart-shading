@@ -93,6 +93,52 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_external_cover_movement_pauses_shared_manual_group(self):
+        covers = self.engine.config["rooms"][0]["sectors"][0]["layers"][0][
+            "covers"
+        ]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "switch.cover_lock",
+            }
+        )
+        self.hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        self.engine._rebuild_runtime()
+        self.hass.services.calls.clear()
+
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("closing", current_position=70, current_tilt_position=100)
+        third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, second))
+        await self.engine._async_state_changed(FakeEvent("cover.one", second, third))
+        await self.engine._async_state_changed(FakeEvent("cover.one", third, settled))
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertTrue(self.engine.cover_pauses["cover_two"].active)
+        self.assertEqual(
+            self.engine.cover_pauses["cover_one"].until,
+            self.engine.cover_pauses["cover_two"].until,
+        )
+        self.assertEqual(
+            len(
+                [
+                    call
+                    for call in self.hass.services.calls
+                    if call[0:2] == ("switch", "turn_on")
+                    and call[2].get("entity_id") == "switch.cover_lock"
+                ]
+            ),
+            1,
+        )
+
     async def test_external_lock_remains_immediate_and_authoritative(self):
         await self.engine._async_state_changed(
             FakeEvent("switch.cover_lock", FakeState("off"), FakeState("on"))
@@ -529,6 +575,49 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(first_external.manual)
         self.assertFalse(confirmed_external.manual)
         self.assertTrue(stable_external.manual)
+
+    async def test_target_reach_grace_is_not_revived_by_late_feedback(self):
+        now = datetime.now(timezone.utc)
+        self.engine._begin_own_command_session(
+            "cover.one", "tilt", 35.0, now
+        )
+        room = self.engine.config["rooms"][0]
+
+        reached = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=50),
+            FakeState("open", current_position=100, current_tilt_position=35),
+            now + timedelta(seconds=10),
+        )
+        delayed_knx = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=35),
+            FakeState("open", current_position=100, current_tilt_position=50),
+            now + timedelta(seconds=20),
+        )
+        physical_after_grace = self.engine._classify_confirmed_cover_change(
+            room,
+            "cover.one",
+            FakeState("open", current_position=100, current_tilt_position=50),
+            FakeState("open", current_position=100, current_tilt_position=70),
+            now + timedelta(seconds=41),
+        )
+
+        self.assertTrue(reached.expected)
+        self.assertTrue(delayed_knx.expected)
+        self.assertEqual(delayed_knx.reason, "active_own_command_session")
+        self.assertFalse(physical_after_grace.expected)
+        self.assertEqual(
+            physical_after_grace.reason, "possible_external_movement"
+        )
+        self.assertEqual(
+            self.engine.cover_motion["cover.one"].phase,
+            "possible_external",
+        )
+        self.assertNotIn("cover.one", self.engine.own_command_sessions)
+        self.engine.async_stop()
 
     async def test_own_session_exists_before_cover_service_dispatch(self):
         room = self.engine.config["rooms"][0]

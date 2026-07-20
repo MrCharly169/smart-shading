@@ -5,10 +5,14 @@
   "config_flow": true,
   "integration_type": "hub",
   "iot_class": "calculated",
+  "documentation": "https://github.com/MrCharly169/smart-shading",
+  "issue_tracker": "https://github.com/MrCharly169/smart-shading/issues",
   "dependencies": [
     "http",
     "persistent_notification"
   ],
   "requirements": [],
-  "codeowners": []
+  "codeowners": [
+    "@MrCharly169"
+  ]
 }

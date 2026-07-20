@@ -111,9 +111,17 @@ class FakeServices:
     def __init__(self, states):
         self.calls = []
         self.states = states
+        self.fail_notification_creates = 0
 
     async def async_call(self, domain, service, data, blocking=False):
         self.calls.append((domain, service, dict(data), blocking))
+        if (
+            domain == "persistent_notification"
+            and service == "create"
+            and self.fail_notification_creates > 0
+        ):
+            self.fail_notification_creates -= 1
+            raise RuntimeError("simulated notification create failure")
         entity_id = data.get("entity_id")
         if domain in {"switch", "input_boolean"} and entity_id:
             if service == "turn_on":
@@ -144,6 +152,14 @@ class FakeEntry:
 class FakeEvent:
     def __init__(self, entity_id, old_state, new_state):
         self.data = {"entity_id": entity_id, "old_state": old_state, "new_state": new_state}
+
+
+class FakeEntityRegistry:
+    def __init__(self, entries=None):
+        self.entries = entries or {}
+
+    def async_get_entity_id(self, platform, domain, unique_id):
+        return self.entries.get((platform, domain, unique_id))
 
 
 def base_config():
@@ -221,10 +237,132 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(base_config()))
         await self.engine.async_initialize()
 
+    async def _sync_card_notifications(self, registry):
+        original_async_get = engine_mod.er.async_get
+        engine_mod.er.async_get = lambda hass: registry
+        try:
+            return await self.engine.async_sync_card_notifications()
+        finally:
+            engine_mod.er.async_get = original_async_get
+
+    def _notification_calls(self, service):
+        return [
+            call
+            for call in self.hass.services.calls
+            if call[0:2] == ("persistent_notification", service)
+        ]
+
+    async def test_card_notification_is_created_once_for_a_new_room(self):
+        registry = FakeEntityRegistry({
+            ("sensor", "smart_shading", "entry_room_status"): "sensor.room_status"
+        })
+
+        self.assertTrue(await self._sync_card_notifications(registry))
+
+        creates = self._notification_calls("create")
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(
+            creates[0][2]["notification_id"], "smart_shading_card_entry_room"
+        )
+        self.assertIn("entity: sensor.room_status", creates[0][2]["message"])
+        self.assertEqual(
+            self.engine.store.card_notification_ids(),
+            ["smart_shading_card_entry_room"],
+        )
+
+        # Reloading or editing a room with the same stable room id must not
+        # recreate the onboarding notification.
+        self.engine.entry.data["rooms"][0]["name"] = "Renamed room"
+        self.engine.reload_config()
+        self.assertTrue(await self._sync_card_notifications(registry))
+        self.assertEqual(len(self._notification_calls("create")), 1)
+
+    async def test_card_notification_adds_only_the_second_new_room(self):
+        registry = FakeEntityRegistry({
+            ("sensor", "smart_shading", "entry_room_status"): "sensor.room_status",
+            ("sensor", "smart_shading", "entry_room_two_status"): "sensor.room_two_status",
+        })
+        self.assertTrue(await self._sync_card_notifications(registry))
+        self.hass.services.calls.clear()
+
+        second_room = deepcopy(self.engine.entry.data["rooms"][0])
+        second_room.update({"id": "room_two", "name": "Room two"})
+        self.engine.entry.data["rooms"].append(second_room)
+        self.engine.reload_config()
+
+        self.assertTrue(await self._sync_card_notifications(registry))
+
+        creates = self._notification_calls("create")
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(
+            creates[0][2]["notification_id"], "smart_shading_card_entry_room_two"
+        )
+        self.assertEqual(
+            self.engine.store.card_notification_ids(),
+            [
+                "smart_shading_card_entry_room",
+                "smart_shading_card_entry_room_two",
+            ],
+        )
+
+    async def test_card_notification_missing_entity_remains_retryable(self):
+        registry = FakeEntityRegistry()
+
+        self.assertFalse(await self._sync_card_notifications(registry))
+        self.assertEqual(self._notification_calls("create"), [])
+        self.assertEqual(self.engine.store.card_notification_ids(), [])
+
+        registry.entries[
+            ("sensor", "smart_shading", "entry_room_status")
+        ] = "sensor.room_status"
+        self.assertTrue(await self._sync_card_notifications(registry))
+        self.assertEqual(len(self._notification_calls("create")), 1)
+        self.assertEqual(
+            self.engine.store.card_notification_ids(),
+            ["smart_shading_card_entry_room"],
+        )
+
+    async def test_card_notification_create_failure_remains_retryable(self):
+        registry = FakeEntityRegistry({
+            ("sensor", "smart_shading", "entry_room_status"): "sensor.room_status"
+        })
+        self.hass.services.fail_notification_creates = 1
+
+        with self.assertLogs(engine_mod._LOGGER, level="ERROR"):
+            self.assertFalse(await self._sync_card_notifications(registry))
+        self.assertEqual(self.engine.store.card_notification_ids(), [])
+
+        self.assertTrue(await self._sync_card_notifications(registry))
+        self.assertEqual(len(self._notification_calls("create")), 2)
+        self.assertEqual(
+            self.engine.store.card_notification_ids(),
+            ["smart_shading_card_entry_room"],
+        )
+
+    async def test_card_notification_for_deleted_room_is_dismissed(self):
+        registry = FakeEntityRegistry({
+            ("sensor", "smart_shading", "entry_room_status"): "sensor.room_status"
+        })
+        self.assertTrue(await self._sync_card_notifications(registry))
+        self.hass.services.calls.clear()
+
+        self.engine.entry.data["rooms"] = []
+        self.engine.reload_config()
+
+        self.assertTrue(await self._sync_card_notifications(registry))
+        dismisses = self._notification_calls("dismiss")
+        self.assertEqual(len(dismisses), 1)
+        self.assertEqual(
+            dismisses[0][2],
+            {"notification_id": "smart_shading_card_entry_room"},
+        )
+        self.assertEqual(self.engine.store.card_notification_ids(), [])
+
     async def test_easy_mode_uses_only_sun_geometry_and_manual_override(self):
         config = base_config()
         config["advanced_mode"] = False
         room = config["rooms"][0]
+        room["sectors"][0]["lux_sensor"] = ""
         room.update({
             "indoor_temperature": "sensor.indoor",
             "safety_blockers": ["binary_sensor.wind"],
@@ -250,10 +388,316 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(engine.rooms["room"].pause_mode, "auto")
         self.assertFalse(engine.rooms["room"].night_active)
         self.assertFalse(engine.rooms["room"].heat_active)
-        self.assertEqual(engine.referenced_entities(), {"sun.sun", "cover.one"})
+        self.assertEqual(engine.referenced_entities(), {"sun.sun"})
 
         await engine.async_set_room_enabled("room", False)
         self.assertEqual(engine.rooms["room"].mode, "disabled")
+
+    async def test_advanced_sector_metadata_tracks_real_sun_not_room_wide_modes(self):
+        config = base_config()
+        room = config["rooms"][0]
+        sector = room["sectors"][0]
+        sector["lux_sensor"] = ""
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        await engine._evaluate_room(room, noon)
+
+        runtime = engine.sun_runtime["south"]
+        self.assertTrue(runtime.geometry_active)
+        self.assertTrue(runtime.effective_active)
+        self.assertTrue(runtime.shading_active)
+        self.assertEqual(runtime.confirmation_source, "geometry")
+        self.assertIsNone(runtime.confirmation_state)
+
+        room["safety_blockers"] = ["binary_sensor.wind"]
+        self.hass.states.values["binary_sensor.wind"] = FakeState("on")
+        await engine._evaluate_room(room, noon)
+
+        self.assertEqual(engine.rooms["room"].mode, "safety")
+        self.assertEqual(runtime.status, "safety")
+        self.assertFalse(runtime.effective_active)
+
+    async def test_advanced_lux_source_is_exposed_to_the_card(self):
+        config = base_config()
+        sector = config["rooms"][0]["sectors"][0]
+        sector.update({
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 0,
+            "sun_off_delay": 0,
+        })
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        await engine._update_sun_presence(sector, noon)
+        await engine._evaluate_room(config["rooms"][0], noon)
+
+        runtime = engine.sun_runtime["south"]
+        self.assertEqual(runtime.confirmation_source, "lux")
+        self.assertEqual(runtime.confirmation_entity, "sensor.lux")
+        self.assertTrue(runtime.confirmation_state)
+        self.assertTrue(runtime.effective_active)
+
+    async def test_easy_binary_confirmation_has_priority_over_lux(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        sector = config["rooms"][0]["sectors"][0]
+        sector.update({
+            "sun_presence_entity": "binary_sensor.facade_sun",
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 0,
+            "sun_off_delay": 0,
+        })
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState("off")
+        self.hass.states.values["sensor.lux"] = FakeState("50000")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_binary_off")
+        runtime = engine.sun_runtime["south"]
+        self.assertTrue(runtime.is_on)
+        self.assertEqual(runtime.confirmation_source, "binary")
+        self.assertFalse(runtime.confirmation_state)
+        self.assertFalse(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "open")
+
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState("on")
+        await engine.async_evaluate_all("easy_binary_on")
+        self.assertTrue(runtime.confirmation_state)
+        self.assertTrue(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+
+    async def test_easy_unavailable_binary_falls_back_to_lux(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        sector = config["rooms"][0]["sectors"][0]
+        sector.update({
+            "sun_presence_entity": "binary_sensor.facade_sun",
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 0,
+            "sun_off_delay": 0,
+        })
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState(
+            "unavailable"
+        )
+        self.hass.states.values["sensor.lux"] = FakeState("50000")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_lux_fallback")
+        runtime = engine.sun_runtime["south"]
+        self.assertEqual(runtime.confirmation_source, "lux")
+        self.assertTrue(runtime.confirmation_state)
+        self.assertTrue(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+
+    async def test_easy_weather_fallback_is_conservative(self):
+        config = base_config()
+        config.update({"advanced_mode": False, "weather_entity": "weather.home"})
+        config["rooms"][0]["sectors"][0]["lux_sensor"] = ""
+        self.hass.states.values["weather.home"] = FakeState("sunny")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_weather_sunny")
+        runtime = engine.sun_runtime["south"]
+        self.assertEqual(runtime.confirmation_source, "weather")
+        self.assertTrue(runtime.confirmation_state)
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+
+        self.hass.states.values["weather.home"] = FakeState("rainy")
+        await engine.async_evaluate_all("easy_weather_rainy")
+        self.assertFalse(runtime.confirmation_state)
+        self.assertEqual(engine.rooms["room"].mode, "open")
+
+        self.hass.states.values["weather.home"] = FakeState("partlycloudy")
+        await engine.async_evaluate_all("easy_weather_ambiguous")
+        self.assertEqual(runtime.confirmation_source, "geometry")
+        self.assertIsNone(runtime.confirmation_state)
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+
+    async def test_easy_temperature_gate_uses_sensor_then_weather_and_fails_open(self):
+        config = base_config()
+        config.update({"advanced_mode": False, "weather_entity": "weather.home"})
+        room = config["rooms"][0]
+        room.update({
+            "easy_temperature_gate": True,
+            "outdoor_temperature": "sensor.outdoor",
+            "outdoor_minimum": 18.0,
+        })
+        room["sectors"][0]["lux_sensor"] = ""
+        self.hass.states.values["sensor.outdoor"] = FakeState("12")
+        self.hass.states.values["weather.home"] = FakeState(
+            "partlycloudy", temperature=24
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_temperature_low")
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.mode, "open")
+        self.assertFalse(runtime.easy_temperature_passed)
+        self.assertEqual(runtime.easy_temperature_source, "sensor.outdoor")
+
+        self.hass.states.values["sensor.outdoor"] = FakeState("22")
+        await engine.async_evaluate_all("easy_temperature_high")
+        self.assertEqual(runtime.mode, "solar")
+        self.assertTrue(runtime.easy_temperature_passed)
+
+        self.hass.states.values["sensor.outdoor"] = FakeState("unavailable")
+        self.hass.states.values["weather.home"] = FakeState(
+            "partlycloudy", temperature=10
+        )
+        await engine.async_evaluate_all("easy_temperature_weather")
+        self.assertEqual(runtime.mode, "open")
+        self.assertEqual(runtime.easy_temperature_source, "weather.home")
+
+        self.hass.states.values["weather.home"] = FakeState("unavailable")
+        await engine.async_evaluate_all("easy_temperature_unavailable")
+        self.assertEqual(runtime.mode, "solar")
+        self.assertIsNone(runtime.easy_temperature_passed)
+
+    async def test_easy_temperature_gate_normalizes_fahrenheit_to_celsius(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        room = config["rooms"][0]
+        room.update({
+            "easy_temperature_gate": True,
+            "outdoor_temperature": "sensor.outdoor",
+            "outdoor_minimum": 18.0,
+        })
+        room["sectors"][0]["lux_sensor"] = ""
+        self.hass.states.values["sensor.outdoor"] = FakeState(
+            "64", unit_of_measurement="°F"
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_temperature_fahrenheit")
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.mode, "open")
+        self.assertAlmostEqual(runtime.easy_temperature_value, 17.7778, places=3)
+        self.assertFalse(runtime.easy_temperature_passed)
+
+    async def test_easy_temperature_gate_ignores_stale_unavailable_weather_value(self):
+        config = base_config()
+        config.update({"advanced_mode": False, "weather_entity": "weather.home"})
+        room = config["rooms"][0]
+        room.update({
+            "easy_temperature_gate": True,
+            "outdoor_temperature": "",
+            "outdoor_minimum": 18.0,
+        })
+        room["sectors"][0]["lux_sensor"] = ""
+        self.hass.states.values["weather.home"] = FakeState(
+            "unavailable", temperature=30, temperature_unit="°C"
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("easy_temperature_stale_weather")
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.mode, "solar")
+        self.assertIsNone(runtime.easy_temperature_source)
+        self.assertIsNone(runtime.easy_temperature_value)
+        self.assertIsNone(runtime.easy_temperature_passed)
+
+    async def test_easy_shared_source_updates_every_sector(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        room = config["rooms"][0]
+        south = room["sectors"][0]
+        south.update({
+            "sun_presence_entity": "binary_sensor.facade_sun",
+            "lux_sensor": "",
+        })
+        east = deepcopy(south)
+        east.update({"id": "east", "name": "East", "short": "E", "layers": []})
+        room["sectors"].append(east)
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState("on")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        self.assertEqual(
+            len(engine._find_sectors_by_source("binary_sensor.facade_sun")), 2
+        )
+        await engine.async_evaluate_all("easy_shared_on")
+        self.assertTrue(engine.sun_runtime["south"].confirmation_state)
+        self.assertTrue(engine.sun_runtime["east"].confirmation_state)
+
+        old_state = self.hass.states.values["binary_sensor.facade_sun"]
+        new_state = FakeState("off")
+        self.hass.states.values["binary_sensor.facade_sun"] = new_state
+        await engine._async_state_changed(
+            FakeEvent("binary_sensor.facade_sun", old_state, new_state)
+        )
+        self.assertFalse(engine.sun_runtime["south"].confirmation_state)
+        self.assertFalse(engine.sun_runtime["east"].confirmation_state)
+
+    async def test_easy_lux_delay_timer_re_evaluates_after_transition(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        sector = config["rooms"][0]["sectors"][0]
+        sector.update({
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 1,
+            "sun_off_delay": 1,
+        })
+        self.hass.states.values["sensor.lux"] = FakeState("50000")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        callbacks = []
+        original_call_later = engine_mod.async_call_later
+        original_now = engine_mod.dt_util.now
+        start = datetime(2026, 7, 20, 10, 0, tzinfo=timezone.utc)
+        engine_mod.async_call_later = (
+            lambda hass, seconds, callback: (
+                callbacks.append(callback) or (lambda: None)
+            )
+        )
+        engine_mod.dt_util.now = lambda: start
+        try:
+            await engine._update_sun_presence(sector, start)
+            self.assertTrue(callbacks)
+            evaluations = []
+
+            async def fake_evaluate(trigger):
+                evaluations.append(trigger)
+
+            engine.async_evaluate_all = fake_evaluate
+            engine_mod.dt_util.now = lambda: start + timedelta(minutes=1, seconds=1)
+            await callbacks[-1](None)
+            self.assertTrue(engine.sun_runtime["south"].is_on)
+            self.assertEqual(evaluations, ["sun_presence_timer:south"])
+        finally:
+            engine_mod.async_call_later = original_call_later
+            engine_mod.dt_util.now = original_now
+
+    async def test_easy_cover_feedback_never_starts_per_cover_pause(self):
+        config = base_config()
+        config["advanced_mode"] = False
+        config["rooms"][0]["sectors"][0]["lux_sensor"] = ""
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        old = FakeState("open", current_position=100)
+        new = FakeState("closing", current_position=70)
+
+        await engine._async_state_changed(FakeEvent("cover.one", old, new))
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(
+            any(call[0:2] == ("switch", "turn_on") for call in self.hass.services.calls)
+        )
 
 
 
@@ -441,6 +885,73 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         target = engine.rooms["room"].targets[0]
         self.assertIn("unsafe_window_closing_blocked", target["suppressed"])
 
+    async def test_unsafe_window_uses_inverted_command_space_to_block_closing(self):
+        config = base_config()
+        room = config["rooms"][0]
+        sector = room["sectors"][0]
+        layer = sector["layers"][0]
+        cover = layer["covers"][0]
+        cover.update({
+            "window": "binary_sensor.window",
+            "window_safe_state": "on",
+            "window_policy": "block_closing",
+            "invert_position": True,
+        })
+        self.hass.states.values["binary_sensor.window"] = FakeState("off")
+        self.hass.states.values["cover.one"] = FakeState(
+            "open", current_position=50, current_tilt_position=50
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        self.hass.services.calls.clear()
+        engine.rooms["room"].targets.clear()
+
+        # Logical 80% is sent as 20% by this inverted cover and is therefore
+        # a real closing movement from the current 50% feedback.
+        await engine._apply_cover(
+            room, sector, layer, cover, engine.rooms["room"],
+            "open", 80.0, None, "inverted closing",
+        )
+
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+        self.assertIn(
+            "unsafe_window_closing_blocked",
+            engine.rooms["room"].targets[-1]["suppressed"],
+        )
+
+    async def test_unsafe_window_allows_inverted_command_space_opening(self):
+        config = base_config()
+        room = config["rooms"][0]
+        sector = room["sectors"][0]
+        layer = sector["layers"][0]
+        cover = layer["covers"][0]
+        cover.update({
+            "window": "binary_sensor.window",
+            "window_safe_state": "on",
+            "window_policy": "block_closing",
+            "invert_position": True,
+        })
+        self.hass.states.values["binary_sensor.window"] = FakeState("off")
+        self.hass.states.values["cover.one"] = FakeState(
+            "open", current_position=50, current_tilt_position=50
+        )
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        self.hass.services.calls.clear()
+        engine.rooms["room"].targets.clear()
+
+        # Logical 20% is sent as 80% and safely opens in command space.
+        await engine._apply_cover(
+            room, sector, layer, cover, engine.rooms["room"],
+            "open", 20.0, None, "inverted opening",
+        )
+
+        self.assertTrue(any(
+            call[0:2] == ("cover", "set_cover_position")
+            and call[2].get("position") == 80
+            for call in self.hass.services.calls
+        ))
+
     async def test_external_cover_change_starts_local_pause_and_lock(self):
         old = FakeState("open", current_position=100, current_tilt_position=100)
         new = FakeState("closing", current_position=70, current_tilt_position=100)
@@ -480,7 +991,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             FakeEvent("switch.cover_lock", FakeState("on"), FakeState("off"))
         )
         self.assertFalse(self.engine.cover_pauses["cover_one"].active)
-        self.assertTrue(calls and calls[-1].startswith("cover_pause_ended:"))
+        self.assertEqual(
+            calls[-1], "manual_group_released:switch.cover_lock"
+        )
 
     async def test_master_on_does_not_evaluate_and_master_off_does(self):
         calls = []
@@ -581,7 +1094,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
             self.assertFalse(self.engine.cover_pauses["cover_one"].active)
             self.assertEqual(len(calls), 1)
-            self.assertTrue(calls[0].startswith("cover_pause_ended:"))
+            self.assertEqual(
+                calls[0], "manual_group_released:switch.cover_lock"
+            )
         finally:
             engine_mod.async_call_later = original
 

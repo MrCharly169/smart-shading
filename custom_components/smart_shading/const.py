@@ -23,6 +23,9 @@ CONF_TEST_MODE = "test_mode"  # legacy compatibility
 CONF_DIAGNOSTIC_LEVEL = "diagnostic_level"
 CONF_ADVANCED_MODE = "advanced_mode"
 CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
+CONF_WEATHER_ENTITY = "weather_entity"
+CONF_SUN_PRESENCE_ENTITY = "sun_presence_entity"
+CONF_EASY_TEMPERATURE_GATE = "easy_temperature_gate"
 CONF_ROOMS = "rooms"
 
 DEFAULT_EVALUATION_INTERVAL = 1200
@@ -296,6 +299,10 @@ ROOM_DEFAULTS = {
     "outdoor_temperature_name": "",
     "indoor_temperature": "",
     "outdoor_temperature": "",
+    # Easy Mode remains fully functional without these optional refinements.
+    # When enabled, the temperature gate first uses the configured outdoor
+    # sensor and may fall back to the global weather entity temperature.
+    CONF_EASY_TEMPERATURE_GATE: False,
     "irradiance_sensor": "",
     "cloud_cover_sensor": "",
     "weather_permission": "",

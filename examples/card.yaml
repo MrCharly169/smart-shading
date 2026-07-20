@@ -1,5 +1,5 @@
-# Kompakte Standardansicht. Die aktuelle Entität steht in der automatisch
-# erzeugten Home-Assistant-Benachrichtigung und im Attribut `card_yaml`.
+# Compact room card. Use the entity from the room-creation notification or the
+# room status sensor's `card_yaml` attribute.
 type: custom:smart-shading-card
 entity: sensor.replace_with_generated_room_status
 show_sun_track: true

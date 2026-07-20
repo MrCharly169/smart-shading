@@ -11,18 +11,22 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.core import callback
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
 from .const import (
     CARD_RESOURCE,
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
+    CONF_EASY_TEMPERATURE_GATE,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_HOUSE_NAME,
     CONF_ROOMS,
+    CONF_SUN_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
     CONF_TEST_MODE,
+    CONF_WEATHER_ENTITY,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
@@ -58,6 +62,7 @@ from .const import (
     SCHEDULE_CUSTOM,
     SCHEDULE_OPTIONS,
     SCHEDULE_SUMMER,
+    SCHEDULE_YEAR_ROUND,
     SUN_PRESETS,
     SUN_PRESET_OPTIONS,
     TILT_CURVE_PRESETS,
@@ -113,12 +118,39 @@ def _select(
 ):
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
-            options=options,
+            options=[str(option) for option in options],
             mode="dropdown",
             multiple=multiple,
             translation_key=translation_key,
         )
     )
+
+
+def _optional_marker(key: str, value: Any = None) -> vol.Optional:
+    """Return a clearable optional marker with a frontend suggestion."""
+    if value in (None, "", []):
+        return vol.Optional(key)
+    return vol.Optional(key, description={"suggested_value": value})
+
+
+def _flatten_sections(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Flatten the one supported Home Assistant form-section level."""
+    flattened: dict[str, Any] = {}
+    for key, value in user_input.items():
+        if isinstance(value, dict):
+            flattened.update(value)
+        else:
+            flattened[key] = value
+    return flattened
+
+
+def _nonempty_suggestions(values: dict[str, Any]) -> dict[str, Any]:
+    """Remove empty entity suggestions that the frontend cannot resolve."""
+    return {
+        key: value
+        for key, value in values.items()
+        if value not in (None, "", [])
+    }
 
 
 def _temperature_entity():
@@ -293,15 +325,7 @@ class _SmartShadingWizardMixin:
         return {option: labels.get(option, option.replace("_", " ").title()) for option in options}
 
     def _choice(self, options: list[str], key: str, *, multiple: bool = False):
-        labels = SELECT_LABELS_DE if self._is_german() else SELECT_LABELS_EN
-        key_labels = labels.get(key, {})
-        rendered = [
-            {"value": str(option), "label": key_labels.get(str(option), str(option).replace("_", " ").title())}
-            for option in options
-        ]
-        return selector.SelectSelector(
-            selector.SelectSelectorConfig(options=rendered, mode="dropdown", multiple=multiple)
-        )
+        return _select(options, key, multiple=multiple)
 
     def _friendly_name(self, entity_id: str, fallback: str) -> str:
         state = self.hass.states.get(entity_id)
@@ -454,6 +478,13 @@ class _SmartShadingWizardMixin:
     ) -> ConfigFlowResult:
         if user_input is not None:
             values = dict(user_input)
+            # Weather is an Easy Mode refinement.  It remains stored while
+            # Advanced Mode is selected, but only an Easy form may change or
+            # clear it.
+            if not self.advanced_mode:
+                self._working[CONF_WEATHER_ENTITY] = values.pop(
+                    CONF_WEATHER_ENTITY, ""
+                )
             if "evaluation_interval_minutes" in values:
                 interval_minutes = float(values.pop("evaluation_interval_minutes"))
                 values[CONF_EVALUATION_INTERVAL] = max(60, int(interval_minutes * 60))
@@ -465,6 +496,8 @@ class _SmartShadingWizardMixin:
         fields: dict[Any, Any] = {
             vol.Required(CONF_ADVANCED_MODE): selector.BooleanSelector(),
         }
+        if not self.advanced_mode:
+            fields[vol.Optional(CONF_WEATHER_ENTITY)] = _entity("weather")
         if self.advanced_mode:
             fields.update(
                 {
@@ -489,7 +522,9 @@ class _SmartShadingWizardMixin:
         ))
         return self.async_show_form(
             step_id="global_settings",
-            data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), suggested),
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(fields), _nonempty_suggestions(suggested)
+            ),
             description_placeholders={"card_resource": CARD_RESOURCE},
         )
 
@@ -598,7 +633,7 @@ class _SmartShadingWizardMixin:
     ) -> ConfigFlowResult:
         room = self.room()
         errors: dict[str, str] = {}
-        if user_input is not None:
+        if user_input is not None and not self.advanced_mode:
             comfort = float(user_input["comfort_temperature"])
             solar = float(user_input["solar_temperature"])
             heat = float(user_input["heat_temperature"])
@@ -1806,7 +1841,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 12
+    VERSION = 13
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -1865,9 +1900,14 @@ class SmartShadingConfigFlow(
         """Create the first room in one page, keeping setup two levels deep."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input = _flatten_sections(user_input)
             entities = list(user_input.get("cover_entities", []))
             if not entities:
-                errors["cover_entities"] = "select_at_least_one"
+                errors["base"] = "select_at_least_one"
+            elif not self.advanced_mode and user_input.get("lux_sensor") and user_input.get(
+                CONF_SUN_PRESENCE_ENTITY
+            ):
+                errors["base"] = "choose_one_sun_confirmation"
             else:
                 if self.advanced_mode:
                     diagnostic_level = str(
@@ -1883,12 +1923,22 @@ class SmartShadingConfigFlow(
                 sector = self._direction_defaults(direction)
                 sector["id"] = _new_id(sector["name"])
                 sector["direction"] = direction
-                if self.advanced_mode:
-                    sector["lux_sensor"] = user_input.get("lux_sensor", "")
-                    sector["sun_preset"] = user_input.get("sun_preset", PRESET_MEDIUM)
-                else:
-                    sector["lux_sensor"] = ""
-                    sector["sun_preset"] = PRESET_MEDIUM
+                sector["lux_sensor"] = user_input.get("lux_sensor", "")
+                sector[CONF_SUN_PRESENCE_ENTITY] = (
+                    user_input.get(CONF_SUN_PRESENCE_ENTITY, "")
+                    if not self.advanced_mode
+                    else ""
+                )
+                sector["sun_preset"] = user_input.get(
+                    "sun_preset", PRESET_MEDIUM
+                )
+                if self.advanced_mode and direction == DIRECTION_CUSTOM:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                        sector[key] = float(user_input[key])
+                if not self.advanced_mode:
+                    self._working[CONF_WEATHER_ENTITY] = user_input.get(
+                        CONF_WEATHER_ENTITY, ""
+                    )
 
                 profile = str(user_input.get("profile", DEVICE_VENETIAN))
                 group_name = str(
@@ -1919,6 +1969,15 @@ class SmartShadingConfigFlow(
                 room["id"] = _new_id(str(user_input["name"]))
                 room["name"] = str(user_input["name"])
                 room["sectors"] = [sector]
+                room["outdoor_temperature"] = user_input.get(
+                    "outdoor_temperature", ""
+                )
+                room["outdoor_minimum"] = float(
+                    user_input.get("outdoor_minimum", 18.0)
+                )
+                room[CONF_EASY_TEMPERATURE_GATE] = bool(
+                    user_input.get(CONF_EASY_TEMPERATURE_GATE, False)
+                ) if not self.advanced_mode else False
                 room[CONF_EXTERNAL_MOVEMENT_DETECTION] = bool(
                     user_input.get(
                         CONF_EXTERNAL_MOVEMENT_DETECTION,
@@ -1928,9 +1987,8 @@ class SmartShadingConfigFlow(
                 if self.advanced_mode:
                     room.update({
                         "indoor_temperature": user_input.get("indoor_temperature", ""),
-                        "outdoor_temperature": user_input.get("outdoor_temperature", ""),
                         "safety_blockers": list(user_input.get("safety_blockers", [])),
-                        "schedule_profile": user_input.get("schedule_profile", "summer"),
+                        "schedule_profile": user_input.get("schedule_profile", SCHEDULE_YEAR_ROUND),
                         "default_pause_mode": user_input.get("default_pause_mode", PAUSE_NEXT_SUNRISE),
                         "heat_during_pause": bool(user_input.get("heat_during_pause", False)),
                     })
@@ -1944,10 +2002,13 @@ class SmartShadingConfigFlow(
                     title=self._working[CONF_HOUSE_NAME], data=self._working
                 )
 
-        fields: dict[Any, Any] = {
+        room_fields: dict[Any, Any] = {
             vol.Required("name"): selector.TextSelector(),
             vol.Required("direction", default="south"): self._choice(
-                DIRECTION_OPTIONS, "direction_preset"
+                DIRECTION_OPTIONS
+                if self.advanced_mode
+                else [item for item in DIRECTION_OPTIONS if item != DIRECTION_CUSTOM],
+                "direction_preset",
             ),
             vol.Required(
                 "group_name",
@@ -1958,12 +2019,47 @@ class SmartShadingConfigFlow(
             ),
             vol.Required("cover_entities"): _entity("cover", multiple=True),
         }
+        sun_fields: dict[Any, Any] = {
+            vol.Optional("lux_sensor"): _entity("sensor"),
+            vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
+                ["low", "medium", "high"], "sun_preset"
+            ),
+        }
+        if not self.advanced_mode:
+            sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+                ["binary_sensor", "input_boolean", "switch"]
+            )
+        optional_fields: dict[Any, Any] = {
+            vol.Optional(CONF_WEATHER_ENTITY): _entity("weather"),
+            vol.Required(
+                CONF_EASY_TEMPERATURE_GATE, default=False
+            ): selector.BooleanSelector(),
+            vol.Optional("outdoor_temperature"): _temperature_entity(),
+            vol.Required("outdoor_minimum", default=18.0): _number(
+                -20, 40, 0.5, "°C"
+            ),
+        }
         if self.advanced_mode:
-            fields.update({
+            defaults = DIRECTION_PRESETS["south"]
+            sun_fields.update({
+                vol.Required(
+                    "azimuth_start", default=defaults["azimuth_start"]
+                ): _number(0, 359, 1, "°"),
+                vol.Required(
+                    "azimuth_end", default=defaults["azimuth_end"]
+                ): _number(0, 359, 1, "°"),
+                vol.Required(
+                    "elevation_min", default=defaults["elevation_min"]
+                ): _number(-10, 90, 1, "°"),
+            })
+            advanced_fields: dict[Any, Any] = {
                 vol.Optional("indoor_temperature"): _temperature_entity(),
                 vol.Optional("outdoor_temperature"): _temperature_entity(),
+                vol.Required("outdoor_minimum", default=18.0): _number(
+                    -20, 40, 0.5, "°C"
+                ),
                 vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
-                vol.Required("schedule_profile", default="summer"): self._choice(
+                vol.Required("schedule_profile", default=SCHEDULE_YEAR_ROUND): self._choice(
                     ["year_round", "summer"], "schedule_profile"
                 ),
                 vol.Required("default_pause_mode", default=PAUSE_NEXT_SUNRISE): self._choice(
@@ -1975,22 +2071,31 @@ class SmartShadingConfigFlow(
                     CONF_EXTERNAL_MOVEMENT_DETECTION,
                     default=DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
                 ): selector.BooleanSelector(),
-                vol.Optional("lux_sensor"): _entity("sensor"),
-                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
-                    ["low", "medium", "high"], "sun_preset"
-                ),
-                vol.Required("tilt_preset", default=TILT_PRESET_BALANCED): self._choice(
-                    ["glare", "balanced", "daylight"], "tilt_preset"
-                ),
                 vol.Required(CONF_DIAGNOSTIC_LEVEL, default=DIAGNOSTIC_EVENTS): self._choice(
                     DIAGNOSTIC_OPTIONS, "diagnostic_level"
                 ),
                 vol.Required("evaluation_interval_minutes", default=20): _number(
                     1, 60, 1, "min"
                 ),
-            })
+            }
+        form_fields: dict[Any, Any] = {
+            vol.Required("room_and_covers"): section(
+                vol.Schema(room_fields), {"collapsed": False}
+            ),
+            vol.Required("sun_control"): section(
+                vol.Schema(sun_fields), {"collapsed": False}
+            ),
+        }
+        if self.advanced_mode:
+            form_fields[vol.Required("advanced_conditions")] = section(
+                vol.Schema(advanced_fields), {"collapsed": True}
+            )
+        else:
+            form_fields[vol.Required("optional_improvements")] = section(
+                vol.Schema(optional_fields), {"collapsed": True}
+            )
         return self.async_show_form(
-            step_id="room_setup", data_schema=vol.Schema(fields), errors=errors
+            step_id="room_setup", data_schema=vol.Schema(form_fields), errors=errors
         )
 
     async def async_step_compact_room(
@@ -2148,7 +2253,7 @@ class SmartShadingConfigFlow(
             if duplicates:
                 errors["base"] = "cover_already_assigned"
             elif not entities:
-                errors["cover_entities"] = "select_at_least_one"
+                errors["base"] = "select_at_least_one"
             else:
                 profile = user_input.get("profile", DEVICE_VENETIAN)
                 name = str(user_input.get("name") or ("Behanggruppe" if self._is_german() else "Cover group"))
@@ -2267,19 +2372,35 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
     """Manage an existing house. Saving reloads the entry once."""
 
     def __getattr__(self, name: str):
-        """Expose every configured room directly from the main options menu."""
-        prefix = "async_step_room_"
+        """Resolve one direct main-menu route to one fixed customer form."""
+        prefix = "async_step_manage_"
         if name.startswith(prefix):
-            room_id = name[len(prefix):]
+            token = name[len(prefix):]
 
-            async def _room_step(user_input=None):
-                if not any(room.get("id") == room_id for room in self.rooms):
+            async def _managed_step(user_input=None):
+                route = getattr(self, "_option_routes", {}).get(token)
+                if route is None:
                     return self.async_abort(reason="no_rooms")
-                self._room_id = room_id
-                return await self.async_step_room_settings(user_input)
+                self._room_id = route.get("room_id")
+                self._sector_id = route.get("sector_id")
+                self._layer_id = route.get("layer_id")
+                self._cover_index = route.get("cover_index")
+                handler = getattr(self, f"async_step_{route['action']}")
+                return await handler(user_input)
 
-            return _room_step
+            return _managed_step
         raise AttributeError(name)
+
+    def _add_option_route(
+        self,
+        menu: dict[str, str],
+        label: str,
+        action: str,
+        **context: Any,
+    ) -> None:
+        token = str(len(self._option_routes))
+        self._option_routes[token] = {"action": action, **context}
+        menu[f"manage_{token}"] = label
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -2303,41 +2424,802 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._pending_cover_entities = []
             self._pending_cover_index = 0
         labels = self._menu(["add_room", "global_settings", "finish"])
-        room_prefix = "Raum" if self._is_german() else "Room"
-        menu_options: dict[str, str] = {
-            "add_room": labels["add_room"],
-            **{
-                f"room_{room['id']}": f"{room_prefix}: {room['name']}"
-                for room in self.rooms
-            },
-            "global_settings": labels["global_settings"],
-            "finish": labels["finish"],
-        }
+        menu_options: dict[str, str] = {"add_room": labels["add_room"]}
+        self._option_routes: dict[str, dict[str, Any]] = {}
+        de = self._is_german()
+        for room in self.rooms:
+            room_name = str(room.get("name") or ("Raum" if de else "Room"))
+            self._add_option_route(
+                menu_options,
+                f"{'Raum' if de else 'Room'} · {room_name} · "
+                f"{'Einstellungen' if de else 'Settings'}",
+                "manage_room",
+                room_id=room["id"],
+            )
+            self._add_option_route(
+                menu_options,
+                f"{'Raum' if de else 'Room'} · {room_name} · + "
+                f"{'Sonnensektor' if de else 'Sun sector'}",
+                "add_sector_flat",
+                room_id=room["id"],
+            )
+            for sector in room.get("sectors", []):
+                sector_name = str(
+                    sector.get("name") or ("Sonnensektor" if de else "Sun sector")
+                )
+                self._add_option_route(
+                    menu_options,
+                    f"  {'Sektor' if de else 'Sector'} · {room_name} / {sector_name}",
+                    "manage_sector",
+                    room_id=room["id"],
+                    sector_id=sector["id"],
+                )
+                self._add_option_route(
+                    menu_options,
+                    f"  {'Sektor' if de else 'Sector'} · {sector_name} · + "
+                    f"{'Behanggruppe' if de else 'Cover group'}",
+                    "add_layer_flat",
+                    room_id=room["id"],
+                    sector_id=sector["id"],
+                )
+                for layer in sector.get("layers", []):
+                    layer_name = str(
+                        layer.get("name")
+                        or ("Behanggruppe" if de else "Cover group")
+                    )
+                    self._add_option_route(
+                        menu_options,
+                        f"    {'Gruppe' if de else 'Group'} · {sector_name} / {layer_name}",
+                        "manage_layer",
+                        room_id=room["id"],
+                        sector_id=sector["id"],
+                        layer_id=layer["id"],
+                    )
+                    self._add_option_route(
+                        menu_options,
+                        f"    {'Gruppe' if de else 'Group'} · {layer_name} · + "
+                        f"{'Behänge' if de else 'Covers'}",
+                        "add_covers_flat",
+                        room_id=room["id"],
+                        sector_id=sector["id"],
+                        layer_id=layer["id"],
+                    )
+                    for cover_index, cover in enumerate(layer.get("covers", [])):
+                        cover_name = str(
+                            cover.get("name")
+                            or self._friendly_name(
+                                cover.get("entity", ""),
+                                f"{'Behang' if de else 'Cover'} {cover_index + 1}",
+                            )
+                        )
+                        self._add_option_route(
+                            menu_options,
+                            f"      {'Behang' if de else 'Cover'} · {cover_name}",
+                            "manage_cover",
+                            room_id=room["id"],
+                            sector_id=sector["id"],
+                            layer_id=layer["id"],
+                            cover_index=cover_index,
+                        )
+        menu_options["global_settings"] = labels["global_settings"]
+        menu_options["finish"] = labels["finish"]
         return self.async_show_menu(step_id="init", menu_options=menu_options)
+
+    async def async_step_manage_room(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit one room on a single, sectioned form."""
+        room = self.room()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            if values.get("delete_room", False):
+                if len(self.rooms) <= 1:
+                    errors["base"] = "cannot_delete_last_room"
+                else:
+                    self._working[CONF_ROOMS] = [
+                        item for item in self.rooms if item["id"] != room["id"]
+                    ]
+                    return await self.async_step_init()
+
+            if self.advanced_mode:
+                night_enabled = bool(
+                    values.get("night_enabled", room.get("night_enabled", False))
+                )
+                night_source = str(
+                    values.get("night_source", room.get("night_source", "entity"))
+                )
+                if (
+                    night_enabled
+                    and night_source == "entity"
+                    and not values.get("night_entity")
+                ):
+                    errors["base"] = "night_entity_required"
+                elif (
+                    not night_enabled
+                    and values.get("default_pause_mode") == PAUSE_NEXT_NIGHT_END
+                ):
+                    errors["base"] = "pause_requires_night"
+                heat = float(values.get("heat_temperature", room.get("heat_temperature", 27.0)))
+                release = float(values.get("heat_release_temperature", room.get("heat_release_temperature", 26.0)))
+                reopen = float(values.get("reopen_temperature", room.get("reopen_temperature", 22.0)))
+                if self._venetian_only(room):
+                    normal = float(values.get("normal_shading_temperature", room.get("normal_shading_temperature", 23.5)))
+                    if not reopen < normal < heat:
+                        errors["base"] = "normal_temperature_order"
+                    elif not reopen < release < heat:
+                        errors["base"] = "release_order"
+                else:
+                    comfort = float(values.get("comfort_temperature", room.get("comfort_temperature", 23.5)))
+                    solar = float(values.get("solar_temperature", room.get("solar_temperature", 25.5)))
+                    if not comfort < solar < heat:
+                        errors["base"] = "temperature_order"
+                    elif not reopen < release < heat:
+                        errors["base"] = "release_order"
+                if values.get("schedule_profile") == SCHEDULE_CUSTOM and (
+                    not values.get("active_months")
+                    or not values.get("active_weekdays")
+                ):
+                    errors["base"] = "select_at_least_one"
+
+            if not errors:
+                room["name"] = str(values.get("name") or room["name"])
+                if not self.advanced_mode:
+                    room[CONF_EXTERNAL_MOVEMENT_DETECTION] = False
+                    room[CONF_EASY_TEMPERATURE_GATE] = bool(
+                        values.get(CONF_EASY_TEMPERATURE_GATE, False)
+                    )
+                    room["outdoor_temperature"] = values.get(
+                        "outdoor_temperature", ""
+                    )
+                    room["outdoor_minimum"] = float(
+                        values.get("outdoor_minimum", room.get("outdoor_minimum", 18.0))
+                    )
+                    return await self.async_step_init()
+
+                optional_lists = {"safety_blockers"}
+                optional_entities = {
+                    "indoor_temperature", "outdoor_temperature", "night_entity",
+                    "irradiance_sensor", "cloud_cover_sensor", "weather_permission",
+                    "glare_sensor", "occupancy_sensor",
+                }
+                for key in optional_entities:
+                    room[key] = values.get(key, "")
+                for key in optional_lists:
+                    room[key] = list(values.get(key, []))
+                for key in (
+                    "outdoor_minimum", "schedule_profile", "active_months",
+                    "active_weekdays", "day_window", "start_time", "end_time",
+                    "outside_schedule_behavior", "heat_outside_schedule",
+                    "default_pause_mode", "pause_sun_offset_minutes",
+                    "pause_duration_hours", "heat_during_pause",
+                    CONF_EXTERNAL_MOVEMENT_DETECTION, "night_enabled", "night_source",
+                    "night_start_offset_minutes", "night_end_offset_minutes",
+                    "night_morning_transition_minutes", "night_evening_transition_minutes",
+                    "normal_shading_temperature", "comfort_temperature",
+                    "solar_temperature", "heat_temperature",
+                    "heat_release_temperature", "reopen_temperature",
+                    "irradiance_minimum", "cloud_cover_maximum", "weather_logic",
+                    "heat_ignores_weather", "heat_fail_safe", "heat_requires_sun",
+                    "comfort_requires_occupancy", "safety_behavior",
+                ):
+                    if key in values:
+                        room[key] = values[key]
+                if self._venetian_only(room):
+                    room["comfort_temperature"] = room["normal_shading_temperature"]
+                    room["solar_temperature"] = room["normal_shading_temperature"]
+                profile = room.get("schedule_profile", "year_round")
+                if profile == SCHEDULE_SUMMER:
+                    room["active_months"] = [5, 6, 7, 8, 9]
+                    room["active_weekdays"] = list(range(7))
+                elif profile != SCHEDULE_CUSTOM:
+                    room["active_months"] = list(range(1, 13))
+                    room["active_weekdays"] = list(range(7))
+                return await self.async_step_init()
+
+        basics: dict[Any, Any] = {
+            vol.Required("name", default=room.get("name", "")): selector.TextSelector(),
+        }
+        if self.advanced_mode:
+            basics.update({
+                _optional_marker("indoor_temperature", room.get("indoor_temperature", "")): _temperature_entity(),
+                _optional_marker("outdoor_temperature", room.get("outdoor_temperature", "")): _temperature_entity(),
+                vol.Required("outdoor_minimum", default=room.get("outdoor_minimum", 18.0)): _number(-20, 40, 0.5, "°C"),
+                _optional_marker("safety_blockers", room.get("safety_blockers", [])): _entity("binary_sensor", multiple=True),
+            })
+        else:
+            basics.update({
+                vol.Required(CONF_EASY_TEMPERATURE_GATE, default=room.get(CONF_EASY_TEMPERATURE_GATE, False)): selector.BooleanSelector(),
+                _optional_marker("outdoor_temperature", room.get("outdoor_temperature", "")): _temperature_entity(),
+                vol.Required("outdoor_minimum", default=room.get("outdoor_minimum", 18.0)): _number(-20, 40, 0.5, "°C"),
+            })
+
+        sections: dict[Any, Any] = {
+            vol.Required("room_basics"): section(vol.Schema(basics), {"collapsed": False}),
+        }
+        if self.advanced_mode:
+            pause_modes = [
+                PAUSE_NEXT_SUNRISE,
+                PAUSE_NEXT_SUNSET,
+                PAUSE_NEXT_NIGHT_END,
+                PAUSE_TIMED,
+                PAUSE_MANUAL,
+            ]
+            pause_default = str(
+                room.get("default_pause_mode", PAUSE_NEXT_SUNRISE)
+            )
+            if pause_default not in pause_modes:
+                pause_default = PAUSE_MANUAL
+            schedule = {
+                vol.Required("schedule_profile", default=room.get("schedule_profile", SCHEDULE_YEAR_ROUND)): self._choice(SCHEDULE_OPTIONS, "schedule_profile"),
+                vol.Required("active_months", default=[str(value) for value in room.get("active_months", range(1, 13))]): self._choice([str(value) for value in range(1, 13)], "months", multiple=True),
+                vol.Required("active_weekdays", default=[str(value) for value in room.get("active_weekdays", range(7))]): self._choice([str(value) for value in range(7)], "weekdays", multiple=True),
+                vol.Required("day_window", default=room.get("day_window", "sector_sun")): self._choice(DAY_WINDOW_OPTIONS, "day_window"),
+                vol.Required("start_time", default=room.get("start_time", "00:00:00")): selector.TimeSelector(),
+                vol.Required("end_time", default=room.get("end_time", "23:59:59")): selector.TimeSelector(),
+                vol.Required("outside_schedule_behavior", default=room.get("outside_schedule_behavior", OUTSIDE_OPEN)): self._choice(OUTSIDE_OPTIONS, "outside_schedule_behavior"),
+                vol.Required("heat_outside_schedule", default=room.get("heat_outside_schedule", True)): selector.BooleanSelector(),
+            }
+            pause = {
+                vol.Required("default_pause_mode", default=pause_default): self._choice(pause_modes, "pause_mode"),
+                vol.Required("pause_sun_offset_minutes", default=room.get("pause_sun_offset_minutes", -60)): _number(-120, 240, 5, "min"),
+                vol.Required("pause_duration_hours", default=room.get("pause_duration_hours", 2.0)): _number(0.5, 72, 0.5, "h"),
+                vol.Required("heat_during_pause", default=room.get("heat_during_pause", False)): selector.BooleanSelector(),
+                vol.Required(CONF_EXTERNAL_MOVEMENT_DETECTION, default=room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, DEFAULT_EXTERNAL_MOVEMENT_DETECTION)): selector.BooleanSelector(),
+            }
+            night = {
+                vol.Required("night_enabled", default=room.get("night_enabled", False)): selector.BooleanSelector(),
+                vol.Required("night_source", default=room.get("night_source", "entity")): self._choice(["entity", "sun"], "night_source"),
+                _optional_marker("night_entity", room.get("night_entity", "")): _entity(["schedule", "input_boolean", "binary_sensor", "switch"]),
+                vol.Required("night_start_offset_minutes", default=room.get("night_start_offset_minutes", 0)): _number(-240, 240, 5, "min"),
+                vol.Required("night_end_offset_minutes", default=room.get("night_end_offset_minutes", 0)): _number(-240, 240, 5, "min"),
+                vol.Required("night_morning_transition_minutes", default=room.get("night_morning_transition_minutes", 0)): _number(0, 120, 5, "min"),
+                vol.Required("night_evening_transition_minutes", default=room.get("night_evening_transition_minutes", 0)): _number(0, 120, 5, "min"),
+            }
+            temperatures: dict[Any, Any] = {
+                vol.Required("heat_temperature", default=room.get("heat_temperature", 27.0)): _number(5, 45, 0.1, "°C"),
+                vol.Required("heat_release_temperature", default=room.get("heat_release_temperature", 26.0)): _number(5, 45, 0.1, "°C"),
+                vol.Required("reopen_temperature", default=room.get("reopen_temperature", 22.0)): _number(5, 35, 0.1, "°C"),
+            }
+            if self._venetian_only(room):
+                temperatures[vol.Required("normal_shading_temperature", default=room.get("normal_shading_temperature", 23.5))] = _number(5, 40, 0.1, "°C")
+            else:
+                temperatures[vol.Required("comfort_temperature", default=room.get("comfort_temperature", 23.5))] = _number(5, 40, 0.1, "°C")
+                temperatures[vol.Required("solar_temperature", default=room.get("solar_temperature", 25.5))] = _number(5, 40, 0.1, "°C")
+            conditions = {
+                _optional_marker("irradiance_sensor", room.get("irradiance_sensor", "")): _entity("sensor"),
+                vol.Required("irradiance_minimum", default=room.get("irradiance_minimum", 150.0)): _number(0, 2000, 10, "W/m²"),
+                _optional_marker("cloud_cover_sensor", room.get("cloud_cover_sensor", "")): _entity("sensor"),
+                vol.Required("cloud_cover_maximum", default=room.get("cloud_cover_maximum", 85.0)): _number(0, 100, 1, "%"),
+                _optional_marker("weather_permission", room.get("weather_permission", "")): _entity("binary_sensor"),
+                _optional_marker("glare_sensor", room.get("glare_sensor", "")): _entity("binary_sensor"),
+                _optional_marker("occupancy_sensor", room.get("occupancy_sensor", "")): _entity("binary_sensor"),
+                vol.Required("weather_logic", default=room.get("weather_logic", "all")): self._choice(["all", "any"], "weather_logic"),
+                vol.Required("heat_ignores_weather", default=room.get("heat_ignores_weather", True)): selector.BooleanSelector(),
+                vol.Required("heat_fail_safe", default=room.get("heat_fail_safe", True)): selector.BooleanSelector(),
+                vol.Required("heat_requires_sun", default=room.get("heat_requires_sun", True)): selector.BooleanSelector(),
+                vol.Required("comfort_requires_occupancy", default=room.get("comfort_requires_occupancy", False)): selector.BooleanSelector(),
+                vol.Required("safety_behavior", default=room.get("safety_behavior", "move_safe")): self._choice(["move_safe", "block"], "safety_behavior"),
+            }
+            sections.update({
+                vol.Required("schedule_settings"): section(vol.Schema(schedule), {"collapsed": True}),
+                vol.Required("pause_settings"): section(vol.Schema(pause), {"collapsed": True}),
+                vol.Required("night_settings"): section(vol.Schema(night), {"collapsed": True}),
+                vol.Required("temperature_settings"): section(vol.Schema(temperatures), {"collapsed": True}),
+                vol.Required("condition_settings"): section(vol.Schema(conditions), {"collapsed": True}),
+            })
+        sections[vol.Required("room_maintenance")] = section(
+            vol.Schema({vol.Required("delete_room", default=False): selector.BooleanSelector()}),
+            {"collapsed": True},
+        )
+        return self.async_show_form(
+            step_id="manage_room", data_schema=vol.Schema(sections), errors=errors
+        )
+
+    async def async_step_manage_sector(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit one sun sector without navigating through submenus."""
+        sector = self.sector()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            if values.get("delete_sector", False):
+                if len(self.room().get("sectors", [])) <= 1:
+                    errors["base"] = "cannot_delete_last_sector"
+                else:
+                    self.room()["sectors"] = [
+                        item for item in self.room().get("sectors", [])
+                        if item["id"] != sector["id"]
+                    ]
+                    return await self.async_step_init()
+            if (
+                not self.advanced_mode
+                and values.get("lux_sensor")
+                and values.get(CONF_SUN_PRESENCE_ENTITY)
+            ):
+                errors["base"] = "choose_one_sun_confirmation"
+            if (
+                values.get("lux_sensor")
+                and values.get("sun_preset") == PRESET_CUSTOM
+                and float(values.get("sun_on_lux", sector.get("sun_on_lux", 30000)))
+                <= float(values.get("sun_off_lux", sector.get("sun_off_lux", 18000)))
+            ):
+                errors["base"] = "lux_hysteresis"
+            if not errors:
+                direction = str(values.get("direction", sector.get("direction", "custom")))
+                if direction != DIRECTION_CUSTOM:
+                    defaults = self._direction_defaults(direction)
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                        sector[key] = defaults[key]
+                sector.update({
+                    "direction": direction,
+                    "name": str(values.get("name") or sector.get("name", "Sun sector")),
+                    "short": str(values.get("short") or sector.get("short", "S")).upper(),
+                    "lux_sensor": values.get("lux_sensor", ""),
+                    CONF_SUN_PRESENCE_ENTITY: (
+                        values.get(CONF_SUN_PRESENCE_ENTITY, "")
+                        if not self.advanced_mode
+                        else ""
+                    ),
+                    "sun_preset": values.get("sun_preset", PRESET_MEDIUM),
+                })
+                if self.advanced_mode and direction == DIRECTION_CUSTOM:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                        if key in values:
+                            sector[key] = values[key]
+                preset = str(sector.get("sun_preset", PRESET_MEDIUM))
+                if preset in SUN_PRESETS:
+                    sector.update(SUN_PRESETS[preset])
+                elif preset == PRESET_CUSTOM and sector.get("lux_sensor"):
+                    for key in ("sun_on_lux", "sun_off_lux", "sun_on_delay", "sun_off_delay"):
+                        if key in values:
+                            sector[key] = values[key]
+                return await self.async_step_init()
+
+        identity: dict[Any, Any] = {
+            vol.Required("name", default=sector.get("name", "")): selector.TextSelector(),
+            vol.Required("short", default=sector.get("short", "")): selector.TextSelector(),
+            vol.Required("direction", default=sector.get("direction", "custom")): self._choice(
+                DIRECTION_OPTIONS
+                if self.advanced_mode or sector.get("direction") == DIRECTION_CUSTOM
+                else [item for item in DIRECTION_OPTIONS if item != DIRECTION_CUSTOM],
+                "direction_preset",
+            ),
+        }
+        if self.advanced_mode:
+            identity.update({
+                vol.Required("azimuth_start", default=sector.get("azimuth_start", 0)): _number(0, 359, 1, "°"),
+                vol.Required("azimuth_end", default=sector.get("azimuth_end", 359)): _number(0, 359, 1, "°"),
+                vol.Required("elevation_min", default=sector.get("elevation_min", 0)): _number(-10, 90, 1, "°"),
+            })
+        confirmation: dict[Any, Any] = {
+            _optional_marker("lux_sensor", sector.get("lux_sensor", "")): _entity("sensor"),
+            vol.Required("sun_preset", default=sector.get("sun_preset", PRESET_MEDIUM)): self._choice(
+                SUN_PRESET_OPTIONS
+                if self.advanced_mode or sector.get("sun_preset") == PRESET_CUSTOM
+                else ["low", "medium", "high"],
+                "sun_preset",
+            ),
+        }
+        if self.advanced_mode:
+            confirmation.update({
+                vol.Required("sun_on_lux", default=sector.get("sun_on_lux", SUN_PRESETS[PRESET_MEDIUM]["sun_on_lux"])): _number(0, 200000, 500, "lx"),
+                vol.Required("sun_off_lux", default=sector.get("sun_off_lux", SUN_PRESETS[PRESET_MEDIUM]["sun_off_lux"])): _number(0, 200000, 500, "lx"),
+                vol.Required("sun_on_delay", default=sector.get("sun_on_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_on_delay"])): _number(0, 60, 0.5, "min"),
+                vol.Required("sun_off_delay", default=sector.get("sun_off_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_off_delay"])): _number(0, 120, 0.5, "min"),
+            })
+        else:
+            confirmation[_optional_marker(
+                CONF_SUN_PRESENCE_ENTITY,
+                sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
+            )] = _entity(["binary_sensor", "input_boolean", "switch"])
+        schema = vol.Schema({
+            vol.Required("sector_identity"): section(vol.Schema(identity), {"collapsed": False}),
+            vol.Required("sun_confirmation"): section(vol.Schema(confirmation), {"collapsed": True}),
+            vol.Required("sector_maintenance"): section(vol.Schema({vol.Required("delete_sector", default=False): selector.BooleanSelector()}), {"collapsed": True}),
+        })
+        return self.async_show_form(step_id="manage_sector", data_schema=schema, errors=errors)
+
+    async def async_step_add_sector_flat(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a usable sector, group and covers in one direct form."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            entities = list(values.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["base"] = "select_at_least_one"
+            elif (
+                not self.advanced_mode
+                and values.get("lux_sensor")
+                and values.get(CONF_SUN_PRESENCE_ENTITY)
+            ):
+                errors["base"] = "choose_one_sun_confirmation"
+            else:
+                direction = str(values.get("direction", "south"))
+                sector = self._direction_defaults(direction)
+                sector.update({
+                    "id": _new_id(sector["name"]),
+                    "direction": direction,
+                    "lux_sensor": values.get("lux_sensor", ""),
+                    CONF_SUN_PRESENCE_ENTITY: (
+                        values.get(CONF_SUN_PRESENCE_ENTITY, "")
+                        if not self.advanced_mode
+                        else ""
+                    ),
+                    "sun_preset": values.get("sun_preset", PRESET_MEDIUM),
+                })
+                if self.advanced_mode and direction == DIRECTION_CUSTOM:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                        if key in values:
+                            sector[key] = values[key]
+                preset = str(sector.get("sun_preset", PRESET_MEDIUM))
+                if preset in SUN_PRESETS:
+                    sector.update(SUN_PRESETS[preset])
+                profile = str(values.get("profile", DEVICE_VENETIAN))
+                default_group_name = "Behanggruppe" if self._is_german() else "Cover group"
+                layer = self._new_layer(
+                    str(values.get("group_name") or default_group_name), profile
+                )
+                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+                    tilt_preset = str(values.get("tilt_preset", TILT_PRESET_BALANCED))
+                    layer["tilt_preset"] = tilt_preset
+                    layer["tilt_curve"] = deepcopy(TILT_CURVE_PRESETS.get(tilt_preset, TILT_CURVE_PRESETS[TILT_PRESET_BALANCED]))
+                layer["covers"] = [
+                    _default_cover(
+                        entity_id,
+                        self._friendly_name(
+                            entity_id,
+                            f"{'Behang' if self._is_german() else 'Cover'} {index + 1}",
+                        ),
+                        self._cover_short(index),
+                    )
+                    for index, entity_id in enumerate(entities)
+                ]
+                sector["layers"] = [layer]
+                self.room().setdefault("sectors", []).append(sector)
+                return await self.async_step_init()
+        sector_fields: dict[Any, Any] = {
+            vol.Required("direction", default="south"): self._choice(
+                DIRECTION_OPTIONS
+                if self.advanced_mode
+                else [item for item in DIRECTION_OPTIONS if item != DIRECTION_CUSTOM],
+                "direction_preset",
+            ),
+            vol.Optional("lux_sensor"): _entity("sensor"),
+            vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
+                ["low", "medium", "high"], "sun_preset"
+            ),
+        }
+        if not self.advanced_mode:
+            sector_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+                ["binary_sensor", "input_boolean", "switch"]
+            )
+        if self.advanced_mode:
+            defaults = DIRECTION_PRESETS["south"]
+            sector_fields.update({
+                vol.Required("azimuth_start", default=defaults["azimuth_start"]): _number(0, 359, 1, "°"),
+                vol.Required("azimuth_end", default=defaults["azimuth_end"]): _number(0, 359, 1, "°"),
+                vol.Required("elevation_min", default=defaults["elevation_min"]): _number(-10, 90, 1, "°"),
+            })
+        group_fields: dict[Any, Any] = {
+            vol.Required(
+                "group_name",
+                default="Behanggruppe" if self._is_german() else "Cover group",
+            ): selector.TextSelector(),
+            vol.Required("profile", default=DEVICE_VENETIAN): self._choice(DEVICE_TYPES, "device_type"),
+            vol.Required("cover_entities"): _entity("cover", multiple=True),
+        }
+        return self.async_show_form(
+            step_id="add_sector_flat",
+            data_schema=vol.Schema({
+                vol.Required("sector_identity"): section(vol.Schema(sector_fields), {"collapsed": False}),
+                vol.Required("cover_group"): section(vol.Schema(group_fields), {"collapsed": False}),
+            }),
+            errors=errors,
+        )
+
+    async def async_step_manage_layer(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit one cover group on one form."""
+        layer = self.layer()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            if values.get("delete_layer", False):
+                if len(self.sector().get("layers", [])) <= 1:
+                    errors["base"] = "cannot_delete_last_layer"
+                else:
+                    self.sector()["layers"] = [
+                        item for item in self.sector().get("layers", [])
+                        if item["id"] != layer["id"]
+                    ]
+                    return await self.async_step_init()
+            requested_profile = str(
+                values.get("profile", layer.get("profile", DEVICE_VENETIAN))
+            )
+            if (
+                self.advanced_mode
+                and requested_profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                and values.get("tilt_preset") == TILT_PRESET_CUSTOM
+            ):
+                elevations = [
+                    float(values.get(f"elevation_{index}", 0))
+                    for index in range(1, 5)
+                ]
+                if any(
+                    elevations[index] >= elevations[index + 1]
+                    for index in range(3)
+                ):
+                    errors["base"] = "elevation_order"
+            if not errors:
+                old_profile = str(layer.get("profile", DEVICE_VENETIAN))
+                profile = str(values.get("profile", old_profile))
+                profile_changed = profile != old_profile
+                if profile_changed:
+                    covers = layer.get("covers", [])
+                    layer_id = layer["id"]
+                    layer.clear()
+                    layer.update(deepcopy(PROFILE_DEFAULTS[profile]))
+                    layer.update({"id": layer_id, "profile": profile, "covers": covers})
+                layer["name"] = str(values.get("name") or layer.get("name", "Cover group"))
+                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+                    preset = str(values.get("tilt_preset", layer.get("tilt_preset", TILT_PRESET_BALANCED)))
+                    layer["tilt_preset"] = preset
+                    if preset in TILT_CURVE_PRESETS:
+                        layer["tilt_curve"] = deepcopy(TILT_CURVE_PRESETS[preset])
+                    elif self.advanced_mode and preset == TILT_PRESET_CUSTOM:
+                        layer["tilt_curve"] = [
+                            {
+                                "elevation": float(values[f"elevation_{index}"]),
+                                "tilt": float(values[f"tilt_{index}"]),
+                            }
+                            for index in range(1, 5)
+                        ]
+                if self.advanced_mode and not profile_changed:
+                    for key in (
+                        "open_position", "open_tilt", "comfort_position", "comfort_tilt",
+                        "solar_position", "solar_tilt", "heat_position", "heat_tilt",
+                        "night_position", "night_tilt", "safety_position", "safety_tilt",
+                    ):
+                        if key in values:
+                            layer[key] = values[key]
+                return await self.async_step_init()
+        identity: dict[Any, Any] = {
+            vol.Required("name", default=layer.get("name", "")): selector.TextSelector(),
+            vol.Required("profile", default=layer.get("profile", DEVICE_VENETIAN)): self._choice(DEVICE_TYPES, "device_type"),
+        }
+        if (
+            self.advanced_mode
+            and layer.get("profile") in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+        ):
+            identity[vol.Required("tilt_preset", default=layer.get("tilt_preset", TILT_PRESET_BALANCED))] = self._choice(TILT_PRESET_OPTIONS, "tilt_preset")
+        sections: dict[Any, Any] = {
+            vol.Required("group_identity"): section(vol.Schema(identity), {"collapsed": False}),
+        }
+        if self.advanced_mode:
+            profile = str(layer.get("profile", DEVICE_VENETIAN))
+            if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+                curve = list(
+                    layer.get("tilt_curve")
+                    or TILT_CURVE_PRESETS[TILT_PRESET_BALANCED]
+                )
+                if len(curve) != 4:
+                    curve = deepcopy(TILT_CURVE_PRESETS[TILT_PRESET_BALANCED])
+                curve_fields: dict[Any, Any] = {}
+                for index, point in enumerate(curve, start=1):
+                    curve_fields[vol.Required(
+                        f"elevation_{index}", default=point["elevation"]
+                    )] = _number(-10, 90, 1, "°")
+                    curve_fields[vol.Required(
+                        f"tilt_{index}", default=point["tilt"]
+                    )] = _number(0, 100, 1, "%")
+                sections[vol.Required("slat_curve")] = section(
+                    vol.Schema(curve_fields), {"collapsed": True}
+                )
+            target_keys = {
+                DEVICE_VENETIAN: ("open_position", "open_tilt", "heat_position", "heat_tilt", "night_position", "night_tilt", "safety_position", "safety_tilt"),
+                DEVICE_VERTICAL: ("open_position", "open_tilt", "comfort_tilt", "solar_tilt", "heat_tilt", "night_position", "night_tilt", "safety_position", "safety_tilt"),
+            }.get(profile, ("open_position", "comfort_position", "solar_position", "heat_position", "night_position", "safety_position"))
+            targets = {
+                vol.Required(key, default=layer.get(key, PROFILE_DEFAULTS[profile].get(key, 0.0))): _number(0, 100, 1, "%")
+                for key in target_keys
+            }
+            sections[vol.Required("target_positions")] = section(vol.Schema(targets), {"collapsed": True})
+        sections[vol.Required("group_maintenance")] = section(vol.Schema({vol.Required("delete_layer", default=False): selector.BooleanSelector()}), {"collapsed": True})
+        return self.async_show_form(step_id="manage_layer", data_schema=vol.Schema(sections), errors=errors)
+
+    async def async_step_add_layer_flat(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            entities = list(values.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["base"] = "select_at_least_one"
+            else:
+                profile = str(values.get("profile", DEVICE_VENETIAN))
+                default_name = "Behanggruppe" if self._is_german() else "Cover group"
+                layer = self._new_layer(
+                    str(values.get("name") or default_name), profile
+                )
+                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+                    preset = str(values.get("tilt_preset", TILT_PRESET_BALANCED))
+                    layer["tilt_preset"] = preset
+                    layer["tilt_curve"] = deepcopy(TILT_CURVE_PRESETS.get(preset, TILT_CURVE_PRESETS[TILT_PRESET_BALANCED]))
+                layer["covers"] = [
+                    _default_cover(
+                        entity_id,
+                        self._friendly_name(
+                            entity_id,
+                            f"{'Behang' if self._is_german() else 'Cover'} {index + 1}",
+                        ),
+                        self._cover_short(index),
+                    )
+                    for index, entity_id in enumerate(entities)
+                ]
+                self.sector().setdefault("layers", []).append(layer)
+                return await self.async_step_init()
+        fields: dict[Any, Any] = {
+            vol.Required(
+                "name", default="Behanggruppe" if self._is_german() else "Cover group"
+            ): selector.TextSelector(),
+            vol.Required("profile", default=DEVICE_VENETIAN): self._choice(DEVICE_TYPES, "device_type"),
+            vol.Required("cover_entities"): _entity("cover", multiple=True),
+        }
+        return self.async_show_form(step_id="add_layer_flat", data_schema=vol.Schema(fields), errors=errors)
+
+    async def async_step_manage_cover(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit one cover with Easy/Advanced-specific fields."""
+        covers = self.layer().get("covers", [])
+        cover = covers[self._cover_index]
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            if values.get("remove_cover", False):
+                if len(covers) <= 1:
+                    errors["base"] = "cannot_delete_last_cover"
+                else:
+                    self.layer()["covers"] = [
+                        item for index, item in enumerate(covers)
+                        if index != self._cover_index
+                    ]
+                    return await self.async_step_init()
+            if not errors:
+                cover["name"] = str(values.get("name") or cover.get("name", "Cover"))
+                cover["short"] = str(values.get("short") or cover.get("short", ""))
+                if self.advanced_mode:
+                    cover["lock"] = values.get("lock", "")
+                    cover["window"] = values.get("window", "")
+                    for key in (
+                        "window_safe_state", "window_policy",
+                        CONF_WINDOW_RETURNS_TO_AUTOMATION, "max_open_position",
+                        "invert_position", "invert_tilt",
+                    ):
+                        if key in values:
+                            cover[key] = values[key]
+                return await self.async_step_init()
+        identity: dict[Any, Any] = {
+            vol.Required("name", default=cover.get("name", "")): selector.TextSelector(),
+            vol.Required("short", default=cover.get("short", "")): selector.TextSelector(),
+        }
+        sections: dict[Any, Any] = {
+            vol.Required("cover_identity"): section(vol.Schema(identity), {"collapsed": False}),
+        }
+        if self.advanced_mode:
+            automation = {
+                _optional_marker("lock", cover.get("lock", "")): _entity(["switch", "input_boolean"]),
+                _optional_marker("window", cover.get("window", "")): _entity("binary_sensor"),
+                vol.Required("window_safe_state", default=cover.get("window_safe_state", "on")): self._choice(["on", "off"], "safe_state"),
+                vol.Required("window_policy", default=cover.get("window_policy", "block_closing")): self._choice(WINDOW_POLICIES, "window_policy"),
+                vol.Required(CONF_WINDOW_RETURNS_TO_AUTOMATION, default=cover.get(CONF_WINDOW_RETURNS_TO_AUTOMATION, DEFAULT_WINDOW_RETURNS_TO_AUTOMATION)): selector.BooleanSelector(),
+                vol.Required("max_open_position", default=cover.get("max_open_position", 100)): _number(0, 100, 1, "%"),
+                vol.Required("invert_position", default=cover.get("invert_position", False)): selector.BooleanSelector(),
+                vol.Required("invert_tilt", default=cover.get("invert_tilt", False)): selector.BooleanSelector(),
+            }
+            sections[vol.Required("cover_automation")] = section(vol.Schema(automation), {"collapsed": True})
+        sections[vol.Required("cover_maintenance")] = section(vol.Schema({vol.Required("remove_cover", default=False): selector.BooleanSelector()}), {"collapsed": True})
+        return self.async_show_form(step_id="manage_cover", data_schema=vol.Schema(sections), errors=errors)
+
+    async def async_step_add_covers_flat(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = list(user_input.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["base"] = "select_at_least_one"
+            else:
+                covers = self.layer().setdefault("covers", [])
+                start = len(covers)
+                covers.extend(
+                    _default_cover(
+                        entity_id,
+                        self._friendly_name(
+                            entity_id,
+                            f"{'Behang' if self._is_german() else 'Cover'} {start + index + 1}",
+                        ),
+                        self._cover_short(start + index),
+                    )
+                    for index, entity_id in enumerate(entities)
+                )
+                return await self.async_step_init()
+        return self.async_show_form(
+            step_id="add_covers_flat",
+            data_schema=vol.Schema({vol.Required("cover_entities"): _entity("cover", multiple=True)}),
+            errors=errors,
+        )
 
     async def async_step_room_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Edit one complete room without another navigation level."""
         room = self.room()
-        if user_input is not None:
-            if user_input.get("delete_room", False):
-                self._working[CONF_ROOMS] = [
-                    item for item in self.rooms if item["id"] != room["id"]
-                ]
-                return await self.async_step_init()
+        errors: dict[str, str] = {}
+        if user_input is not None and not self.advanced_mode:
+            for sector_index, sector in enumerate(room.get("sectors", [])):
+                if user_input.get(f"sector_{sector_index}_lux_sensor") and user_input.get(
+                    f"sector_{sector_index}_{CONF_SUN_PRESENCE_ENTITY}"
+                ):
+                    errors["base"] = "choose_one_sun_confirmation"
+                    break
 
-            room["name"] = str(user_input.get("name") or room["name"])
+        if user_input is not None and not errors:
+            if user_input.get("delete_room", False):
+                if len(self.rooms) <= 1:
+                    errors["base"] = "cannot_delete_last_room"
+                else:
+                    self._working[CONF_ROOMS] = [
+                        item for item in self.rooms if item["id"] != room["id"]
+                    ]
+                    return await self.async_step_init()
+
+            if errors:
+                user_input = None
+            else:
+                room["name"] = str(user_input.get("name") or room["name"])
+            if not errors and not self.advanced_mode:
+                self._working[CONF_WEATHER_ENTITY] = user_input.get(
+                    CONF_WEATHER_ENTITY, ""
+                )
+        if user_input is not None and not errors:
             if self.advanced_mode:
+                room["indoor_temperature"] = user_input.get(
+                    "indoor_temperature", ""
+                )
+                room["outdoor_temperature"] = user_input.get(
+                    "outdoor_temperature", ""
+                )
+                room["safety_blockers"] = list(
+                    user_input.get("safety_blockers", [])
+                )
                 for key in (
-                    "indoor_temperature", "outdoor_temperature", "safety_blockers",
                     "schedule_profile", "default_pause_mode", "heat_during_pause",
                     CONF_EXTERNAL_MOVEMENT_DETECTION, "night_enabled", "night_source",
-                    "night_entity", "night_morning_transition_minutes",
+                    "night_morning_transition_minutes",
                     "night_evening_transition_minutes",
                 ):
                     if key in user_input:
                         room[key] = user_input[key]
+                room["night_entity"] = user_input.get("night_entity", "")
+                room["outdoor_minimum"] = float(
+                    user_input.get("outdoor_minimum", room.get("outdoor_minimum", 18.0))
+                )
                 room["active_months"] = (
                     [5, 6, 7, 8, 9]
                     if room.get("schedule_profile") == SCHEDULE_SUMMER
@@ -2345,12 +3227,25 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 )
             else:
                 room[CONF_EXTERNAL_MOVEMENT_DETECTION] = False
+                room[CONF_EASY_TEMPERATURE_GATE] = bool(
+                    user_input.get(CONF_EASY_TEMPERATURE_GATE, False)
+                )
+                room["outdoor_temperature"] = user_input.get(
+                    "outdoor_temperature", ""
+                )
+                room["outdoor_minimum"] = float(
+                    user_input.get("outdoor_minimum", room.get("outdoor_minimum", 18.0))
+                )
 
             for sector_index, sector in enumerate(room.get("sectors", [])):
                 direction_key = f"sector_{sector_index}_direction"
                 direction = str(user_input.get(direction_key, sector.get("direction", "custom")))
-                if direction != "custom":
-                    sector.update(self._direction_defaults(direction))
+                if direction != DIRECTION_CUSTOM:
+                    defaults = self._direction_defaults(direction)
+                    for key in (
+                        "azimuth_start", "azimuth_end", "elevation_min"
+                    ):
+                        sector[key] = defaults[key]
                 sector["direction"] = direction
                 sector["name"] = str(user_input.get(
                     f"sector_{sector_index}_name", sector.get("name", "")
@@ -2358,63 +3253,109 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 sector["short"] = str(user_input.get(
                     f"sector_{sector_index}_short", sector.get("short", "")
                 )).upper()
-                if self.advanced_mode:
-                    for key in ("azimuth_start", "azimuth_end", "elevation_min", "lux_sensor", "sun_preset"):
+                if self.advanced_mode and direction == DIRECTION_CUSTOM:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
                         form_key = f"sector_{sector_index}_{key}"
                         if form_key in user_input:
                             sector[key] = user_input[form_key]
+                sector["lux_sensor"] = user_input.get(
+                    f"sector_{sector_index}_lux_sensor", ""
+                )
+                sector[CONF_SUN_PRESENCE_ENTITY] = (
+                    user_input.get(
+                        f"sector_{sector_index}_{CONF_SUN_PRESENCE_ENTITY}", ""
+                    )
+                    if not self.advanced_mode
+                    else ""
+                )
+                sector["sun_preset"] = user_input.get(
+                    f"sector_{sector_index}_sun_preset", PRESET_MEDIUM
+                )
 
                 for layer_index, layer in enumerate(sector.get("layers", [])):
                     layer["name"] = str(user_input.get(
                         f"layer_{sector_index}_{layer_index}_name",
                         layer.get("name", ""),
                     ))
-                    selected = list(user_input.get(
-                        f"layer_{sector_index}_{layer_index}_covers",
-                        [cover["entity"] for cover in layer.get("covers", [])],
-                    ))
-                    existing = {cover["entity"]: cover for cover in layer.get("covers", [])}
-                    layer["covers"] = [
-                        existing.get(entity_id) or _default_cover(
-                            entity_id,
-                            self._friendly_name(entity_id, f"Cover {index + 1}"),
-                            self._cover_short(index),
-                        )
-                        for index, entity_id in enumerate(selected)
-                    ]
-                    for cover_index, cover in enumerate(layer["covers"]):
+                    # Apply detail fields to the original list before changing
+                    # its membership or order. Index-based form keys must never
+                    # transfer cover A's settings to cover B.
+                    original_covers = list(layer.get("covers", []))
+                    for cover_index, cover in enumerate(original_covers):
                         prefix = f"cover_{sector_index}_{layer_index}_{cover_index}_"
                         for key in ("name", "short"):
-                            if f"{prefix}{key}" in user_input:
-                                cover[key] = str(user_input[f"{prefix}{key}"])
+                            form_key = f"{prefix}{key}"
+                            if form_key in user_input:
+                                cover[key] = str(user_input[form_key])
                         if self.advanced_mode:
                             for key in (
                                 "lock", "window", "window_safe_state", "window_policy",
                                 CONF_WINDOW_RETURNS_TO_AUTOMATION, "max_open_position",
                                 "invert_position", "invert_tilt",
-                            ):
-                                if f"{prefix}{key}" in user_input:
-                                    cover[key] = user_input[f"{prefix}{key}"]
+                                ):
+                                form_key = f"{prefix}{key}"
+                                if form_key in user_input:
+                                    value = user_input[form_key]
+                                    cover[key] = (
+                                        (value or "")
+                                        if key in {"lock", "window"}
+                                        else value
+                                    )
+
+                    selected = list(user_input.get(
+                        f"layer_{sector_index}_{layer_index}_covers",
+                        [cover["entity"] for cover in original_covers],
+                    ))
+                    existing = {cover["entity"]: cover for cover in original_covers}
+                    layer["covers"] = [
+                        existing.get(entity_id) or _default_cover(
+                            entity_id,
+                            self._friendly_name(
+                                entity_id,
+                                f"{'Behang' if self._is_german() else 'Cover'} {index + 1}",
+                            ),
+                            self._cover_short(index),
+                        )
+                        for index, entity_id in enumerate(selected)
+                    ]
             return await self.async_step_init()
 
         fields: dict[Any, Any] = {
             vol.Required("name", default=room.get("name", "")): selector.TextSelector(),
             vol.Required("delete_room", default=False): selector.BooleanSelector(),
         }
+        if not self.advanced_mode:
+            fields[_optional_marker(
+                CONF_WEATHER_ENTITY, self._working.get(CONF_WEATHER_ENTITY, "")
+            )] = _entity("weather")
         if self.advanced_mode:
             fields.update({
-                vol.Optional("indoor_temperature", default=room.get("indoor_temperature", "")): _temperature_entity(),
-                vol.Optional("outdoor_temperature", default=room.get("outdoor_temperature", "")): _temperature_entity(),
-                vol.Optional("safety_blockers", default=room.get("safety_blockers", [])): _entity("binary_sensor", multiple=True),
-                vol.Required("schedule_profile", default=room.get("schedule_profile", "summer")): self._choice(["year_round", "summer"], "schedule_profile"),
+                _optional_marker("indoor_temperature", room.get("indoor_temperature", "")): _temperature_entity(),
+                _optional_marker("outdoor_temperature", room.get("outdoor_temperature", "")): _temperature_entity(),
+                _optional_marker("safety_blockers", room.get("safety_blockers", [])): _entity("binary_sensor", multiple=True),
+                vol.Required("outdoor_minimum", default=room.get("outdoor_minimum", 18.0)): _number(-20, 40, 0.5, "°C"),
+                vol.Required("schedule_profile", default=room.get("schedule_profile", SCHEDULE_YEAR_ROUND)): self._choice(["year_round", "summer"], "schedule_profile"),
                 vol.Required("default_pause_mode", default=room.get("default_pause_mode", PAUSE_NEXT_SUNRISE)): self._choice([PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL], "pause_mode"),
                 vol.Required("heat_during_pause", default=room.get("heat_during_pause", False)): selector.BooleanSelector(),
                 vol.Required(CONF_EXTERNAL_MOVEMENT_DETECTION, default=room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, DEFAULT_EXTERNAL_MOVEMENT_DETECTION)): selector.BooleanSelector(),
                 vol.Required("night_enabled", default=room.get("night_enabled", False)): selector.BooleanSelector(),
                 vol.Required("night_source", default=room.get("night_source", "entity")): self._choice(["entity", "sun"], "night_source"),
-                vol.Optional("night_entity", default=room.get("night_entity", "")): _entity(["schedule", "input_boolean", "binary_sensor", "switch"]),
+                _optional_marker("night_entity", room.get("night_entity", "")): _entity(["schedule", "input_boolean", "binary_sensor", "switch"]),
                 vol.Required("night_morning_transition_minutes", default=room.get("night_morning_transition_minutes", 0)): _number(0, 120, 5, "min"),
                 vol.Required("night_evening_transition_minutes", default=room.get("night_evening_transition_minutes", 0)): _number(0, 120, 5, "min"),
+            })
+        else:
+            fields.update({
+                vol.Required(
+                    CONF_EASY_TEMPERATURE_GATE,
+                    default=room.get(CONF_EASY_TEMPERATURE_GATE, False),
+                ): selector.BooleanSelector(),
+                _optional_marker(
+                    "outdoor_temperature", room.get("outdoor_temperature", "")
+                ): _temperature_entity(),
+                vol.Required(
+                    "outdoor_minimum", default=room.get("outdoor_minimum", 18.0)
+                ): _number(-20, 40, 0.5, "°C"),
             })
 
         for sector_index, sector in enumerate(room.get("sectors", [])):
@@ -2428,8 +3369,18 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 fields[vol.Required(f"sector_{sector_index}_azimuth_start", default=sector.get("azimuth_start", 0))] = _number(0, 359, 1, "°")
                 fields[vol.Required(f"sector_{sector_index}_azimuth_end", default=sector.get("azimuth_end", 359))] = _number(0, 359, 1, "°")
                 fields[vol.Required(f"sector_{sector_index}_elevation_min", default=sector.get("elevation_min", 0))] = _number(-10, 90, 1, "°")
-                fields[vol.Optional(f"sector_{sector_index}_lux_sensor", default=sector.get("lux_sensor", ""))] = _entity("sensor")
-                fields[vol.Required(f"sector_{sector_index}_sun_preset", default=sector.get("sun_preset", PRESET_MEDIUM))] = self._choice(["low", "medium", "high"], "sun_preset")
+            fields[_optional_marker(
+                f"sector_{sector_index}_lux_sensor", sector.get("lux_sensor", "")
+            )] = _entity("sensor")
+            if not self.advanced_mode:
+                fields[_optional_marker(
+                    f"sector_{sector_index}_{CONF_SUN_PRESENCE_ENTITY}",
+                    sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
+                )] = _entity(["binary_sensor", "input_boolean", "switch"])
+            fields[vol.Required(
+                f"sector_{sector_index}_sun_preset",
+                default=sector.get("sun_preset", PRESET_MEDIUM),
+            )] = self._choice(["low", "medium", "high"], "sun_preset")
             for layer_index, layer in enumerate(sector.get("layers", [])):
                 fields[vol.Required(f"layer_{sector_index}_{layer_index}_name", default=layer.get("name", ""))] = selector.TextSelector()
                 fields[vol.Required(
@@ -2441,8 +3392,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     fields[vol.Required(f"{prefix}name", default=cover.get("name", ""))] = selector.TextSelector()
                     fields[vol.Required(f"{prefix}short", default=cover.get("short", ""))] = selector.TextSelector()
                     if self.advanced_mode:
-                        fields[vol.Optional(f"{prefix}lock", default=cover.get("lock", ""))] = _entity(["switch", "input_boolean"])
-                        fields[vol.Optional(f"{prefix}window", default=cover.get("window", ""))] = _entity("binary_sensor")
+                        fields[_optional_marker(f"{prefix}lock", cover.get("lock", ""))] = _entity(["switch", "input_boolean"])
+                        fields[_optional_marker(f"{prefix}window", cover.get("window", ""))] = _entity("binary_sensor")
                         fields[vol.Required(f"{prefix}window_safe_state", default=cover.get("window_safe_state", "on"))] = self._choice(["on", "off"], "safe_state")
                         fields[vol.Required(f"{prefix}window_policy", default=cover.get("window_policy", "block_closing"))] = self._choice(WINDOW_POLICIES, "window_policy")
                         fields[vol.Required(f"{prefix}{CONF_WINDOW_RETURNS_TO_AUTOMATION}", default=cover.get(CONF_WINDOW_RETURNS_TO_AUTOMATION, DEFAULT_WINDOW_RETURNS_TO_AUTOMATION))] = selector.BooleanSelector()
@@ -2450,7 +3401,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         fields[vol.Required(f"{prefix}invert_position", default=cover.get("invert_position", False))] = selector.BooleanSelector()
                         fields[vol.Required(f"{prefix}invert_tilt", default=cover.get("invert_tilt", False))] = selector.BooleanSelector()
         return self.async_show_form(
-            step_id="room_settings", data_schema=vol.Schema(fields)
+            step_id="room_settings", data_schema=vol.Schema(fields), errors=errors
         )
 
     async def async_step_add_room(
@@ -2459,32 +3410,46 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         """Add a complete room from one options page."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input = _flatten_sections(user_input)
             entities = list(user_input.get("cover_entities", []))
             duplicates = sorted(set(entities) & self.all_cover_entities())
             if duplicates:
                 errors["base"] = "cover_already_assigned"
             elif not entities:
-                errors["cover_entities"] = "select_at_least_one"
+                errors["base"] = "select_at_least_one"
+            elif not self.advanced_mode and user_input.get("lux_sensor") and user_input.get(
+                CONF_SUN_PRESENCE_ENTITY
+            ):
+                errors["base"] = "choose_one_sun_confirmation"
             else:
                 direction = str(user_input.get("direction", "south"))
                 sector = self._direction_defaults(direction)
                 sector["id"] = _new_id(sector["name"])
                 sector["direction"] = direction
-                sector["lux_sensor"] = (
-                    user_input.get("lux_sensor", "") if self.advanced_mode else ""
+                sector["lux_sensor"] = user_input.get("lux_sensor", "")
+                sector[CONF_SUN_PRESENCE_ENTITY] = (
+                    user_input.get(CONF_SUN_PRESENCE_ENTITY, "")
+                    if not self.advanced_mode
+                    else ""
                 )
-                sector["sun_preset"] = (
-                    user_input.get("sun_preset", PRESET_MEDIUM)
-                    if self.advanced_mode else PRESET_MEDIUM
+                sector["sun_preset"] = user_input.get(
+                    "sun_preset", PRESET_MEDIUM
                 )
+                if self.advanced_mode and direction == DIRECTION_CUSTOM:
+                    for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                        sector[key] = float(user_input[key])
                 profile = str(user_input.get("profile", DEVICE_VENETIAN))
+                default_group_name = "Behanggruppe" if self._is_german() else "Cover group"
                 layer = self._new_layer(
-                    str(user_input.get("group_name") or "Cover group"), profile
+                    str(user_input.get("group_name") or default_group_name), profile
                 )
                 layer["covers"] = [
                     _default_cover(
                         entity_id,
-                        self._friendly_name(entity_id, f"Cover {index + 1}"),
+                        self._friendly_name(
+                            entity_id,
+                            f"{'Behang' if self._is_german() else 'Cover'} {index + 1}",
+                        ),
                         self._cover_short(index),
                     )
                     for index, entity_id in enumerate(entities)
@@ -2495,6 +3460,15 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     "id": _new_id(str(user_input["name"])),
                     "name": str(user_input["name"]),
                     "sectors": [sector],
+                    "outdoor_temperature": user_input.get(
+                        "outdoor_temperature", ""
+                    ),
+                    "outdoor_minimum": float(
+                        user_input.get("outdoor_minimum", 18.0)
+                    ),
+                    CONF_EASY_TEMPERATURE_GATE: bool(
+                        user_input.get(CONF_EASY_TEMPERATURE_GATE, False)
+                    ) if not self.advanced_mode else False,
                     CONF_EXTERNAL_MOVEMENT_DETECTION: bool(
                         user_input.get(
                             CONF_EXTERNAL_MOVEMENT_DETECTION,
@@ -2505,31 +3479,88 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 if self.advanced_mode:
                     room.update({
                         "indoor_temperature": user_input.get("indoor_temperature", ""),
-                        "outdoor_temperature": user_input.get("outdoor_temperature", ""),
                         "safety_blockers": list(user_input.get("safety_blockers", [])),
                     })
                 self.rooms.append(room)
                 return await self.async_step_init()
 
-        fields: dict[Any, Any] = {
+        room_fields: dict[Any, Any] = {
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("direction", default="south"): self._choice(DIRECTION_OPTIONS, "direction_preset"),
-            vol.Required("group_name", default="Behanggruppe" if self._is_german() else "Cover group"): selector.TextSelector(),
+            vol.Required("direction", default="south"): self._choice(
+                DIRECTION_OPTIONS
+                if self.advanced_mode
+                else [item for item in DIRECTION_OPTIONS if item != DIRECTION_CUSTOM],
+                "direction_preset",
+            ),
+            vol.Required(
+                "group_name",
+                default="Behanggruppe" if self._is_german() else "Cover group",
+            ): selector.TextSelector(),
             vol.Required("profile", default=DEVICE_VENETIAN): self._choice(DEVICE_TYPES, "device_type"),
             vol.Required("cover_entities"): _entity("cover", multiple=True),
         }
+        sun_fields: dict[Any, Any] = {
+            vol.Optional("lux_sensor"): _entity("sensor"),
+            vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
+                ["low", "medium", "high"], "sun_preset"
+            ),
+        }
+        if not self.advanced_mode:
+            sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+                ["binary_sensor", "input_boolean", "switch"]
+            )
+        optional_fields: dict[Any, Any] = {
+            vol.Required(
+                CONF_EASY_TEMPERATURE_GATE, default=False
+            ): selector.BooleanSelector(),
+            vol.Optional("outdoor_temperature"): _temperature_entity(),
+            vol.Required("outdoor_minimum", default=18.0): _number(
+                -20, 40, 0.5, "°C"
+            ),
+        }
         if self.advanced_mode:
-            fields.update({
+            defaults = DIRECTION_PRESETS["south"]
+            sun_fields.update({
+                vol.Required(
+                    "azimuth_start", default=defaults["azimuth_start"]
+                ): _number(0, 359, 1, "°"),
+                vol.Required(
+                    "azimuth_end", default=defaults["azimuth_end"]
+                ): _number(0, 359, 1, "°"),
+                vol.Required(
+                    "elevation_min", default=defaults["elevation_min"]
+                ): _number(-10, 90, 1, "°"),
+            })
+            advanced_fields: dict[Any, Any] = {
                 vol.Optional("indoor_temperature"): _temperature_entity(),
                 vol.Optional("outdoor_temperature"): _temperature_entity(),
+                vol.Required("outdoor_minimum", default=18.0): _number(
+                    -20, 40, 0.5, "°C"
+                ),
                 vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
                 vol.Required(CONF_EXTERNAL_MOVEMENT_DETECTION, default=DEFAULT_EXTERNAL_MOVEMENT_DETECTION): selector.BooleanSelector(),
-                vol.Optional("lux_sensor"): _entity("sensor"),
-                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(["low", "medium", "high"], "sun_preset"),
-            })
+            }
+        form_fields: dict[Any, Any] = {
+            vol.Required("room_and_covers"): section(
+                vol.Schema(room_fields), {"collapsed": False}
+            ),
+            vol.Required("sun_control"): section(
+                vol.Schema(sun_fields), {"collapsed": False}
+            ),
+        }
+        if self.advanced_mode:
+            form_fields[vol.Required("advanced_conditions")] = section(
+                vol.Schema(advanced_fields), {"collapsed": True}
+            )
+        else:
+            form_fields[vol.Required("optional_improvements")] = section(
+                vol.Schema(optional_fields), {"collapsed": True}
+            )
         return self.async_show_form(
-            step_id="add_room", data_schema=vol.Schema(fields), errors=errors
+            step_id="add_room", data_schema=vol.Schema(form_fields), errors=errors
         )
 
     async def async_step_finish(self, user_input=None) -> ConfigFlowResult:
+        if not self.rooms:
+            return self.async_abort(reason="no_rooms")
         return self.async_create_entry(title="", data=self._working)
