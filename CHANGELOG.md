@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Slat Position
+
+- Smart Shading now uses the KNX slat scale throughout: `0%` is fully open and `100%` is fully closed, while cover-height semantics remain unchanged
+- Open and Safety use fully open slats, Heat Protection uses fully closed slats, and all adaptive presets and custom curve values follow the same scale
+- existing config-entry targets and persisted layer-number overrides migrate once from the former opening percentage to the new KNX slat position
+- the per-cover slat inversion remains available for covers that expose the opposite direction, with clearer English and German setup guidance
 
 ## 4.6.0-beta.7 - 2026-07-20
 

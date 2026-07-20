@@ -24,7 +24,7 @@
         "data": {
           "sun_entity": "Sun entity",
           "position_tolerance": "Cover position tolerance",
-          "tilt_tolerance": "Slat opening tolerance",
+          "tilt_tolerance": "Slat position tolerance",
           "command_cooldown": "Duplicate-command cooldown",
           "unknown_feedback_policy": "Behavior without position feedback",
           "evening_release_time": "Latest fixed evening release",
@@ -118,23 +118,23 @@
       },
       "layer_tilt_profile": {
         "title": "Select slat guidance",
-        "description": "During active sun shading the exterior blind moves fully down. The profile only controls slat opening: “More glare protection” opens less, “Balanced” is the default, and “More daylight” opens further. 0% = closed, 100% = open. “Custom” opens the four editable stages next.",
+        "description": "During active sun shading the exterior blind moves fully down. The profile controls only the slat position: “More glare protection” closes further, “Balanced” is the default, and “More daylight” opens further. 0% = fully open, 100% = fully closed. “Custom” opens the four editable stages next.",
         "data": {
           "tilt_preset": "Slat profile"
         }
       },
       "layer_tilt_custom": {
         "title": "Customize adaptive slat guidance",
-        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully closed · 100% = fully open",
+        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully open · 100% = fully closed",
         "data": {
           "elevation_1": "Very low sun – from elevation",
-          "tilt_1": "Very low sun – slat opening",
+          "tilt_1": "Very low sun – slat position",
           "elevation_2": "Low sun – from elevation",
-          "tilt_2": "Low sun – slat opening",
+          "tilt_2": "Low sun – slat position",
           "elevation_3": "Medium sun – from elevation",
-          "tilt_3": "Medium sun – slat opening",
+          "tilt_3": "Medium sun – slat position",
           "elevation_4": "High sun – from elevation",
-          "tilt_4": "High sun – slat opening"
+          "tilt_4": "High sun – slat position"
         }
       },
       "add_covers": {
@@ -337,36 +337,36 @@
       },
       "edit_layer_tilt_profile": {
         "title": "Slat profile",
-        "description": "0% means closed, 100% means open.",
+        "description": "KNX slat semantics: 0% means fully open, 100% means fully closed.",
         "data": {
           "tilt_preset": "Slat profile"
         }
       },
       "edit_layer_tilt_custom": {
         "title": "Adaptive slat guidance",
-        "description": "The blind stays down; values control slat opening only.",
+        "description": "The blind stays down; values control only the slat position (0% open, 100% closed).",
         "data": {
           "elevation_1": "Very low sun – from",
-          "tilt_1": "Very low sun – opening",
+          "tilt_1": "Very low sun – slat position",
           "elevation_2": "Low sun – from",
-          "tilt_2": "Low sun – opening",
+          "tilt_2": "Low sun – slat position",
           "elevation_3": "Medium sun – from",
-          "tilt_3": "Medium sun – opening",
+          "tilt_3": "Medium sun – slat position",
           "elevation_4": "High sun – from",
-          "tilt_4": "High sun – opening"
+          "tilt_4": "High sun – slat position"
         }
       },
       "edit_layer_advanced": {
         "title": "Advanced targets",
-        "description": "Only values relevant to the selected cover type are shown. Home Assistant semantics: 0% closed, 100% open.",
+        "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
         "data": {
           "open_position": "Neutral/open position",
           "comfort_position": "Comfort position",
           "solar_position": "Solar position",
           "heat_position": "Heat position",
           "safety_position": "Safety position",
-          "comfort_tilt": "Comfort slat opening",
-          "heat_tilt": "Heat slat opening"
+          "comfort_tilt": "Comfort slat position",
+          "heat_tilt": "Heat slat position"
         }
       },
       "select_cover": {
@@ -391,6 +391,7 @@
         },
         "data_description": {
           "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
+          "invert_tilt": "The default is the KNX slat scale: 0% fully open and 100% fully closed. Enable this only when this cover exposes the opposite direction.",
           "short": "Short label used by the card."
         }
       },
@@ -595,16 +596,16 @@
       },
       "compact_tilt_custom": {
         "title": "Custom slat curve",
-        "description": "The blind is fully lowered during shading. These values only control slat opening: 0% closed, 100% open.",
+        "description": "The blind is fully lowered during shading. These values control only the slat position: 0% fully open, 100% fully closed.",
         "data": {
           "elevation_1": "Level 1: from sun elevation",
           "elevation_2": "Level 2: from sun elevation",
           "elevation_3": "Level 3: from sun elevation",
           "elevation_4": "Level 4: from sun elevation",
-          "tilt_1": "Level 1: slat opening",
-          "tilt_2": "Level 2: slat opening",
-          "tilt_3": "Level 3: slat opening",
-          "tilt_4": "Level 4: slat opening"
+          "tilt_1": "Level 1: slat position",
+          "tilt_2": "Level 2: slat position",
+          "tilt_3": "Level 3: slat position",
+          "tilt_4": "Level 4: slat position"
         }
       },
       "compact_cover_details": {
@@ -665,7 +666,7 @@
         "data": {
           "sun_entity": "Sun entity",
           "position_tolerance": "Cover position tolerance",
-          "tilt_tolerance": "Slat opening tolerance",
+          "tilt_tolerance": "Slat position tolerance",
           "command_cooldown": "Duplicate-command cooldown",
           "unknown_feedback_policy": "Behavior without position feedback",
           "evening_release_time": "Latest fixed evening release",
@@ -759,23 +760,23 @@
       },
       "layer_tilt_profile": {
         "title": "Select slat guidance",
-        "description": "During active sun shading the exterior blind moves fully down. The profile only controls slat opening: “More glare protection” opens less, “Balanced” is the default, and “More daylight” opens further. 0% = closed, 100% = open. “Custom” opens the four editable stages next.",
+        "description": "During active sun shading the exterior blind moves fully down. The profile controls only the slat position: “More glare protection” closes further, “Balanced” is the default, and “More daylight” opens further. 0% = fully open, 100% = fully closed. “Custom” opens the four editable stages next.",
         "data": {
           "tilt_preset": "Slat profile"
         }
       },
       "layer_tilt_custom": {
         "title": "Customize adaptive slat guidance",
-        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully closed · 100% = fully open",
+        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully open · 100% = fully closed",
         "data": {
           "elevation_1": "Very low sun – from elevation",
-          "tilt_1": "Very low sun – slat opening",
+          "tilt_1": "Very low sun – slat position",
           "elevation_2": "Low sun – from elevation",
-          "tilt_2": "Low sun – slat opening",
+          "tilt_2": "Low sun – slat position",
           "elevation_3": "Medium sun – from elevation",
-          "tilt_3": "Medium sun – slat opening",
+          "tilt_3": "Medium sun – slat position",
           "elevation_4": "High sun – from elevation",
-          "tilt_4": "High sun – slat opening"
+          "tilt_4": "High sun – slat position"
         }
       },
       "add_covers": {
@@ -978,36 +979,36 @@
       },
       "edit_layer_tilt_profile": {
         "title": "Slat profile",
-        "description": "0% means closed, 100% means open.",
+        "description": "KNX slat semantics: 0% means fully open, 100% means fully closed.",
         "data": {
           "tilt_preset": "Slat profile"
         }
       },
       "edit_layer_tilt_custom": {
         "title": "Adaptive slat guidance",
-        "description": "The blind stays down; values control slat opening only.",
+        "description": "The blind stays down; values control only the slat position (0% open, 100% closed).",
         "data": {
           "elevation_1": "Very low sun – from",
-          "tilt_1": "Very low sun – opening",
+          "tilt_1": "Very low sun – slat position",
           "elevation_2": "Low sun – from",
-          "tilt_2": "Low sun – opening",
+          "tilt_2": "Low sun – slat position",
           "elevation_3": "Medium sun – from",
-          "tilt_3": "Medium sun – opening",
+          "tilt_3": "Medium sun – slat position",
           "elevation_4": "High sun – from",
-          "tilt_4": "High sun – opening"
+          "tilt_4": "High sun – slat position"
         }
       },
       "edit_layer_advanced": {
         "title": "Advanced targets",
-        "description": "Only values relevant to the selected cover type are shown. Home Assistant semantics: 0% closed, 100% open.",
+        "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
         "data": {
           "open_position": "Neutral/open position",
           "comfort_position": "Comfort position",
           "solar_position": "Solar position",
           "heat_position": "Heat position",
           "safety_position": "Safety position",
-          "comfort_tilt": "Comfort slat opening",
-          "heat_tilt": "Heat slat opening"
+          "comfort_tilt": "Comfort slat position",
+          "heat_tilt": "Heat slat position"
         }
       },
       "select_cover": {
@@ -1032,6 +1033,7 @@
         },
         "data_description": {
           "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
+          "invert_tilt": "The default is the KNX slat scale: 0% fully open and 100% fully closed. Enable this only when this cover exposes the opposite direction.",
           "short": "Short label used by the card."
         }
       },

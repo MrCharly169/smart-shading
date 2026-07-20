@@ -1699,7 +1699,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 9
+    VERSION = 10
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

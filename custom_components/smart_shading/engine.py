@@ -2052,8 +2052,8 @@ class SmartShadingEngine:
     ) -> tuple[float, float | None]:
         """Return targets using profile-specific physical behavior.
 
-        Home Assistant semantics are used exclusively: 0 is closed and 100 is
-        open. KNX value conversion belongs to the KNX cover entity.
+        Cover height uses Home Assistant semantics (0 closed, 100 open). Slat
+        tilt uses the KNX convention (0 fully open, 100 fully closed).
         """
         profile = layer.get("profile", DEVICE_VENETIAN)
         defaults = PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS[DEVICE_VENETIAN])
@@ -2086,10 +2086,14 @@ class SmartShadingEngine:
             if mode in {MODE_COMFORT, MODE_SOLAR}:
                 return 0.0, adaptive(float(defaults["solar_tilt"]))
             if mode == MODE_HEAT:
-                return 0.0, 0.0
+                return 0.0, value("heat_tilt", float(defaults["heat_tilt"]))
             if mode == MODE_SAFETY:
-                return value("safety_position", 100.0), 100.0
-            return value("open_position", 100.0), 100.0
+                return value("safety_position", 100.0), value(
+                    "safety_tilt", float(defaults["safety_tilt"])
+                )
+            return value("open_position", 100.0), value(
+                "open_tilt", float(defaults["open_tilt"])
+            )
 
         # Vertical blinds cover the opening first, then adjust slats.
         if profile == DEVICE_VERTICAL:
@@ -2098,10 +2102,14 @@ class SmartShadingEngine:
             if mode == MODE_SOLAR:
                 return 0.0, adaptive(float(defaults["solar_tilt"]))
             if mode == MODE_HEAT:
-                return 0.0, value("heat_tilt", 0.0)
+                return 0.0, value("heat_tilt", float(defaults["heat_tilt"]))
             if mode == MODE_SAFETY:
-                return value("safety_position", 100.0), 100.0
-            return value("open_position", 100.0), 100.0
+                return value("safety_position", 100.0), value(
+                    "safety_tilt", float(defaults["safety_tilt"])
+                )
+            return value("open_position", 100.0), value(
+                "open_tilt", float(defaults["open_tilt"])
+            )
 
         # Interior curtains use the solar target in heat mode unless advanced
         # full heat closure is explicitly enabled.
@@ -2187,6 +2195,10 @@ class SmartShadingEngine:
             "command_position": displayed_position,
             "tilt": target_tilt,
             "command_tilt": displayed_tilt,
+            "tilt_inverted": bool(cover.get("invert_tilt", False)),
+            "tilt_mapping": (
+                "inverted" if cover.get("invert_tilt", False) else "knx_default"
+            ),
             "sector": sector["name"],
             "sector_id": sector["id"],
             "layer": layer["name"],

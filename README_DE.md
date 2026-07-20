@@ -112,22 +112,23 @@ Sofort neu ausgewertet wird unter anderem bei:
 
 ## Cover-Semantik
 
-Smart Shading verwendet die Home-Assistant-Semantik:
+Smart Shading verwendet für die Behanghöhe die Home-Assistant-Semantik und
+für Lamellen standardmäßig die KNX-Semantik:
 
 ```text
 Position 0 %   = geschlossen
 Position 100 % = offen
-Tilt 0 %       = Lamellen geschlossen
-Tilt 100 %     = Lamellen geöffnet
+Tilt 0 %       = Lamellen vollständig geöffnet, Lichtdurchlass
+Tilt 100 %     = Lamellen vollständig geschlossen, Sonnenblockierung
 ```
 
 ### Außenjalousie mit Lamellen
 
 ```text
-Open  → Position 100 %, Tilt 100 %
+Open  → Position 100 %, Tilt 0 %
 Solar → Position 0 %, Tilt adaptiv zur Sonnenhöhe
-Heat  → Position 0 %, Tilt 0 %
-Safety → Position 100 %, Tilt 100 %
+Heat  → Position 0 %, Tilt 100 %
+Safety → Position 100 %, Tilt 0 %
 ```
 
 Keine 50-%-Zwischenstufe.

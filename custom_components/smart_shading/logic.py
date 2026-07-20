@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -23,6 +24,60 @@ def azimuth_inside(value: float, start: float, end: float) -> bool:
 
 def clamp_percent(value: float) -> float:
     return max(0.0, min(100.0, float(value)))
+
+
+_SLAT_TARGET_KEYS = {
+    "open_tilt",
+    "comfort_tilt",
+    "solar_tilt",
+    "heat_tilt",
+    "safety_tilt",
+}
+
+
+def _migrated_slat_value(value):
+    """Convert the legacy opening percentage to KNX slat closedness."""
+    if isinstance(value, bool):
+        return value
+    try:
+        return 100.0 - clamp_percent(float(value))
+    except (TypeError, ValueError):
+        return value
+
+
+def migrate_slat_config(config: dict) -> dict:
+    """Convert stored tilt targets from opening to KNX closedness semantics."""
+    result = deepcopy(config)
+    for room in result.get("rooms", []):
+        for sector in room.get("sectors", []):
+            for layer in sector.get("layers", []):
+                profile = str(layer.get("profile", "venetian"))
+                if profile not in {"venetian", "vertical_blind"}:
+                    continue
+                for key in _SLAT_TARGET_KEYS:
+                    if key in layer:
+                        layer[key] = _migrated_slat_value(layer[key])
+                for point in layer.get("tilt_curve", []):
+                    if isinstance(point, dict) and "tilt" in point:
+                        point["tilt"] = _migrated_slat_value(point["tilt"])
+    return result
+
+
+def migrate_slat_overrides(overrides: dict) -> dict:
+    """Convert persisted layer number overrides to KNX slat semantics."""
+    if not isinstance(overrides, dict):
+        return {}
+    result = deepcopy(overrides)
+    layers = result.get("layer", {})
+    if not isinstance(layers, dict):
+        return result
+    for values in layers.values():
+        if not isinstance(values, dict):
+            continue
+        for key, value in list(values.items()):
+            if key in _SLAT_TARGET_KEYS or key.startswith("tilt_value_"):
+                values[key] = _migrated_slat_value(value)
+    return result
 
 
 def sun_presence_step(

@@ -24,7 +24,7 @@
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
-          "tilt_tolerance": "Toleranz für Lamellenöffnung",
+          "tilt_tolerance": "Toleranz für Lamellenposition",
           "command_cooldown": "Sperrzeit für identische Befehle",
           "unknown_feedback_policy": "Verhalten ohne Positionsrückmeldung",
           "evening_release_time": "Feste späteste Abendfreigabe",
@@ -140,36 +140,36 @@
       },
       "layer_tilt_profile": {
         "title": "Lamellenführung auswählen",
-        "description": "Bei aktiver Sonnenbeschattung fährt die Außenjalousie vollständig herunter. Das Profil bestimmt nur die Lamellenöffnung: „Mehr Blendschutz“ öffnet weniger, „Ausgewogen“ ist der Standard, „Mehr Tageslicht“ öffnet stärker. 0 % = geschlossen, 100 % = geöffnet. „Benutzerdefiniert“ öffnet anschließend die vier frei einstellbaren Stufen.",
+        "description": "Bei aktiver Sonnenbeschattung fährt die Außenjalousie vollständig herunter. Das Profil bestimmt nur die Lamellenposition: „Mehr Blendschutz“ schließt stärker, „Ausgewogen“ ist der Standard, „Mehr Tageslicht“ öffnet weiter. 0 % = vollständig geöffnet, 100 % = vollständig geschlossen. „Benutzerdefiniert“ öffnet anschließend die vier frei einstellbaren Stufen.",
         "data": {
           "tilt_preset": "Lamellenprofil"
         },
         "data_description": {
-          "tilt_preset": "Ausgewogen ist der empfohlene Standard. Benutzerdefiniert zeigt auf der nächsten Seite alle Sonnenhöhen und Lamellenöffnungen."
+          "tilt_preset": "Ausgewogen ist der empfohlene Standard. Benutzerdefiniert zeigt auf der nächsten Seite alle Sonnenhöhen und Lamellenpositionen."
         }
       },
       "layer_tilt_custom": {
         "title": "Adaptive Lamellenführung anpassen",
-        "description": "Die vier Stufen gelten ab der jeweiligen Sonnenhöhe. Bei tiefer Sonne bleiben die Lamellen eher geschlossen; bei hoher Sonne können sie weiter öffnen. **Die Jalousie selbst bleibt während der Beschattung vollständig unten.**\n\n0 % = vollständig geschlossen · 100 % = vollständig geöffnet",
+        "description": "Die vier Stufen gelten ab der jeweiligen Sonnenhöhe. Bei tiefer Sonne bleiben die Lamellen eher geschlossen; bei hoher Sonne können sie weiter öffnen. **Die Jalousie selbst bleibt während der Beschattung vollständig unten.**\n\n0 % = vollständig geöffnet · 100 % = vollständig geschlossen",
         "data": {
           "elevation_1": "Tiefe Sonne – ab Sonnenhöhe",
-          "tilt_1": "Tiefe Sonne – Lamellenöffnung",
+          "tilt_1": "Tiefe Sonne – Lamellenposition",
           "elevation_2": "Niedrige Sonne – ab Sonnenhöhe",
-          "tilt_2": "Niedrige Sonne – Lamellenöffnung",
+          "tilt_2": "Niedrige Sonne – Lamellenposition",
           "elevation_3": "Mittlere Sonne – ab Sonnenhöhe",
-          "tilt_3": "Mittlere Sonne – Lamellenöffnung",
+          "tilt_3": "Mittlere Sonne – Lamellenposition",
           "elevation_4": "Hohe Sonne – ab Sonnenhöhe",
-          "tilt_4": "Hohe Sonne – Lamellenöffnung"
+          "tilt_4": "Hohe Sonne – Lamellenposition"
         },
         "data_description": {
           "elevation_1": "Typisch morgens oder abends. Standard: 10°.",
-          "tilt_1": "Fast geschlossen für hohen Blendschutz. Standard: 10 % geöffnet.",
+          "tilt_1": "Fast geschlossen für hohen Blendschutz. Standard: 90 % geschlossen.",
           "elevation_2": "Standard: 20°.",
-          "tilt_2": "Etwas mehr Tageslicht. Standard: 35 % geöffnet.",
+          "tilt_2": "Etwas mehr Tageslicht. Standard: 65 % geschlossen.",
           "elevation_3": "Standard: 40°.",
-          "tilt_3": "Mittlere Öffnung. Standard: 65 % geöffnet.",
+          "tilt_3": "Mittlere Lamellenstellung. Standard: 35 % geschlossen.",
           "elevation_4": "Typisch bei hoher Mittagssonne. Standard: 60°.",
-          "tilt_4": "Weit geöffnet für Tageslicht. Standard: 85 % geöffnet."
+          "tilt_4": "Weit geöffnet für Tageslicht. Standard: 15 % geschlossen."
         }
       },
       "add_covers": {
@@ -378,36 +378,36 @@
       },
       "edit_layer_tilt_profile": {
         "title": "Lamellenprofil",
-        "description": "0 % bedeutet geschlossen, 100 % geöffnet.",
+        "description": "KNX-Lamellensemantik: 0 % bedeutet vollständig geöffnet, 100 % vollständig geschlossen.",
         "data": {
           "tilt_preset": "Lamellenprofil"
         }
       },
       "edit_layer_tilt_custom": {
         "title": "Adaptive Lamellenführung",
-        "description": "Die Jalousie bleibt unten; die Werte steuern nur die Lamellenöffnung.",
+        "description": "Die Jalousie bleibt unten; die Werte steuern nur die Lamellenposition (0 % offen, 100 % geschlossen).",
         "data": {
           "elevation_1": "Tiefe Sonne – ab",
-          "tilt_1": "Tiefe Sonne – Öffnung",
+          "tilt_1": "Tiefe Sonne – Lamellenposition",
           "elevation_2": "Niedrige Sonne – ab",
-          "tilt_2": "Niedrige Sonne – Öffnung",
+          "tilt_2": "Niedrige Sonne – Lamellenposition",
           "elevation_3": "Mittlere Sonne – ab",
-          "tilt_3": "Mittlere Sonne – Öffnung",
+          "tilt_3": "Mittlere Sonne – Lamellenposition",
           "elevation_4": "Hohe Sonne – ab",
-          "tilt_4": "Hohe Sonne – Öffnung"
+          "tilt_4": "Hohe Sonne – Lamellenposition"
         }
       },
       "edit_layer_advanced": {
         "title": "Erweiterte Zielwerte",
-        "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Home-Assistant-Semantik: 0 % geschlossen, 100 % offen.",
+        "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Behanghöhe: 0 % geschlossen, 100 % offen. Lamellenposition: 0 % vollständig offen, 100 % vollständig geschlossen.",
         "data": {
           "open_position": "Ruhe-/Öffnungsposition",
           "comfort_position": "Comfort-Position",
           "solar_position": "Solar-Position",
           "heat_position": "Heat-Position",
           "safety_position": "Safety-Position",
-          "comfort_tilt": "Comfort-Lamellenöffnung",
-          "heat_tilt": "Heat-Lamellenöffnung"
+          "comfort_tilt": "Comfort-Lamellenposition",
+          "heat_tilt": "Heat-Lamellenposition"
         }
       },
       "select_cover": {
@@ -435,7 +435,7 @@
           "window_returns_to_automation": "Standardmäßig aktiv. Fensterbedingte Bewegungen im unsicheren Zustand und die Rückfahrt nach dem Schließen erzeugen keine manuelle Pause. Ausdrückliche Cover- und Raum-Pausen bleiben aktiv.",
           "max_open_position": "Beispiel: 90 %, wenn ein Cover aus Sicherheitsgründen nie vollständig öffnen soll.",
           "invert_position": "Nur verwenden, wenn die Home-Assistant-Entität selbst 0/100 falsch herum meldet. KNX-Invertierung gehört normalerweise in die KNX-Cover-Konfiguration.",
-          "invert_tilt": "Nur bei falsch herum gemeldeter Home-Assistant-Lamellenposition verwenden.",
+          "invert_tilt": "Standard ist die KNX-Lamellenskala: 0 % vollständig offen und 100 % vollständig geschlossen. Nur aktivieren, wenn dieses Cover die umgekehrte Richtung verwendet.",
           "short": "Kurze Bezeichnung für die Card."
         }
       },
@@ -644,16 +644,16 @@
       },
       "compact_tilt_custom": {
         "title": "Eigene Lamellenkurve",
-        "description": "Die Jalousie fährt bei Sonnenschutz vollständig herunter. Diese Werte bestimmen nur die Lamellenöffnung: 0 % geschlossen, 100 % geöffnet.",
+        "description": "Die Jalousie fährt bei Sonnenschutz vollständig herunter. Diese Werte bestimmen nur die Lamellenposition: 0 % vollständig geöffnet, 100 % vollständig geschlossen.",
         "data": {
           "elevation_1": "Stufe 1: ab Sonnenhöhe",
           "elevation_2": "Stufe 2: ab Sonnenhöhe",
           "elevation_3": "Stufe 3: ab Sonnenhöhe",
           "elevation_4": "Stufe 4: ab Sonnenhöhe",
-          "tilt_1": "Stufe 1: Lamellenöffnung",
-          "tilt_2": "Stufe 2: Lamellenöffnung",
-          "tilt_3": "Stufe 3: Lamellenöffnung",
-          "tilt_4": "Stufe 4: Lamellenöffnung"
+          "tilt_1": "Stufe 1: Lamellenposition",
+          "tilt_2": "Stufe 2: Lamellenposition",
+          "tilt_3": "Stufe 3: Lamellenposition",
+          "tilt_4": "Stufe 4: Lamellenposition"
         }
       },
       "compact_cover_details": {
@@ -716,7 +716,7 @@
         "data": {
           "sun_entity": "Sonnenentität",
           "position_tolerance": "Toleranz für Behangposition",
-          "tilt_tolerance": "Toleranz für Lamellenöffnung",
+          "tilt_tolerance": "Toleranz für Lamellenposition",
           "command_cooldown": "Sperrzeit für identische Befehle",
           "unknown_feedback_policy": "Verhalten ohne Positionsrückmeldung",
           "evening_release_time": "Feste späteste Abendfreigabe",
@@ -832,36 +832,36 @@
       },
       "layer_tilt_profile": {
         "title": "Lamellenführung auswählen",
-        "description": "Bei aktiver Sonnenbeschattung fährt die Außenjalousie vollständig herunter. Das Profil bestimmt nur die Lamellenöffnung: „Mehr Blendschutz“ öffnet weniger, „Ausgewogen“ ist der Standard, „Mehr Tageslicht“ öffnet stärker. 0 % = geschlossen, 100 % = geöffnet. „Benutzerdefiniert“ öffnet anschließend die vier frei einstellbaren Stufen.",
+        "description": "Bei aktiver Sonnenbeschattung fährt die Außenjalousie vollständig herunter. Das Profil bestimmt nur die Lamellenposition: „Mehr Blendschutz“ schließt stärker, „Ausgewogen“ ist der Standard, „Mehr Tageslicht“ öffnet weiter. 0 % = vollständig geöffnet, 100 % = vollständig geschlossen. „Benutzerdefiniert“ öffnet anschließend die vier frei einstellbaren Stufen.",
         "data": {
           "tilt_preset": "Lamellenprofil"
         },
         "data_description": {
-          "tilt_preset": "Ausgewogen ist der empfohlene Standard. Benutzerdefiniert zeigt auf der nächsten Seite alle Sonnenhöhen und Lamellenöffnungen."
+          "tilt_preset": "Ausgewogen ist der empfohlene Standard. Benutzerdefiniert zeigt auf der nächsten Seite alle Sonnenhöhen und Lamellenpositionen."
         }
       },
       "layer_tilt_custom": {
         "title": "Adaptive Lamellenführung anpassen",
-        "description": "Die vier Stufen gelten ab der jeweiligen Sonnenhöhe. Bei tiefer Sonne bleiben die Lamellen eher geschlossen; bei hoher Sonne können sie weiter öffnen. **Die Jalousie selbst bleibt während der Beschattung vollständig unten.**\n\n0 % = vollständig geschlossen · 100 % = vollständig geöffnet",
+        "description": "Die vier Stufen gelten ab der jeweiligen Sonnenhöhe. Bei tiefer Sonne bleiben die Lamellen eher geschlossen; bei hoher Sonne können sie weiter öffnen. **Die Jalousie selbst bleibt während der Beschattung vollständig unten.**\n\n0 % = vollständig geöffnet · 100 % = vollständig geschlossen",
         "data": {
           "elevation_1": "Tiefe Sonne – ab Sonnenhöhe",
-          "tilt_1": "Tiefe Sonne – Lamellenöffnung",
+          "tilt_1": "Tiefe Sonne – Lamellenposition",
           "elevation_2": "Niedrige Sonne – ab Sonnenhöhe",
-          "tilt_2": "Niedrige Sonne – Lamellenöffnung",
+          "tilt_2": "Niedrige Sonne – Lamellenposition",
           "elevation_3": "Mittlere Sonne – ab Sonnenhöhe",
-          "tilt_3": "Mittlere Sonne – Lamellenöffnung",
+          "tilt_3": "Mittlere Sonne – Lamellenposition",
           "elevation_4": "Hohe Sonne – ab Sonnenhöhe",
-          "tilt_4": "Hohe Sonne – Lamellenöffnung"
+          "tilt_4": "Hohe Sonne – Lamellenposition"
         },
         "data_description": {
           "elevation_1": "Typisch morgens oder abends. Standard: 10°.",
-          "tilt_1": "Fast geschlossen für hohen Blendschutz. Standard: 10 % geöffnet.",
+          "tilt_1": "Fast geschlossen für hohen Blendschutz. Standard: 90 % geschlossen.",
           "elevation_2": "Standard: 20°.",
-          "tilt_2": "Etwas mehr Tageslicht. Standard: 35 % geöffnet.",
+          "tilt_2": "Etwas mehr Tageslicht. Standard: 65 % geschlossen.",
           "elevation_3": "Standard: 40°.",
-          "tilt_3": "Mittlere Öffnung. Standard: 65 % geöffnet.",
+          "tilt_3": "Mittlere Lamellenstellung. Standard: 35 % geschlossen.",
           "elevation_4": "Typisch bei hoher Mittagssonne. Standard: 60°.",
-          "tilt_4": "Weit geöffnet für Tageslicht. Standard: 85 % geöffnet."
+          "tilt_4": "Weit geöffnet für Tageslicht. Standard: 15 % geschlossen."
         }
       },
       "add_covers": {
@@ -1070,36 +1070,36 @@
       },
       "edit_layer_tilt_profile": {
         "title": "Lamellenprofil",
-        "description": "0 % bedeutet geschlossen, 100 % geöffnet.",
+        "description": "KNX-Lamellensemantik: 0 % bedeutet vollständig geöffnet, 100 % vollständig geschlossen.",
         "data": {
           "tilt_preset": "Lamellenprofil"
         }
       },
       "edit_layer_tilt_custom": {
         "title": "Adaptive Lamellenführung",
-        "description": "Die Jalousie bleibt unten; die Werte steuern nur die Lamellenöffnung.",
+        "description": "Die Jalousie bleibt unten; die Werte steuern nur die Lamellenposition (0 % offen, 100 % geschlossen).",
         "data": {
           "elevation_1": "Tiefe Sonne – ab",
-          "tilt_1": "Tiefe Sonne – Öffnung",
+          "tilt_1": "Tiefe Sonne – Lamellenposition",
           "elevation_2": "Niedrige Sonne – ab",
-          "tilt_2": "Niedrige Sonne – Öffnung",
+          "tilt_2": "Niedrige Sonne – Lamellenposition",
           "elevation_3": "Mittlere Sonne – ab",
-          "tilt_3": "Mittlere Sonne – Öffnung",
+          "tilt_3": "Mittlere Sonne – Lamellenposition",
           "elevation_4": "Hohe Sonne – ab",
-          "tilt_4": "Hohe Sonne – Öffnung"
+          "tilt_4": "Hohe Sonne – Lamellenposition"
         }
       },
       "edit_layer_advanced": {
         "title": "Erweiterte Zielwerte",
-        "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Home-Assistant-Semantik: 0 % geschlossen, 100 % offen.",
+        "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Behanghöhe: 0 % geschlossen, 100 % offen. Lamellenposition: 0 % vollständig offen, 100 % vollständig geschlossen.",
         "data": {
           "open_position": "Ruhe-/Öffnungsposition",
           "comfort_position": "Comfort-Position",
           "solar_position": "Solar-Position",
           "heat_position": "Heat-Position",
           "safety_position": "Safety-Position",
-          "comfort_tilt": "Comfort-Lamellenöffnung",
-          "heat_tilt": "Heat-Lamellenöffnung"
+          "comfort_tilt": "Comfort-Lamellenposition",
+          "heat_tilt": "Heat-Lamellenposition"
         }
       },
       "select_cover": {
@@ -1127,7 +1127,7 @@
           "window_returns_to_automation": "Standardmäßig aktiv. Fensterbedingte Bewegungen im unsicheren Zustand und die Rückfahrt nach dem Schließen erzeugen keine manuelle Pause. Ausdrückliche Cover- und Raum-Pausen bleiben aktiv.",
           "max_open_position": "Beispiel: 90 %, wenn ein Cover aus Sicherheitsgründen nie vollständig öffnen soll.",
           "invert_position": "Nur verwenden, wenn die Home-Assistant-Entität selbst 0/100 falsch herum meldet. KNX-Invertierung gehört normalerweise in die KNX-Cover-Konfiguration.",
-          "invert_tilt": "Nur bei falsch herum gemeldeter Home-Assistant-Lamellenposition verwenden.",
+          "invert_tilt": "Standard ist die KNX-Lamellenskala: 0 % vollständig offen und 100 % vollständig geschlossen. Nur aktivieren, wenn dieses Cover die umgekehrte Richtung verwendet.",
           "short": "Kurze Bezeichnung für die Card."
         }
       },

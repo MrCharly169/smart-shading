@@ -127,7 +127,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                                 engine, room_id, sector_id, layer["id"],
                                 NumberDefinition(
                                     f"tilt_value_{index}",
-                                    f"{stage} slat opening",
+                                    f"{stage} slat position",
                                     0, 100, 1, "%", "mdi:rotate-right"
                                 ),
                                 default_value=float(point.get("tilt", 0)),
@@ -195,13 +195,13 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
             "Safety position": "Safety-Position",
             "Safety tilt": "Safety-Lamelle",
             "Very low sun elevation": "Tiefe Sonne – Sonnenhöhe",
-            "Very low sun slat opening": "Tiefe Sonne – Lamellenöffnung",
+            "Very low sun slat position": "Tiefe Sonne – Lamellenposition",
             "Low sun elevation": "Niedrige Sonne – Sonnenhöhe",
-            "Low sun slat opening": "Niedrige Sonne – Lamellenöffnung",
+            "Low sun slat position": "Niedrige Sonne – Lamellenposition",
             "Medium sun elevation": "Mittlere Sonne – Sonnenhöhe",
-            "Medium sun slat opening": "Mittlere Sonne – Lamellenöffnung",
+            "Medium sun slat position": "Mittlere Sonne – Lamellenposition",
             "High sun elevation": "Hohe Sonne – Sonnenhöhe",
-            "High sun slat opening": "Hohe Sonne – Lamellenöffnung",
+            "High sun slat position": "Hohe Sonne – Lamellenposition",
         }.get(definition.name, definition.name))
         self._attr_native_min_value = definition.minimum
         self._attr_native_max_value = definition.maximum
