@@ -201,19 +201,19 @@
       },
       "room_hub": {
         "title": "Raum verwalten",
-        "description": "Wählen Sie den Bereich, den Sie bearbeiten möchten.",
+        "description": "Raumdaten und Automatik bleiben von der vollständigen Struktur Sektor → Gruppe → Behang getrennt.",
         "menu_options": {
-          "back_to_overview": "Zur Raumliste"
+          "back_to_overview": "Zur Raumübersicht"
         }
       },
       "sector_hub": {
-        "title": "Sonnensektoren",
-        "description": "Fügen Sie einen Sektor hinzu oder öffnen Sie einen vorhandenen. Ein Sektor beschreibt eine Fassade oder Sonnenrichtung.",
+        "title": "Sonnensektor · {sector_name}",
+        "description": "Konfigurieren Sie diesen Sektor und öffnen Sie nur die ihm zugeordneten Behanggruppen.",
         "menu_options": {}
       },
       "group_hub": {
-        "title": "Behanggruppen",
-        "description": "Fügen Sie eine Gruppe hinzu oder bearbeiten Sie eine vorhandene. Behänge einer Gruppe teilen physisches Verhalten und Zielpositionen.",
+        "title": "Behanggruppe · {group_name}",
+        "description": "Konfigurieren Sie diese Gruppe und ihre Behänge. Jeder Behang in dieser Liste übernimmt das Gruppenprofil.",
         "menu_options": {}
       },
       "cover_hub": {
@@ -449,8 +449,8 @@
         }
       },
       "add_sector_flat": {
-        "title": "{room_name} · Sonnensektor hinzufügen",
-        "description": "Fügen Sie diesem Raum einen weiteren Sonnensektor hinzu.",
+        "title": "{room_name} · Vollständigen Beschattungsbereich hinzufügen",
+        "description": "Beginnen Sie mit dem Sektor. Sonnenquelle, erste Behanggruppe und Behänge folgen auf fokussierten Seiten und werden gemeinsam gespeichert.",
         "data": {
           "name": "Sektorname",
           "short": "Kurzname",
@@ -458,10 +458,10 @@
           "sun_source": "Sonnenquelle"
         },
         "data_description": {
-          "name": "Name in Karten und Statusentitäten.",
-          "short": "Kurzes Kürzel für kompakte Anzeigen.",
+          "name": "Name für Karten und Statusentitäten.",
+          "short": "Kurze Bezeichnung für kompakte Anzeigen.",
           "direction": "Fassadenrichtung für die Sonnengeometrie.",
-          "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+          "sun_source": "Wählen Sie Geometrie, den empfohlenen lokalen Lux-Sensor oder eine externe Ein/Aus-Bestätigung."
         }
       },
       "manage_layer": {
@@ -547,15 +547,15 @@
         }
       },
       "add_layer_flat": {
-        "title": "{room_name} · Behanggruppe zu {sector_name} hinzufügen",
-        "description": "Erstellen Sie eine Gruppe für Behänge mit gleichem physischem Verhalten.",
+        "title": "{sector_name} · Behanggruppe hinzufügen",
+        "description": "Legen Sie eine weitere physische Gruppe in diesem Sektor an. Behänge werden vor dem Speichern zugeordnet.",
         "data": {
           "name": "Gruppenname",
           "profile": "Behangtyp"
         },
         "data_description": {
-          "name": "Name der neuen Gruppe.",
-          "profile": "Legt passende Standardwerte für diesen Behangtyp fest. Behänge ordnen Sie separat unter „Einzelne Behänge“ zu."
+          "name": "Angezeigter Name der neuen Gruppe.",
+          "profile": "Legt passende Standardwerte und verfügbare Optionen für diesen physischen Behangtyp fest."
         }
       },
       "manage_cover": {
@@ -626,6 +626,107 @@
         },
         "data_description": {
           "confirm_start": "Bestätigen Sie, dass Sie die Einrichtung geprüft haben und die Automatik starten möchten."
+        }
+      },
+      "structure_hub": {
+        "title": "Beschattungsstruktur",
+        "description": "Öffnen Sie einen vollständigen Sonnensektor oder fügen Sie einen Bereich hinzu. Neue Bereiche werden erst mit einer Gruppe und mindestens einem Behang gespeichert.",
+        "menu_options": {}
+      },
+      "configure_outdoor_temperature": {
+        "title": "Außentemperatur-Bedingung",
+        "description": "Der ausgewählte Sensor aktiviert eine einfache Bedingung. Die Beschattung startet erst ab dieser Mindesttemperatur.",
+        "data": {
+          "outdoor_minimum": "Minimale Außentemperatur"
+        },
+        "data_description": {
+          "outdoor_minimum": "Unterhalb dieser Temperatur bleibt die normale Beschattung inaktiv. Ohne Außensensor wird die Bedingung ignoriert."
+        }
+      },
+      "manage_sector_source": {
+        "title": "{sector_name} · Sonnenquelle",
+        "description": "Wählen Sie genau eine Quelle für direkte Sonne. Die erforderliche Entität folgt auf einer kurzen eigenen Seite.",
+        "data": {
+          "sun_source": "Sonnenquelle"
+        },
+        "data_description": {
+          "sun_source": "Ein lokaler Lux-Sensor wird empfohlen. Der Sonnenstand benötigt keine Entität; ein externer Ein/Aus-Sensor muss bei direkter Sonne eingeschaltet sein."
+        }
+      },
+      "configure_sector_source": {
+        "title": "{sector_name} · Sonnenquelle konfigurieren",
+        "description": "Es werden nur die Felder angezeigt, die für die gewählte Quelle erforderlich sind.",
+        "data": {
+          "lux_sensor": "Lokaler Lux-Sensor",
+          "sun_preset": "Sonnenempfindlichkeit",
+          "sun_presence_entity": "Externer Ein/Aus-Sensor"
+        },
+        "data_description": {
+          "lux_sensor": "Empfohlener lokaler Lux-Helligkeitssensor für diese Fassade.",
+          "sun_preset": "Legt passende Helligkeitsschwellen und Verzögerungen fest.",
+          "sun_presence_entity": "Bestehende Entität, deren Zustand Ein direkte Sonne an dieser Fassade bedeutet."
+        }
+      },
+      "configure_lux_profile": {
+        "title": "{sector_name} · Eigenes Lux-Profil",
+        "description": "Passen Sie Lux-Hysterese und Verzögerungen an. Die Einschaltschwelle muss über der Ausschaltschwelle liegen.",
+        "data": {
+          "sun_on_lux": "Sonne erkannt über",
+          "sun_off_lux": "Sonne nicht mehr erkannt unter",
+          "sun_on_delay": "Einschaltverzögerung",
+          "sun_off_delay": "Ausschaltverzögerung"
+        },
+        "data_description": {
+          "sun_on_lux": "Direkte Sonne wird oberhalb dieses Wertes aktiv.",
+          "sun_off_lux": "Direkte Sonne endet unterhalb dieses Wertes.",
+          "sun_on_delay": "Filtert kurze helle Spitzen.",
+          "sun_off_delay": "Filtert kurze Wolkenphasen."
+        }
+      },
+      "manage_sector_geometry": {
+        "title": "{sector_name} · Eigene Fassadengeometrie",
+        "description": "Konfigurieren Sie das eigene Sonnenfenster auf dieser fokussierten Seite.",
+        "data": {
+          "azimuth_start": "Azimut Start",
+          "azimuth_end": "Azimut Ende",
+          "elevation_min": "Minimale Sonnenhöhe"
+        },
+        "data_description": {
+          "azimuth_start": "Erste im Sektor enthaltene Sonnenrichtung.",
+          "azimuth_end": "Letzte enthaltene Richtung; der Bereich darf über Norden laufen.",
+          "elevation_min": "Sonne unterhalb dieser Höhe ignorieren."
+        }
+      },
+      "add_sector_group": {
+        "title": "{sector_name} · Erste Behanggruppe anlegen",
+        "description": "Jeder neue Sonnensektor benötigt eine Behanggruppe. Wählen Sie jetzt das physische Profil.",
+        "data": {
+          "name": "Gruppenname",
+          "profile": "Behangtyp"
+        },
+        "data_description": {
+          "name": "Angezeigter Name dieser Gruppe.",
+          "profile": "Bestimmt verfügbare Einstellungen, Standardwerte und Kartendarstellung."
+        }
+      },
+      "add_sector_covers": {
+        "title": "{sector_name} · Behänge zuordnen",
+        "description": "Der neue Sonnensektor wird erst gespeichert, wenn seiner ersten Gruppe mindestens ein Behang zugeordnet ist.",
+        "data": {
+          "cover_entities": "Behänge"
+        },
+        "data_description": {
+          "cover_entities": "Wählen Sie alle Home-Assistant-Behänge, die gemeinsam in dieser Gruppe fahren sollen."
+        }
+      },
+      "add_group_covers": {
+        "title": "{group_name} · Behänge zuordnen",
+        "description": "Die neue Behanggruppe wird erst gespeichert, wenn mindestens ein Behang zugeordnet ist.",
+        "data": {
+          "cover_entities": "Behänge"
+        },
+        "data_description": {
+          "cover_entities": "Die ausgewählten Behänge übernehmen das physische Profil und die Zielwerte dieser Gruppe."
         }
       }
     },
@@ -747,9 +848,9 @@
       },
       "room_hub": {
         "title": "Raum verwalten",
-        "description": "Wählen Sie den Bereich, den Sie bearbeiten möchten.",
+        "description": "Raumdaten und Automatik bleiben von der vollständigen Struktur Sektor → Gruppe → Behang getrennt.",
         "menu_options": {
-          "back_to_overview": "Zur Raumliste"
+          "back_to_overview": "Zur Raumübersicht"
         }
       },
       "manage_sector": {
@@ -812,8 +913,8 @@
         }
       },
       "add_sector_flat": {
-        "title": "{room_name} · Sonnensektor hinzufügen",
-        "description": "Fügen Sie diesem Raum einen weiteren Sonnensektor hinzu.",
+        "title": "{room_name} · Vollständigen Beschattungsbereich hinzufügen",
+        "description": "Beginnen Sie mit dem Sektor. Sonnenquelle, erste Behanggruppe und Behänge folgen auf fokussierten Seiten und werden gemeinsam gespeichert.",
         "data": {
           "name": "Sektorname",
           "short": "Kurzname",
@@ -821,10 +922,10 @@
           "sun_source": "Sonnenquelle"
         },
         "data_description": {
-          "name": "Name in Karten und Statusentitäten.",
-          "short": "Kurzes Kürzel für kompakte Anzeigen.",
+          "name": "Name für Karten und Statusentitäten.",
+          "short": "Kurze Bezeichnung für kompakte Anzeigen.",
           "direction": "Fassadenrichtung für die Sonnengeometrie.",
-          "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+          "sun_source": "Wählen Sie Geometrie, den empfohlenen lokalen Lux-Sensor oder eine externe Ein/Aus-Bestätigung."
         }
       },
       "manage_layer": {
@@ -910,15 +1011,15 @@
         }
       },
       "add_layer_flat": {
-        "title": "{room_name} · Behanggruppe zu {sector_name} hinzufügen",
-        "description": "Erstellen Sie eine Gruppe für Behänge mit gleichem physischem Verhalten.",
+        "title": "{sector_name} · Behanggruppe hinzufügen",
+        "description": "Legen Sie eine weitere physische Gruppe in diesem Sektor an. Behänge werden vor dem Speichern zugeordnet.",
         "data": {
           "name": "Gruppenname",
           "profile": "Behangtyp"
         },
         "data_description": {
-          "name": "Name der neuen Gruppe.",
-          "profile": "Legt passende Standardwerte für diesen Behangtyp fest. Behänge ordnen Sie separat unter „Einzelne Behänge“ zu."
+          "name": "Angezeigter Name der neuen Gruppe.",
+          "profile": "Legt passende Standardwerte und verfügbare Optionen für diesen physischen Behangtyp fest."
         }
       },
       "manage_cover": {
@@ -991,13 +1092,13 @@
         }
       },
       "sector_hub": {
-        "title": "Sonnensektoren",
-        "description": "Fügen Sie einen Sektor hinzu oder öffnen Sie einen vorhandenen. Ein Sektor beschreibt eine Fassade oder Sonnenrichtung.",
+        "title": "Sonnensektor · {sector_name}",
+        "description": "Konfigurieren Sie diesen Sektor und öffnen Sie nur die ihm zugeordneten Behanggruppen.",
         "menu_options": {}
       },
       "group_hub": {
-        "title": "Behanggruppen",
-        "description": "Fügen Sie eine Gruppe hinzu oder bearbeiten Sie eine vorhandene. Behänge einer Gruppe teilen physisches Verhalten und Zielpositionen.",
+        "title": "Behanggruppe · {group_name}",
+        "description": "Konfigurieren Sie diese Gruppe und ihre Behänge. Jeder Behang in dieser Liste übernimmt das Gruppenprofil.",
         "menu_options": {}
       },
       "cover_hub": {
@@ -1263,6 +1364,107 @@
               "outdoor_minimum": "Minimale Außentemperatur für normale Beschattung."
             }
           }
+        }
+      },
+      "structure_hub": {
+        "title": "Beschattungsstruktur",
+        "description": "Öffnen Sie einen vollständigen Sonnensektor oder fügen Sie einen Bereich hinzu. Neue Bereiche werden erst mit einer Gruppe und mindestens einem Behang gespeichert.",
+        "menu_options": {}
+      },
+      "configure_outdoor_temperature": {
+        "title": "Außentemperatur-Bedingung",
+        "description": "Der ausgewählte Sensor aktiviert eine einfache Bedingung. Die Beschattung startet erst ab dieser Mindesttemperatur.",
+        "data": {
+          "outdoor_minimum": "Minimale Außentemperatur"
+        },
+        "data_description": {
+          "outdoor_minimum": "Unterhalb dieser Temperatur bleibt die normale Beschattung inaktiv. Ohne Außensensor wird die Bedingung ignoriert."
+        }
+      },
+      "manage_sector_source": {
+        "title": "{sector_name} · Sonnenquelle",
+        "description": "Wählen Sie genau eine Quelle für direkte Sonne. Die erforderliche Entität folgt auf einer kurzen eigenen Seite.",
+        "data": {
+          "sun_source": "Sonnenquelle"
+        },
+        "data_description": {
+          "sun_source": "Ein lokaler Lux-Sensor wird empfohlen. Der Sonnenstand benötigt keine Entität; ein externer Ein/Aus-Sensor muss bei direkter Sonne eingeschaltet sein."
+        }
+      },
+      "configure_sector_source": {
+        "title": "{sector_name} · Sonnenquelle konfigurieren",
+        "description": "Es werden nur die Felder angezeigt, die für die gewählte Quelle erforderlich sind.",
+        "data": {
+          "lux_sensor": "Lokaler Lux-Sensor",
+          "sun_preset": "Sonnenempfindlichkeit",
+          "sun_presence_entity": "Externer Ein/Aus-Sensor"
+        },
+        "data_description": {
+          "lux_sensor": "Empfohlener lokaler Lux-Helligkeitssensor für diese Fassade.",
+          "sun_preset": "Legt passende Helligkeitsschwellen und Verzögerungen fest.",
+          "sun_presence_entity": "Bestehende Entität, deren Zustand Ein direkte Sonne an dieser Fassade bedeutet."
+        }
+      },
+      "configure_lux_profile": {
+        "title": "{sector_name} · Eigenes Lux-Profil",
+        "description": "Passen Sie Lux-Hysterese und Verzögerungen an. Die Einschaltschwelle muss über der Ausschaltschwelle liegen.",
+        "data": {
+          "sun_on_lux": "Sonne erkannt über",
+          "sun_off_lux": "Sonne nicht mehr erkannt unter",
+          "sun_on_delay": "Einschaltverzögerung",
+          "sun_off_delay": "Ausschaltverzögerung"
+        },
+        "data_description": {
+          "sun_on_lux": "Direkte Sonne wird oberhalb dieses Wertes aktiv.",
+          "sun_off_lux": "Direkte Sonne endet unterhalb dieses Wertes.",
+          "sun_on_delay": "Filtert kurze helle Spitzen.",
+          "sun_off_delay": "Filtert kurze Wolkenphasen."
+        }
+      },
+      "manage_sector_geometry": {
+        "title": "{sector_name} · Eigene Fassadengeometrie",
+        "description": "Konfigurieren Sie das eigene Sonnenfenster auf dieser fokussierten Seite.",
+        "data": {
+          "azimuth_start": "Azimut Start",
+          "azimuth_end": "Azimut Ende",
+          "elevation_min": "Minimale Sonnenhöhe"
+        },
+        "data_description": {
+          "azimuth_start": "Erste im Sektor enthaltene Sonnenrichtung.",
+          "azimuth_end": "Letzte enthaltene Richtung; der Bereich darf über Norden laufen.",
+          "elevation_min": "Sonne unterhalb dieser Höhe ignorieren."
+        }
+      },
+      "add_sector_group": {
+        "title": "{sector_name} · Erste Behanggruppe anlegen",
+        "description": "Jeder neue Sonnensektor benötigt eine Behanggruppe. Wählen Sie jetzt das physische Profil.",
+        "data": {
+          "name": "Gruppenname",
+          "profile": "Behangtyp"
+        },
+        "data_description": {
+          "name": "Angezeigter Name dieser Gruppe.",
+          "profile": "Bestimmt verfügbare Einstellungen, Standardwerte und Kartendarstellung."
+        }
+      },
+      "add_sector_covers": {
+        "title": "{sector_name} · Behänge zuordnen",
+        "description": "Der neue Sonnensektor wird erst gespeichert, wenn seiner ersten Gruppe mindestens ein Behang zugeordnet ist.",
+        "data": {
+          "cover_entities": "Behänge"
+        },
+        "data_description": {
+          "cover_entities": "Wählen Sie alle Home-Assistant-Behänge, die gemeinsam in dieser Gruppe fahren sollen."
+        }
+      },
+      "add_group_covers": {
+        "title": "{group_name} · Behänge zuordnen",
+        "description": "Die neue Behanggruppe wird erst gespeichert, wenn mindestens ein Behang zugeordnet ist.",
+        "data": {
+          "cover_entities": "Behänge"
+        },
+        "data_description": {
+          "cover_entities": "Die ausgewählten Behänge übernehmen das physische Profil und die Zielwerte dieser Gruppe."
         }
       }
     },

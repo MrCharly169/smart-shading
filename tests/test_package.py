@@ -93,8 +93,10 @@ class PackageTests(unittest.TestCase):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
         self.assertNotIn("easy_temperature_gate", flow)
-        self.assertIn('outdoor_temperature and "outdoor_minimum" not in values', flow)
-        self.assertIn('if str(room.get("outdoor_temperature") or "").strip()', flow)
+        self.assertNotIn('outdoor_temperature and "outdoor_minimum" not in values', flow)
+        self.assertIn("async_step_configure_outdoor_temperature", flow)
+        self.assertIn('step_id="configure_outdoor_temperature"', flow)
+        self.assertIn('if not str(room.get("outdoor_temperature") or "").strip()', flow)
         self.assertIn("def _outdoor_temperature_condition", engine)
         self.assertNotIn("_easy_weather_confirmation", engine)
 
@@ -331,10 +333,15 @@ class PackageTests(unittest.TestCase):
     def test_translation_files_cover_every_flow(self):
         shared_steps = {
             "global_settings", "room_setup", "add_room", "init", "room_hub",
-            "sector_hub", "group_hub", "cover_hub", "manage_room_details",
+            "structure_hub", "sector_hub", "group_hub", "cover_hub",
+            "manage_room_details", "configure_outdoor_temperature",
             "manage_room_maintenance", "manage_automation", "manage_night",
-            "manage_pause", "manage_conditions", "manage_sector", "manage_layer",
-            "manage_cover", "add_sector_flat", "add_layer_flat", "add_covers_flat",
+            "manage_pause", "manage_conditions", "manage_sector",
+            "manage_sector_source", "configure_sector_source",
+            "configure_lux_profile", "manage_sector_geometry", "manage_layer",
+            "manage_cover", "add_sector_flat", "add_sector_group",
+            "add_sector_covers", "add_layer_flat", "add_group_covers",
+            "add_covers_flat",
             "choose_sector_for_group", "choose_group_for_covers",
             "compact_cover_details", "finish",
         }
@@ -553,10 +560,15 @@ class PackageTests(unittest.TestCase):
     def test_mode_names_are_customer_visible_only_at_first_choice(self):
         active_steps = {
             "global_settings", "room_setup", "add_room", "init", "room_hub",
-            "sector_hub", "group_hub", "cover_hub", "manage_room_details",
+            "structure_hub", "sector_hub", "group_hub", "cover_hub",
+            "manage_room_details", "configure_outdoor_temperature",
             "manage_room_maintenance", "manage_automation", "manage_night",
-            "manage_pause", "manage_conditions", "manage_sector", "manage_layer",
-            "manage_cover", "add_sector_flat", "add_layer_flat", "add_covers_flat",
+            "manage_pause", "manage_conditions", "manage_sector",
+            "manage_sector_source", "configure_sector_source",
+            "configure_lux_profile", "manage_sector_geometry", "manage_layer",
+            "manage_cover", "add_sector_flat", "add_sector_group",
+            "add_sector_covers", "add_layer_flat", "add_group_covers",
+            "add_covers_flat",
             "choose_sector_for_group", "choose_group_for_covers",
             "compact_cover_details", "finish",
         }
@@ -771,7 +783,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn("_add_option_route", mixin_methods)
         self.assertNotIn("_add_option_route", option_methods)
         for method_name in (
-            "async_step_room_hub", "async_step_sector_hub",
+            "async_step_room_hub", "async_step_structure_hub",
+            "async_step_sector_hub",
             "async_step_group_hub", "async_step_cover_hub",
         ):
             self.assertIn(method_name, mixin_methods)
@@ -809,9 +822,10 @@ class PackageTests(unittest.TestCase):
         self.assertIn('step_id="room_hub"', hub)
         options = flow[flow.index("class SmartShadingOptionsFlow"):]
         for action in (
-            "manage_room_details", "add_sector_flat", "manage_sector",
-            "add_layer_flat", "manage_layer", "add_covers_flat",
-            "manage_cover",
+            "manage_room_details", "add_sector_flat", "add_sector_group",
+            "add_sector_covers", "manage_sector", "manage_sector_source",
+            "configure_sector_source", "add_layer_flat", "add_group_covers",
+            "manage_layer", "add_covers_flat", "manage_cover",
         ):
             self.assertIn(f'"{action}"', options)
             self.assertIn(f"async_step_{action}", options)
@@ -820,9 +834,12 @@ class PackageTests(unittest.TestCase):
 
     def test_new_options_forms_are_fully_translated_in_en_and_de(self):
         required = {
-            "room_hub",
-            "add_sector_flat", "manage_sector",
-            "add_layer_flat", "manage_layer", "add_covers_flat",
+            "room_hub", "structure_hub",
+            "add_sector_flat", "add_sector_group", "add_sector_covers",
+            "manage_sector", "manage_sector_source",
+            "configure_sector_source", "configure_lux_profile",
+            "manage_sector_geometry", "add_layer_flat", "add_group_covers",
+            "manage_layer", "add_covers_flat",
             "manage_cover", "sector_hub", "group_hub", "cover_hub",
             "manage_room_details", "manage_room_maintenance",
             "manage_automation", "manage_night", "manage_pause",
@@ -915,16 +932,17 @@ class PackageTests(unittest.TestCase):
             for node in mixin.body
             if isinstance(node, ast.AsyncFunctionDef)
             and node.name in {
-                "async_step_room_hub", "async_step_sector_hub",
+                "async_step_room_hub", "async_step_structure_hub",
+                "async_step_sector_hub",
                 "async_step_group_hub", "async_step_cover_hub",
             }
         }
-        self.assertEqual(len(hub_methods), 4)
+        self.assertEqual(len(hub_methods), 5)
         hub = "\n".join(source or "" for source in hub_methods.values())
         options = flow[flow.index("class SmartShadingOptionsFlow"):]
         for builder in (
-            "build_room_routes", "build_sector_routes", "build_group_routes",
-            "build_cover_routes",
+            "build_room_routes", "build_structure_routes",
+            "build_sector_routes", "build_group_routes",
         ):
             self.assertIn(builder, hub)
         self.assertNotIn("for sector in room.get", hub)
@@ -944,7 +962,7 @@ class PackageTests(unittest.TestCase):
             setup_sun = data["config"]["step"]["room_setup"]["sections"]["sun_control"]
             self.assertEqual(set(setup_sun["data"]), {"sun_source"})
             self.assertTrue(setup_sun["data_description"]["sun_source"])
-            edit_sun = data["options"]["step"]["manage_sector"]["sections"]["sun_confirmation"]
+            edit_sun = data["options"]["step"]["configure_sector_source"]
             self.assertEqual(edit_sun["data"]["sun_presence_entity"], expected)
             self.assertIn("Lux", edit_sun["data_description"]["lux_sensor"])
 

@@ -99,6 +99,7 @@ from .options_navigation import (
     build_main_room_routes,
     build_room_routes,
     build_sector_routes,
+    build_structure_routes,
     pause_modes_for_room,
 )
 
@@ -283,6 +284,9 @@ MENU_LABELS_DE: dict[str, str] = {
     "global_settings": "Hauseinstellungen",
     "back_to_overview": "Zur Übersicht",
     "back_to_room": "Zurück zum Raum",
+    "back_to_structure": "Zurück zur Beschattungsstruktur",
+    "back_to_sector": "Zurück zum Sonnensektor",
+    "back_to_group": "Zurück zur Behanggruppe",
 }
 MENU_LABELS_EN: dict[str, str] = {
     "finish": "Save and start Smart Shading",
@@ -291,6 +295,9 @@ MENU_LABELS_EN: dict[str, str] = {
     "global_settings": "House settings",
     "back_to_overview": "Back to overview",
     "back_to_room": "Back to room",
+    "back_to_structure": "Back to shading structure",
+    "back_to_sector": "Back to sun sector",
+    "back_to_group": "Back to cover group",
 }
 
 
@@ -432,6 +439,9 @@ class _SmartShadingWizardMixin:
         return next(room for room in self.rooms if room["id"] == self._room_id)
 
     def sector(self) -> dict[str, Any]:
+        pending = getattr(self, "_pending_sector", None)
+        if pending is not None and pending.get("id") == self._sector_id:
+            return pending
         return next(
             item
             for item in self.room().get("sectors", [])
@@ -439,6 +449,9 @@ class _SmartShadingWizardMixin:
         )
 
     def layer(self) -> dict[str, Any]:
+        pending = getattr(self, "_pending_layer", None)
+        if pending is not None and pending.get("id") == self._layer_id:
+            return pending
         return next(
             item
             for item in self.sector().get("layers", [])
@@ -616,7 +629,12 @@ class _SmartShadingWizardMixin:
         )
 
     def _room_object_menu(
-        self, routes: list[dict[str, Any]], *, step_id: str
+        self,
+        routes: list[dict[str, Any]],
+        *,
+        step_id: str,
+        back_action: str,
+        back_label: str,
     ) -> ConfigFlowResult:
         """Render the shared add/edit list for one object category."""
         menu_options: dict[str, str] = {}
@@ -639,31 +657,140 @@ class _SmartShadingWizardMixin:
                 str(route["action"]),
                 **context,
             )
-        menu_options["back_to_room"] = self._menu(["back_to_room"])[
-            "back_to_room"
-        ]
-        return self.async_show_menu(step_id=step_id, menu_options=menu_options)
+        menu_options[back_action] = self._menu([back_label])[back_label]
+        return self.async_show_menu(
+            step_id=step_id,
+            menu_options=menu_options,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_structure_hub(self, user_input=None) -> ConfigFlowResult:
+        """Show complete sector branches instead of parallel object lists."""
+        self._sector_id = None
+        self._layer_id = None
+        self._cover_index = None
+        return self._room_object_menu(
+            build_structure_routes(self.room(), german=self._is_german()),
+            step_id="structure_hub",
+            back_action="back_to_room",
+            back_label="back_to_room",
+        )
 
     async def async_step_sector_hub(self, user_input=None) -> ConfigFlowResult:
+        self._layer_id = None
+        self._cover_index = None
         return self._room_object_menu(
-            build_sector_routes(self.room(), german=self._is_german()),
+            build_sector_routes(
+                self.room(), self.sector(), german=self._is_german()
+            ),
             step_id="sector_hub",
+            back_action="back_to_structure",
+            back_label="back_to_structure",
         )
 
     async def async_step_group_hub(self, user_input=None) -> ConfigFlowResult:
+        self._cover_index = None
         return self._room_object_menu(
-            build_group_routes(self.room(), german=self._is_german()),
+            build_group_routes(
+                self.room(),
+                self.sector(),
+                self.layer(),
+                german=self._is_german(),
+            ),
             step_id="group_hub",
+            back_action="back_to_sector",
+            back_label="back_to_sector",
         )
 
     async def async_step_cover_hub(self, user_input=None) -> ConfigFlowResult:
-        return self._room_object_menu(
-            build_cover_routes(self.room(), german=self._is_german()),
-            step_id="cover_hub",
-        )
+        """Keep stale links safe while routing covers through their group."""
+        return await self.async_step_group_hub()
 
     async def async_step_back_to_room(self, user_input=None) -> ConfigFlowResult:
         return await self.async_step_room_hub()
+
+    async def async_step_back_to_structure(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        return await self.async_step_structure_hub()
+
+    async def async_step_back_to_sector(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        return await self.async_step_sector_hub()
+
+    async def async_step_back_to_group(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        return await self.async_step_group_hub()
+
+    async def _go_to_saved_step(
+        self, attribute: str, *, fallback: str
+    ) -> ConfigFlowResult:
+        """Consume one explicit continuation without re-rendering a long form."""
+        step = str(getattr(self, attribute, None) or fallback)
+        setattr(self, attribute, None)
+        return await getattr(self, f"async_step_{step}")()
+
+    async def async_step_configure_outdoor_temperature(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure the temperature threshold on its own focused page."""
+        room = self.room()
+        if not str(room.get("outdoor_temperature") or "").strip():
+            return await self._go_to_saved_step(
+                "_after_outdoor_step", fallback="room_hub"
+            )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            room["outdoor_minimum"] = float(
+                user_input.get(
+                    "outdoor_minimum", room.get("outdoor_minimum", 18.0)
+                )
+            )
+            return await self._go_to_saved_step(
+                "_after_outdoor_step", fallback="room_hub"
+            )
+        return self.async_show_form(
+            step_id="configure_outdoor_temperature",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "outdoor_minimum",
+                        default=room.get("outdoor_minimum", 18.0),
+                    ): _number(
+                        OUTDOOR_MINIMUM_MIN_C,
+                        OUTDOOR_MINIMUM_MAX_C,
+                        OUTDOOR_MINIMUM_STEP_C,
+                        "°C",
+                    )
+                }
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_continue_initial_room(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Continue a new room through a focused sun-source page when needed."""
+        if (
+            str(self.sector().get("direction", "south")) == DIRECTION_CUSTOM
+            and not bool(getattr(self, "_initial_geometry_ready", False))
+        ):
+            self._initial_geometry_ready = True
+            self._after_source_step = "continue_initial_room"
+            return await self.async_step_manage_sector_geometry()
+        next_step = str(
+            getattr(self, "_after_sector_step", None)
+            or "compact_cover_details"
+        )
+        self._after_sector_step = None
+        self._initial_geometry_ready = False
+        if str(self.sector().get("sun_source", "geometry")) == "geometry":
+            return await getattr(self, f"async_step_{next_step}")()
+        self._after_source_step = next_step
+        return await self.async_step_configure_sector_source()
 
     async def async_step_choose_sector_for_group(
         self, user_input: dict[str, Any] | None = None
@@ -781,6 +908,11 @@ class SmartShadingConfigFlow(
                 self._pending_cover_short_offset = 0
                 self._continue_cover_setup = False
                 self._after_sector_step = None
+                self._after_source_step = None
+                self._after_lux_step = None
+                self._after_outdoor_step = None
+                self._pending_sector = None
+                self._pending_layer = None
                 self._initial_setup = True
                 return await self.async_step_global_settings()
         current_sun_state = "missing" if sun_state is None else sun_state.state
@@ -837,11 +969,6 @@ class SmartShadingConfigFlow(
                 errors["base"] = "select_at_least_one"
             elif source not in allowed_sources:
                 errors["base"] = "option_not_available"
-            elif outdoor_temperature and "outdoor_minimum" not in values:
-                # Home Assistant forms do not update fields while open.  The
-                # first submit reveals the threshold only after a sensor was
-                # selected; the second submit creates the room.
-                pass
             else:
                 direction = str(values.get("direction", "south"))
                 if not self.advanced_mode and direction == DIRECTION_CUSTOM:
@@ -901,7 +1028,11 @@ class SmartShadingConfigFlow(
                         if self.advanced_mode and profile_supports_position(profile)
                         else "compact_cover_details"
                     )
-                    return await self.async_step_manage_sector()
+                    self._initial_geometry_ready = False
+                    if outdoor_temperature:
+                        self._after_outdoor_step = self._after_sector_step
+                        self._after_sector_step = "configure_outdoor_temperature"
+                    return await self.async_step_continue_initial_room()
 
         room_fields: dict[Any, Any] = {
             vol.Required("name"): selector.TextSelector(),
@@ -931,13 +1062,6 @@ class SmartShadingConfigFlow(
         room_inputs: dict[Any, Any] = {
             vol.Optional("outdoor_temperature"): _temperature_entity(),
         }
-        if str(submitted_values.get("outdoor_temperature") or "").strip():
-            room_inputs[vol.Required("outdoor_minimum", default=18.0)] = _number(
-                OUTDOOR_MINIMUM_MIN_C,
-                OUTDOOR_MINIMUM_MAX_C,
-                OUTDOOR_MINIMUM_STEP_C,
-                "°C",
-            )
         if self.advanced_mode:
             room_inputs[vol.Optional("indoor_temperature")] = _temperature_entity()
 
@@ -1043,14 +1167,64 @@ class SmartShadingConfigFlow(
     async def async_step_manage_sector(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_sector(self, user_input)
 
+    async def async_step_manage_sector_source(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_manage_sector_source(
+            self, user_input
+        )
+
+    async def async_step_configure_sector_source(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_configure_sector_source(
+            self, user_input
+        )
+
+    async def async_step_configure_lux_profile(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_configure_lux_profile(
+            self, user_input
+        )
+
+    async def async_step_manage_sector_geometry(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_manage_sector_geometry(
+            self, user_input
+        )
+
     async def async_step_add_sector_flat(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_add_sector_flat(self, user_input)
+
+    async def async_step_continue_pending_sector_source(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_continue_pending_sector_source(
+            self, user_input
+        )
+
+    async def async_step_add_sector_group(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_add_sector_group(
+            self, user_input
+        )
+
+    async def async_step_add_sector_covers(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_add_sector_covers(
+            self, user_input
+        )
+
+    async def async_step_commit_pending_sector(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_commit_pending_sector(
+            self, user_input
+        )
 
     async def async_step_manage_layer(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_layer(self, user_input)
 
     async def async_step_add_layer_flat(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_add_layer_flat(self, user_input)
+
+    async def async_step_add_group_covers(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_add_group_covers(
+            self, user_input
+        )
+
+    async def async_step_commit_pending_layer(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_commit_pending_layer(
+            self, user_input
+        )
 
     async def async_step_manage_cover(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_cover(self, user_input)
@@ -1383,6 +1557,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._pending_cover_short_offset = 0
             self._continue_cover_setup = False
             self._after_sector_step = None
+            self._after_source_step = None
+            self._after_lux_step = None
+            self._after_outdoor_step = None
+            self._pending_sector = None
+            self._pending_layer = None
             self._option_routes = {}
             self._initial_setup = False
         labels = self._menu(
@@ -1419,15 +1598,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 room["indoor_temperature"] = values.get(
                     "indoor_temperature", ""
                 )
-            if outdoor_temperature and "outdoor_minimum" not in values:
-                return await self.async_step_manage_room_details()
             if outdoor_temperature:
-                room["outdoor_minimum"] = float(
-                    values.get(
-                        "outdoor_minimum",
-                        room.get("outdoor_minimum", 18.0),
-                    )
-                )
+                self._after_outdoor_step = "room_hub"
+                return await self.async_step_configure_outdoor_temperature()
             return await self.async_step_room_hub()
         fields: dict[Any, Any] = {
             vol.Required("name", default=room.get("name", "")): selector.TextSelector(),
@@ -1436,16 +1609,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 room.get("outdoor_temperature", ""),
             ): _temperature_entity(),
         }
-        if str(room.get("outdoor_temperature") or "").strip():
-            fields[vol.Required(
-                "outdoor_minimum",
-                default=room.get("outdoor_minimum", 18.0),
-            )] = _number(
-                OUTDOOR_MINIMUM_MIN_C,
-                OUTDOOR_MINIMUM_MAX_C,
-                OUTDOOR_MINIMUM_STEP_C,
-                "°C",
-            )
         if self.advanced_mode:
             fields[_optional_marker(
                 "indoor_temperature",
@@ -2035,9 +2198,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         for item in self.room().get("sectors", [])
                         if item["id"] != sector["id"]
                     ]
-                    return await self.async_step_sector_hub()
+                    return await self.async_step_structure_hub()
 
-            selected_source = str(values.get("sun_source", current_source))
+            selected_source = current_source
             if selected_source not in allowed_sources:
                 errors["base"] = "option_not_available"
             elif selected_source != current_source:
@@ -2082,13 +2245,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 if selected_source != "lux":
                     sector["sun_preset"] = PRESET_MEDIUM
                 return await self.async_step_manage_sector()
-            elif selected_source == "lux" and not values.get("lux_sensor"):
-                errors["base"] = "sun_source_required"
-            elif selected_source == "external" and not values.get(
-                CONF_SUN_PRESENCE_ENTITY
-            ):
-                errors["base"] = "sun_source_required"
-
             selected_preset = str(
                 values.get("sun_preset", sector.get("sun_preset", PRESET_MEDIUM))
             )
@@ -2150,12 +2306,12 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         ).upper(),
                         "sun_source": selected_source,
                         "lux_sensor": (
-                            values.get("lux_sensor", "")
+                            sector.get("lux_sensor", "")
                             if selected_source == "lux"
                             else ""
                         ),
                         CONF_SUN_PRESENCE_ENTITY: (
-                            values.get(CONF_SUN_PRESENCE_ENTITY, "")
+                            sector.get(CONF_SUN_PRESENCE_ENTITY, "")
                             if selected_source == "external"
                             else ""
                         ),
@@ -2189,7 +2345,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     )
                 )
                 if needs_second_pass:
-                    return await self.async_step_manage_sector()
+                    if direction == DIRECTION_CUSTOM:
+                        return await self.async_step_manage_sector_geometry()
+                    return await self.async_step_sector_hub()
 
                 next_step = getattr(self, "_after_sector_step", None)
                 if next_step:
@@ -2328,12 +2486,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 ),
                 {"collapsed": False},
             ),
-            vol.Required("sun_confirmation"): section(
-                self._form_schema(
-                    vol.Schema(confirmation), submitted_values, errors
-                ),
-                {"collapsed": False},
-            ),
         }
         if not getattr(self, "_after_sector_step", None):
             sections[vol.Required("sector_maintenance")] = section(
@@ -2359,10 +2511,223 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             description_placeholders=self._option_placeholders(),
         )
 
+    async def async_step_manage_sector_source(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Select one sun source before opening its focused configuration."""
+        sector = self.sector()
+        current_source = sun_source_for_sector(
+            sector, advanced=self.advanced_mode
+        )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            source = str(user_input.get("sun_source", current_source))
+            if source not in {"geometry", "lux", "external"}:
+                errors["base"] = "option_not_available"
+            else:
+                sector["sun_source"] = source
+                if source != "lux":
+                    sector["lux_sensor"] = ""
+                    sector["sun_preset"] = PRESET_MEDIUM
+                if source != "external":
+                    sector[CONF_SUN_PRESENCE_ENTITY] = ""
+                if source == "geometry":
+                    return await self.async_step_sector_hub()
+                self._after_source_step = "sector_hub"
+                return await self.async_step_configure_sector_source()
+        return self.async_show_form(
+            step_id="manage_sector_source",
+            data_schema=self._form_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            "sun_source", default=current_source
+                        ): self._choice(
+                            ["geometry", "lux", "external"], "sun_source"
+                        )
+                    }
+                ),
+                user_input,
+                errors,
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_configure_sector_source(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure only the entity required by the selected sun source."""
+        sector = self.sector()
+        source = str(sector.get("sun_source", "geometry"))
+        if source == "geometry":
+            return await self._go_to_saved_step(
+                "_after_source_step", fallback="sector_hub"
+            )
+        errors: dict[str, str] = {}
+        fields: dict[Any, Any] = {}
+        if source == "lux":
+            options = (
+                list(SUN_PRESET_OPTIONS)
+                if self.advanced_mode
+                else ["low", "medium", "high"]
+            )
+            current_preset = str(sector.get("sun_preset", PRESET_MEDIUM))
+            if current_preset not in options:
+                current_preset = PRESET_MEDIUM
+            fields = {
+                vol.Required(
+                    "lux_sensor", default=sector.get("lux_sensor", "")
+                ): _entity("sensor"),
+                vol.Required(
+                    "sun_preset", default=current_preset
+                ): self._choice(options, "sun_preset"),
+            }
+        elif source == "external":
+            fields = {
+                vol.Required(
+                    CONF_SUN_PRESENCE_ENTITY,
+                    default=sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
+                ): _entity(["binary_sensor", "input_boolean", "switch"])
+            }
+        else:
+            return await self.async_step_manage_sector_source()
+
+        if user_input is not None:
+            values = dict(user_input)
+            if source == "lux" and not str(values.get("lux_sensor") or ""):
+                errors["base"] = "sun_source_required"
+            elif source == "external" and not str(
+                values.get(CONF_SUN_PRESENCE_ENTITY) or ""
+            ):
+                errors["base"] = "sun_source_required"
+            else:
+                if source == "lux":
+                    preset = str(values.get("sun_preset", PRESET_MEDIUM))
+                    sector["lux_sensor"] = str(values["lux_sensor"])
+                    sector[CONF_SUN_PRESENCE_ENTITY] = ""
+                    sector["sun_preset"] = preset
+                    if preset == PRESET_CUSTOM and self.advanced_mode:
+                        self._after_lux_step = str(
+                            getattr(self, "_after_source_step", None)
+                            or "sector_hub"
+                        )
+                        self._after_source_step = None
+                        return await self.async_step_configure_lux_profile()
+                    sector.update(SUN_PRESETS[preset])
+                else:
+                    sector[CONF_SUN_PRESENCE_ENTITY] = str(
+                        values[CONF_SUN_PRESENCE_ENTITY]
+                    )
+                    sector["lux_sensor"] = ""
+                    sector["sun_preset"] = PRESET_MEDIUM
+                return await self._go_to_saved_step(
+                    "_after_source_step", fallback="sector_hub"
+                )
+        return self.async_show_form(
+            step_id="configure_sector_source",
+            data_schema=self._form_schema(
+                vol.Schema(fields), user_input, errors
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_configure_lux_profile(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure custom Lux hysteresis without reloading another form."""
+        sector = self.sector()
+        errors: dict[str, str] = {}
+        fields: dict[Any, Any] = {
+            vol.Required(
+                "sun_on_lux",
+                default=sector.get(
+                    "sun_on_lux", SUN_PRESETS[PRESET_MEDIUM]["sun_on_lux"]
+                ),
+            ): _number(0, 200000, 500, "lx"),
+            vol.Required(
+                "sun_off_lux",
+                default=sector.get(
+                    "sun_off_lux", SUN_PRESETS[PRESET_MEDIUM]["sun_off_lux"]
+                ),
+            ): _number(0, 200000, 500, "lx"),
+            vol.Required(
+                "sun_on_delay",
+                default=sector.get(
+                    "sun_on_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_on_delay"]
+                ),
+            ): _number(0, 60, 0.5, "min"),
+            vol.Required(
+                "sun_off_delay",
+                default=sector.get(
+                    "sun_off_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_off_delay"]
+                ),
+            ): _number(0, 120, 0.5, "min"),
+        }
+        if user_input is not None:
+            if float(user_input["sun_on_lux"]) <= float(
+                user_input["sun_off_lux"]
+            ):
+                errors["base"] = "lux_hysteresis"
+            else:
+                for key in (
+                    "sun_on_lux",
+                    "sun_off_lux",
+                    "sun_on_delay",
+                    "sun_off_delay",
+                ):
+                    sector[key] = float(user_input[key])
+                return await self._go_to_saved_step(
+                    "_after_lux_step", fallback="sector_hub"
+                )
+        return self.async_show_form(
+            step_id="configure_lux_profile",
+            data_schema=self._form_schema(
+                vol.Schema(fields), user_input, errors
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_manage_sector_geometry(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure custom sun geometry on a dedicated Advanced page."""
+        if not self.advanced_mode:
+            return await self.async_step_sector_hub()
+        sector = self.sector()
+        errors: dict[str, str] = {}
+        fields = {
+            vol.Required(
+                "azimuth_start", default=sector.get("azimuth_start", 120)
+            ): _number(0, 359, 1, "°"),
+            vol.Required(
+                "azimuth_end", default=sector.get("azimuth_end", 240)
+            ): _number(0, 359, 1, "°"),
+            vol.Required(
+                "elevation_min", default=sector.get("elevation_min", 10)
+            ): _number(-10, 90, 1, "°"),
+        }
+        if user_input is not None:
+            for key in ("azimuth_start", "azimuth_end", "elevation_min"):
+                sector[key] = float(user_input[key])
+            return await self._go_to_saved_step(
+                "_after_source_step", fallback="sector_hub"
+            )
+        return self.async_show_form(
+            step_id="manage_sector_geometry",
+            data_schema=self._form_schema(
+                vol.Schema(fields), user_input, errors
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
     async def async_step_add_sector_flat(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Add a sector shell, then configure only its selected sun source."""
+        """Start one atomic sector, group and cover creation chain."""
         errors: dict[str, str] = {}
         if user_input is not None:
             values = _flatten_sections(user_input)
@@ -2390,10 +2755,17 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         "layers": [],
                     }
                 )
-                self.room().setdefault("sectors", []).append(sector)
+                self._pending_sector = sector
+                self._pending_layer = None
                 self._sector_id = str(sector["id"])
-                self._after_sector_step = "sector_hub"
-                return await self.async_step_manage_sector()
+                self._layer_id = None
+                if direction == DIRECTION_CUSTOM:
+                    self._after_source_step = "continue_pending_sector_source"
+                    return await self.async_step_manage_sector_geometry()
+                if source == "geometry":
+                    return await self.async_step_add_sector_group()
+                self._after_source_step = "add_sector_group"
+                return await self.async_step_configure_sector_source()
 
         fields: dict[Any, Any] = {
             vol.Required("name"): selector.TextSelector(),
@@ -2428,6 +2800,109 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             description_placeholders=self._option_placeholders(),
         )
 
+    async def async_step_continue_pending_sector_source(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Continue custom geometry through its selected source."""
+        if str(self.sector().get("sun_source", "geometry")) == "geometry":
+            return await self.async_step_add_sector_group()
+        self._after_source_step = "add_sector_group"
+        return await self.async_step_configure_sector_source()
+
+    async def async_step_add_sector_group(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Create the first group inside a pending sector."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            values = dict(user_input)
+            profile = str(values.get("profile", DEVICE_VENETIAN))
+            default_name = (
+                "Behanggruppe" if self._is_german() else "Cover group"
+            )
+            layer = self._new_layer(
+                str(values.get("name") or default_name), profile
+            )
+            self.sector()["layers"] = [layer]
+            self._pending_layer = layer
+            self._layer_id = str(layer["id"])
+            return await self.async_step_add_sector_covers()
+        fields = {
+            vol.Required(
+                "name",
+                default=(
+                    "Behanggruppe" if self._is_german() else "Cover group"
+                ),
+            ): selector.TextSelector(),
+            vol.Required(
+                "profile", default=DEVICE_VENETIAN
+            ): self._choice(DEVICE_TYPES, "device_type"),
+        }
+        return self.async_show_form(
+            step_id="add_sector_group",
+            data_schema=self._form_schema(
+                vol.Schema(fields), user_input, errors
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_add_sector_covers(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Require covers before committing a complete new sector."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = list(user_input.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["base"] = "select_at_least_one"
+            else:
+                self._pending_cover_entities = entities
+                self._pending_cover_index = 0
+                self._pending_cover_short_offset = 0
+                self._pending_cover_return_step = "commit_pending_sector"
+                profile = str(
+                    self.layer().get("profile", DEVICE_VENETIAN)
+                )
+                if self.advanced_mode and profile_supports_position(profile):
+                    self._continue_cover_setup = True
+                    return await self.async_step_manage_layer()
+                return await self.async_step_compact_cover_details()
+        return self.async_show_form(
+            step_id="add_sector_covers",
+            data_schema=self._form_schema(
+                vol.Schema(
+                    {
+                        vol.Required("cover_entities"): _entity(
+                            "cover", multiple=True
+                        )
+                    }
+                ),
+                user_input,
+                errors,
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_commit_pending_sector(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Commit a sector only after its group and covers are complete."""
+        sector = getattr(self, "_pending_sector", None)
+        if sector is None or not sector.get("layers"):
+            return await self.async_step_structure_hub()
+        if not sector["layers"][0].get("covers"):
+            return await self.async_step_add_sector_covers()
+        self.room().setdefault("sectors", []).append(sector)
+        self._pending_sector = None
+        self._pending_layer = None
+        self._layer_id = None
+        return await self.async_step_sector_hub()
+
     async def async_step_manage_layer(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -2449,7 +2924,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         item for item in self.sector().get("layers", [])
                         if item["id"] != layer["id"]
                     ]
-                    return await self.async_step_group_hub()
+                    self._layer_id = None
+                    return await self.async_step_sector_hub()
             requested_profile = str(
                 values.get("profile", layer.get("profile", DEVICE_VENETIAN))
             )
@@ -2597,6 +3073,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
     async def async_step_add_layer_flat(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Start an atomic group-and-cover creation chain."""
         errors: dict[str, str] = {}
         if user_input is not None:
             values = _flatten_sections(user_input)
@@ -2608,12 +3085,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 str(values.get("name") or default_name), profile
             )
             layer["covers"] = []
-            self.sector().setdefault("layers", []).append(layer)
+            self._pending_layer = layer
             self._layer_id = str(layer["id"])
-            self._continue_cover_setup = False
-            if self.advanced_mode and profile_supports_position(profile):
-                return await self.async_step_manage_layer()
-            return await self.async_step_group_hub()
+            return await self.async_step_add_group_covers()
         fields: dict[Any, Any] = {
             vol.Required(
                 "name", default="Behanggruppe" if self._is_german() else "Cover group"
@@ -2628,6 +3102,60 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             errors=errors,
             description_placeholders=self._option_placeholders(),
         )
+
+    async def async_step_add_group_covers(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Require covers before committing a new group."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = list(user_input.get("cover_entities", []))
+            duplicates = sorted(set(entities) & self.all_cover_entities())
+            if duplicates:
+                errors["base"] = "cover_already_assigned"
+            elif not entities:
+                errors["base"] = "select_at_least_one"
+            else:
+                self._pending_cover_entities = entities
+                self._pending_cover_index = 0
+                self._pending_cover_short_offset = 0
+                self._pending_cover_return_step = "commit_pending_layer"
+                profile = str(
+                    self.layer().get("profile", DEVICE_VENETIAN)
+                )
+                if self.advanced_mode and profile_supports_position(profile):
+                    self._continue_cover_setup = True
+                    return await self.async_step_manage_layer()
+                return await self.async_step_compact_cover_details()
+        return self.async_show_form(
+            step_id="add_group_covers",
+            data_schema=self._form_schema(
+                vol.Schema(
+                    {
+                        vol.Required("cover_entities"): _entity(
+                            "cover", multiple=True
+                        )
+                    }
+                ),
+                user_input,
+                errors,
+            ),
+            errors=errors,
+            description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_commit_pending_layer(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Commit a group only after at least one cover is configured."""
+        layer = getattr(self, "_pending_layer", None)
+        if layer is None:
+            return await self.async_step_sector_hub()
+        if not layer.get("covers"):
+            return await self.async_step_add_group_covers()
+        self.sector().setdefault("layers", []).append(layer)
+        self._pending_layer = None
+        return await self.async_step_group_hub()
 
     async def async_step_manage_cover(
         self, user_input: dict[str, Any] | None = None
@@ -2647,7 +3175,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         item for index, item in enumerate(covers)
                         if index != self._cover_index
                     ]
-                    return await self.async_step_cover_hub()
+                    return await self.async_step_group_hub()
             if not errors:
                 cover["name"] = str(values.get("name") or cover.get("name", "Cover"))
                 cover["short"] = str(values.get("short") or cover.get("short", ""))
@@ -2673,7 +3201,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         if profile_supports_tilt(profile)
                         else False
                     )
-                return await self.async_step_cover_hub()
+                return await self.async_step_group_hub()
         identity: dict[Any, Any] = {
             vol.Required("name", default=cover.get("name", "")): selector.TextSelector(),
             vol.Required("short", default=cover.get("short", "")): selector.TextSelector(),
@@ -2730,7 +3258,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 existing_count = len(self.layer().get("covers", []))
                 self._pending_cover_entities = entities
                 self._pending_cover_index = 0
-                self._pending_cover_return_step = "cover_hub"
+                self._pending_cover_return_step = "group_hub"
                 self._pending_cover_short_offset = existing_count
                 return await self.async_step_compact_cover_details()
         return self.async_show_form(

@@ -201,19 +201,24 @@
       },
       "room_hub": {
         "title": "Manage room",
-        "description": "Choose what you want to configure.",
+        "description": "Room details and automation stay separate from the complete sector → group → cover structure.",
         "menu_options": {
           "back_to_overview": "Back to room list"
         }
       },
+      "structure_hub": {
+        "title": "Shading structure",
+        "description": "Open a complete sun sector branch or add a new area. New areas are saved only after a group and at least one cover are configured.",
+        "menu_options": {}
+      },
       "sector_hub": {
-        "title": "Sun sectors",
-        "description": "Add a sector or open an existing one. A sector describes one facade or sun direction.",
+        "title": "Sun sector · {sector_name}",
+        "description": "Configure this sector and open only the cover groups that belong to it.",
         "menu_options": {}
       },
       "group_hub": {
-        "title": "Cover groups",
-        "description": "Add a group or edit an existing group. Covers in one group share physical behavior and target positions.",
+        "title": "Cover group · {group_name}",
+        "description": "Configure this group and the covers assigned to it. Every cover in this list inherits the group profile.",
         "menu_options": {}
       },
       "cover_hub": {
@@ -255,6 +260,16 @@
           "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
           "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
           "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
+        }
+      },
+      "configure_outdoor_temperature": {
+        "title": "Outdoor temperature condition",
+        "description": "The selected sensor activates one simple condition. Shading starts only after this minimum temperature is reached.",
+        "data": {
+          "outdoor_minimum": "Minimum outdoor temperature"
+        },
+        "data_description": {
+          "outdoor_minimum": "Below this temperature normal shading stays inactive. Without an outdoor sensor this condition is ignored."
         }
       },
       "manage_room_maintenance": {
@@ -448,9 +463,95 @@
           }
         }
       },
+      "manage_sector_source": {
+        "title": "{sector_name} · Sun source",
+        "description": "Choose exactly one direct-sun source. The required entity is configured on the next short page.",
+        "data": {
+          "sun_source": "Sun source"
+        },
+        "data_description": {
+          "sun_source": "A local Lux sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
+        }
+      },
+      "configure_sector_source": {
+        "title": "{sector_name} · Configure sun source",
+        "description": "Only the fields required by the selected source are shown.",
+        "data": {
+          "lux_sensor": "Local Lux sensor",
+          "sun_preset": "Sun sensitivity",
+          "sun_presence_entity": "External on/off sensor"
+        },
+        "data_description": {
+          "lux_sensor": "Recommended local Lux brightness sensor for this facade.",
+          "sun_preset": "Sets suitable brightness thresholds and delays.",
+          "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
+        }
+      },
+      "configure_lux_profile": {
+        "title": "{sector_name} · Custom Lux profile",
+        "description": "Fine-tune Lux hysteresis and delays. The on threshold must be higher than the off threshold.",
+        "data": {
+          "sun_on_lux": "Sun detected above",
+          "sun_off_lux": "Sun no longer detected below",
+          "sun_on_delay": "On delay",
+          "sun_off_delay": "Off delay"
+        },
+        "data_description": {
+          "sun_on_lux": "Direct sun becomes active above this value.",
+          "sun_off_lux": "Direct sun clears below this value.",
+          "sun_on_delay": "Filters brief bright peaks.",
+          "sun_off_delay": "Filters brief clouds."
+        }
+      },
+      "manage_sector_geometry": {
+        "title": "{sector_name} · Custom facade geometry",
+        "description": "Configure the custom sun window on this focused page.",
+        "data": {
+          "azimuth_start": "Azimuth start",
+          "azimuth_end": "Azimuth end",
+          "elevation_min": "Minimum sun elevation"
+        },
+        "data_description": {
+          "azimuth_start": "First sun direction included in the sector.",
+          "azimuth_end": "Last included direction; the range may wrap across north.",
+          "elevation_min": "Ignore sun below this elevation."
+        }
+      },
+      "add_sector_group": {
+        "title": "{sector_name} · Create first cover group",
+        "description": "Every new sun sector requires a cover group. Select its physical profile now.",
+        "data": {
+          "name": "Group name",
+          "profile": "Cover type"
+        },
+        "data_description": {
+          "name": "Name shown for this group.",
+          "profile": "Determines available settings, defaults and card behavior."
+        }
+      },
+      "add_sector_covers": {
+        "title": "{sector_name} · Assign covers",
+        "description": "The new sun sector is saved only after at least one cover is assigned to its first group.",
+        "data": {
+          "cover_entities": "Covers"
+        },
+        "data_description": {
+          "cover_entities": "Select every Home Assistant cover that should move with this group."
+        }
+      },
+      "add_group_covers": {
+        "title": "{group_name} · Assign covers",
+        "description": "The new cover group is saved only after at least one cover is assigned.",
+        "data": {
+          "cover_entities": "Covers"
+        },
+        "data_description": {
+          "cover_entities": "The selected covers inherit this group’s physical profile and targets."
+        }
+      },
       "add_sector_flat": {
-        "title": "{room_name} · Add sun sector",
-        "description": "Add another sun sector to this room.",
+        "title": "{room_name} · Add complete shading area",
+        "description": "Start with the sector. Its sun source, first cover group and covers follow on focused pages and are saved together.",
         "data": {
           "name": "Sector name",
           "short": "Short name",
@@ -461,7 +562,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+          "sun_source": "Choose geometry, the recommended local Lux sensor, or an external on/off confirmation."
         }
       },
       "manage_layer": {
@@ -547,15 +648,15 @@
         }
       },
       "add_layer_flat": {
-        "title": "{room_name} · Add cover group to {sector_name}",
-        "description": "Create a group for covers with the same physical behavior.",
+        "title": "{sector_name} · Add cover group",
+        "description": "Create another physical group inside this sector. Covers are assigned before the group is saved.",
         "data": {
           "name": "Group name",
           "profile": "Cover type"
         },
         "data_description": {
           "name": "Name shown for the new group.",
-          "profile": "Sets suitable defaults for this physical cover type. Add covers separately under Individual covers."
+          "profile": "Sets suitable defaults and available options for this physical cover type."
         }
       },
       "manage_cover": {
@@ -747,10 +848,25 @@
       },
       "room_hub": {
         "title": "Manage room",
-        "description": "Choose what you want to configure.",
+        "description": "Room details and automation stay separate from the complete sector → group → cover structure.",
         "menu_options": {
           "back_to_overview": "Back to room list"
         }
+      },
+      "structure_hub": {
+        "title": "Shading structure",
+        "description": "Open a complete sun sector branch or add a new area. New areas are saved only after a group and at least one cover are configured.",
+        "menu_options": {}
+      },
+      "sector_hub": {
+        "title": "Sun sector · {sector_name}",
+        "description": "Configure this sector and open only the cover groups that belong to it.",
+        "menu_options": {}
+      },
+      "group_hub": {
+        "title": "Cover group · {group_name}",
+        "description": "Configure this group and the covers assigned to it. Every cover in this list inherits the group profile.",
+        "menu_options": {}
       },
       "manage_sector": {
         "title": "{room_name} · Sun sector · {sector_name}",
@@ -812,8 +928,8 @@
         }
       },
       "add_sector_flat": {
-        "title": "{room_name} · Add sun sector",
-        "description": "Add another sun sector to this room.",
+        "title": "{room_name} · Add complete shading area",
+        "description": "Start with the sector. Its sun source, first cover group and covers follow on focused pages and are saved together.",
         "data": {
           "name": "Sector name",
           "short": "Short name",
@@ -824,7 +940,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+          "sun_source": "Choose geometry, the recommended local Lux sensor, or an external on/off confirmation."
         }
       },
       "manage_layer": {
@@ -910,15 +1026,15 @@
         }
       },
       "add_layer_flat": {
-        "title": "{room_name} · Add cover group to {sector_name}",
-        "description": "Create a group for covers with the same physical behavior.",
+        "title": "{sector_name} · Add cover group",
+        "description": "Create another physical group inside this sector. Covers are assigned before the group is saved.",
         "data": {
           "name": "Group name",
           "profile": "Cover type"
         },
         "data_description": {
           "name": "Name shown for the new group.",
-          "profile": "Sets suitable defaults for this physical cover type. Add covers separately under Individual covers."
+          "profile": "Sets suitable defaults and available options for this physical cover type."
         }
       },
       "manage_cover": {
@@ -990,16 +1106,6 @@
           "finish": "Save changes and reload"
         }
       },
-      "sector_hub": {
-        "title": "Sun sectors",
-        "description": "Add a sector or open an existing one. A sector describes one facade or sun direction.",
-        "menu_options": {}
-      },
-      "group_hub": {
-        "title": "Cover groups",
-        "description": "Add a group or edit an existing group. Covers in one group share physical behavior and target positions.",
-        "menu_options": {}
-      },
       "cover_hub": {
         "title": "Individual covers",
         "description": "Add covers or edit their names and short names.",
@@ -1019,6 +1125,16 @@
           "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
           "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
           "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
+        }
+      },
+      "configure_outdoor_temperature": {
+        "title": "Outdoor temperature condition",
+        "description": "The selected sensor activates one simple condition. Shading starts only after this minimum temperature is reached.",
+        "data": {
+          "outdoor_minimum": "Minimum outdoor temperature"
+        },
+        "data_description": {
+          "outdoor_minimum": "Below this temperature normal shading stays inactive. Without an outdoor sensor this condition is ignored."
         }
       },
       "manage_room_maintenance": {
@@ -1263,6 +1379,92 @@
               "outdoor_minimum": "Minimum outdoor temperature for normal shading."
             }
           }
+        }
+      },
+      "manage_sector_source": {
+        "title": "{sector_name} · Sun source",
+        "description": "Choose exactly one direct-sun source. The required entity is configured on the next short page.",
+        "data": {
+          "sun_source": "Sun source"
+        },
+        "data_description": {
+          "sun_source": "A local Lux sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
+        }
+      },
+      "configure_sector_source": {
+        "title": "{sector_name} · Configure sun source",
+        "description": "Only the fields required by the selected source are shown.",
+        "data": {
+          "lux_sensor": "Local Lux sensor",
+          "sun_preset": "Sun sensitivity",
+          "sun_presence_entity": "External on/off sensor"
+        },
+        "data_description": {
+          "lux_sensor": "Recommended local Lux brightness sensor for this facade.",
+          "sun_preset": "Sets suitable brightness thresholds and delays.",
+          "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
+        }
+      },
+      "configure_lux_profile": {
+        "title": "{sector_name} · Custom Lux profile",
+        "description": "Fine-tune Lux hysteresis and delays. The on threshold must be higher than the off threshold.",
+        "data": {
+          "sun_on_lux": "Sun detected above",
+          "sun_off_lux": "Sun no longer detected below",
+          "sun_on_delay": "On delay",
+          "sun_off_delay": "Off delay"
+        },
+        "data_description": {
+          "sun_on_lux": "Direct sun becomes active above this value.",
+          "sun_off_lux": "Direct sun clears below this value.",
+          "sun_on_delay": "Filters brief bright peaks.",
+          "sun_off_delay": "Filters brief clouds."
+        }
+      },
+      "manage_sector_geometry": {
+        "title": "{sector_name} · Custom facade geometry",
+        "description": "Configure the custom sun window on this focused page.",
+        "data": {
+          "azimuth_start": "Azimuth start",
+          "azimuth_end": "Azimuth end",
+          "elevation_min": "Minimum sun elevation"
+        },
+        "data_description": {
+          "azimuth_start": "First sun direction included in the sector.",
+          "azimuth_end": "Last included direction; the range may wrap across north.",
+          "elevation_min": "Ignore sun below this elevation."
+        }
+      },
+      "add_sector_group": {
+        "title": "{sector_name} · Create first cover group",
+        "description": "Every new sun sector requires a cover group. Select its physical profile now.",
+        "data": {
+          "name": "Group name",
+          "profile": "Cover type"
+        },
+        "data_description": {
+          "name": "Name shown for this group.",
+          "profile": "Determines available settings, defaults and card behavior."
+        }
+      },
+      "add_sector_covers": {
+        "title": "{sector_name} · Assign covers",
+        "description": "The new sun sector is saved only after at least one cover is assigned to its first group.",
+        "data": {
+          "cover_entities": "Covers"
+        },
+        "data_description": {
+          "cover_entities": "Select every Home Assistant cover that should move with this group."
+        }
+      },
+      "add_group_covers": {
+        "title": "{group_name} · Assign covers",
+        "description": "The new cover group is saved only after at least one cover is assigned.",
+        "data": {
+          "cover_entities": "Covers"
+        },
+        "data_description": {
+          "cover_entities": "The selected covers inherit this group’s physical profile and targets."
         }
       }
     },

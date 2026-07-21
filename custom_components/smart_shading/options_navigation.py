@@ -43,9 +43,11 @@ def build_room_routes(
     if german:
         labels = [
             (f"Raumdaten · {room_name}", "manage_room_details"),
-            (f"Sonnensektoren · {sectors}", "sector_hub"),
-            (f"Behanggruppen · {groups}", "group_hub"),
-            (f"Einzelne Behänge · {covers}", "cover_hub"),
+            (
+                f"Beschattungsstruktur · {sectors} Sektoren · "
+                f"{groups} Gruppen · {covers} Behänge",
+                "structure_hub",
+            ),
         ]
         if full:
             labels.extend(
@@ -60,9 +62,11 @@ def build_room_routes(
     else:
         labels = [
             (f"Room details · {room_name}", "manage_room_details"),
-            (f"Sun sectors · {sectors}", "sector_hub"),
-            (f"Cover groups · {groups}", "group_hub"),
-            (f"Individual covers · {covers}", "cover_hub"),
+            (
+                f"Shading structure · {sectors} sectors · "
+                f"{groups} groups · {covers} covers",
+                "structure_hub",
+            ),
         ]
         if full:
             labels.extend(
@@ -80,105 +84,152 @@ def build_room_routes(
     ]
 
 
-def build_sector_routes(
+def build_structure_routes(
     room: dict[str, Any], *, german: bool
 ) -> list[dict[str, Any]]:
-    """Return an add action followed by every configured sector."""
+    """Return complete sector branches followed by one creation action."""
     room_id = room["id"]
     fallback = "Sonnensektor" if german else "Sun sector"
-    routes = [
+    routes: list[dict[str, Any]] = []
+    for sector in room.get("sectors", []):
+        layers = list(sector.get("layers", []))
+        cover_count = sum(len(layer.get("covers", [])) for layer in layers)
+        suffix = (
+            f"{len(layers)} Gruppen · {cover_count} Behänge"
+            if german
+            else f"{len(layers)} groups · {cover_count} covers"
+        )
+        routes.append(
+            {
+                "label": f"{_name(sector, fallback)} · {suffix}",
+                "action": "sector_hub",
+                "room_id": room_id,
+                "sector_id": sector["id"],
+            }
+        )
+    routes.append(
         {
-            "label": "+ Sonnensektor hinzufügen" if german else "+ Add sun sector",
+            "label": (
+                "+ Vollständigen Beschattungsbereich hinzufügen"
+                if german
+                else "+ Add complete shading area"
+            ),
             "action": "add_sector_flat",
             "room_id": room_id,
+            "placement": "bottom",
         }
-    ]
-    routes.extend(
+    )
+    return routes
+
+
+def build_sector_routes(
+    room: dict[str, Any], sector: dict[str, Any], *, german: bool
+) -> list[dict[str, Any]]:
+    """Return sector settings and its direct child groups."""
+    room_id = room["id"]
+    sector_id = sector["id"]
+    source = str(sector.get("sun_source", "geometry"))
+    source_labels = {
+        "geometry": "Nur Sonnenstand" if german else "Sun position only",
+        "lux": "Lokaler Lux-Sensor" if german else "Local Lux sensor",
+        "external": "Externer Ein/Aus-Sensor" if german else "External on/off sensor",
+    }
+    routes: list[dict[str, Any]] = [
         {
-            "label": _name(sector, fallback),
+            "label": "Sektoreinstellungen" if german else "Sector settings",
             "action": "manage_sector",
             "room_id": room_id,
-            "sector_id": sector["id"],
+            "sector_id": sector_id,
+        },
+        {
+            "label": (
+                f"Sonnenquelle · {source_labels.get(source, source)}"
+                if german
+                else f"Sun source · {source_labels.get(source, source)}"
+            ),
+            "action": "manage_sector_source",
+            "room_id": room_id,
+            "sector_id": sector_id,
+        },
+    ]
+    group_fallback = "Behanggruppe" if german else "Cover group"
+    for layer in sector.get("layers", []):
+        count = len(layer.get("covers", []))
+        suffix = f"{count} Behänge" if german else f"{count} covers"
+        routes.append(
+            {
+                "label": f"{_name(layer, group_fallback)} · {suffix}",
+                "action": "group_hub",
+                "room_id": room_id,
+                "sector_id": sector_id,
+                "layer_id": layer["id"],
+            }
+        )
+    routes.append(
+        {
+            "label": "+ Behanggruppe hinzufügen" if german else "+ Add cover group",
+            "action": "add_layer_flat",
+            "room_id": room_id,
+            "sector_id": sector_id,
+            "placement": "bottom",
         }
-        for sector in room.get("sectors", [])
     )
-    if len(routes) > 1:
-        bottom_add = dict(routes[0])
-        bottom_add["placement"] = "bottom"
-        routes.append(bottom_add)
     return routes
 
 
 def build_group_routes(
-    room: dict[str, Any], *, german: bool
+    room: dict[str, Any], sector: dict[str, Any], layer: dict[str, Any], *, german: bool
 ) -> list[dict[str, Any]]:
-    """Return one add action and every group, including its sector context."""
+    """Return group settings, its covers and one scoped add action."""
     room_id = room["id"]
-    routes = [
+    sector_id = sector["id"]
+    layer_id = layer["id"]
+    routes: list[dict[str, Any]] = [
         {
-            "label": "+ Behanggruppe hinzufügen" if german else "+ Add cover group",
-            "action": "choose_sector_for_group",
+            "label": "Gruppeneinstellungen" if german else "Group settings",
+            "action": "manage_layer",
             "room_id": room_id,
+            "sector_id": sector_id,
+            "layer_id": layer_id,
         }
     ]
-    sector_fallback = "Sonnensektor" if german else "Sun sector"
-    group_fallback = "Behanggruppe" if german else "Cover group"
-    for sector in room.get("sectors", []):
-        sector_name = _name(sector, sector_fallback)
-        for layer in sector.get("layers", []):
-            routes.append(
-                {
-                    "label": f"{_name(layer, group_fallback)} · {sector_name}",
-                    "action": "manage_layer",
-                    "room_id": room_id,
-                    "sector_id": sector["id"],
-                    "layer_id": layer["id"],
-                }
-            )
-    if len(routes) > 1:
-        bottom_add = dict(routes[0])
-        bottom_add["placement"] = "bottom"
-        routes.append(bottom_add)
+    cover_fallback = "Behang" if german else "Cover"
+    for cover_index, cover in enumerate(layer.get("covers", [])):
+        cover_name = _name(cover, f"{cover_fallback} {cover_index + 1}")
+        routes.append(
+            {
+                "label": cover_name,
+                "action": "manage_cover",
+                "room_id": room_id,
+                "sector_id": sector_id,
+                "layer_id": layer_id,
+                "cover_index": cover_index,
+                "cover_entity": cover.get("entity", ""),
+            }
+        )
+    routes.append(
+        {
+            "label": "+ Behänge hinzufügen" if german else "+ Add covers",
+            "action": "add_covers_flat",
+            "room_id": room_id,
+            "sector_id": sector_id,
+            "layer_id": layer_id,
+            "placement": "bottom",
+        }
+    )
     return routes
 
 
-def build_cover_routes(
-    room: dict[str, Any], *, german: bool
-) -> list[dict[str, Any]]:
-    """Return one add action and every cover with its group context."""
-    room_id = room["id"]
-    routes = [
-        {
-            "label": "+ Behänge hinzufügen" if german else "+ Add covers",
-            "action": "choose_group_for_covers",
-            "room_id": room_id,
-        }
-    ]
-    group_fallback = "Behanggruppe" if german else "Cover group"
-    cover_fallback = "Behang" if german else "Cover"
+def build_cover_routes(room: dict[str, Any], *, german: bool) -> list[dict[str, Any]]:
+    """Return legacy room-wide cover routes without duplicate add actions."""
+    routes: list[dict[str, Any]] = []
     for sector in room.get("sectors", []):
         for layer in sector.get("layers", []):
-            group_name = _name(layer, group_fallback)
-            for cover_index, cover in enumerate(layer.get("covers", [])):
-                cover_name = _name(
-                    cover,
-                    f"{cover_fallback} {cover_index + 1}",
-                )
-                routes.append(
-                    {
-                        "label": f"{cover_name} · {group_name}",
-                        "action": "manage_cover",
-                        "room_id": room_id,
-                        "sector_id": sector["id"],
-                        "layer_id": layer["id"],
-                        "cover_index": cover_index,
-                        "cover_entity": cover.get("entity", ""),
-                    }
-                )
-    if len(routes) > 1:
-        bottom_add = dict(routes[0])
-        bottom_add["placement"] = "bottom"
-        routes.append(bottom_add)
+            routes.extend(
+                route
+                for route in build_group_routes(room, sector, layer, german=german)
+                if route["action"] == "manage_cover"
+            )
     return routes
 
 
