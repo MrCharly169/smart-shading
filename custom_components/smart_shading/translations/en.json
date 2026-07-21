@@ -4,19 +4,19 @@
     "step": {
       "user": {
         "title": "Choose setup",
-        "description": "Choose Easy for sun-position shading with optional sensor refinements. Choose Advanced for schedules, temperatures, safety, Night, Pause and individual cover behavior. These names are not repeated in the later room menus.",
+        "description": "Choose Easy for quick sun-position shading. Choose Advanced when you also need schedules, temperature stages, safety, Night, Pause or individual cover behavior.",
         "data": {
           "house_name": "House or area name",
           "setup_type": "Setup"
         },
         "data_description": {
           "house_name": "Used to identify this Smart Shading installation.",
-          "setup_type": "Easy keeps configuration short. Advanced offers every protection and automation function."
+          "setup_type": "Easy needs only a room, facade and covers. Advanced guides you through every optional automation and protection function."
         }
       },
       "room_setup": {
         "title": "Set up the first room",
-        "description": "Add the first sector, cover group and covers. Complete setup continues through every remaining function before Smart Shading can be started.",
+        "description": "Add the first facade sector, cover group and covers. The wizard then offers every setting available for this installation.",
         "sections": {
           "room_and_covers": {
             "name": "Room and covers",
@@ -182,7 +182,7 @@
       },
       "sector_direction": {
         "title": "Select facade direction",
-        "description": "Select the direction of the window or cover group. Smart Shading automatically applies a practical azimuth range and minimum solar elevation. These angles do **not** need to be configured in the normal customer wizard; they remain editable later under “Advanced sector geometry”.",
+        "description": "Select the direction of the window or cover group. Smart Shading applies a practical azimuth range and minimum solar elevation automatically. Custom geometry remains editable later under “Sector geometry”.",
         "data": {
           "direction": "Facade direction"
         },
@@ -306,7 +306,7 @@
         "menu_options": {
           "edit_room_basic": "Name and sensors",
           "edit_room_schedule": "Activity schedule",
-          "room_advanced": "Advanced room logic",
+          "room_advanced": "Temperatures and conditions",
           "add_sector": "Add sun sector",
           "select_sector": "Manage sun sector",
           "delete_room": "Delete room",
@@ -328,8 +328,8 @@
         },
         "data_description": {
           "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
-          "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
-          "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
+          "indoor_temperature_name": "Optional label for the detailed dashboard card; raw entity IDs are never displayed.",
+          "outdoor_temperature_name": "Optional label for the detailed dashboard card; raw entity IDs are never displayed."
         }
       },
       "edit_room_schedule": {
@@ -361,7 +361,7 @@
         }
       },
       "room_advanced": {
-        "title": "Advanced room logic",
+        "title": "Temperatures and conditions",
         "description": "Visible temperature thresholds depend on the cover profiles used in the room. Rooms with exterior venetian blinds only have normal solar shading and heat protection.",
         "data": {
           "comfort_temperature": "Comfort from",
@@ -396,7 +396,7 @@
         "title": "Manage sun sector",
         "menu_options": {
           "edit_sector_customer": "Direction and lux sensor",
-          "edit_sector_advanced": "Advanced sector geometry",
+          "edit_sector_advanced": "Sector geometry",
           "add_layer": "Add cover group",
           "select_layer": "Manage cover group",
           "delete_sector": "Delete sector",
@@ -452,7 +452,7 @@
         "title": "Manage cover group",
         "menu_options": {
           "edit_layer_customer": "Name, type and slat profile",
-          "edit_layer_advanced": "Advanced targets",
+          "edit_layer_advanced": "Target positions",
           "add_covers": "Add multiple covers",
           "select_cover": "Configure one cover",
           "remove_covers": "Remove covers",
@@ -490,7 +490,7 @@
         }
       },
       "edit_layer_advanced": {
-        "title": "Advanced targets",
+        "title": "Target positions",
         "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
         "data": {
           "open_position": "Neutral/open position",
@@ -598,7 +598,7 @@
         }
       },
       "room_advanced_setup": {
-        "title": "Advanced temperature logic",
+        "title": "Temperature logic",
         "description": "The displayed values depend on the cover profile. Exterior venetian blinds only use normal adaptive shading and heat protection; redundant comfort/solar stages are hidden.",
         "data": {
           "comfort_temperature": "Comfort from",
@@ -635,7 +635,7 @@
       },
       "edit_room_night": {
         "title": "Night Mode",
-        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
+        "description": "Positions this room from one night source. Transition windows avoid short open-close movements.",
         "data": {
           "night_enabled": "Enable Night Mode",
           "night_source": "Night source",
@@ -926,12 +926,12 @@
         "description": "Requirement: The Home Assistant Sun integration and the `sun.sun` entity must be present and available. Smart Shading uses it automatically for sun direction and elevation. If it is missing, the wizard shows a clear error and does not finish setup.",
         "data": {
           "house_name": "House or area name",
-          "advanced_mode": "Use advanced mode",
+          "advanced_mode": "Setup type (locked)",
           "diagnostic_level": "Diagnostic logging"
         },
         "data_description": {
           "house_name": "Neutral example: house, apartment, or building section.",
-          "advanced_mode": "Easy runs only sun-geometry shading and one indefinite room Manual Override. Advanced enables the complete Smart Shading feature set.",
+          "advanced_mode": "The selected setup cannot be changed later. Create a new installation to use a different feature set.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision."
         }
       },
@@ -1051,11 +1051,11 @@
       },
       "manage_room": {
         "title": "{room_name} · Room settings",
-        "description": "Only settings available in the selected Easy or Advanced mode are shown. All groups below stay on this single page.",
+        "description": "Only settings available for this installation are shown. All groups below stay on this single page.",
         "sections": {
           "room_basics": {
             "name": "Room and core inputs",
-            "description": "Only inputs supported by the selected Easy or Advanced mode are shown.",
+            "description": "Only inputs supported by this installation are shown.",
             "data": {
               "name": "Room name",
               "easy_temperature_gate": "Use outdoor temperature gate",
@@ -1066,16 +1066,16 @@
             },
             "data_description": {
               "name": "Name shown in entities and on the dashboard card.",
-              "easy_temperature_gate": "Easy Mode shades only above the threshold. Missing readings fail open.",
-              "indoor_temperature": "Advanced only. Used for normal shading and Heat Protection thresholds.",
-              "outdoor_temperature": "Optional. Easy uses it only when the temperature gate is enabled.",
+              "easy_temperature_gate": "Shades only above the threshold. Missing readings do not block shading.",
+              "indoor_temperature": "Used for normal shading and Heat Protection thresholds.",
+              "outdoor_temperature": "Optional. Used only when the temperature gate is enabled.",
               "outdoor_minimum": "Minimum outdoor temperature for normal shading.",
-              "safety_blockers": "Advanced only. Select entities where on means danger, such as wind or frost."
+              "safety_blockers": "Select entities where on means danger, such as wind or frost."
             }
           },
           "schedule_settings": {
             "name": "Schedule",
-            "description": "Advanced only. It permits normal shading; sun and the configured conditions still decide whether to move.",
+            "description": "Permits normal shading; sun and the configured conditions still decide whether to move.",
             "data": {
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
@@ -1099,7 +1099,7 @@
           },
           "pause_settings": {
             "name": "Pause behavior",
-            "description": "Advanced only. Safety always has priority over a pause.",
+            "description": "Safety always has priority over a pause.",
             "data": {
               "default_pause_mode": "Default pause action",
               "pause_sun_offset_minutes": "Sun-event offset",
@@ -1117,7 +1117,7 @@
           },
           "night_settings": {
             "name": "Night Mode",
-            "description": "Advanced only. Use either an on/off schedule entity or sunrise and sunset.",
+            "description": "Use either an on/off schedule entity or sunrise and sunset.",
             "data": {
               "night_enabled": "Enable Night Mode",
               "night_source": "Night source",
@@ -1139,7 +1139,7 @@
           },
           "temperature_settings": {
             "name": "Temperature levels",
-            "description": "Advanced only. Hysteresis prevents rapid switching between modes.",
+            "description": "Hysteresis prevents rapid switching between temperature states.",
             "data": {
               "normal_shading_temperature": "Normal shading from",
               "comfort_temperature": "Comfort from",
@@ -1158,7 +1158,7 @@
             }
           },
           "condition_settings": {
-            "name": "Optional advanced conditions",
+            "name": "Optional conditions",
             "description": "Leave every unused entity empty. No optional input is required.",
             "data": {
               "irradiance_sensor": "Irradiance sensor",
@@ -1514,7 +1514,7 @@
       },
       "sector_direction": {
         "title": "Select facade direction",
-        "description": "Select the direction of the window or cover group. Smart Shading automatically applies a practical azimuth range and minimum solar elevation. These angles do **not** need to be configured in the normal customer wizard; they remain editable later under “Advanced sector geometry”.",
+        "description": "Select the direction of the window or cover group. Smart Shading applies a practical azimuth range and minimum solar elevation automatically. Custom geometry remains editable later under “Sector geometry”.",
         "data": {
           "direction": "Facade direction"
         },
@@ -1639,7 +1639,7 @@
         "menu_options": {
           "edit_room_basic": "Name and sensors",
           "edit_room_schedule": "Activity schedule",
-          "room_advanced": "Advanced room logic",
+          "room_advanced": "Temperatures and conditions",
           "add_sector": "Add sun sector",
           "select_sector": "Manage sun sector",
           "delete_room": "Delete room",
@@ -1661,8 +1661,8 @@
         },
         "data_description": {
           "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
-          "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
-          "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
+          "indoor_temperature_name": "Optional label for the detailed dashboard card; raw entity IDs are never displayed.",
+          "outdoor_temperature_name": "Optional label for the detailed dashboard card; raw entity IDs are never displayed."
         }
       },
       "edit_room_schedule": {
@@ -1694,7 +1694,7 @@
         }
       },
       "room_advanced": {
-        "title": "Advanced room logic",
+        "title": "Temperatures and conditions",
         "description": "Visible temperature thresholds depend on the cover profiles used in the room. Rooms with exterior venetian blinds only have normal solar shading and heat protection.",
         "data": {
           "comfort_temperature": "Comfort from",
@@ -1729,7 +1729,7 @@
         "title": "Manage sun sector",
         "menu_options": {
           "edit_sector_customer": "Direction and lux sensor",
-          "edit_sector_advanced": "Advanced sector geometry",
+          "edit_sector_advanced": "Sector geometry",
           "add_layer": "Add cover group",
           "select_layer": "Manage cover group",
           "delete_sector": "Delete sector",
@@ -1785,7 +1785,7 @@
         "title": "Manage cover group",
         "menu_options": {
           "edit_layer_customer": "Name, type and slat profile",
-          "edit_layer_advanced": "Advanced targets",
+          "edit_layer_advanced": "Target positions",
           "add_covers": "Add multiple covers",
           "select_cover": "Configure one cover",
           "remove_covers": "Remove covers",
@@ -1823,7 +1823,7 @@
         }
       },
       "edit_layer_advanced": {
-        "title": "Advanced targets",
+        "title": "Target positions",
         "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
         "data": {
           "open_position": "Neutral/open position",
@@ -1931,7 +1931,7 @@
         }
       },
       "room_advanced_setup": {
-        "title": "Advanced temperature logic",
+        "title": "Temperature logic",
         "description": "The displayed values depend on the cover profile. Exterior venetian blinds only use normal adaptive shading and heat protection; redundant comfort/solar stages are hidden.",
         "data": {
           "comfort_temperature": "Comfort from",
@@ -1965,12 +1965,12 @@
           "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
           "pause_duration_hours": "Only used when a fixed-duration pause is started.",
           "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection.",
-          "external_movement_detection": "Advanced Mode only. Disabled for new rooms by default and requires reliable numeric position or tilt feedback."
+          "external_movement_detection": "Disabled by default. Enable only with reliable numeric position or slat feedback."
         }
       },
       "edit_room_night": {
         "title": "Night Mode",
-        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
+        "description": "Positions this room from one night source. Transition windows avoid short open-close movements.",
         "data": {
           "night_enabled": "Enable Night Mode",
           "night_source": "Night source",
