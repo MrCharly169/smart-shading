@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.8 - 2026-07-21
+
 ### Interactive profile setup
 
 - split Advanced setup into the fixed room → sun sector → cover group/type →
