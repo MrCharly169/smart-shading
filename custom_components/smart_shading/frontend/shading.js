@@ -10,6 +10,16 @@ const asNumber = (value, fallback = null) => {
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
+const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
+const profileIcon = (profile, closed = false) => ({
+  venetian: closed ? "mdi:blinds-horizontal-closed" : "mdi:blinds-horizontal",
+  roller_shutter: closed ? "mdi:window-shutter" : "mdi:window-shutter-open",
+  exterior_screen: "mdi:roller-shade",
+  curtain: closed ? "mdi:curtains-closed" : "mdi:curtains",
+  vertical_blind: "mdi:blinds-vertical",
+  awning: "mdi:storefront-outline",
+  binary_cover: closed ? "mdi:blinds" : "mdi:blinds-open",
+})[String(profile || "")] || (closed ? "mdi:blinds" : "mdi:blinds-open");
 
 function cleanDisplayName(value, fallback) {
   let name = String(value || "").trim();
@@ -250,8 +260,11 @@ class SmartShadingV4Dialog extends HTMLElement {
     };
   }
 
-  _modeText(mode) {
+  _modeText(mode, profile = "") {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    if (mode === "open" && profile === "awning") {
+      return de ? "Eingefahren" : "Retracted";
+    }
     const values = de ? {
       safety: "Safety", heat: "Heat Protection", solar: "Sonnenschutz",
       comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
@@ -408,13 +421,15 @@ class SmartShadingV4Dialog extends HTMLElement {
       const name = cleanDisplayName(cover.name, fallback);
       const state = this._hass?.states?.[cover.entity];
       const currentPosition = asNumber(state?.attributes?.current_position, null);
-      const currentTilt = asNumber(state?.attributes?.current_tilt_position, null);
+      const currentTilt = profileSupportsTilt(cover.layer?.profile)
+        ? asNumber(state?.attributes?.current_tilt_position, null)
+        : null;
       const target = targetByEntity.get(cover.entity) || {};
       const localPause = coverPauseByEntity.get(cover.entity) || {};
       const suppressionText = asArray(target.suppressed).map((item) => this._suppressionText(item));
       return `
         <div class="data-card ${localPause.active ? "pause-card" : ""}">
-          <div class="data-title"><span>${htmlEscape(name)}</span><strong>${htmlEscape(localPause.active ? L.paused : this._modeText(target.mode || this._roomState.state))}</strong></div>
+          <div class="data-title"><span>${htmlEscape(name)}</span><strong>${htmlEscape(localPause.active ? L.paused : this._modeText(target.mode || this._roomState.state, cover.layer?.profile))}</strong></div>
           <div class="facts">
             <span>${L.current}: ${currentPosition == null ? "–" : `${Math.round(currentPosition)}%`}</span>
             <span>${L.tilt}: ${currentTilt == null ? "–" : `${Math.round(currentTilt)}%`}</span>
@@ -638,12 +653,13 @@ class SmartShadingV4Card extends HTMLElement {
       title: "Shading", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
       safety: "Safety", heat: "Heat", night: "Nacht", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
+      retracted: "Eingefahren",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Details",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
       belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
       automatic: "Automatik", manualOverride: "Manuelle Sperre", sunInSector: "Sonne im Sektor", sunOutsideSector: "Sonne außerhalb", nightSchedule: "Nachtzeitplan bearbeiten",
-      sourceGeometry: "Sonnenposition", sourceBinary: "Sonnensensor", sourceLux: "Luxsensor", sourceWeather: "Wetter", sourceMixed: "Kombiniert",
+      sourceGeometry: "Sonnenposition", sourceBinary: "Sonnensensor", sourceLux: "Luxsensor", sourceWeather: "Wetter", sourceMixed: "Verschiedene Quellen",
       confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", temperatureBlocked: "Temperatur zu niedrig",
       sunUnavailable: "Sonnenstatus nicht verfügbar",
       roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
@@ -651,12 +667,13 @@ class SmartShadingV4Card extends HTMLElement {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
       safety: "Safety", heat: "Heat", night: "Night", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
+      retracted: "Retracted",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
       blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Details",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
       belowHorizon: "Night", outsideSector: "Outside", waitingLux: "Waiting for sun", waiting: "Waiting", active: "Active", detected: "Sun detected",
       automatic: "Automatic", manualOverride: "Manual Override", sunInSector: "Sun in sector", sunOutsideSector: "Sun outside sector", nightSchedule: "Edit night schedule",
-      sourceGeometry: "Sun position", sourceBinary: "Sun sensor", sourceLux: "Lux sensor", sourceWeather: "Weather", sourceMixed: "Combined",
+      sourceGeometry: "Sun position", sourceBinary: "Sun sensor", sourceLux: "Lux sensor", sourceWeather: "Weather", sourceMixed: "Mixed sources",
       confirmed: "Sun confirmed", confirmationBlocked: "Sun not confirmed", geometryFallback: "Sun position only", inactiveSignal: "Inactive", temperatureBlocked: "Temperature too low",
       sunUnavailable: "Sun status unavailable",
       roomContext: "Room", scheduleContext: "Schedule", overrideContext: "Override",
@@ -851,7 +868,15 @@ class SmartShadingV4Card extends HTMLElement {
       asArray(layer.covers).map((cover) => ({ ...cover, sector, layer }))
     ));
     const mode = roomState.state || "idle";
-    const [modeIcon, modeLabel, modeClass] = this._modeInfo(mode, L);
+    let [modeIcon, modeLabel, modeClass] = this._modeInfo(mode, L);
+    if (
+      mode === "open"
+      && covers.length
+      && covers.every((cover) => cover.layer?.profile === "awning")
+    ) {
+      modeIcon = "mdi:storefront-outline";
+      modeLabel = L.retracted;
+    }
     const activeSectorNames = asArray(attrs.active_sectors).filter(Boolean);
     const detailedModeLabel = attrs.manual_master_active
       ? `${L.manual} · ${L.overrideContext}`
@@ -943,7 +968,9 @@ class SmartShadingV4Card extends HTMLElement {
       const name = this._displayName(cover.entity, cover.name, fallback);
       const rawPosition = asNumber(state?.attributes?.current_position, null);
       const position = rawPosition == null ? null : clamp(rawPosition, 0, 100);
-      const tilt = asNumber(state?.attributes?.current_tilt_position, null);
+      const tilt = profileSupportsTilt(cover.layer?.profile)
+        ? asNumber(state?.attributes?.current_tilt_position, null)
+        : null;
       const locked = cover.lock && this._state(cover.lock)?.state === "on";
       const unsafe = cover.window && this._state(cover.window)?.state !== (cover.window_safe_state || "on");
       const target = targetByEntity.get(cover.entity) || {};
@@ -952,7 +979,7 @@ class SmartShadingV4Card extends HTMLElement {
       const roomPaused = attrs.pause_mode && attrs.pause_mode !== "auto";
       const manualMaster = attrs.manual_master_active;
       const rowClass = locked || unsafe || roomPaused || locallyPaused || manualMaster ? "warning" : "";
-      const leadingIcon = manualMaster ? "mdi:hand-back-right" : (roomPaused || locallyPaused) ? "mdi:pause-circle" : locked ? "mdi:lock" : unsafe ? "mdi:window-open-variant" : "mdi:autorenew";
+      const leadingIcon = manualMaster ? "mdi:hand-back-right" : (roomPaused || locallyPaused) ? "mdi:pause-circle" : locked ? "mdi:lock" : unsafe ? "mdi:window-open-variant" : profileIcon(cover.layer?.profile, state?.state === "closed");
       return `<div class="cover-row ${rowClass}">
         <button class="cover-head" data-more="${htmlEscape(cover.entity)}" title="${htmlEscape(locallyPaused ? `${L.pauseUntil} ${this._formatDate(localPause.until)}` : name)}">
           <span class="cover-name">${iconBox(leadingIcon, "cover-icon")}<strong>${htmlEscape(name)}</strong></span>
@@ -972,9 +999,7 @@ class SmartShadingV4Card extends HTMLElement {
       const position = rawPosition == null ? null : clamp(rawPosition, 0, 100);
       const coverIcon = attrs.manual_master_active
         ? "mdi:hand-back-right"
-        : state?.state === "closed"
-          ? "mdi:blinds"
-          : "mdi:blinds-open";
+        : profileIcon(cover.layer?.profile, state?.state === "closed");
       return `<button class="easy-cover-row ${attrs.manual_master_active ? "manual" : ""}" data-more="${htmlEscape(cover.entity)}" title="${htmlEscape(name)}">
         ${iconBox(coverIcon, "easy-cover-icon")}
         <span class="easy-cover-name">${htmlEscape(name)}</span>
@@ -996,10 +1021,10 @@ class SmartShadingV4Card extends HTMLElement {
       || "geometry";
     const effectiveSourceLabel = this._sourceText(sourceSummary, L);
     const confirmationState = String(attrs.easy_confirmation_state || "");
-    const temperatureGate = attrs.easy_temperature_gate && typeof attrs.easy_temperature_gate === "object"
-      ? attrs.easy_temperature_gate
+    const temperatureCondition = attrs.outdoor_temperature_condition && typeof attrs.outdoor_temperature_condition === "object"
+      ? attrs.outdoor_temperature_condition
       : {};
-    const temperatureBlocked = temperatureGate.enabled === true && temperatureGate.passed === false;
+    const temperatureBlocked = temperatureCondition.enabled === true && temperatureCondition.passed === false;
     const easySunActive = sunAvailable && sunAboveHorizon && effectiveSunActive && !temperatureBlocked;
     const easySunLabel = !sunAvailable
       ? L.sunUnavailable

@@ -21,8 +21,10 @@
    until the override is explicitly turned off.
 6. For each sector, select exactly one source: geometry, a lux sensor, or an
    external binary sun confirmation. Add further sectors through the sector
-   list. Test weather and the outdoor-temperature gate only after the
-   geometry-only baseline works.
+   list. Confirm that selecting Lux creates a Sun Presence binary sensor and
+   that an external source never falls back to Lux. Add an outdoor-temperature
+   sensor only after the geometry-only baseline works; its minimum condition
+   must then appear without a separate enable switch.
 
 ## Advanced Mode
 

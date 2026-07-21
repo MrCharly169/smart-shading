@@ -49,10 +49,11 @@ created. It has no separate Easy/Advanced switch.
 ## Easy and Advanced Mode
 
 - **Easy Mode** always works from `sun.sun`, the configured facade sector, the
-  cover targets, and one room-level **Manual Override**. Optional illuminance,
-  binary direct-sun, weather, and outdoor-temperature inputs can refine the
-  decision; leaving all of them empty keeps the geometry-only behavior. The
-  override remains active until a user or an explicit automation turns it off.
+  cover profile, and one room-level **Manual Override**. Each sector uses
+  exactly one source: sun geometry, a local Lux sensor, or an external on/off
+  sensor. An optional outdoor-temperature sensor automatically adds its
+  configured minimum condition. The override remains active until a user or
+  an explicit automation turns it off.
 - **Advanced Mode** adds configurable geometry, Lux or external sun
   confirmation, temperatures, schedules, Safety, Pause, Heat Protection,
   Night Mode, diagnostics, per-cover Manual Override entities, and optional
@@ -64,11 +65,19 @@ Advanced rooms keep external-movement pause detection off until it is
 explicitly enabled.
 
 Each Easy sector uses one source: sun geometry, a Lux sensor, or an external
-binary sun confirmation. Lux creates Smart Shading's internal confirmation
-state; an external entity is a separate alternative. Weather is only a coarse
-fallback when the selected sector source has no usable answer. The outdoor
-temperature minimum applies only when its gate is enabled. Unavailable optional
-inputs fall back to sun geometry instead of stopping the automation.
+on/off sun confirmation. Local Lux is recommended and creates Smart Shading's
+Sun Presence binary sensor with hysteresis and delays. An external entity is a
+separate alternative where `on` means direct sun. Sources are never combined
+and there is no hidden weather fallback. If an explicitly selected source is
+unavailable, normal shading waits instead of guessing. Without an outdoor
+temperature sensor, outdoor temperature is ignored entirely.
+
+The cover type is a functional profile, not only a label. Exterior venetian
+blinds and vertical blinds receive position plus slat guidance; roller
+shutters, screens, curtains, and awnings receive their own direction and target
+defaults; simple open/close covers use only open/close services. Changing the
+type updates the wizard, runtime, available entities, and card together and
+removes incompatible options.
 
 ## Updating
 

@@ -32,7 +32,7 @@ def locked_advanced_mode(
 ) -> bool:
     """Return the immutable mode, with a legacy fallback for old beta entries.
 
-    Schema 14 stores the authoritative value in ``data``.  Older beta entries
+    Schema 15 stores the authoritative value in ``data``.  Older beta entries
     sometimes copied it into ``options``; that fallback is used only when the
     data entry does not contain the flag yet.
     """
@@ -99,23 +99,6 @@ def sun_source_for_sector(
     if str(sector.get("lux_sensor") or "").strip():
         return "lux"
     return "geometry"
-
-
-def easy_temperature_source_configured(
-    config: Mapping[str, Any], room: Mapping[str, Any]
-) -> bool:
-    """Return whether an enabled outdoor-temperature gate can read a source.
-
-    A room-specific temperature sensor takes priority at runtime.  The optional
-    house weather entity is the documented fallback and therefore also makes
-    the gate complete.  Availability is intentionally not checked here: a
-    temporarily unavailable source fails open at runtime instead of disabling
-    the basic sun-position controller.
-    """
-    return bool(
-        str(room.get("outdoor_temperature") or "").strip()
-        or str(config.get("weather_entity") or "").strip()
-    )
 
 
 def config_with_runtime_overrides(

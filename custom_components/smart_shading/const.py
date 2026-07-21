@@ -25,7 +25,6 @@ CONF_ADVANCED_MODE = "advanced_mode"
 CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
 CONF_WEATHER_ENTITY = "weather_entity"
 CONF_SUN_PRESENCE_ENTITY = "sun_presence_entity"
-CONF_EASY_TEMPERATURE_GATE = "easy_temperature_gate"
 CONF_ROOMS = "rooms"
 
 DEFAULT_EVALUATION_INTERVAL = 1200
@@ -275,6 +274,94 @@ PROFILE_DEFAULTS = {
     },
 }
 
+# One physical profile owns every capability exposed by the setup wizard,
+# runtime, entities and dashboard card.  Keep the editable target lists here
+# instead of duplicating type checks across those surfaces.
+TILT_PROFILES = frozenset({DEVICE_VENETIAN, DEVICE_VERTICAL})
+POSITION_PROFILES = frozenset(set(DEVICE_TYPES) - {DEVICE_BINARY})
+EXTERIOR_SAFETY_PROFILES = frozenset(
+    {DEVICE_VENETIAN, DEVICE_ROLLER, DEVICE_SCREEN, DEVICE_AWNING}
+)
+PROFILE_TARGET_KEYS = {
+    DEVICE_VENETIAN: (
+        "open_position",
+        "open_tilt",
+        "heat_tilt",
+        "night_position",
+        "night_tilt",
+        "safety_position",
+        "safety_tilt",
+    ),
+    DEVICE_VERTICAL: (
+        "open_position",
+        "open_tilt",
+        "comfort_tilt",
+        "heat_tilt",
+        "night_position",
+        "night_tilt",
+    ),
+    DEVICE_ROLLER: (
+        "open_position",
+        "comfort_position",
+        "solar_position",
+        "heat_position",
+        "night_position",
+        "safety_position",
+    ),
+    DEVICE_SCREEN: (
+        "open_position",
+        "comfort_position",
+        "solar_position",
+        "heat_position",
+        "night_position",
+        "safety_position",
+    ),
+    DEVICE_CURTAIN: (
+        "open_position",
+        "comfort_position",
+        "solar_position",
+        "heat_position",
+        "night_position",
+    ),
+    DEVICE_AWNING: (
+        "open_position",
+        "comfort_position",
+        "solar_position",
+        "heat_position",
+        "night_position",
+        "safety_position",
+    ),
+    DEVICE_BINARY: (),
+}
+
+
+def profile_supports_tilt(profile: str) -> bool:
+    """Return whether this physical cover type accepts slat commands."""
+    return profile in TILT_PROFILES
+
+
+def profile_supports_position(profile: str) -> bool:
+    """Return whether this physical cover type accepts numeric positions."""
+    return profile in POSITION_PROFILES
+
+
+def profile_uses_exterior_safety(profile: str) -> bool:
+    """Return whether wind/frost protection is meaningful for this type."""
+    return profile in EXTERIOR_SAFETY_PROFILES
+
+
+def profile_target_keys(
+    profile: str, *, indoor_temperature: bool = True, night: bool = True
+) -> tuple[str, ...]:
+    """Return only target settings that can be reached in this room."""
+    keys = PROFILE_TARGET_KEYS.get(profile, PROFILE_TARGET_KEYS[DEVICE_VENETIAN])
+    return tuple(
+        key
+        for key in keys
+        if (indoor_temperature or not key.startswith("heat_"))
+        and (night or not key.startswith("night_"))
+    )
+
 SCHEDULE_YEAR_ROUND = "year_round"
 SCHEDULE_SUMMER = "summer"
 SCHEDULE_CUSTOM = "custom"
@@ -303,10 +390,6 @@ ROOM_DEFAULTS = {
     "night_evening_transition_minutes": 0,
     "indoor_temperature": "",
     "outdoor_temperature": "",
-    # Easy Mode remains fully functional without these optional refinements.
-    # When enabled, the temperature gate first uses the configured outdoor
-    # sensor and may fall back to the global weather entity temperature.
-    CONF_EASY_TEMPERATURE_GATE: False,
     "irradiance_sensor": "",
     "cloud_cover_sensor": "",
     "weather_permission": "",

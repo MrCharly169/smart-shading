@@ -21,13 +21,11 @@ from .const import (
     CARD_RESOURCE,
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
-    CONF_EASY_TEMPERATURE_GATE,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_ROOMS,
     CONF_SUN_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
-    CONF_WEATHER_ENTITY,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
     DEFAULT_COMMAND_COOLDOWN,
@@ -90,22 +88,6 @@ from .storage import RuntimeStore
 
 _LOGGER = logging.getLogger(__name__)
 OWN_COMMAND_SESSION_TIMEOUT_SECONDS = 180.0
-
-# Home Assistant weather states deliberately classified conservatively.  An
-# ambiguous state must not disable a geometry-only Easy Mode installation.
-_EASY_CLEAR_WEATHER_STATES = {"sunny"}
-_EASY_BAD_WEATHER_STATES = {
-    "cloudy",
-    "fog",
-    "hail",
-    "lightning",
-    "lightning-rainy",
-    "pouring",
-    "rainy",
-    "snowy",
-    "snowy-rainy",
-}
-
 
 def _parse_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
@@ -806,13 +788,8 @@ class SmartShadingEngine:
 
     def _easy_reactive_entities(self) -> set[str]:
         result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
-        weather_entity = self.config.get(CONF_WEATHER_ENTITY, "")
-        if weather_entity:
-            result.add(weather_entity)
         for room in self.config.get(CONF_ROOMS, []):
-            if room.get(CONF_EASY_TEMPERATURE_GATE) and room.get(
-                "outdoor_temperature"
-            ):
+            if room.get("outdoor_temperature"):
                 result.add(room["outdoor_temperature"])
             for sector in room.get("sectors", []):
                 for key in (CONF_SUN_PRESENCE_ENTITY, "lux_sensor"):
@@ -1374,12 +1351,12 @@ class SmartShadingEngine:
                     ),
                     "easy_confirmation_state": runtime.easy_confirmation_state,
                     "easy_source_summary": runtime.easy_source_summary,
-                    "easy_temperature_gate": {
-                        "enabled": runtime.easy_temperature_gate_enabled,
-                        "source_entity": runtime.easy_temperature_source,
-                        "value": runtime.easy_temperature_value,
-                        "threshold": runtime.easy_temperature_threshold,
-                        "passed": runtime.easy_temperature_passed,
+                    "outdoor_temperature_condition": {
+                        "enabled": runtime.outdoor_temperature_condition_enabled,
+                        "source_entity": runtime.outdoor_temperature_source,
+                        "value": runtime.outdoor_temperature_value,
+                        "minimum": runtime.outdoor_temperature_minimum,
+                        "passed": runtime.outdoor_temperature_passed,
                     },
                 }
                 for key, runtime in selected_rooms.items()
@@ -1965,13 +1942,7 @@ class SmartShadingEngine:
     def _advanced_sector_confirmation(
         self, sector: dict[str, Any]
     ) -> tuple[bool, str, str | None, bool | None]:
-        """Resolve one explicit Advanced sun source with legacy fallback.
-
-        Current setup stores exactly one source. Legacy beta entries may still
-        contain both an external entity and Lux; the external entity remains
-        authoritative, while an unavailable external state safely falls back
-        to the legacy Lux source and then to geometry.
-        """
+        """Resolve exactly the sun source selected for this sector."""
         source = sun_source_for_sector(sector, advanced=True)
         if source == "external":
             entity_id = str(
@@ -1983,69 +1954,48 @@ class SmartShadingEngine:
                 return True, "binary", entity_id, True
             if value == STATE_OFF:
                 return False, "binary", entity_id, False
-
-            legacy_lux = str(sector.get("lux_sensor", "") or "")
-            if legacy_lux:
-                active = bool(self.sun_runtime[sector["id"]].is_on)
-                return active, "lux", legacy_lux, active
-            return True, "geometry", None, None
+            return False, "binary", entity_id or None, None
 
         if source == "lux":
             entity_id = str(sector.get("lux_sensor", "") or "")
-            active = bool(self.sun_runtime[sector["id"]].is_on)
-            return active, "lux", entity_id or None, active
+            runtime = self.sun_runtime[sector["id"]]
+            active = bool(runtime.is_on) if runtime.current_lux is not None else False
+            return active, "lux", entity_id or None, (
+                active if runtime.current_lux is not None else None
+            )
         return True, "geometry", None, None
-
-    def _easy_weather_confirmation(self) -> tuple[bool | None, str | None]:
-        """Return a conservative optional weather confirmation."""
-        entity_id = str(self.config.get(CONF_WEATHER_ENTITY, "") or "")
-        state = self.hass.states.get(entity_id) if entity_id else None
-        value = str(getattr(state, "state", "") or "").lower()
-        if value in _EASY_CLEAR_WEATHER_STATES:
-            return True, entity_id
-        if value in _EASY_BAD_WEATHER_STATES:
-            return False, entity_id
-        return None, entity_id or None
 
     def _easy_sector_confirmation(
         self, sector: dict[str, Any]
     ) -> tuple[bool | None, str, str | None]:
-        """Resolve the optional Easy Mode Sun confirmation by priority.
-
-        Explicit binary confirmation wins over Lux.  Invalid/unavailable
-        values fall through to the next source and eventually to weather.
-        Weather states that are not unambiguously good or bad deliberately
-        return ``None`` so geometry remains sufficient.
-        """
-        binary_entity = str(
-            sector.get(CONF_SUN_PRESENCE_ENTITY, "") or ""
-        )
-        if binary_entity:
+        """Resolve exactly the Easy Mode source selected for this sector."""
+        source = sun_source_for_sector(sector, advanced=False)
+        if source == "external":
+            binary_entity = str(
+                sector.get(CONF_SUN_PRESENCE_ENTITY, "") or ""
+            )
             state = self.hass.states.get(binary_entity)
             value = str(getattr(state, "state", "") or "").lower()
             if value == STATE_ON:
                 return True, "binary", binary_entity
             if value == STATE_OFF:
                 return False, "binary", binary_entity
+            return False, "binary", binary_entity or None
 
-        lux_entity = str(sector.get("lux_sensor", "") or "")
-        runtime = self.sun_runtime[sector["id"]]
-        if lux_entity and runtime.current_lux is not None:
-            return runtime.is_on, "lux", lux_entity
-
-        weather_value, weather_entity = self._easy_weather_confirmation()
-        if weather_value is not None:
-            return weather_value, "weather", weather_entity
+        if source == "lux":
+            lux_entity = str(sector.get("lux_sensor", "") or "")
+            runtime = self.sun_runtime[sector["id"]]
+            if lux_entity and runtime.current_lux is not None:
+                return runtime.is_on, "lux", lux_entity
+            return False, "lux", lux_entity or None
         return None, "geometry", None
 
-    def _easy_temperature_gate(
+    def _outdoor_temperature_condition(
         self, room: dict[str, Any]
     ) -> tuple[bool, str | None, float | None, float | None]:
-        """Return Easy Mode's optional outdoor-temperature decision.
-
-        Missing values fail open, preserving the base geometry controller.
-        """
-        if not bool(room.get(CONF_EASY_TEMPERATURE_GATE, False)):
+        """Require the configured outdoor sensor to reach its minimum."""
+        source_entity = str(room.get("outdoor_temperature", "") or "").strip()
+        if not source_entity:
             return True, None, None, None
 
         threshold = parse_numeric_value(
@@ -2055,25 +2005,9 @@ class SmartShadingEngine:
         )
         if threshold is None:
             threshold = 18.0
-        source_entity = str(room.get("outdoor_temperature", "") or "")
-        value = (
-            _temperature_state_celsius(self.hass, source_entity)
-            if source_entity
-            else None
-        )
-
-        weather_entity = str(self.config.get(CONF_WEATHER_ENTITY, "") or "")
-        if value is None and weather_entity:
-            value = _temperature_state_celsius(
-                self.hass,
-                weather_entity,
-                attribute="temperature",
-            )
-            if value is not None:
-                source_entity = weather_entity
-
+        value = _temperature_state_celsius(self.hass, source_entity)
         if value is None:
-            return True, None, None, threshold
+            return False, source_entity, None, threshold
         return value >= threshold, source_entity, value, threshold
 
     def _weather_pass(self, room: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -2905,9 +2839,9 @@ class SmartShadingEngine:
     ) -> None:
         """Evaluate the compact geometry-first Easy Mode controller.
 
-        Geometry is always mandatory.  Binary Sun Presence, Lux and weather
-        are optional confirmation layers in that order.  The optional outdoor
-        temperature gate fails open when no usable temperature is available.
+        Geometry is always mandatory. Each sector then uses exactly its
+        selected geometry, Lux, or external on/off source. Selecting an
+        outdoor-temperature sensor automatically adds its minimum condition.
         """
         runtime.schedule_active = True
         runtime.schedule_reason = "This setup does not use an activity schedule"
@@ -2923,19 +2857,18 @@ class SmartShadingEngine:
         runtime.easy_confirmation_state = "inactive"
         runtime.easy_source_summary = "Sun geometry"
 
-        temperature_pass, temperature_source, temperature_value, temperature_threshold = (
-            self._easy_temperature_gate(room)
+        temperature_pass, temperature_source, temperature_value, temperature_minimum = (
+            self._outdoor_temperature_condition(room)
         )
-        runtime.easy_temperature_gate_enabled = bool(
-            room.get(CONF_EASY_TEMPERATURE_GATE, False)
+        runtime.outdoor_temperature_condition_enabled = bool(
+            str(room.get("outdoor_temperature") or "").strip()
         )
-        runtime.easy_temperature_source = temperature_source
-        runtime.easy_temperature_value = temperature_value
-        runtime.easy_temperature_threshold = temperature_threshold
-        runtime.easy_temperature_passed = (
+        runtime.outdoor_temperature_source = temperature_source
+        runtime.outdoor_temperature_value = temperature_value
+        runtime.outdoor_temperature_minimum = temperature_minimum
+        runtime.outdoor_temperature_passed = (
             temperature_pass
-            if runtime.easy_temperature_gate_enabled
-            and temperature_value is not None
+            if runtime.outdoor_temperature_condition_enabled
             else None
         )
 
@@ -2980,7 +2913,6 @@ class SmartShadingEngine:
         source_label_map = {
             "binary": "Binary sensor",
             "lux": "Lux sensor",
-            "weather": "Weather",
             "geometry": "Sun geometry",
         }
         for sector in room.get("sectors", []):
@@ -3037,7 +2969,9 @@ class SmartShadingEngine:
             elif not temperature_pass:
                 sector_runtime.status = "temperature_blocked"
                 sector_runtime.status_reason = (
-                    "Outdoor temperature is below the configured threshold"
+                    "Outdoor temperature sensor is unavailable"
+                    if temperature_value is None
+                    else "Outdoor temperature is below the configured minimum"
                 )
             else:
                 sector_runtime.status = "sun_detected"
@@ -3056,7 +2990,7 @@ class SmartShadingEngine:
                 confirmation_source=source,
                 confirmation_entity=source_entity,
                 confirmation_state=confirmation,
-                temperature_gate_passed=temperature_pass,
+                outdoor_temperature_condition_passed=temperature_pass,
                 effective_active=active,
             )
             if active:

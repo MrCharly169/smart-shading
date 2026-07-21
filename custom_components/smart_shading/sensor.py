@@ -174,12 +174,12 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 ),
                 "easy_confirmation_state": self.runtime.easy_confirmation_state,
                 "easy_source_summary": self.runtime.easy_source_summary,
-                "easy_temperature_gate": {
-                    "enabled": self.runtime.easy_temperature_gate_enabled,
-                    "source_entity": self.runtime.easy_temperature_source,
-                    "value": self.runtime.easy_temperature_value,
-                    "threshold": self.runtime.easy_temperature_threshold,
-                    "passed": self.runtime.easy_temperature_passed,
+                "outdoor_temperature_condition": {
+                    "enabled": self.runtime.outdoor_temperature_condition_enabled,
+                    "source_entity": self.runtime.outdoor_temperature_source,
+                    "value": self.runtime.outdoor_temperature_value,
+                    "minimum": self.runtime.outdoor_temperature_minimum,
+                    "passed": self.runtime.outdoor_temperature_passed,
                 },
                 "external_movement_detection_configured": bool(
                     room.get("external_movement_detection", False)
@@ -253,7 +253,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
             for key in (
                 "easy_confirmation_state",
                 "easy_source_summary",
-                "easy_temperature_gate",
+                "outdoor_temperature_condition",
             ):
                 attrs.pop(key, None)
         else:

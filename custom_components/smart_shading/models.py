@@ -83,11 +83,11 @@ class RoomRuntime:
     pause_waiting_for_night: bool = False
     easy_confirmation_state: str = "inactive"
     easy_source_summary: str = "Sun geometry"
-    easy_temperature_gate_enabled: bool = False
-    easy_temperature_source: str | None = None
-    easy_temperature_value: float | None = None
-    easy_temperature_threshold: float | None = None
-    easy_temperature_passed: bool | None = None
+    outdoor_temperature_condition_enabled: bool = False
+    outdoor_temperature_source: str | None = None
+    outdoor_temperature_value: float | None = None
+    outdoor_temperature_minimum: float | None = None
+    outdoor_temperature_passed: bool | None = None
 
 
 @dataclass(slots=True)
