@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.4 - 2026-07-21
+
 ### Setup wizard
 
 - rebuilt initial setup and later editing around one consistent house, room, task, and object-list navigation
