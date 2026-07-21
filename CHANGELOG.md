@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Logical setup profiles
+
+- made the selected physical cover type the shared capability contract for the
+  setup wizard, runtime targets, configuration entities, per-cover options and
+  dashboard presentation
+- added interactive source-dependent forms that reveal thresholds only after a
+  matching sensor is selected and hide unsupported profile settings
+- removed the separate Easy outdoor-temperature gate; selecting a room sensor
+  now activates its minimum automatically without a weather fallback
+- made geometry, local Lux and external on/off confirmation strictly exclusive,
+  with local Lux creating the integration's Sun Presence binary sensor in both
+  setup variants
+- added schema 15 migration cleanup for legacy gate values, competing sun
+  sources, custom Easy thresholds and profile-incompatible settings
+- expanded the German and English setup guidance and recorded the reviewed
+  wizard contract for future regressions
 
 ## 4.6.2-beta.4 - 2026-07-21
 

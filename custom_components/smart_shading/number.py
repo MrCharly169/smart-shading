@@ -6,8 +6,7 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import (
-    DEVICE_BINARY,
-    DEVICE_VERTICAL,
+    DEVICE_AWNING,
     DEVICE_VENETIAN,
     IRRADIANCE_MINIMUM_MAX,
     IRRADIANCE_MINIMUM_MIN,
@@ -19,6 +18,8 @@ from .const import (
     PAUSE_DURATION_MIN_HOURS,
     PAUSE_DURATION_STEP_HOURS,
     PROFILE_DEFAULTS,
+    profile_supports_tilt,
+    profile_target_keys,
 )
 from .entity import SmartShadingEntity, localized
 
@@ -58,31 +59,20 @@ SUN_NUMBERS = (
     NumberDefinition("sun_off_delay", "Sun OFF delay", 0, 120, 0.5, "min", "mdi:timer-minus-outline"),
 )
 
-PROFILE_NUMBER_KEYS = {
-    DEVICE_VENETIAN: (
-        ("open_position", "Open position", "mdi:blinds-open"),
-        ("night_position", "Night position", "mdi:weather-night"),
-        ("night_tilt", "Night slat position", "mdi:weather-night"),
-        ("safety_position", "Safety position", "mdi:shield-alert"),
-    ),
-    DEVICE_VERTICAL: (
-        ("open_position", "Open position", "mdi:blinds-open"),
-        ("comfort_tilt", "Comfort tilt", "mdi:rotate-right"),
-        ("heat_tilt", "Heat tilt", "mdi:rotate-right"),
-        ("night_position", "Night position", "mdi:weather-night"),
-        ("night_tilt", "Night slat position", "mdi:weather-night"),
-        ("safety_position", "Safety position", "mdi:shield-alert"),
-    ),
+TARGET_METADATA = {
+    "open_position": ("Open position", "mdi:blinds-open"),
+    "open_tilt": ("Open tilt", "mdi:rotate-right"),
+    "comfort_position": ("Comfort position", "mdi:sun-angle"),
+    "comfort_tilt": ("Comfort tilt", "mdi:rotate-right"),
+    "solar_position": ("Solar position", "mdi:weather-sunny-alert"),
+    "solar_tilt": ("Solar tilt", "mdi:rotate-right"),
+    "heat_position": ("Heat position", "mdi:shield-sun"),
+    "heat_tilt": ("Heat tilt", "mdi:rotate-right"),
+    "night_position": ("Night position", "mdi:weather-night"),
+    "night_tilt": ("Night slat position", "mdi:weather-night"),
+    "safety_position": ("Safety position", "mdi:shield-alert"),
+    "safety_tilt": ("Safety tilt", "mdi:shield-alert"),
 }
-
-DEFAULT_POSITION_KEYS = (
-    ("open_position", "Open position", "mdi:blinds-open"),
-    ("comfort_position", "Comfort position", "mdi:sun-angle"),
-    ("solar_position", "Solar position", "mdi:weather-sunny-alert"),
-    ("heat_position", "Heat position", "mdi:shield-sun"),
-    ("night_position", "Night position", "mdi:weather-night"),
-    ("safety_position", "Safety position", "mdi:shield-alert"),
-)
 
 
 
@@ -116,17 +106,13 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                     )
             for layer in sector.get("layers", []):
                 profile = layer.get("profile", "venetian")
-                if profile == DEVICE_BINARY:
-                    continue
-                keys = PROFILE_NUMBER_KEYS.get(profile, DEFAULT_POSITION_KEYS)
-                for key, name, icon in keys:
-                    if not _layer_number_relevant(room, profile, key):
-                        continue
-                    if key.startswith("night_") and not (
-                        engine.config.get("advanced_mode", False)
-                        and room.get("night_enabled", False)
-                    ):
-                        continue
+                keys = profile_target_keys(
+                    profile,
+                    indoor_temperature=bool(room.get("indoor_temperature")),
+                    night=bool(room.get("night_enabled", False)),
+                )
+                for key in keys:
+                    name, icon = TARGET_METADATA[key]
                     entities.append(
                         LayerSettingNumber(
                             engine, room_id, sector_id, layer["id"],
@@ -134,12 +120,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                         )
                     )
                 if (
-                    profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                    profile_supports_tilt(profile)
                     and layer.get("adaptive_tilt", False)
-                    and (
-                        profile == DEVICE_VENETIAN
-                        or bool(room.get("indoor_temperature"))
-                    )
                 ):
                     stage_names = ("Very low sun", "Low sun", "Medium sun", "High sun")
                     for index, point in enumerate(layer.get("tilt_curve", []), start=1):
@@ -200,15 +182,6 @@ def _room_number_relevant(room: dict, key: str) -> bool:
         return bool(room.get("irradiance_sensor"))
     if key == "cloud_cover_maximum":
         return bool(room.get("cloud_cover_sensor"))
-    return True
-
-
-def _layer_number_relevant(room: dict, profile: str, key: str) -> bool:
-    """Hide targets that cannot be reached without room temperature."""
-    if room.get("indoor_temperature"):
-        return True
-    if key in {"heat_position", "heat_tilt", "solar_position"}:
-        return False
     return True
 
 
@@ -403,9 +376,15 @@ class LayerSettingNumber(BaseSettingNumber):
         default_value: float | None = None,
     ) -> None:
         layer = engine.layer_config(layer_id)
+        target_name = definition.name
+        if (
+            layer.get("profile") == DEVICE_AWNING
+            and definition.key == "open_position"
+        ):
+            target_name = "Retracted / neutral position"
         named = NumberDefinition(
             definition.key,
-            f"{layer['name']} · {localized(engine, definition.name, {'Open position': 'Öffnungsposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Night position': 'Nachtposition', 'Night slat position': 'Nacht-Lamellenposition', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(definition.name, definition.name))}",
+            f"{layer['name']} · {localized(engine, target_name, {'Open position': 'Öffnungsposition', 'Retracted / neutral position': 'Eingefahrene Ruheposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Night position': 'Nachtposition', 'Night slat position': 'Nacht-Lamellenposition', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(target_name, target_name))}",
             definition.minimum,
             definition.maximum,
             definition.step,

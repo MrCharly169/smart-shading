@@ -4,14 +4,14 @@
     "step": {
       "user": {
         "title": "Einrichtungsart wählen",
-        "description": "Easy richtet die Beschattung schnell über den Sonnenstand ein. Advanced ergänzt Zeitpläne, Temperatursteuerung, Nachtfunktion, Pausen, Sicherheitsbedingungen und individuelle Behangoptionen.",
+        "description": "Smart Shading bewegt Behänge nur, wenn die Sonne ihre Fassade erreicht und die gewählte Sonnenquelle dies bestätigt. Easy nutzt eine kurze Einrichtung mit sicheren Profil-Standardwerten. Advanced ergänzt Zeitpläne, Temperaturstufen, Nachtfunktion, Pausen, Sicherheit und individuelle Zielwerte. Sicherheitsfunktionen und manuelle Bedienung haben immer Vorrang.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
           "setup_type": "Einrichtungsart"
         },
         "data_description": {
           "house_name": "Benennt diese Smart-Shading-Einrichtung.",
-          "setup_type": "Easy ist schneller eingerichtet. Advanced bietet alle Automatik- und Schutzfunktionen."
+          "setup_type": "Easy fragt nur das Wesentliche ab. Advanced blendet jede passende Komfort- und Schutzfunktion ein; unpassende Felder bleiben verborgen."
         }
       },
       "room_setup": {
@@ -32,7 +32,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Wählen Sie den physischen Behangtyp, damit passende Standardwerte verwendet werden.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -43,21 +43,19 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
-            "name": "Optionale Temperaturfreigabe",
-            "description": "Nutzen Sie dies nur, wenn normale Beschattung auf milde Außentemperaturen warten soll.",
+            "name": "Optionale Außentemperatur",
+            "description": "Mit ausgewähltem Sensor wartet die Beschattung, bis dessen eingestellter Mindestwert erreicht ist.",
             "data": {
-              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
               "outdoor_temperature": "Außentemperatursensor",
               "outdoor_minimum": "Minimale Außentemperatur"
             },
             "data_description": {
-              "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht.",
-              "outdoor_temperature": "Primäre Quelle für diese Freigabe; die Wetterquelle des Hauses ist der Ersatz.",
-              "outdoor_minimum": "Normale Beschattung startet bei aktiver Freigabe erst oberhalb dieses Werts."
+              "outdoor_temperature": "Optional. Die Auswahl aktiviert die Bedingung automatisch; es gibt keinen Wetter-Ersatzwert.",
+              "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
             }
           },
           "advanced_conditions": {
@@ -122,7 +120,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Wählen Sie den physischen Behangtyp, damit passende Standardwerte verwendet werden.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -133,21 +131,19 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
-            "name": "Optionale Temperaturfreigabe",
-            "description": "Nutzen Sie dies nur, wenn normale Beschattung auf milde Außentemperaturen warten soll.",
+            "name": "Optionale Außentemperatur",
+            "description": "Mit ausgewähltem Sensor wartet die Beschattung, bis dessen eingestellter Mindestwert erreicht ist.",
             "data": {
-              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
               "outdoor_temperature": "Außentemperatursensor",
               "outdoor_minimum": "Minimale Außentemperatur"
             },
             "data_description": {
-              "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht.",
-              "outdoor_temperature": "Primäre Quelle für diese Freigabe; die Wetterquelle des Hauses ist der Ersatz.",
-              "outdoor_minimum": "Normale Beschattung startet bei aktiver Freigabe erst oberhalb dieses Werts."
+              "outdoor_temperature": "Optional. Die Auswahl aktiviert die Bedingung automatisch; es gibt keinen Wetter-Ersatzwert.",
+              "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
             }
           },
           "advanced_conditions": {
@@ -252,15 +248,13 @@
           "name": "Raumname",
           "indoor_temperature": "Innentemperatur (optional)",
           "outdoor_temperature": "Außentemperatur (optional)",
-          "outdoor_minimum": "Mindest-Außentemperatur",
-          "easy_temperature_gate": "Temperaturfreigabe verwenden"
+          "outdoor_minimum": "Mindest-Außentemperatur"
         },
         "data_description": {
           "name": "Name in Karten und Statusentitäten.",
           "indoor_temperature": "Ergänzt Temperaturstufen und Hitzeschutz. Leer bedeutet reine Sonnen- und Zeitsteuerung.",
-          "outdoor_temperature": "Optionale Außentemperaturquelle.",
-          "outdoor_minimum": "Unter diesem Wert startet keine temperaturabhängige Beschattung.",
-          "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht."
+          "outdoor_temperature": "Optional. Die Auswahl aktiviert automatisch die Mindesttemperatur-Bedingung.",
+          "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
         }
       },
       "manage_room_maintenance": {
@@ -425,7 +419,7 @@
             "data": {
               "sun_source": "Sonnenquelle",
               "lux_sensor": "Lux-Sensor",
-              "sun_presence_entity": "Externe Sonnenbestätigung",
+              "sun_presence_entity": "Externer Ein/Aus-Sensor",
               "sun_preset": "Sonnenempfindlichkeit",
               "sun_on_lux": "Sonne erkannt über",
               "sun_off_lux": "Sonne nicht mehr erkannt unter",
@@ -433,7 +427,7 @@
               "sun_off_delay": "Ausschaltverzögerung"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird.",
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
               "lux_sensor": "Wählen Sie den Lux-Sensor, der direkte Sonne bestätigt.",
               "sun_presence_entity": "Wählen Sie eine vorhandene Ein/Aus-Entität, bei der Ein direkte Sonne bedeutet.",
               "sun_preset": "Wählt Helligkeitsgrenzen und Verzögerungen.",
@@ -467,7 +461,7 @@
           "name": "Name in Karten und Statusentitäten.",
           "short": "Kurzes Kürzel für kompakte Anzeigen.",
           "direction": "Fassadenrichtung für die Sonnengeometrie.",
-          "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+          "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
         }
       },
       "manage_layer": {
@@ -483,7 +477,7 @@
             },
             "data_description": {
               "name": "Name dieser Behanggruppe.",
-              "profile": "Ein Typwechsel setzt Standardwerte und behält zugeordnete Behänge.",
+              "profile": "Ein Typwechsel lädt diese Seite neu, wendet das vollständige Profil an und entfernt unpassende Einstellungen; zugeordnete Behänge bleiben erhalten.",
               "tilt_preset": "Wählen Sie „Benutzerdefiniert“, um die vier Stufen unten zu verwenden."
             }
           },
@@ -515,7 +509,7 @@
             "name": "Zielpositionen",
             "description": "0 % und 100 % folgen der Home-Assistant-Behangposition. Lamellen: 0 % ganz offen, 100 % ganz geschlossen.",
             "data": {
-              "open_position": "Offene Position",
+              "open_position": "Ruhe- / Öffnungsposition",
               "open_tilt": "Offene Lamellenposition",
               "comfort_position": "Komfortposition",
               "comfort_tilt": "Komfort-Lamellenposition",
@@ -528,7 +522,7 @@
               "safety_tilt": "Sicherheits-Lamellenposition"
             },
             "data_description": {
-              "open_position": "Neutrale Höhe; Home Assistant nutzt 100 % für offen.",
+              "open_position": "Neutrales Ziel. Meist sind 100 % offen; Markisen nutzen standardmäßig 0 % eingefahren.",
               "open_tilt": "Neutrale Lamellenposition; 0 % ist ganz offen.",
               "comfort_position": "Behanghöhe für die Komfortstufe.",
               "comfort_tilt": "Lamellenposition für die Komfortstufe.",
@@ -654,7 +648,6 @@
       "incomplete_configuration": "Beheben Sie vor dem Start die in der Zusammenfassung genannten offenen Punkte.",
       "confirm_start_required": "Bestätigen Sie, dass Sie Smart Shading starten möchten.",
       "sun_source_required": "Wählen Sie die benötigte Entität für diese Sonnenquelle.",
-      "temperature_source_required": "Wählen Sie einen Außentemperatursensor oder eine Wetterquelle des Hauses, bevor Sie die Temperaturfreigabe aktivieren.",
       "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus."
     },
     "abort": {
@@ -710,7 +703,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Wählen Sie den physischen Behangtyp, damit passende Standardwerte verwendet werden.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -721,21 +714,19 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
-            "name": "Optionale Temperaturfreigabe",
-            "description": "Nutzen Sie dies nur, wenn normale Beschattung auf milde Außentemperaturen warten soll.",
+            "name": "Optionale Außentemperatur",
+            "description": "Mit ausgewähltem Sensor wartet die Beschattung, bis dessen eingestellter Mindestwert erreicht ist.",
             "data": {
-              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
               "outdoor_temperature": "Außentemperatursensor",
               "outdoor_minimum": "Minimale Außentemperatur"
             },
             "data_description": {
-              "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht.",
-              "outdoor_temperature": "Primäre Quelle für diese Freigabe; die Wetterquelle des Hauses ist der Ersatz.",
-              "outdoor_minimum": "Normale Beschattung startet bei aktiver Freigabe erst oberhalb dieses Werts."
+              "outdoor_temperature": "Optional. Die Auswahl aktiviert die Bedingung automatisch; es gibt keinen Wetter-Ersatzwert.",
+              "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
             }
           },
           "advanced_conditions": {
@@ -791,7 +782,7 @@
             "data": {
               "sun_source": "Sonnenquelle",
               "lux_sensor": "Lux-Sensor",
-              "sun_presence_entity": "Externe Sonnenbestätigung",
+              "sun_presence_entity": "Externer Ein/Aus-Sensor",
               "sun_preset": "Sonnenempfindlichkeit",
               "sun_on_lux": "Sonne erkannt über",
               "sun_off_lux": "Sonne nicht mehr erkannt unter",
@@ -799,7 +790,7 @@
               "sun_off_delay": "Ausschaltverzögerung"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird.",
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
               "lux_sensor": "Wählen Sie den Lux-Sensor, der direkte Sonne bestätigt.",
               "sun_presence_entity": "Wählen Sie eine vorhandene Ein/Aus-Entität, bei der Ein direkte Sonne bedeutet.",
               "sun_preset": "Wählt Helligkeitsgrenzen und Verzögerungen.",
@@ -833,7 +824,7 @@
           "name": "Name in Karten und Statusentitäten.",
           "short": "Kurzes Kürzel für kompakte Anzeigen.",
           "direction": "Fassadenrichtung für die Sonnengeometrie.",
-          "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+          "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
         }
       },
       "manage_layer": {
@@ -849,7 +840,7 @@
             },
             "data_description": {
               "name": "Name dieser Behanggruppe.",
-              "profile": "Ein Typwechsel setzt Standardwerte und behält zugeordnete Behänge.",
+              "profile": "Ein Typwechsel lädt diese Seite neu, wendet das vollständige Profil an und entfernt unpassende Einstellungen; zugeordnete Behänge bleiben erhalten.",
               "tilt_preset": "Wählen Sie „Benutzerdefiniert“, um die vier Stufen unten zu verwenden."
             }
           },
@@ -881,7 +872,7 @@
             "name": "Zielpositionen",
             "description": "0 % und 100 % folgen der Home-Assistant-Behangposition. Lamellen: 0 % ganz offen, 100 % ganz geschlossen.",
             "data": {
-              "open_position": "Offene Position",
+              "open_position": "Ruhe- / Öffnungsposition",
               "open_tilt": "Offene Lamellenposition",
               "comfort_position": "Komfortposition",
               "comfort_tilt": "Komfort-Lamellenposition",
@@ -894,7 +885,7 @@
               "safety_tilt": "Sicherheits-Lamellenposition"
             },
             "data_description": {
-              "open_position": "Neutrale Höhe; Home Assistant nutzt 100 % für offen.",
+              "open_position": "Neutrales Ziel. Meist sind 100 % offen; Markisen nutzen standardmäßig 0 % eingefahren.",
               "open_tilt": "Neutrale Lamellenposition; 0 % ist ganz offen.",
               "comfort_position": "Behanghöhe für die Komfortstufe.",
               "comfort_tilt": "Lamellenposition für die Komfortstufe.",
@@ -1021,15 +1012,13 @@
           "name": "Raumname",
           "indoor_temperature": "Innentemperatur (optional)",
           "outdoor_temperature": "Außentemperatur (optional)",
-          "outdoor_minimum": "Mindest-Außentemperatur",
-          "easy_temperature_gate": "Temperaturfreigabe verwenden"
+          "outdoor_minimum": "Mindest-Außentemperatur"
         },
         "data_description": {
           "name": "Name in Karten und Statusentitäten.",
           "indoor_temperature": "Ergänzt Temperaturstufen und Hitzeschutz. Leer bedeutet reine Sonnen- und Zeitsteuerung.",
-          "outdoor_temperature": "Optionale Außentemperaturquelle.",
-          "outdoor_minimum": "Unter diesem Wert startet keine temperaturabhängige Beschattung.",
-          "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht."
+          "outdoor_temperature": "Optional. Die Auswahl aktiviert automatisch die Mindesttemperatur-Bedingung.",
+          "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
         }
       },
       "manage_room_maintenance": {
@@ -1234,7 +1223,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Wählen Sie den physischen Behangtyp, damit passende Standardwerte verwendet werden.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -1245,21 +1234,19 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Wählen Sie die verfügbare Quelle, mit der direkte Sonne bestätigt wird."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein lokaler Lux-Sensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
-            "name": "Optionale Temperaturfreigabe",
-            "description": "Nutzen Sie dies nur, wenn normale Beschattung auf milde Außentemperaturen warten soll.",
+            "name": "Optionale Außentemperatur",
+            "description": "Mit ausgewähltem Sensor wartet die Beschattung, bis dessen eingestellter Mindestwert erreicht ist.",
             "data": {
-              "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
               "outdoor_temperature": "Außentemperatursensor",
               "outdoor_minimum": "Minimale Außentemperatur"
             },
             "data_description": {
-              "easy_temperature_gate": "Benötigt einen Außensensor oder die Wetterquelle des Hauses. Vorübergehend fehlende Daten blockieren nicht.",
-              "outdoor_temperature": "Primäre Quelle für diese Freigabe; die Wetterquelle des Hauses ist der Ersatz.",
-              "outdoor_minimum": "Normale Beschattung startet bei aktiver Freigabe erst oberhalb dieses Werts."
+              "outdoor_temperature": "Optional. Die Auswahl aktiviert die Bedingung automatisch; es gibt keinen Wetter-Ersatzwert.",
+              "outdoor_minimum": "Die Beschattung startet erst, wenn der ausgewählte Sensor diesen Wert erreicht."
             }
           },
           "advanced_conditions": {
@@ -1295,7 +1282,6 @@
       "option_not_available": "Diese Funktion ist in dieser Einrichtung nicht verfügbar.",
       "incomplete_configuration": "Beheben Sie vor dem Speichern die in der Zusammenfassung genannten offenen Punkte.",
       "sun_source_required": "Wählen Sie die benötigte Entität für diese Sonnenquelle.",
-      "temperature_source_required": "Wählen Sie einen Außentemperatursensor oder eine Wetterquelle des Hauses, bevor Sie die Temperaturfreigabe aktivieren.",
       "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus."
     },
     "abort": {
@@ -1335,9 +1321,9 @@
     },
     "sun_source": {
       "options": {
-        "geometry": "Berechneter Sonnenstand",
-        "lux": "Helligkeitssensor",
-        "external": "Externe Sonnenbestätigung"
+        "geometry": "Nur Sonnenstand",
+        "lux": "Lokaler Lux-Sensor (empfohlen)",
+        "external": "Externer Ein/Aus-Sensor"
       }
     },
     "tilt_preset": {

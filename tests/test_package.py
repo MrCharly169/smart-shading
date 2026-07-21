@@ -86,23 +86,34 @@ class PackageTests(unittest.TestCase):
         self.assertIn(
             'sections[vol.Required("temperature_settings")]', flow
         )
-        self.assertIn("_layer_number_relevant", number)
-        self.assertIn(
-            'and not bool(room.get("indoor_temperature"))', number
-        )
+        self.assertIn("profile_target_keys", number)
+        self.assertIn('indoor_temperature=bool(room.get("indoor_temperature"))', number)
+
+    def test_outdoor_minimum_is_automatic_and_source_dependent(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        self.assertNotIn("easy_temperature_gate", flow)
+        self.assertIn('outdoor_temperature and "outdoor_minimum" not in values', flow)
+        self.assertIn('if str(room.get("outdoor_temperature") or "").strip()', flow)
+        self.assertIn("def _outdoor_temperature_condition", engine)
+        self.assertNotIn("_easy_weather_confirmation", engine)
 
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 14", flow)
-        self.assertIn("if entry.version >= 14", migration)
-        self.assertIn("version=14", migration.replace(" ", ""))
+        self.assertIn("VERSION = 15", flow)
+        self.assertIn("if entry.version >= 15", migration)
+        self.assertIn("version=15", migration.replace(" ", ""))
         self.assertIn("locked_advanced_mode(raw_data, raw_options)", migration)
         self.assertIn("options = editable_options(effective) if raw_options else {}", migration)
         self.assertIn("if entry.version < 10", migration)
         self.assertIn("migrate_slat_config", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
         self.assertIn('room.setdefault("normal_shading_temperature"', migration)
+        self.assertIn('room.pop("easy_temperature_gate", None)', migration)
+        self.assertIn('sector["sun_source"] = source', migration)
+        self.assertIn('if source != "lux"', migration)
+        self.assertIn("profile_supports_tilt", migration)
 
     def test_versions_and_resources_match(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
@@ -154,6 +165,28 @@ class PackageTests(unittest.TestCase):
                 encoding="utf-8"
             )
             self.assertNotIn("heat_close_enabled", translated)
+
+    def test_cover_profiles_are_the_shared_capability_contract(self):
+        self.assertEqual(set(const.PROFILE_TARGET_KEYS), set(const.DEVICE_TYPES))
+        for profile, keys in const.PROFILE_TARGET_KEYS.items():
+            with self.subTest(profile=profile):
+                self.assertTrue(set(keys).issubset(const.PROFILE_DEFAULTS[profile]))
+        self.assertTrue(const.profile_supports_tilt(const.DEVICE_VENETIAN))
+        self.assertTrue(const.profile_supports_tilt(const.DEVICE_VERTICAL))
+        self.assertFalse(const.profile_supports_tilt(const.DEVICE_CURTAIN))
+        self.assertFalse(const.profile_supports_position(const.DEVICE_BINARY))
+        self.assertTrue(const.profile_uses_exterior_safety(const.DEVICE_AWNING))
+        self.assertFalse(const.profile_uses_exterior_safety(const.DEVICE_CURTAIN))
+        self.assertNotIn("safety_position", const.PROFILE_TARGET_KEYS[const.DEVICE_CURTAIN])
+        self.assertNotIn("safety_tilt", const.PROFILE_TARGET_KEYS[const.DEVICE_VERTICAL])
+
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        numbers = (COMP / "number.py").read_text(encoding="utf-8")
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        self.assertIn("profile_target_keys", flow)
+        self.assertIn("profile_target_keys", numbers)
+        self.assertIn("profileIcon", card)
+        self.assertIn("profileSupportsTilt", card)
 
     def test_venetian_numbers_hide_redundant_comfort_and_solar(self):
         number = (COMP / "number.py").read_text(encoding="utf-8")
@@ -224,7 +257,8 @@ class PackageTests(unittest.TestCase):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("async def _evaluate_easy_room", engine)
         self.assertIn("Geometry is always mandatory", engine)
-        self.assertIn("Binary Sun Presence, Lux and weather", engine)
+        self.assertIn("uses exactly its", engine)
+        self.assertNotIn("_easy_weather_confirmation", engine)
         self.assertIn('attrs.smart_shading_layout === "detailed"', card)
         self.assertNotIn("_roomSelector(roomState)", card)
         self.assertNotIn('data-toggle="advanced_mode"', card)
@@ -291,6 +325,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn("sector.get('name'", switch)
         self.assertIn("sector.get('name'", select)
         self.assertIn("sector.get('name'", binary)
+        self.assertNotIn("if not engine.advanced_mode", binary)
+        self.assertIn('if sector.get("lux_sensor")', binary)
 
     def test_translation_files_cover_every_flow(self):
         shared_steps = {
@@ -360,7 +396,7 @@ class PackageTests(unittest.TestCase):
             },
             ("config", "room_setup", "sun_control"): {"sun_source"},
             ("config", "room_setup", "optional_improvements"): {
-                "easy_temperature_gate", "outdoor_temperature", "outdoor_minimum",
+                "outdoor_temperature", "outdoor_minimum",
             },
             ("config", "room_setup", "advanced_conditions"): {
                 "indoor_temperature", "outdoor_temperature", "outdoor_minimum",
@@ -453,7 +489,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn('vol.Required("sun_source"', flow)
         self.assertIn("CONF_SUN_PRESENCE_ENTITY", flow)
         self.assertIn("CONF_WEATHER_ENTITY", flow)
-        self.assertIn("CONF_EASY_TEMPERATURE_GATE", flow)
+        self.assertNotIn("CONF_EASY_TEMPERATURE_GATE", flow)
+        self.assertIn("profile_supports_tilt", flow)
         tree = ast.parse(flow)
         options_class = next(
             node for node in tree.body
@@ -896,8 +933,8 @@ class PackageTests(unittest.TestCase):
 
     def test_external_sun_confirmation_is_unambiguous(self):
         for language, expected in (
-            ("en", "External sun confirmation"),
-            ("de", "Externe Sonnenbestätigung"),
+            ("en", "External on/off sensor"),
+            ("de", "Externer Ein/Aus-Sensor"),
         ):
             data = json.loads(
                 (COMP / "translations" / f"{language}.json").read_text(

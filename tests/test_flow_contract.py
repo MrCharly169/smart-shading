@@ -218,21 +218,7 @@ class FlowContractTests(unittest.TestCase):
             "geometry",
         )
 
-    def test_easy_temperature_gate_requires_one_configured_source(self):
-        room = {"outdoor_temperature": ""}
-        self.assertFalse(
-            contract.easy_temperature_source_configured({}, room)
-        )
-        self.assertTrue(
-            contract.easy_temperature_source_configured(
-                {}, {"outdoor_temperature": "sensor.outdoor"}
-            )
-        )
-        self.assertTrue(
-            contract.easy_temperature_source_configured(
-                {"weather_entity": "weather.home"}, room
-            )
-        )
+    def test_legacy_sun_sources_migrate_to_one_explicit_choice(self):
         self.assertEqual(
             contract.sun_source_for_sector(
                 {"lux_sensor": "sensor.facade"}, advanced=True
@@ -531,7 +517,8 @@ class WizardRouteContractTests(unittest.TestCase):
         ) or ""
 
         self.assertIn('values.get("safety_blockers") or []', source)
-        self.assertIn('room[key] = values.get(key, "")', source)
+        self.assertIn('selected = str(values.get(key) or "")', source)
+        self.assertIn("room[key] = selected", source)
         self.assertIn("occupancy_source_required", source)
 
     def test_final_review_rejects_an_enabled_night_without_a_source(self):

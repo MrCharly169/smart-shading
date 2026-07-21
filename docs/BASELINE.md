@@ -16,11 +16,14 @@ manifest and changelog remain the version sources of truth.
 ## Behavior contract
 
 - Easy Mode always has a sensorless sun-geometry baseline, one indefinite room
-  Manual Override, and only optional confirmation or temperature refinements.
+  Manual Override, one explicit sun source per sector, and an automatic outdoor
+  minimum condition only when a room sensor is selected.
 - Advanced Mode retains schedules, Safety, Pause, Heat Protection, Night Mode,
   per-cover Manual Override entities, and optional movement detection.
 - Cover height follows Home Assistant semantics. Venetian slat position follows
   the documented KNX scale: `0%` open and `100%` closed.
+- One physical cover profile drives setup fields, defaults, runtime targets,
+  entities, per-cover options, and dashboard presentation.
 - The setup variant is chosen once per config entry and cannot be switched in
   the options flow. Existing settings survive upgrades unless a documented
   migration intentionally transforms them.

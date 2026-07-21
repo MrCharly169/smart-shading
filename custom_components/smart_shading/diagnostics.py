@@ -72,12 +72,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "easy_confirmation_state": runtime.easy_confirmation_state,
                 "easy_source_summary": runtime.easy_source_summary,
-                "easy_temperature_gate": {
-                    "enabled": runtime.easy_temperature_gate_enabled,
-                    "source_entity": runtime.easy_temperature_source,
-                    "value": runtime.easy_temperature_value,
-                    "threshold": runtime.easy_temperature_threshold,
-                    "passed": runtime.easy_temperature_passed,
+                "outdoor_temperature_condition": {
+                    "enabled": runtime.outdoor_temperature_condition_enabled,
+                    "source_entity": runtime.outdoor_temperature_source,
+                    "value": runtime.outdoor_temperature_value,
+                    "minimum": runtime.outdoor_temperature_minimum,
+                    "passed": runtime.outdoor_temperature_passed,
                 },
             }
             for room_id, runtime in engine.rooms.items()

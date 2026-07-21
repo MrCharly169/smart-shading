@@ -28,12 +28,16 @@ from .const import (
     SUN_PRESETS,
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
+    profile_supports_position,
+    profile_supports_tilt,
+    profile_uses_exterior_safety,
 )
 from .controller import SmartShadingEngine
 from .flow_contract import (
     editable_options,
     legacy_effective_config,
     locked_advanced_mode,
+    sun_source_for_sector,
 )
 from .logic import migrate_slat_config
 from .storage import RuntimeStore
@@ -58,6 +62,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     old_curve = [(10.0, 10.0), (20.0, 50.0), (40.0, 85.0), (60.0, 90.0)]
 
     for room in result[CONF_ROOMS]:
+        room.pop("easy_temperature_gate", None)
         for obsolete in (
             "indoor_temperature_name",
             "display_name",
@@ -76,19 +81,44 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
         for sector in room.get("sectors", []):
             sector.setdefault("enabled", True)
             sector.setdefault(CONF_SUN_PRESENCE_ENTITY, "")
+            source = sun_source_for_sector(
+                sector, advanced=bool(result.get(CONF_ADVANCED_MODE, False))
+            )
+            sector["sun_source"] = source
+            if source != "lux":
+                sector["lux_sensor"] = ""
+            if source != "external":
+                sector[CONF_SUN_PRESENCE_ENTITY] = ""
             preset = str(sector.get("sun_preset", "medium"))
+            if not result.get(CONF_ADVANCED_MODE, False) and preset == "custom":
+                preset = "medium"
+                sector["sun_preset"] = preset
             if preset in SUN_PRESETS:
                 sector.update(deepcopy(SUN_PRESETS[preset]))
             sector.setdefault("layers", [])
             for layer in sector.get("layers", []):
-                profile = layer.get("profile", "venetian")
+                profile = str(layer.get("profile", "venetian"))
+                if profile not in PROFILE_DEFAULTS:
+                    profile = "venetian"
+                layer["profile"] = profile
                 defaults = PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["venetian"])
                 legacy_heat_close_enabled = layer.pop(
                     "heat_close_enabled", None
                 )
                 layer.pop("safety_position_override", None)
+                profile_keys = {
+                    key
+                    for values in PROFILE_DEFAULTS.values()
+                    for key in values
+                }
+                for key in profile_keys:
+                    if key not in defaults:
+                        layer.pop(key, None)
                 for key, value in defaults.items():
-                    layer.setdefault(key, deepcopy(value))
+                    if key in {"supports_position", "supports_tilt", "adaptive_tilt"}:
+                        layer[key] = deepcopy(value)
+                    else:
+                        layer.setdefault(key, deepcopy(value))
                 # The old curtain switch made the visible heat-position field
                 # ineffective while disabled. Preserve that effective target
                 # once, then keep only the single position customers edit.
@@ -126,6 +156,17 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                     cover.setdefault("invert_position", False)
                     cover.setdefault("invert_tilt", False)
                     cover.setdefault("max_open_position", 100.0)
+                    if not profile_supports_tilt(profile):
+                        cover["invert_tilt"] = False
+                    if not profile_supports_position(profile):
+                        cover["max_open_position"] = 100.0
+        room_profiles = {
+            str(layer.get("profile", "venetian"))
+            for sector in room.get("sectors", [])
+            for layer in sector.get("layers", [])
+        }
+        if not any(profile_uses_exterior_safety(profile) for profile in room_profiles):
+            room["safety_blockers"] = []
     return result
 
 
@@ -142,7 +183,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 14:
+    if entry.version >= 15:
         return True
     raw_data = dict(entry.data)
     raw_options = dict(entry.options)
@@ -184,7 +225,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, fixed_advanced_mode)
             ) if fixed_advanced_mode else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=14
+        entry, data=data, options=options, version=15
     )
     return True
 

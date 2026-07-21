@@ -128,7 +128,7 @@ const roomStatus = {
     night_source_state: "off",
     easy_confirmation_state: "confirmed",
     easy_source_summary: "Binary sensor",
-    easy_temperature_gate: { enabled: true, source_entity: "sensor.outdoor", value: 24.5, threshold: 18, passed: true },
+    outdoor_temperature_condition: { enabled: true, source_entity: "sensor.outdoor", value: 24.5, minimum: 18, passed: true },
     diagnostic_events: [{ timestamp: "2026-07-14T12:00:00+00:00", event: "room_mode_changed", room_id: "room", mode: "solar" }],
     sector_statuses: [{ id: "south_left", name: "Süd links", short: "S1", status: "shading_active", reason: "Normal shading", geometry_active: true, sun_presence: true, confirmation_source: "binary", confirmation_entity: "binary_sensor.south_sun_presence", confirmation_state: true, effective_active: true, lux: 26398.72, lux_raw_state: "26398.72", lux_unit: "lx", sun_settings: { sun_on_lux: 18000, sun_off_lux: 9000, sun_on_delay: 3, sun_off_delay: 12 }, pending_target: null, pending_until: null, mode: "solar", sun_presence_entity_id: "binary_sensor.south_sun_presence" }],
     configuration: {
@@ -137,7 +137,7 @@ const roomStatus = {
       safety_blockers: [],
       sectors: [{
         id: "south_left", name: "Süd links", short: "S1", azimuth_start: 120, azimuth_end: 240,
-        layers: [{ name: "Behanggruppe", covers: [{ entity: "cover.internal_identifier", name: "Fenstergruppe", short: "B1", lock: "switch.cover_lock", window: "binary_sensor.window_contact", window_safe_state: "on" }] }],
+        layers: [{ name: "Behanggruppe", profile: "venetian", covers: [{ entity: "cover.internal_identifier", name: "Fenstergruppe", short: "B1", lock: "switch.cover_lock", window: "binary_sensor.window_contact", window_safe_state: "on" }] }],
       }],
     },
   },

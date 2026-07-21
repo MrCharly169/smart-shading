@@ -4,14 +4,14 @@
     "step": {
       "user": {
         "title": "Choose setup type",
-        "description": "Easy provides quick shading based on sun position. Advanced adds schedules, temperature control, night operation, pauses, safety conditions and individual cover settings.",
+        "description": "Smart Shading moves covers only when the sun reaches their facade and the selected sun source confirms it. Easy uses a short setup with safe profile defaults. Advanced adds schedules, temperature stages, Night, pauses, safety and individual targets. Safety functions and manual control always take priority.",
         "data": {
           "house_name": "House or area name",
           "setup_type": "Setup type"
         },
         "data_description": {
           "house_name": "Names this Smart Shading setup.",
-          "setup_type": "Easy is quicker to configure. Advanced offers all automation and protection functions."
+          "setup_type": "Easy asks only for the essentials. Advanced reveals each relevant comfort and protection function; unsuitable fields stay hidden."
         }
       },
       "room_setup": {
@@ -32,7 +32,7 @@
               "name": "Shown as the room name in Home Assistant and on the dashboard card.",
               "direction": "Defines when the sun reaches this facade.",
               "group_name": "Name for covers that share physical behavior and target positions.",
-              "profile": "Select the physical cover type so suitable defaults are used.",
+              "profile": "Defines physical movement, safe defaults, available settings and the card display for this complete group.",
               "cover_entities": "Select at least one unassigned Home Assistant cover."
             }
           },
@@ -43,21 +43,19 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun."
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
-            "name": "Optional temperature gate",
-            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "name": "Optional outdoor temperature",
+            "description": "If a sensor is selected, shading waits until its configured minimum is reached.",
             "data": {
-              "easy_temperature_gate": "Use outdoor temperature gate",
               "outdoor_temperature": "Outdoor temperature sensor",
               "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
-              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
-              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+              "outdoor_temperature": "Optional. Selecting a sensor automatically enables this condition; no weather fallback is used.",
+              "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
             }
           },
           "advanced_conditions": {
@@ -122,7 +120,7 @@
               "name": "Shown as the room name in Home Assistant and on the dashboard card.",
               "direction": "Defines when the sun reaches this facade.",
               "group_name": "Name for covers that share physical behavior and target positions.",
-              "profile": "Select the physical cover type so suitable defaults are used.",
+              "profile": "Defines physical movement, safe defaults, available settings and the card display for this complete group.",
               "cover_entities": "Select at least one unassigned Home Assistant cover."
             }
           },
@@ -133,21 +131,19 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun."
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
-            "name": "Optional temperature gate",
-            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "name": "Optional outdoor temperature",
+            "description": "If a sensor is selected, shading waits until its configured minimum is reached.",
             "data": {
-              "easy_temperature_gate": "Use outdoor temperature gate",
               "outdoor_temperature": "Outdoor temperature sensor",
               "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
-              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
-              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+              "outdoor_temperature": "Optional. Selecting a sensor automatically enables this condition; no weather fallback is used.",
+              "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
             }
           },
           "advanced_conditions": {
@@ -252,15 +248,13 @@
           "name": "Room name",
           "indoor_temperature": "Indoor temperature (optional)",
           "outdoor_temperature": "Outdoor temperature (optional)",
-          "outdoor_minimum": "Minimum outdoor temperature",
-          "easy_temperature_gate": "Use temperature gate"
+          "outdoor_minimum": "Minimum outdoor temperature"
         },
         "data_description": {
           "name": "Name used in cards and status entities.",
           "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
-          "outdoor_temperature": "Optional outdoor temperature source.",
-          "outdoor_minimum": "Below this value, temperature-dependent shading does not start.",
-          "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block."
+          "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
+          "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
         }
       },
       "manage_room_maintenance": {
@@ -425,7 +419,7 @@
             "data": {
               "sun_source": "Sun source",
               "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation",
+              "sun_presence_entity": "External on/off sensor",
               "sun_preset": "Sun sensitivity",
               "sun_on_lux": "Sun detected above",
               "sun_off_lux": "Sun no longer detected below",
@@ -433,7 +427,7 @@
               "sun_off_delay": "Off delay"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun.",
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
               "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
               "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
               "sun_preset": "Selects brightness thresholds and delays.",
@@ -467,7 +461,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Choose the available source used to confirm direct sun."
+          "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
         }
       },
       "manage_layer": {
@@ -483,7 +477,7 @@
             },
             "data_description": {
               "name": "Name shown for this cover group.",
-              "profile": "Changing the type reapplies matching defaults and keeps assigned covers.",
+              "profile": "Changing the type reloads this page, applies its complete profile and removes incompatible settings while keeping assigned covers.",
               "tilt_preset": "Select Custom to use the four editable stages below."
             }
           },
@@ -515,7 +509,7 @@
             "name": "Target positions",
             "description": "0% and 100% follow Home Assistant cover position. Slats use 0% fully open and 100% fully closed.",
             "data": {
-              "open_position": "Open position",
+              "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
               "comfort_position": "Comfort position",
               "comfort_tilt": "Comfort slat position",
@@ -528,7 +522,7 @@
               "safety_tilt": "Safety slat position"
             },
             "data_description": {
-              "open_position": "Neutral cover height; Home Assistant uses 100% as open.",
+              "open_position": "Neutral target. Most covers use 100% open; awnings use 0% retracted by default.",
               "open_tilt": "Neutral slat position; 0% is fully open.",
               "comfort_position": "Cover height in Comfort mode.",
               "comfort_tilt": "Slat position in Comfort mode.",
@@ -654,7 +648,6 @@
       "incomplete_configuration": "Resolve the open items shown in the summary before starting.",
       "confirm_start_required": "Confirm that you want to start Smart Shading.",
       "sun_source_required": "Select the entity required by this sun source.",
-      "temperature_source_required": "Select an outdoor temperature sensor or a house weather source before enabling the temperature gate.",
       "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
     },
     "abort": {
@@ -710,7 +703,7 @@
               "name": "Shown as the room name in Home Assistant and on the dashboard card.",
               "direction": "Defines when the sun reaches this facade.",
               "group_name": "Name for covers that share physical behavior and target positions.",
-              "profile": "Select the physical cover type so suitable defaults are used.",
+              "profile": "Defines physical movement, safe defaults, available settings and the card display for this complete group.",
               "cover_entities": "Select at least one unassigned Home Assistant cover."
             }
           },
@@ -721,21 +714,19 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun."
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
-            "name": "Optional temperature gate",
-            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "name": "Optional outdoor temperature",
+            "description": "If a sensor is selected, shading waits until its configured minimum is reached.",
             "data": {
-              "easy_temperature_gate": "Use outdoor temperature gate",
               "outdoor_temperature": "Outdoor temperature sensor",
               "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
-              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
-              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+              "outdoor_temperature": "Optional. Selecting a sensor automatically enables this condition; no weather fallback is used.",
+              "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
             }
           },
           "advanced_conditions": {
@@ -791,7 +782,7 @@
             "data": {
               "sun_source": "Sun source",
               "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation",
+              "sun_presence_entity": "External on/off sensor",
               "sun_preset": "Sun sensitivity",
               "sun_on_lux": "Sun detected above",
               "sun_off_lux": "Sun no longer detected below",
@@ -799,7 +790,7 @@
               "sun_off_delay": "Off delay"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun.",
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
               "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
               "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
               "sun_preset": "Selects brightness thresholds and delays.",
@@ -833,7 +824,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Choose the available source used to confirm direct sun."
+          "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
         }
       },
       "manage_layer": {
@@ -849,7 +840,7 @@
             },
             "data_description": {
               "name": "Name shown for this cover group.",
-              "profile": "Changing the type reapplies matching defaults and keeps assigned covers.",
+              "profile": "Changing the type reloads this page, applies its complete profile and removes incompatible settings while keeping assigned covers.",
               "tilt_preset": "Select Custom to use the four editable stages below."
             }
           },
@@ -881,7 +872,7 @@
             "name": "Target positions",
             "description": "0% and 100% follow Home Assistant cover position. Slats use 0% fully open and 100% fully closed.",
             "data": {
-              "open_position": "Open position",
+              "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
               "comfort_position": "Comfort position",
               "comfort_tilt": "Comfort slat position",
@@ -894,7 +885,7 @@
               "safety_tilt": "Safety slat position"
             },
             "data_description": {
-              "open_position": "Neutral cover height; Home Assistant uses 100% as open.",
+              "open_position": "Neutral target. Most covers use 100% open; awnings use 0% retracted by default.",
               "open_tilt": "Neutral slat position; 0% is fully open.",
               "comfort_position": "Cover height in Comfort mode.",
               "comfort_tilt": "Slat position in Comfort mode.",
@@ -1021,15 +1012,13 @@
           "name": "Room name",
           "indoor_temperature": "Indoor temperature (optional)",
           "outdoor_temperature": "Outdoor temperature (optional)",
-          "outdoor_minimum": "Minimum outdoor temperature",
-          "easy_temperature_gate": "Use temperature gate"
+          "outdoor_minimum": "Minimum outdoor temperature"
         },
         "data_description": {
           "name": "Name used in cards and status entities.",
           "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
-          "outdoor_temperature": "Optional outdoor temperature source.",
-          "outdoor_minimum": "Below this value, temperature-dependent shading does not start.",
-          "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block."
+          "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
+          "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
         }
       },
       "manage_room_maintenance": {
@@ -1234,7 +1223,7 @@
               "name": "Shown as the room name in Home Assistant and on the dashboard card.",
               "direction": "Defines when the sun reaches this facade.",
               "group_name": "Name for covers that share physical behavior and target positions.",
-              "profile": "Select the physical cover type so suitable defaults are used.",
+              "profile": "Defines physical movement, safe defaults, available settings and the card display for this complete group.",
               "cover_entities": "Select at least one unassigned Home Assistant cover."
             }
           },
@@ -1245,21 +1234,19 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Choose the available source used to confirm direct sun."
+              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
-            "name": "Optional temperature gate",
-            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "name": "Optional outdoor temperature",
+            "description": "If a sensor is selected, shading waits until its configured minimum is reached.",
             "data": {
-              "easy_temperature_gate": "Use outdoor temperature gate",
               "outdoor_temperature": "Outdoor temperature sensor",
               "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
-              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
-              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+              "outdoor_temperature": "Optional. Selecting a sensor automatically enables this condition; no weather fallback is used.",
+              "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
             }
           },
           "advanced_conditions": {
@@ -1295,7 +1282,6 @@
       "option_not_available": "This function is not available in this setup.",
       "incomplete_configuration": "Resolve the open items shown in the summary before saving changes.",
       "sun_source_required": "Select the entity required by this sun source.",
-      "temperature_source_required": "Select an outdoor temperature sensor or a house weather source before enabling the temperature gate.",
       "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
     },
     "abort": {
@@ -1335,9 +1321,9 @@
     },
     "sun_source": {
       "options": {
-        "geometry": "Calculated sun position",
-        "lux": "Brightness sensor",
-        "external": "External sun confirmation"
+        "geometry": "Sun position only",
+        "lux": "Local Lux sensor (recommended)",
+        "external": "External on/off sensor"
       }
     },
     "tilt_preset": {

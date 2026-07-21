@@ -19,7 +19,6 @@ from .const import (
     CARD_RESOURCE,
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
-    CONF_EASY_TEMPERATURE_GATE,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_HOUSE_NAME,
@@ -62,6 +61,10 @@ from .const import (
     PRESET_CUSTOM,
     PRESET_MEDIUM,
     PROFILE_DEFAULTS,
+    profile_supports_position,
+    profile_supports_tilt,
+    profile_target_keys,
+    profile_uses_exterior_safety,
     IRRADIANCE_MINIMUM_MAX,
     IRRADIANCE_MINIMUM_MIN,
     IRRADIANCE_MINIMUM_STEP,
@@ -84,7 +87,6 @@ from .flow_contract import (
     SETUP_EASY,
     SETUP_TYPES,
     config_with_runtime_overrides,
-    easy_temperature_source_configured,
     editable_options,
     locked_advanced_mode,
     setup_is_advanced,
@@ -228,7 +230,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "keep_current": "Bestehende Ausrichtung beibehalten",
     },
     "sun_preset": {"low": "Weniger empfindlich", "medium": "Ausgewogen", "high": "Empfindlich", "custom": "Benutzerdefiniert", "keep_current": "Bestehende Empfindlichkeit beibehalten"},
-    "sun_source": {"geometry": "Nur Sonnenstand", "lux": "Lux-Sensor", "external": "Externe Sonnenbestätigung"},
+    "sun_source": {"geometry": "Nur Sonnenstand", "lux": "Lokaler Lux-Sensor (empfohlen)", "external": "Externer Ein/Aus-Sensor"},
     "tilt_preset": {"glare": "Mehr Blendschutz", "balanced": "Ausgewogen", "daylight": "Mehr Tageslicht", "custom": "Benutzerdefiniert"},
     "device_type": {
         "venetian": "Außenjalousie mit Lamellen", "roller_shutter": "Rollladen",
@@ -254,7 +256,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
 SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "direction_preset": {"north": "North (N)", "northeast": "Northeast (NE)", "east": "East (E)", "southeast": "Southeast (SE)", "south": "South (S)", "southwest": "Southwest (SW)", "west": "West (W)", "northwest": "Northwest (NW)", "custom": "Custom", "keep_current": "Keep existing direction"},
     "sun_preset": {"low": "Less sensitive", "medium": "Balanced", "high": "Sensitive", "custom": "Custom", "keep_current": "Keep existing sensitivity"},
-    "sun_source": {"geometry": "Sun position only", "lux": "Lux sensor", "external": "External sun confirmation"},
+    "sun_source": {"geometry": "Sun position only", "lux": "Local Lux sensor (recommended)", "external": "External on/off sensor"},
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
     "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–September)", "custom": "Custom schedule"},
@@ -464,10 +466,21 @@ class _SmartShadingWizardMixin:
         profiles = self._room_profiles(room)
         return not profiles or profiles == {DEVICE_VENETIAN}
 
-    def _easy_temperature_source_configured(
-        self, room: dict[str, Any]
+    def _uses_exterior_safety(
+        self, room: dict[str, Any] | None = None
     ) -> bool:
-        return easy_temperature_source_configured(self._working, room)
+        return any(profile_uses_exterior_safety(profile) for profile in self._room_profiles(room))
+
+    @staticmethod
+    def _normalize_covers_for_profile(
+        covers: list[dict[str, Any]], profile: str
+    ) -> None:
+        """Remove per-cover settings unsupported by the selected profile."""
+        for cover in covers:
+            if not profile_supports_tilt(profile):
+                cover["invert_tilt"] = False
+            if not profile_supports_position(profile):
+                cover["max_open_position"] = 100.0
 
     def _cover_short(self, index: int) -> str:
         return f"B{index + 1}" if self._is_german() else f"C{index + 1}"
@@ -508,17 +521,8 @@ class _SmartShadingWizardMixin:
             # depth for beta entries and cached browser forms.
             values.pop(CONF_ADVANCED_MODE, None)
             if not self.advanced_mode:
-                weather_entity = values.pop(CONF_WEATHER_ENTITY, "")
-                if not weather_entity and any(
-                    room.get(CONF_EASY_TEMPERATURE_GATE)
-                    and not str(
-                        room.get("outdoor_temperature") or ""
-                    ).strip()
-                    for room in self.rooms
-                ):
-                    errors["base"] = "temperature_source_required"
-                else:
-                    self._working[CONF_WEATHER_ENTITY] = weather_entity
+                values.pop(CONF_WEATHER_ENTITY, None)
+                self._working[CONF_WEATHER_ENTITY] = ""
             if not errors:
                 if "evaluation_interval_minutes" in values:
                     interval_minutes = float(
@@ -533,17 +537,16 @@ class _SmartShadingWizardMixin:
                     self._working[CONF_DIAGNOSTIC_LEVEL] = "off"
                     self._working.pop(CONF_TEST_MODE, None)
                 return await self.async_step_init()
-        fields: dict[Any, Any] = {}
-        if not self.advanced_mode:
-            fields[vol.Optional(CONF_WEATHER_ENTITY)] = _entity("weather")
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_SUN_ENTITY): _entity("sun"),
+            vol.Required("evaluation_interval_minutes"): _number(1, 60, 1, "min"),
+        }
         if self.advanced_mode:
             fields.update(
                 {
                     vol.Required(CONF_DIAGNOSTIC_LEVEL): self._choice(
                         DIAGNOSTIC_OPTIONS, "diagnostic_level"
                     ),
-                    vol.Required("evaluation_interval_minutes"): _number(1, 60, 1, "min"),
-                    vol.Required(CONF_SUN_ENTITY): _entity("sun"),
                     vol.Required("position_tolerance"): _number(0, 10, 1, "%"),
                     vol.Required("tilt_tolerance"): _number(0, 15, 1, "%"),
                     vol.Required("command_cooldown"): _number(0, 600, 10, "s"),
@@ -737,7 +740,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 14
+    VERSION = 15
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -825,25 +828,20 @@ class SmartShadingConfigFlow(
             duplicates = sorted(set(entities) & self.all_cover_entities())
             allowed_sources = {"geometry", "lux", "external"}
             source = str(values.get("sun_source", "geometry"))
+            outdoor_temperature = str(
+                values.get("outdoor_temperature") or ""
+            ).strip()
             if duplicates:
                 errors["base"] = "cover_already_assigned"
             elif not entities:
                 errors["base"] = "select_at_least_one"
             elif source not in allowed_sources:
                 errors["base"] = "option_not_available"
-            elif (
-                not self.advanced_mode
-                and bool(values.get(CONF_EASY_TEMPERATURE_GATE, False))
-                and not easy_temperature_source_configured(
-                    self._working,
-                    {
-                        "outdoor_temperature": values.get(
-                            "outdoor_temperature", ""
-                        )
-                    },
-                )
-            ):
-                errors["base"] = "temperature_source_required"
+            elif outdoor_temperature and "outdoor_minimum" not in values:
+                # Home Assistant forms do not update fields while open.  The
+                # first submit reveals the threshold only after a sensor was
+                # selected; the second submit creates the room.
+                pass
             else:
                 direction = str(values.get("direction", "south"))
                 if not self.advanced_mode and direction == DIRECTION_CUSTOM:
@@ -875,16 +873,9 @@ class SmartShadingConfigFlow(
                             "id": _new_id(str(values["name"])),
                             "name": str(values["name"]),
                             "sectors": [sector],
-                            "outdoor_temperature": values.get(
-                                "outdoor_temperature", ""
-                            ),
+                            "outdoor_temperature": outdoor_temperature,
                             "outdoor_minimum": float(
                                 values.get("outdoor_minimum", 18.0)
-                            ),
-                            CONF_EASY_TEMPERATURE_GATE: (
-                                bool(values.get(CONF_EASY_TEMPERATURE_GATE, False))
-                                if not self.advanced_mode
-                                else False
                             ),
                             CONF_EXTERNAL_MOVEMENT_DETECTION: False,
                         }
@@ -903,11 +894,11 @@ class SmartShadingConfigFlow(
                     self._pending_cover_return_step = None
                     self._pending_cover_short_offset = 0
                     self._continue_cover_setup = (
-                        self.advanced_mode and profile != DEVICE_BINARY
+                        self.advanced_mode and profile_supports_position(profile)
                     )
                     self._after_sector_step = (
                         "manage_layer"
-                        if self.advanced_mode and profile != DEVICE_BINARY
+                        if self.advanced_mode and profile_supports_position(profile)
                         else "compact_cover_details"
                     )
                     return await self.async_step_manage_sector()
@@ -939,33 +930,29 @@ class SmartShadingConfigFlow(
         }
         room_inputs: dict[Any, Any] = {
             vol.Optional("outdoor_temperature"): _temperature_entity(),
-            vol.Required("outdoor_minimum", default=18.0): _number(
+        }
+        if str(submitted_values.get("outdoor_temperature") or "").strip():
+            room_inputs[vol.Required("outdoor_minimum", default=18.0)] = _number(
                 OUTDOOR_MINIMUM_MIN_C,
                 OUTDOOR_MINIMUM_MAX_C,
                 OUTDOOR_MINIMUM_STEP_C,
                 "°C",
-            ),
-        }
+            )
         if self.advanced_mode:
             room_inputs[vol.Optional("indoor_temperature")] = _temperature_entity()
-        else:
-            room_inputs = {
-                vol.Required(
-                    CONF_EASY_TEMPERATURE_GATE, default=False
-                ): selector.BooleanSelector(),
-                **room_inputs,
-            }
 
         form_fields: dict[Any, Any] = {
             vol.Required("room_and_covers"): section(
-                self._form_schema(
-                    vol.Schema(room_fields), submitted_values, errors
+                self.add_suggested_values_to_schema(
+                    vol.Schema(room_fields),
+                    _nonempty_suggestions(submitted_values),
                 ),
                 {"collapsed": False},
             ),
             vol.Required("sun_control"): section(
-                self._form_schema(
-                    vol.Schema(sun_fields), submitted_values, errors
+                self.add_suggested_values_to_schema(
+                    vol.Schema(sun_fields),
+                    _nonempty_suggestions(submitted_values),
                 ),
                 {"collapsed": False},
             ),
@@ -974,8 +961,9 @@ class SmartShadingConfigFlow(
                 if self.advanced_mode
                 else "optional_improvements"
             ): section(
-                self._form_schema(
-                    vol.Schema(room_inputs), submitted_values, errors
+                self.add_suggested_values_to_schema(
+                    vol.Schema(room_inputs),
+                    _nonempty_suggestions(submitted_values),
                 ),
                 {"collapsed": True},
             ),
@@ -1115,13 +1103,13 @@ class SmartShadingConfigFlow(
                     "invert_position": user_input.get("invert_position", False),
                 })
                 cover["max_open_position"] = (
-                    100
-                    if profile == DEVICE_BINARY
-                    else user_input.get("max_open_position", 100)
+                    user_input.get("max_open_position", 100)
+                    if profile_supports_position(profile)
+                    else 100
                 )
                 cover["invert_tilt"] = (
                     user_input.get("invert_tilt", False)
-                    if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                    if profile_supports_tilt(profile)
                     else False
                 )
             self.layer().setdefault("covers", []).append(cover)
@@ -1145,11 +1133,11 @@ class SmartShadingConfigFlow(
                     vol.Required("invert_position", default=False): selector.BooleanSelector(),
                 }
             )
-            if profile != DEVICE_BINARY:
+            if profile_supports_position(profile):
                 fields[
                     vol.Required("max_open_position", default=100)
                 ] = _number(0, 100, 1, "%")
-            if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+            if profile_supports_tilt(profile):
                 fields[
                     vol.Required("invert_tilt", default=False)
                 ] = selector.BooleanSelector()
@@ -1174,16 +1162,6 @@ class SmartShadingConfigFlow(
         for room in self.rooms:
             room_name = str(room.get("name") or ("Raum" if german else "Room"))
             sectors = list(room.get("sectors", []))
-            if (
-                not self.advanced_mode
-                and room.get(CONF_EASY_TEMPERATURE_GATE)
-                and not self._easy_temperature_source_configured(room)
-            ):
-                issues.append(
-                    f"{room_name}: Temperaturfreigabe ohne Temperaturquelle"
-                    if german
-                    else f"{room_name}: temperature gate has no temperature source"
-                )
             if not sectors:
                 issues.append(
                     f"{room_name}: kein Sonnensektor"
@@ -1295,13 +1273,14 @@ class SmartShadingConfigFlow(
                 f"safety sensors: {safety_sources}"
             )
         else:
-            gated_rooms = sum(
-                bool(room.get(CONF_EASY_TEMPERATURE_GATE)) for room in self.rooms
+            temperature_rooms = sum(
+                bool(str(room.get("outdoor_temperature") or "").strip())
+                for room in self.rooms
             )
             features = (
-                f"Sonnenstandssteuerung; Temperaturfreigabe: {gated_rooms} Räume"
+                f"Sonnenstandssteuerung; Außentemperaturbedingung: {temperature_rooms} Räume"
                 if german
-                else f"Sun-position control; temperature gate: {gated_rooms} rooms"
+                else f"Sun-position control; outdoor-temperature condition: {temperature_rooms} rooms"
             )
         warnings = (
             "; ".join(issues)
@@ -1422,69 +1401,50 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Edit only the room identity and its primary temperature source."""
         room = self.room()
-        candidate = dict(room)
         errors: dict[str, str] = {}
         if user_input is not None:
             values = _flatten_sections(user_input)
-            candidate["outdoor_temperature"] = values.get(
-                "outdoor_temperature", ""
-            )
-            if not self.advanced_mode:
-                candidate[CONF_EASY_TEMPERATURE_GATE] = bool(
-                    values.get(CONF_EASY_TEMPERATURE_GATE, False)
+            outdoor_temperature = str(
+                values.get("outdoor_temperature") or ""
+            ).strip()
+            room["name"] = str(values.get("name") or room["name"])
+            room["outdoor_temperature"] = outdoor_temperature
+            if self.advanced_mode:
+                room["indoor_temperature"] = values.get(
+                    "indoor_temperature", ""
                 )
-                if (
-                    candidate[CONF_EASY_TEMPERATURE_GATE]
-                    and not self._easy_temperature_source_configured(candidate)
-                ):
-                    errors["base"] = "temperature_source_required"
-            if not errors:
-                room["name"] = str(values.get("name") or room["name"])
-                room["outdoor_temperature"] = candidate[
-                    "outdoor_temperature"
-                ]
+            if outdoor_temperature and "outdoor_minimum" not in values:
+                return await self.async_step_manage_room_details()
+            if outdoor_temperature:
                 room["outdoor_minimum"] = float(
                     values.get(
                         "outdoor_minimum",
                         room.get("outdoor_minimum", 18.0),
                     )
                 )
-                if self.advanced_mode:
-                    room["indoor_temperature"] = values.get(
-                        "indoor_temperature", ""
-                    )
-                else:
-                    room[CONF_EASY_TEMPERATURE_GATE] = candidate[
-                        CONF_EASY_TEMPERATURE_GATE
-                    ]
-                return await self.async_step_room_hub()
-        display_room = candidate if errors else room
+            return await self.async_step_room_hub()
         fields: dict[Any, Any] = {
-            vol.Required("name", default=display_room.get("name", "")): selector.TextSelector(),
+            vol.Required("name", default=room.get("name", "")): selector.TextSelector(),
             _optional_marker(
                 "outdoor_temperature",
-                display_room.get("outdoor_temperature", ""),
+                room.get("outdoor_temperature", ""),
             ): _temperature_entity(),
-            vol.Required(
+        }
+        if str(room.get("outdoor_temperature") or "").strip():
+            fields[vol.Required(
                 "outdoor_minimum",
-                default=display_room.get("outdoor_minimum", 18.0),
-            ): _number(
+                default=room.get("outdoor_minimum", 18.0),
+            )] = _number(
                 OUTDOOR_MINIMUM_MIN_C,
                 OUTDOOR_MINIMUM_MAX_C,
                 OUTDOOR_MINIMUM_STEP_C,
                 "°C",
-            ),
-        }
+            )
         if self.advanced_mode:
             fields[_optional_marker(
                 "indoor_temperature",
-                display_room.get("indoor_temperature", ""),
+                room.get("indoor_temperature", ""),
             )] = _temperature_entity()
-        else:
-            fields[vol.Required(
-                CONF_EASY_TEMPERATURE_GATE,
-                default=display_room.get(CONF_EASY_TEMPERATURE_GATE, False),
-            )] = selector.BooleanSelector()
         return self.async_show_form(
             step_id="manage_room_details",
             data_schema=self._form_schema(
@@ -1914,15 +1874,21 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
     async def async_step_manage_conditions(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Edit optional safety and permission sources without hiding them."""
+        """Show only conditions supported by the selected sources and profiles."""
         if not self.advanced_mode:
             return await self.async_step_room_hub()
         room = self.room()
         errors: dict[str, str] = {}
-        submitted_values: dict[str, Any] = {}
+        source_keys = (
+            "irradiance_sensor",
+            "cloud_cover_sensor",
+            "weather_permission",
+            "glare_sensor",
+            "occupancy_sensor",
+        )
+        safety_relevant = self._uses_exterior_safety(room)
         if user_input is not None:
             values = _flatten_sections(user_input)
-            submitted_values = values
             occupancy_sensor = str(values.get("occupancy_sensor") or "")
             if (
                 values.get("comfort_requires_occupancy", False)
@@ -1930,17 +1896,21 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             ):
                 errors["base"] = "occupancy_source_required"
             if not errors:
-                room["safety_blockers"] = list(
-                    values.get("safety_blockers") or []
+                selected_safety = (
+                    list(values.get("safety_blockers") or [])
+                    if safety_relevant
+                    else []
                 )
-                for key in (
-                    "irradiance_sensor",
-                    "cloud_cover_sensor",
-                    "weather_permission",
-                    "glare_sensor",
-                    "occupancy_sensor",
-                ):
-                    room[key] = values.get(key, "")
+                source_changed = selected_safety != list(
+                    room.get("safety_blockers", [])
+                )
+                room["safety_blockers"] = selected_safety
+                for key in source_keys:
+                    selected = str(values.get(key) or "")
+                    source_changed = source_changed or selected != str(
+                        room.get(key) or ""
+                    )
+                    room[key] = selected
                 for key in (
                     "irradiance_minimum", "cloud_cover_maximum", "weather_logic",
                     "heat_ignores_weather", "heat_requires_sun",
@@ -1948,55 +1918,84 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 ):
                     if key in values:
                         room[key] = values[key]
+                if not room.get("occupancy_sensor"):
+                    room["comfort_requires_occupancy"] = False
+                if not room.get("safety_blockers"):
+                    room["safety_behavior"] = "move_safe"
+                if source_changed:
+                    return await self.async_step_manage_conditions()
                 if getattr(self, "_initial_setup", False):
                     self._initial_setup = False
                     return await self.async_step_after_room()
                 return await self.async_step_room_hub()
-        display_room = dict(room)
-        if errors:
-            display_room.update(submitted_values)
-            display_room["safety_blockers"] = list(
-                submitted_values.get("safety_blockers") or []
-            )
-            for key in (
-                "irradiance_sensor",
-                "cloud_cover_sensor",
-                "weather_permission",
-                "glare_sensor",
-                "occupancy_sensor",
-            ):
-                display_room[key] = submitted_values.get(key, "")
-        fields: dict[Any, Any] = {
-            _optional_marker("safety_blockers", display_room.get("safety_blockers", [])): _entity("binary_sensor", multiple=True),
-            _optional_marker("irradiance_sensor", display_room.get("irradiance_sensor", "")): _entity("sensor"),
-            vol.Required("irradiance_minimum", default=display_room.get("irradiance_minimum", 150.0)): _number(
+        fields: dict[Any, Any] = {}
+        if safety_relevant:
+            fields[_optional_marker(
+                "safety_blockers", room.get("safety_blockers", [])
+            )] = _entity("binary_sensor", multiple=True)
+        fields[_optional_marker(
+            "irradiance_sensor", room.get("irradiance_sensor", "")
+        )] = _entity("sensor")
+        if room.get("irradiance_sensor"):
+            fields[vol.Required(
+                "irradiance_minimum",
+                default=room.get("irradiance_minimum", 150.0),
+            )] = _number(
                 IRRADIANCE_MINIMUM_MIN,
                 IRRADIANCE_MINIMUM_MAX,
                 IRRADIANCE_MINIMUM_STEP,
                 "W/m²",
-            ),
-            _optional_marker("cloud_cover_sensor", display_room.get("cloud_cover_sensor", "")): _entity("sensor"),
-            vol.Required("cloud_cover_maximum", default=display_room.get("cloud_cover_maximum", 85.0)): _number(0, 100, 1, "%"),
-            _optional_marker("weather_permission", display_room.get("weather_permission", "")): _entity("binary_sensor"),
-            _optional_marker("glare_sensor", display_room.get("glare_sensor", "")): _entity("binary_sensor"),
-            _optional_marker("occupancy_sensor", display_room.get("occupancy_sensor", "")): _entity("binary_sensor"),
-            vol.Required("weather_logic", default=display_room.get("weather_logic", "all")): self._choice(["all", "any"], "weather_logic"),
-            vol.Required("comfort_requires_occupancy", default=display_room.get("comfort_requires_occupancy", False)): selector.BooleanSelector(),
-            vol.Required("safety_behavior", default=display_room.get("safety_behavior", "move_safe")): self._choice(["move_safe", "block"], "safety_behavior"),
-        }
+            )
+        fields[_optional_marker(
+            "cloud_cover_sensor", room.get("cloud_cover_sensor", "")
+        )] = _entity("sensor")
+        if room.get("cloud_cover_sensor"):
+            fields[vol.Required(
+                "cloud_cover_maximum",
+                default=room.get("cloud_cover_maximum", 85.0),
+            )] = _number(0, 100, 1, "%")
+        fields[_optional_marker(
+            "weather_permission", room.get("weather_permission", "")
+        )] = _entity("binary_sensor")
+        fields[_optional_marker(
+            "glare_sensor", room.get("glare_sensor", "")
+        )] = _entity("binary_sensor")
+        fields[_optional_marker(
+            "occupancy_sensor", room.get("occupancy_sensor", "")
+        )] = _entity("binary_sensor")
+
+        weather_source_count = sum(
+            bool(room.get(key))
+            for key in (
+                "irradiance_sensor",
+                "cloud_cover_sensor",
+                "weather_permission",
+            )
+        )
+        if weather_source_count > 1:
+            fields[vol.Required(
+                "weather_logic", default=room.get("weather_logic", "all")
+            )] = self._choice(["all", "any"], "weather_logic")
+        if room.get("occupancy_sensor"):
+            fields[vol.Required(
+                "comfort_requires_occupancy",
+                default=room.get("comfort_requires_occupancy", False),
+            )] = selector.BooleanSelector()
+        if safety_relevant and room.get("safety_blockers"):
+            fields[vol.Required(
+                "safety_behavior",
+                default=room.get("safety_behavior", "move_safe"),
+            )] = self._choice(["move_safe", "block"], "safety_behavior")
         if str(room.get("indoor_temperature") or "").strip():
-            fields[
-                vol.Required(
+            if weather_source_count:
+                fields[vol.Required(
                     "heat_ignores_weather",
-                    default=display_room.get("heat_ignores_weather", True),
-                )
-            ] = selector.BooleanSelector()
-            fields[
-                vol.Required(
-                    "heat_requires_sun",
-                    default=display_room.get("heat_requires_sun", True),
-                )
-            ] = selector.BooleanSelector()
+                    default=room.get("heat_ignores_weather", True),
+                )] = selector.BooleanSelector()
+            fields[vol.Required(
+                "heat_requires_sun",
+                default=room.get("heat_requires_sun", True),
+            )] = selector.BooleanSelector()
         return self.async_show_form(
             step_id="manage_conditions",
             data_schema=self._form_schema(
@@ -2455,7 +2454,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             )
             if (
                 self.advanced_mode
-                and requested_profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                and profile_supports_tilt(requested_profile)
                 and values.get("tilt_preset") == TILT_PRESET_CUSTOM
                 and curve_values_present
             ):
@@ -2478,14 +2477,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     layer.clear()
                     layer.update(deepcopy(PROFILE_DEFAULTS[profile]))
                     layer.update({"id": layer_id, "profile": profile, "covers": covers})
+                    self._normalize_covers_for_profile(covers, profile)
+                    if not self._uses_exterior_safety():
+                        self.room()["safety_blockers"] = []
                 layer["name"] = str(values.get("name") or layer.get("name", "Cover group"))
-                tilt_controls_relevant = (
-                    profile == DEVICE_VENETIAN
-                    or (
-                        profile == DEVICE_VERTICAL
-                        and has_indoor_temperature
-                    )
-                )
+                tilt_controls_relevant = profile_supports_tilt(profile)
                 if tilt_controls_relevant:
                     preset = str(values.get("tilt_preset", layer.get("tilt_preset", TILT_PRESET_BALANCED)))
                     layer["tilt_preset"] = preset
@@ -2527,13 +2523,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     return await self.async_step_compact_cover_details()
                 return await self.async_step_group_hub()
         profile = str(layer.get("profile", DEVICE_VENETIAN))
-        display_tilt_controls_relevant = (
-            profile == DEVICE_VENETIAN
-            or (
-                profile == DEVICE_VERTICAL
-                and has_indoor_temperature
-            )
-        )
+        display_tilt_controls_relevant = profile_supports_tilt(profile)
         identity: dict[Any, Any] = {
             vol.Required("name", default=layer.get("name", "")): selector.TextSelector(),
             vol.Required("profile", default=layer.get("profile", DEVICE_VENETIAN)): self._choice(DEVICE_TYPES, "device_type"),
@@ -2546,7 +2536,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         sections: dict[Any, Any] = {
             vol.Required("group_identity"): section(vol.Schema(identity), {"collapsed": False}),
         }
-        if self.advanced_mode and profile != DEVICE_BINARY:
+        if self.advanced_mode and profile_supports_position(profile):
             if (
                 display_tilt_controls_relevant
                 and layer.get("tilt_preset") == TILT_PRESET_CUSTOM
@@ -2568,17 +2558,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 sections[vol.Required("slat_curve")] = section(
                     vol.Schema(curve_fields), {"collapsed": True}
                 )
-            target_keys = list({
-                DEVICE_VENETIAN: ("open_position", "open_tilt", "heat_tilt", "night_position", "night_tilt", "safety_position", "safety_tilt"),
-                DEVICE_VERTICAL: ("open_position", "open_tilt", "comfort_tilt", "heat_tilt", "night_position", "night_tilt", "safety_position", "safety_tilt"),
-                }.get(profile, ("open_position", "comfort_position", "solar_position", "heat_position", "night_position", "safety_position"))
+            target_keys = profile_target_keys(
+                profile,
+                indoor_temperature=has_indoor_temperature,
+                night=bool(self.room().get("night_enabled", False)),
             )
-            if not has_indoor_temperature:
-                target_keys = [
-                    key
-                    for key in target_keys
-                    if key not in {"heat_position", "heat_tilt", "solar_position"}
-                ]
             targets = {
                 vol.Required(key, default=layer.get(key, PROFILE_DEFAULTS[profile].get(key, 0.0))): _number(0, 100, 1, "%")
                 for key in target_keys
@@ -2621,7 +2605,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self.sector().setdefault("layers", []).append(layer)
             self._layer_id = str(layer["id"])
             self._continue_cover_setup = False
-            if self.advanced_mode and profile != DEVICE_BINARY:
+            if self.advanced_mode and profile_supports_position(profile):
                 return await self.async_step_manage_layer()
             return await self.async_step_group_hub()
         fields: dict[Any, Any] = {
@@ -2671,16 +2655,16 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         if key in values:
                             cover[key] = values[key]
                     cover["max_open_position"] = (
-                        100
-                        if profile == DEVICE_BINARY
-                        else values.get(
+                        values.get(
                             "max_open_position",
                             cover.get("max_open_position", 100),
                         )
+                        if profile_supports_position(profile)
+                        else 100
                     )
                     cover["invert_tilt"] = (
                         bool(values.get("invert_tilt", False))
-                        if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                        if profile_supports_tilt(profile)
                         else False
                     )
                 return await self.async_step_cover_hub()
@@ -2700,14 +2684,14 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 vol.Required(CONF_WINDOW_RETURNS_TO_AUTOMATION, default=cover.get(CONF_WINDOW_RETURNS_TO_AUTOMATION, DEFAULT_WINDOW_RETURNS_TO_AUTOMATION)): selector.BooleanSelector(),
                 vol.Required("invert_position", default=cover.get("invert_position", False)): selector.BooleanSelector(),
             }
-            if profile != DEVICE_BINARY:
+            if profile_supports_position(profile):
                 automation[
                     vol.Required(
                         "max_open_position",
                         default=cover.get("max_open_position", 100),
                     )
                 ] = _number(0, 100, 1, "%")
-            if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
+            if profile_supports_tilt(profile):
                 automation[
                     vol.Required(
                         "invert_tilt",

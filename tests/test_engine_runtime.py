@@ -487,10 +487,11 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(runtime.effective_active)
         self.assertEqual(engine.rooms["room"].mode, "solar")
 
-    async def test_advanced_legacy_external_falls_back_when_unavailable(self):
+    async def test_advanced_external_never_falls_back_when_unavailable(self):
         config = base_config()
         sector = config["rooms"][0]["sectors"][0]
         sector.update({
+            "sun_source": "external",
             "sun_presence_entity": "binary_sensor.facade_sun",
             "sun_preset": "custom",
             "sun_on_lux": 10000,
@@ -505,18 +506,19 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
 
-        await engine.async_evaluate_all("advanced_legacy_lux_fallback")
+        await engine.async_evaluate_all("advanced_external_unavailable")
         runtime = engine.sun_runtime["south"]
-        self.assertEqual(runtime.confirmation_source, "lux")
-        self.assertEqual(runtime.confirmation_entity, "sensor.lux")
-        self.assertTrue(runtime.confirmation_state)
-        self.assertTrue(runtime.effective_active)
+        self.assertEqual(runtime.confirmation_source, "binary")
+        self.assertEqual(runtime.confirmation_entity, "binary_sensor.facade_sun")
+        self.assertIsNone(runtime.confirmation_state)
+        self.assertFalse(runtime.effective_active)
 
-    async def test_easy_binary_confirmation_has_priority_over_lux(self):
+    async def test_easy_selected_external_confirmation_ignores_lux(self):
         config = base_config()
         config["advanced_mode"] = False
         sector = config["rooms"][0]["sectors"][0]
         sector.update({
+            "sun_source": "external",
             "sun_presence_entity": "binary_sensor.facade_sun",
             "sun_preset": "custom",
             "sun_on_lux": 10000,
@@ -543,11 +545,12 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(runtime.effective_active)
         self.assertEqual(engine.rooms["room"].mode, "solar")
 
-    async def test_easy_unavailable_binary_falls_back_to_lux(self):
+    async def test_easy_unavailable_external_never_falls_back_to_lux(self):
         config = base_config()
         config["advanced_mode"] = False
         sector = config["rooms"][0]["sectors"][0]
         sector.update({
+            "sun_source": "external",
             "sun_presence_entity": "binary_sensor.facade_sun",
             "sun_preset": "custom",
             "sun_on_lux": 10000,
@@ -562,44 +565,35 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
 
-        await engine.async_evaluate_all("easy_lux_fallback")
+        await engine.async_evaluate_all("easy_external_unavailable")
         runtime = engine.sun_runtime["south"]
-        self.assertEqual(runtime.confirmation_source, "lux")
-        self.assertTrue(runtime.confirmation_state)
-        self.assertTrue(runtime.effective_active)
-        self.assertEqual(engine.rooms["room"].mode, "solar")
+        self.assertEqual(runtime.confirmation_source, "binary")
+        self.assertFalse(runtime.confirmation_state)
+        self.assertFalse(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "open")
 
-    async def test_easy_weather_fallback_is_conservative(self):
+    async def test_easy_geometry_source_ignores_house_weather(self):
         config = base_config()
         config.update({"advanced_mode": False, "weather_entity": "weather.home"})
-        config["rooms"][0]["sectors"][0]["lux_sensor"] = ""
-        self.hass.states.values["weather.home"] = FakeState("sunny")
+        config["rooms"][0]["sectors"][0].update({
+            "sun_source": "geometry",
+            "lux_sensor": "",
+        })
+        self.hass.states.values["weather.home"] = FakeState("rainy")
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
 
-        await engine.async_evaluate_all("easy_weather_sunny")
+        await engine.async_evaluate_all("easy_geometry_ignores_weather")
         runtime = engine.sun_runtime["south"]
-        self.assertEqual(runtime.confirmation_source, "weather")
-        self.assertTrue(runtime.confirmation_state)
-        self.assertEqual(engine.rooms["room"].mode, "solar")
-
-        self.hass.states.values["weather.home"] = FakeState("rainy")
-        await engine.async_evaluate_all("easy_weather_rainy")
-        self.assertFalse(runtime.confirmation_state)
-        self.assertEqual(engine.rooms["room"].mode, "open")
-
-        self.hass.states.values["weather.home"] = FakeState("partlycloudy")
-        await engine.async_evaluate_all("easy_weather_ambiguous")
         self.assertEqual(runtime.confirmation_source, "geometry")
         self.assertIsNone(runtime.confirmation_state)
         self.assertEqual(engine.rooms["room"].mode, "solar")
 
-    async def test_easy_temperature_gate_uses_sensor_then_weather_and_fails_open(self):
+    async def test_easy_outdoor_temperature_condition_uses_only_selected_sensor(self):
         config = base_config()
         config.update({"advanced_mode": False, "weather_entity": "weather.home"})
         room = config["rooms"][0]
         room.update({
-            "easy_temperature_gate": True,
             "outdoor_temperature": "sensor.outdoor",
             "outdoor_minimum": 18.0,
         })
@@ -614,33 +608,29 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_evaluate_all("easy_temperature_low")
         runtime = engine.rooms["room"]
         self.assertEqual(runtime.mode, "open")
-        self.assertFalse(runtime.easy_temperature_passed)
-        self.assertEqual(runtime.easy_temperature_source, "sensor.outdoor")
+        self.assertFalse(runtime.outdoor_temperature_passed)
+        self.assertEqual(runtime.outdoor_temperature_source, "sensor.outdoor")
 
         self.hass.states.values["sensor.outdoor"] = FakeState("22")
         await engine.async_evaluate_all("easy_temperature_high")
         self.assertEqual(runtime.mode, "solar")
-        self.assertTrue(runtime.easy_temperature_passed)
+        self.assertTrue(runtime.outdoor_temperature_passed)
 
         self.hass.states.values["sensor.outdoor"] = FakeState("unavailable")
         self.hass.states.values["weather.home"] = FakeState(
             "partlycloudy", temperature=10
         )
-        await engine.async_evaluate_all("easy_temperature_weather")
-        self.assertEqual(runtime.mode, "open")
-        self.assertEqual(runtime.easy_temperature_source, "weather.home")
-
-        self.hass.states.values["weather.home"] = FakeState("unavailable")
         await engine.async_evaluate_all("easy_temperature_unavailable")
-        self.assertEqual(runtime.mode, "solar")
-        self.assertIsNone(runtime.easy_temperature_passed)
+        self.assertEqual(runtime.mode, "open")
+        self.assertEqual(runtime.outdoor_temperature_source, "sensor.outdoor")
+        self.assertIsNone(runtime.outdoor_temperature_value)
+        self.assertFalse(runtime.outdoor_temperature_passed)
 
-    async def test_easy_temperature_gate_normalizes_fahrenheit_to_celsius(self):
+    async def test_easy_outdoor_temperature_condition_normalizes_fahrenheit(self):
         config = base_config()
         config["advanced_mode"] = False
         room = config["rooms"][0]
         room.update({
-            "easy_temperature_gate": True,
             "outdoor_temperature": "sensor.outdoor",
             "outdoor_minimum": 18.0,
         })
@@ -655,8 +645,8 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         runtime = engine.rooms["room"]
         self.assertEqual(runtime.mode, "open")
-        self.assertAlmostEqual(runtime.easy_temperature_value, 17.7778, places=3)
-        self.assertFalse(runtime.easy_temperature_passed)
+        self.assertAlmostEqual(runtime.outdoor_temperature_value, 17.7778, places=3)
+        self.assertFalse(runtime.outdoor_temperature_passed)
 
     async def test_advanced_temperature_sources_normalize_fahrenheit_and_kelvin(self):
         cases = (
@@ -698,12 +688,11 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await engine.async_evaluate_all(f"advanced_{unit}_above_heat")
                 self.assertEqual(engine.rooms["room"].mode, "heat")
 
-    async def test_easy_temperature_gate_ignores_stale_unavailable_weather_value(self):
+    async def test_easy_without_outdoor_sensor_ignores_weather_temperature(self):
         config = base_config()
         config.update({"advanced_mode": False, "weather_entity": "weather.home"})
         room = config["rooms"][0]
         room.update({
-            "easy_temperature_gate": True,
             "outdoor_temperature": "",
             "outdoor_minimum": 18.0,
         })
@@ -718,9 +707,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         runtime = engine.rooms["room"]
         self.assertEqual(runtime.mode, "solar")
-        self.assertIsNone(runtime.easy_temperature_source)
-        self.assertIsNone(runtime.easy_temperature_value)
-        self.assertIsNone(runtime.easy_temperature_passed)
+        self.assertIsNone(runtime.outdoor_temperature_source)
+        self.assertIsNone(runtime.outdoor_temperature_value)
+        self.assertIsNone(runtime.outdoor_temperature_passed)
 
     async def test_easy_shared_source_updates_every_sector(self):
         config = base_config()
@@ -941,6 +930,54 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         self.assertEqual(self.engine._targets(layer, "heat", 35), (12.0, None))
+
+    async def test_every_position_profile_uses_its_own_mode_defaults(self):
+        layer = self.engine.layer_config("layer")
+        expected = {
+            "roller_shutter": {
+                "open": 100.0, "comfort": 65.0, "solar": 25.0,
+                "heat": 0.0, "night": 0.0, "safety": 100.0,
+            },
+            "exterior_screen": {
+                "open": 100.0, "comfort": 60.0, "solar": 15.0,
+                "heat": 0.0, "night": 0.0, "safety": 100.0,
+            },
+            "curtain": {
+                "open": 100.0, "comfort": 60.0, "solar": 30.0,
+                "heat": 30.0, "night": 0.0, "safety": 100.0,
+            },
+            "awning": {
+                "open": 0.0, "comfort": 60.0, "solar": 100.0,
+                "heat": 100.0, "night": 0.0, "safety": 0.0,
+            },
+            "binary_cover": {
+                "open": 100.0, "comfort": 0.0, "solar": 0.0,
+                "heat": 0.0, "night": 0.0, "safety": 100.0,
+            },
+        }
+        for profile, modes in expected.items():
+            with self.subTest(profile=profile):
+                covers = layer.get("covers", [])
+                layer.clear()
+                layer.update(deepcopy(engine_mod.PROFILE_DEFAULTS[profile]))
+                layer.update({"id": "layer", "profile": profile, "covers": covers})
+                for mode, position in modes.items():
+                    self.assertEqual(
+                        self.engine._targets(layer, mode, 35),
+                        (position, None),
+                    )
+
+    async def test_vertical_blind_uses_position_and_slat_profile(self):
+        layer = self.engine.layer_config("layer")
+        covers = layer.get("covers", [])
+        layer.clear()
+        layer.update(deepcopy(engine_mod.PROFILE_DEFAULTS["vertical_blind"]))
+        layer.update({"id": "layer", "profile": "vertical_blind", "covers": covers})
+
+        self.assertEqual(self.engine._targets(layer, "open", 35), (100.0, 0.0))
+        self.assertEqual(self.engine._targets(layer, "comfort", 35), (0.0, 35.0))
+        self.assertEqual(self.engine._targets(layer, "heat", 35), (0.0, 100.0))
+        self.assertEqual(self.engine._targets(layer, "safety", 35), (100.0, 0.0))
 
     async def test_per_cover_slat_inversion_changes_only_command_value(self):
         layer = self.engine.layer_config("layer")
