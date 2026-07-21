@@ -946,7 +946,7 @@
         }
       },
       "room_hub": {
-        "title": "Room · {room_name}",
+        "title": "Manage room",
         "description": "Manage this room only. Each choice opens its complete, sectioned form directly; Back returns to the room list.",
         "menu_options": {
           "back_to_overview": "Back to room list"

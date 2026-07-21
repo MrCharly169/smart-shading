@@ -31,9 +31,14 @@ def build_room_routes(
 ) -> list[dict[str, Any]]:
     """Return every editable object for one room and no other room."""
     room_id = room["id"]
+    room_name = _name(room, "Raum" if german else "Room")
     routes: list[dict[str, Any]] = [
         {
-            "label": "Raumeinstellungen" if german else "Room settings",
+            "label": (
+                f"Raumeinstellungen · {room_name}"
+                if german
+                else f"Room settings · {room_name}"
+            ),
             "action": "manage_room",
             "room_id": room_id,
         },

@@ -112,8 +112,8 @@ class OptionsNavigationTests(unittest.TestCase):
         english = navigation.build_room_routes(self.rooms[0], german=False)
         german = navigation.build_room_routes(self.rooms[0], german=True)
 
-        self.assertEqual(english[0]["label"], "Room settings")
-        self.assertEqual(german[0]["label"], "Raumeinstellungen")
+        self.assertEqual(english[0]["label"], "Room settings · Living")
+        self.assertEqual(german[0]["label"], "Raumeinstellungen · Living")
         self.assertIn("Add sun sector", english[1]["label"])
         self.assertIn("Sonnensektor hinzufügen", german[1]["label"])
         self.assertIn("Cover · Windows / Left", english[-2]["label"])

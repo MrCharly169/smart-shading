@@ -2500,7 +2500,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         return self.async_show_menu(
             step_id="room_hub",
             menu_options=menu_options,
-            description_placeholders=self._option_placeholders(),
         )
 
     async def async_step_manage_room(

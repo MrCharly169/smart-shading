@@ -946,7 +946,7 @@
         }
       },
       "room_hub": {
-        "title": "Raum · {room_name}",
+        "title": "Raum verwalten",
         "description": "Hier wird nur dieser Raum verwaltet. Jede Auswahl öffnet direkt das vollständige Formular mit erklärten Bereichen; Zurück führt zur Raumliste.",
         "menu_options": {
           "back_to_overview": "Zur Raumliste"
