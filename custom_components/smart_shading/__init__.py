@@ -110,7 +110,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 13:
+    if entry.version >= 14:
         return True
     if entry.version < 10:
         data = _normalize_config(migrate_slat_config(dict(entry.data)))
@@ -124,6 +124,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # entries only receive the new Night Mode defaults.
         data = _normalize_config(dict(entry.data))
         options = _normalize_config(dict(entry.options)) if entry.options else {}
+    # The setup product is owned by entry data. Older options payloads could
+    # contain a second, conflicting mode switch and accidentally expose the
+    # other product after an edit.
+    if options:
+        options.pop(CONF_ADVANCED_MODE, None)
     # Earlier beta versions defaulted to 120 seconds. Move untouched defaults
     # to the new customer-friendly 20-minute interval.
     if int(data.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
@@ -132,16 +137,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         options[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
     # Existing Advanced installations keep their established pause behavior.
     # New rooms default to opt-in detection; Easy Mode always disables it.
+    selected_advanced = bool(data.get(CONF_ADVANCED_MODE, False))
     for config in (data, options):
         if not config:
             continue
-        advanced = bool(config.get(CONF_ADVANCED_MODE, False))
         for room in config.get(CONF_ROOMS, []):
             room[CONF_EXTERNAL_MOVEMENT_DETECTION] = bool(
-                room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, advanced)
-            ) if advanced else False
+                room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, selected_advanced)
+            ) if selected_advanced else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=13
+        entry, data=data, options=options, version=14
     )
     return True
 
