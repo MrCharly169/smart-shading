@@ -399,6 +399,18 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIsNotNone(shared_source)
         self.assertIn('step_id="room_setup"', shared_source)
 
+        # A form step is submitted by method name on the next request.  The
+        # shared renderer therefore needs a public handler for its literal
+        # first-room step id; otherwise Home Assistant removes the flow and
+        # the frontend reports "Invalid flow specified".
+        first_room_handler = _method(
+            self.config_flow, "async_step_room_setup"
+        )
+        self.assertIn(
+            "_async_step_room_setup",
+            _attribute_calls(first_room_handler),
+        )
+
     def test_object_creation_returns_to_the_list_that_started_it(self):
         add_sector = _method(
             self.options_flow, "async_step_add_sector_flat"
