@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.7 - 2026-07-21
+
 ### Structured room setup
 
 - replaced the parallel sector, group and individual-cover menus with one
