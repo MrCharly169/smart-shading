@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Customer setup
+
+- replaced the room object tree with task-based Room details, Sun sectors, Cover groups, Individual covers, Automation, Night, Pause, and Safety pages
+- added category counters and dedicated object lists so adding or editing one sector, group, or cover never expands the room overview
+- changed initial setup from a one-page early finish into a complete review flow that offers per-cover Manual Entities, Night before Pause, temperatures, Heat Protection, safety, and open-ended add loops before startup
+- offers the next-Night-end pause only when Night has a usable sun or entity source and safely falls back to the next morning when Night is later disabled
+- renamed the optional binary source to External sun confirmation and explains that a Lux source creates Smart Shading's own Sun Presence status
+- reduced repeated Simple/Complete terminology after the initial choice and added concise English and German help for every newly reachable page
+
 
 ## 4.6.2-beta.1 - 2026-07-21
 
