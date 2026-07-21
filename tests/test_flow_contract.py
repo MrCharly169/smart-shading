@@ -1,0 +1,625 @@
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).parents[1]
+COMP = ROOT / "custom_components" / "smart_shading"
+FLOW_PATH = COMP / "config_flow.py"
+
+spec = importlib.util.spec_from_file_location(
+    "smart_shading_flow_contract", COMP / "flow_contract.py"
+)
+contract = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+spec.loader.exec_module(contract)
+
+
+def _class(tree: ast.Module, name: str) -> ast.ClassDef:
+    return next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == name
+    )
+
+
+def _method(class_node: ast.ClassDef, name: str) -> ast.AsyncFunctionDef:
+    return next(
+        node
+        for node in class_node.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == name
+    )
+
+
+def _async_step_calls(node: ast.AST) -> set[str]:
+    return {
+        child.func.attr
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Attribute)
+        and child.func.attr.startswith("async_step_")
+    }
+
+
+def _attribute_calls(node: ast.AST) -> set[str]:
+    return {
+        child.func.attr
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Attribute)
+    }
+
+
+def _qualified_attribute_calls(node: ast.AST) -> set[tuple[str, str]]:
+    return {
+        (child.func.value.id, child.func.attr)
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Attribute)
+        and isinstance(child.func.value, ast.Name)
+    }
+
+
+def _vol_schema_names(node: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for child in ast.walk(node):
+        if not (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and isinstance(child.func.value, ast.Name)
+            and child.func.value.id == "vol"
+            and child.func.attr in {"Required", "Optional"}
+            and child.args
+        ):
+            continue
+        key = child.args[0]
+        if isinstance(key, ast.Name):
+            names.add(key.id)
+        elif isinstance(key, ast.Constant) and isinstance(key.value, str):
+            names.add(key.value)
+    return names
+
+
+class FlowContractTests(unittest.TestCase):
+    def test_setup_choice_maps_only_the_supported_values(self):
+        self.assertEqual(
+            contract.SETUP_TYPES,
+            (contract.SETUP_EASY, contract.SETUP_ADVANCED),
+        )
+        self.assertFalse(contract.setup_is_advanced(contract.SETUP_EASY))
+        self.assertTrue(contract.setup_is_advanced(contract.SETUP_ADVANCED))
+        with self.assertRaises(ValueError):
+            contract.setup_is_advanced("unexpected")
+
+    def test_v14_mode_is_locked_to_entry_data(self):
+        cases = (
+            ({"advanced_mode": True}, {"advanced_mode": False}, True),
+            ({"advanced_mode": False}, {"advanced_mode": True}, False),
+            ({"advanced_mode": True}, {}, True),
+            ({"advanced_mode": False}, None, False),
+            ({}, {"advanced_mode": True}, True),
+            ({}, {"advanced_mode": False}, False),
+            ({}, {}, False),
+            ({}, None, False),
+        )
+        for data, options, expected in cases:
+            with self.subTest(data=data, options=options):
+                self.assertIs(
+                    contract.locked_advanced_mode(data, options), expected
+                )
+
+    def test_legacy_migration_preserves_the_original_data_choice(self):
+        cases = (
+            ({"advanced_mode": True}, {}, True),
+            ({"advanced_mode": False}, {}, False),
+            ({"advanced_mode": True}, {"rooms": []}, True),
+            ({"advanced_mode": False}, {"rooms": []}, False),
+            ({"advanced_mode": False}, {"advanced_mode": True}, False),
+            ({"advanced_mode": True}, {"advanced_mode": False}, True),
+            ({}, {"advanced_mode": True}, True),
+            ({}, {"advanced_mode": False}, False),
+            ({}, {}, False),
+            ({}, None, False),
+        )
+        for data, options, expected in cases:
+            with self.subTest(data=data, options=options):
+                self.assertIs(
+                    contract.locked_advanced_mode(data, options),
+                    expected,
+                )
+
+    def test_legacy_effective_config_merges_partial_options_without_data_loss(self):
+        data = {
+            "house_name": "Home",
+            "evaluation_interval": 1200,
+            "rooms": [
+                {
+                    "id": "living",
+                    "name": "Living room",
+                    "sectors": [{"id": "south", "name": "South"}],
+                }
+            ],
+        }
+        options = {"evaluation_interval": 600}
+
+        result = contract.legacy_effective_config(data, options)
+
+        self.assertEqual(result["house_name"], "Home")
+        self.assertEqual(result["evaluation_interval"], 600)
+        self.assertEqual(result["rooms"], data["rooms"])
+        self.assertIsNot(result["rooms"], data["rooms"])
+        self.assertIsNot(
+            result["rooms"][0]["sectors"], data["rooms"][0]["sectors"]
+        )
+
+        result["rooms"][0]["sectors"][0]["name"] = "Changed"
+        result["house_name"] = "Changed house"
+        self.assertEqual(data["house_name"], "Home")
+        self.assertEqual(data["rooms"][0]["sectors"][0]["name"], "South")
+        self.assertEqual(options, {"evaluation_interval": 600})
+
+    def test_working_config_ignores_an_option_level_mode_override(self):
+        data = {
+            "advanced_mode": True,
+            "house_name": "House",
+            "rooms": [{"id": "original"}],
+        }
+        options = {
+            "advanced_mode": False,
+            "rooms": [{"id": "edited"}],
+        }
+
+        result = contract.working_config(data, options)
+
+        self.assertTrue(result["advanced_mode"])
+        self.assertEqual(result["rooms"], [{"id": "edited"}])
+        result["rooms"][0]["id"] = "mutated"
+        self.assertEqual(options["rooms"], [{"id": "edited"}])
+        self.assertEqual(data["rooms"], [{"id": "original"}])
+
+    def test_editable_options_remove_immutable_mode_and_are_copied(self):
+        config = {
+            "advanced_mode": True,
+            "diagnostic_level": "events",
+            "rooms": [{"id": "living"}],
+        }
+
+        options = contract.editable_options(config)
+
+        self.assertNotIn("advanced_mode", options)
+        self.assertEqual(options["diagnostic_level"], "events")
+        options["rooms"][0]["id"] = "changed"
+        self.assertEqual(config["rooms"], [{"id": "living"}])
+
+    def test_saved_options_cannot_change_the_locked_mode_on_reload(self):
+        data = {"advanced_mode": False, "rooms": [{"id": "living"}]}
+        crafted_working_copy = {
+            "advanced_mode": True,
+            "rooms": [{"id": "office"}],
+        }
+
+        saved = contract.editable_options(crafted_working_copy)
+        reloaded = contract.working_config(data, saved)
+
+        self.assertNotIn("advanced_mode", saved)
+        self.assertFalse(reloaded["advanced_mode"])
+        self.assertEqual(reloaded["rooms"], [{"id": "office"}])
+
+    def test_sun_source_is_explicit_and_legacy_safe(self):
+        self.assertEqual(
+            contract.sun_source_for_sector(
+                {"sun_source": "geometry", "lux_sensor": "sensor.facade"},
+                advanced=False,
+            ),
+            "geometry",
+        )
+
+    def test_easy_temperature_gate_requires_one_configured_source(self):
+        room = {"outdoor_temperature": ""}
+        self.assertFalse(
+            contract.easy_temperature_source_configured({}, room)
+        )
+        self.assertTrue(
+            contract.easy_temperature_source_configured(
+                {}, {"outdoor_temperature": "sensor.outdoor"}
+            )
+        )
+        self.assertTrue(
+            contract.easy_temperature_source_configured(
+                {"weather_entity": "weather.home"}, room
+            )
+        )
+        self.assertEqual(
+            contract.sun_source_for_sector(
+                {"lux_sensor": "sensor.facade"}, advanced=True
+            ),
+            "lux",
+        )
+        self.assertEqual(
+            contract.sun_source_for_sector(
+                {"sun_presence_entity": "binary_sensor.facade"},
+                advanced=False,
+            ),
+            "external",
+        )
+        self.assertEqual(
+            contract.sun_source_for_sector(
+                {
+                    "sun_source": "external",
+                    "sun_presence_entity": "binary_sensor.facade",
+                },
+                advanced=True,
+            ),
+            "external",
+        )
+
+    def test_runtime_overrides_are_folded_into_one_editable_snapshot(self):
+        config = {
+            "advanced_mode": True,
+            "diagnostic_level": "off",
+            "rooms": [
+                {
+                    "id": "living",
+                    "heat_temperature": 27,
+                    "sectors": [
+                        {
+                            "id": "south",
+                            "enabled": True,
+                            "sun_preset": "medium",
+                            "layers": [
+                                {
+                                    "id": "blind",
+                                    "open_position": 100,
+                                    "tilt_curve": [
+                                        {"elevation": 10, "tilt": 90},
+                                        {"elevation": 30, "tilt": 60},
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        overrides = {
+            "house": {
+                "house": {
+                    "diagnostic_level": "full",
+                    "advanced_mode": False,
+                }
+            },
+            "room": {"living": {"heat_temperature": 30}},
+            "sector": {"south": {"enabled": False, "sun_preset": "high"}},
+            "layer": {
+                "blind": {
+                    "open_position": 85,
+                    "tilt_elevation_1": 12,
+                    "tilt_value_2": 55,
+                }
+            },
+        }
+
+        result = contract.config_with_runtime_overrides(config, overrides)
+
+        self.assertTrue(result["advanced_mode"])
+        self.assertEqual(result["diagnostic_level"], "full")
+        room = result["rooms"][0]
+        self.assertEqual(room["heat_temperature"], 30)
+        sector = room["sectors"][0]
+        self.assertFalse(sector["enabled"])
+        self.assertEqual(sector["sun_preset"], "high")
+        layer = sector["layers"][0]
+        self.assertEqual(layer["open_position"], 85)
+        self.assertEqual(layer["tilt_curve"][0], {"elevation": 12, "tilt": 90})
+        self.assertEqual(layer["tilt_curve"][1], {"elevation": 30, "tilt": 55})
+        self.assertEqual(config["rooms"][0]["heat_temperature"], 27)
+
+    def test_malformed_runtime_override_scopes_are_ignored(self):
+        config = {
+            "advanced_mode": False,
+            "rooms": [{"id": "living", "sectors": []}],
+        }
+
+        result = contract.config_with_runtime_overrides(
+            config,
+            {"house": [], "room": "invalid", "sector": None, "layer": 42},
+        )
+
+        self.assertEqual(result, config)
+
+
+class WizardRouteContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tree = ast.parse(
+            FLOW_PATH.read_text(encoding="utf-8"), filename=str(FLOW_PATH)
+        )
+        cls.mixin = _class(cls.tree, "_SmartShadingWizardMixin")
+        cls.config_flow = _class(cls.tree, "SmartShadingConfigFlow")
+        cls.options_flow = _class(cls.tree, "SmartShadingOptionsFlow")
+
+    def test_initial_choice_dispatches_to_distinct_immutable_entry_routes(self):
+        method_names = {
+            node.name
+            for node in self.config_flow.body
+            if isinstance(node, ast.AsyncFunctionDef)
+        }
+        self.assertIn("async_step_easy_room_setup", method_names)
+        self.assertIn("async_step_advanced_room_setup", method_names)
+
+        user_calls = _async_step_calls(
+            _method(self.config_flow, "async_step_user")
+        )
+        self.assertEqual(user_calls, {"async_step_global_settings"})
+
+        init_calls = _async_step_calls(
+            _method(self.config_flow, "async_step_init")
+        )
+        self.assertIn("async_step_easy_room_setup", init_calls)
+        self.assertIn("async_step_advanced_room_setup", init_calls)
+
+        easy_calls = _async_step_calls(
+            _method(self.config_flow, "async_step_easy_room_setup")
+        )
+        advanced_calls = _async_step_calls(
+            _method(self.config_flow, "async_step_advanced_room_setup")
+        )
+        self.assertNotIn("async_step_advanced_room_setup", easy_calls)
+        self.assertNotIn("async_step_easy_room_setup", advanced_calls)
+        self.assertIn("async_step_init", easy_calls)
+        self.assertIn("async_step_init", advanced_calls)
+
+        for route in (
+            "async_step_easy_room_setup",
+            "async_step_advanced_room_setup",
+        ):
+            with self.subTest(route=route):
+                self.assertIn(
+                    "_async_step_room_setup",
+                    _attribute_calls(_method(self.config_flow, route)),
+                )
+
+    def test_shared_navigation_is_defined_once(self):
+        shared_methods = {
+            "async_step_room_hub",
+            "async_step_sector_hub",
+            "async_step_group_hub",
+            "async_step_cover_hub",
+            "async_step_choose_sector_for_group",
+            "async_step_choose_group_for_covers",
+        }
+        mixin_methods = {
+            node.name
+            for node in self.mixin.body
+            if isinstance(node, ast.AsyncFunctionDef)
+        }
+        self.assertTrue(shared_methods.issubset(mixin_methods))
+        for flow_class in (self.config_flow, self.options_flow):
+            class_methods = {
+                node.name
+                for node in flow_class.body
+                if isinstance(node, ast.AsyncFunctionDef)
+            }
+            self.assertTrue(shared_methods.isdisjoint(class_methods))
+
+        shared_form = _method(self.config_flow, "_async_step_room_setup")
+        shared_source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"), shared_form
+        )
+        self.assertIsNotNone(shared_source)
+        self.assertIn('step_id="room_setup"', shared_source)
+
+    def test_object_creation_returns_to_the_list_that_started_it(self):
+        add_sector = _method(
+            self.options_flow, "async_step_add_sector_flat"
+        )
+        add_group = _method(
+            self.options_flow, "async_step_add_layer_flat"
+        )
+        add_covers = _method(
+            self.options_flow, "async_step_add_covers_flat"
+        )
+        source = FLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'self._after_sector_step = "sector_hub"',
+            ast.get_source_segment(source, add_sector) or "",
+        )
+        self.assertIn(
+            "return await self.async_step_group_hub()",
+            ast.get_source_segment(source, add_group) or "",
+        )
+        self.assertNotIn(
+            '"cover_entities"',
+            ast.get_source_segment(source, add_group) or "",
+        )
+        self.assertIn(
+            'self._pending_cover_return_step = "cover_hub"',
+            ast.get_source_segment(source, add_covers) or "",
+        )
+
+    def test_advanced_creation_chain_reaches_night_pause_and_conditions(self):
+        expected_edges = (
+            (
+                self.config_flow,
+                "async_step_compact_cover_details",
+                "async_step_manage_automation",
+            ),
+            (
+                self.options_flow,
+                "async_step_manage_automation",
+                "async_step_manage_night",
+            ),
+            (
+                self.options_flow,
+                "async_step_manage_night",
+                "async_step_manage_pause",
+            ),
+            (
+                self.options_flow,
+                "async_step_manage_pause",
+                "async_step_manage_conditions",
+            ),
+            (
+                self.options_flow,
+                "async_step_manage_conditions",
+                "async_step_after_room",
+            ),
+        )
+        for owner, source, target in expected_edges:
+            with self.subTest(source=source, target=target):
+                self.assertIn(
+                    target,
+                    _async_step_calls(_method(owner, source)),
+                )
+
+    def test_schedule_form_hides_fields_until_they_can_take_effect(self):
+        source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_automation"),
+        ) or ""
+
+        self.assertIn("if current_profile == SCHEDULE_CUSTOM:", source)
+        self.assertIn("if current_window == DAY_WINDOW_FIXED:", source)
+        self.assertIn(
+            "current_profile != SCHEDULE_YEAR_ROUND", source
+        )
+        self.assertIn("return await self.async_step_manage_automation()", source)
+        self.assertIn("has_indoor_temperature", source)
+        self.assertIn(
+            'sections[vol.Required("temperature_settings")]', source
+        )
+
+    def test_dynamic_forms_keep_other_visible_values_before_rerender(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        automation = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_manage_automation"),
+        ) or ""
+        sector = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_manage_sector"),
+        ) or ""
+        night = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_manage_night"),
+        ) or ""
+
+        self.assertLess(
+            automation.index("room.update(values)"),
+            automation.index("return await self.async_step_manage_automation()"),
+        )
+        source_change = sector[sector.index("selected_source != current_source"):]
+        self.assertLess(
+            source_change.index('sector["name"]'),
+            source_change.index("return await self.async_step_manage_sector()"),
+        )
+        night_change = night[night.index("source != current_source"):]
+        self.assertLess(
+            night_change.index('"night_morning_transition_minutes"'),
+            night_change.index("return await self.async_step_manage_night()"),
+        )
+
+    def test_clearable_condition_sources_are_explicitly_cleared(self):
+        source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_conditions"),
+        ) or ""
+
+        self.assertIn('values.get("safety_blockers") or []', source)
+        self.assertIn('room[key] = values.get(key, "")', source)
+        self.assertIn("occupancy_source_required", source)
+
+    def test_final_review_rejects_an_enabled_night_without_a_source(self):
+        source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            next(
+                node
+                for node in self.config_flow.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_review_snapshot"
+            ),
+        ) or ""
+
+        self.assertIn('room.get("night_enabled")', source)
+        self.assertIn("and not night_is_configured(room)", source)
+        self.assertIn("night function has no valid source", source)
+        self.assertIn('source == "lux"', source)
+        self.assertIn('sector.get("lux_sensor", "")', source)
+        self.assertIn('source == "external"', source)
+        self.assertIn("CONF_SUN_PRESENCE_ENTITY", source)
+
+        for step in (
+            "async_step_manage_automation",
+            "async_step_manage_night",
+            "async_step_manage_pause",
+            "async_step_manage_conditions",
+        ):
+            with self.subTest(shared_step=step):
+                self.assertIn(
+                    ("SmartShadingOptionsFlow", step),
+                    _qualified_attribute_calls(_method(self.config_flow, step)),
+                )
+
+    def test_options_add_room_reuses_the_config_flow_room_form(self):
+        option_method_names = [
+            node.name
+            for node in self.options_flow.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        self.assertNotIn("_async_step_room_setup", option_method_names)
+        self.assertEqual(option_method_names.count("async_step_add_room"), 1)
+
+        add_room = _method(self.options_flow, "async_step_add_room")
+        self.assertIn(
+            ("SmartShadingConfigFlow", "_async_step_room_setup"),
+            _qualified_attribute_calls(add_room),
+        )
+        self.assertNotIn("async_show_form", _attribute_calls(add_room))
+
+    def test_global_settings_schema_has_no_mode_selector(self):
+        global_settings = _method(self.mixin, "async_step_global_settings")
+        self.assertNotIn("CONF_ADVANCED_MODE", _vol_schema_names(global_settings))
+
+        source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"), global_settings
+        )
+        self.assertIsNotNone(source)
+        self.assertIn("values.pop(CONF_ADVANCED_MODE", source)
+
+    def test_options_are_saved_without_the_immutable_mode(self):
+        finish = _method(self.options_flow, "async_step_finish")
+        call_names = {
+            child.func.id
+            for child in ast.walk(finish)
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+        }
+        self.assertIn("editable_options", call_names)
+
+    def test_mode_switch_copy_is_removed_from_global_settings(self):
+        for language in ("de", "en"):
+            with self.subTest(language=language):
+                data = json.loads(
+                    (COMP / "translations" / f"{language}.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                unexpected_locations: list[str] = []
+                for section in ("config", "options"):
+                    global_settings = data[section]["step"]["global_settings"]
+                    for field_group in ("data", "data_description"):
+                        if "advanced_mode" in global_settings.get(
+                            field_group, {}
+                        ):
+                            unexpected_locations.append(
+                                f"{section}.global_settings.{field_group}"
+                            )
+                self.assertEqual([], unexpected_locations)
+
+
+if __name__ == "__main__":
+    unittest.main()

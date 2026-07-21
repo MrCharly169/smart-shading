@@ -6,7 +6,19 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import (
-    DEVICE_BINARY, DEVICE_VERTICAL, DEVICE_VENETIAN, PROFILE_DEFAULTS
+    DEVICE_BINARY,
+    DEVICE_VERTICAL,
+    DEVICE_VENETIAN,
+    IRRADIANCE_MINIMUM_MAX,
+    IRRADIANCE_MINIMUM_MIN,
+    IRRADIANCE_MINIMUM_STEP,
+    OUTDOOR_MINIMUM_MAX_C,
+    OUTDOOR_MINIMUM_MIN_C,
+    OUTDOOR_MINIMUM_STEP_C,
+    PAUSE_DURATION_MAX_HOURS,
+    PAUSE_DURATION_MIN_HOURS,
+    PAUSE_DURATION_STEP_HOURS,
+    PROFILE_DEFAULTS,
 )
 from .entity import SmartShadingEntity, localized
 
@@ -27,10 +39,9 @@ ROOM_NUMBERS = (
     NumberDefinition("comfort_temperature", "Comfort temperature", 5, 40, 0.1, "°C", "mdi:thermometer-low"),
     NumberDefinition("solar_temperature", "Solar temperature", 5, 40, 0.1, "°C", "mdi:thermometer-high"),
     NumberDefinition("heat_temperature", "Heat protection start", 5, 45, 0.1, "°C", "mdi:thermometer-alert"),
-    NumberDefinition("heat_release_temperature", "Heat protection release", 5, 45, 0.1, "°C", "mdi:thermometer-chevron-down"),
     NumberDefinition("reopen_temperature", "Cool-room reopen threshold", 5, 35, 0.1, "°C", "mdi:blinds-open"),
-    NumberDefinition("outdoor_minimum", "Minimum outdoor temperature", -30, 50, 0.1, "°C", "mdi:home-thermometer-outline"),
-    NumberDefinition("irradiance_minimum", "Minimum irradiance", 0, 1500, 10, "W/m²", "mdi:white-balance-sunny"),
+    NumberDefinition("outdoor_minimum", "Minimum outdoor temperature", OUTDOOR_MINIMUM_MIN_C, OUTDOOR_MINIMUM_MAX_C, OUTDOOR_MINIMUM_STEP_C, "°C", "mdi:home-thermometer-outline"),
+    NumberDefinition("irradiance_minimum", "Minimum irradiance", IRRADIANCE_MINIMUM_MIN, IRRADIANCE_MINIMUM_MAX, IRRADIANCE_MINIMUM_STEP, "W/m²", "mdi:white-balance-sunny"),
     NumberDefinition("cloud_cover_maximum", "Maximum cloud cover", 0, 100, 1, "%", "mdi:weather-cloudy"),
 )
 
@@ -109,6 +120,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                     continue
                 keys = PROFILE_NUMBER_KEYS.get(profile, DEFAULT_POSITION_KEYS)
                 for key, name, icon in keys:
+                    if not _layer_number_relevant(room, profile, key):
+                        continue
                     if key.startswith("night_") and not (
                         engine.config.get("advanced_mode", False)
                         and room.get("night_enabled", False)
@@ -120,7 +133,14 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                             NumberDefinition(key, name, 0, 100, 1, "%", icon),
                         )
                     )
-                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL} and layer.get("adaptive_tilt", False):
+                if (
+                    profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}
+                    and layer.get("adaptive_tilt", False)
+                    and (
+                        profile == DEVICE_VENETIAN
+                        or bool(room.get("indoor_temperature"))
+                    )
+                ):
                     stage_names = ("Very low sun", "Low sun", "Medium sun", "High sun")
                     for index, point in enumerate(layer.get("tilt_curve", []), start=1):
                         stage = stage_names[min(index - 1, len(stage_names) - 1)]
@@ -160,16 +180,35 @@ def _room_profiles(room: dict) -> set[str]:
 def _room_number_relevant(room: dict, key: str) -> bool:
     profiles = _room_profiles(room)
     venetian_only = bool(profiles) and profiles == {DEVICE_VENETIAN}
+    if key in {
+        "normal_shading_temperature",
+        "comfort_temperature",
+        "solar_temperature",
+        "heat_temperature",
+        "reopen_temperature",
+    } and not bool(room.get("indoor_temperature")):
+        return False
     if key == "normal_shading_temperature":
         return venetian_only
     if key in {"comfort_temperature", "solar_temperature"}:
         return not venetian_only
+    if key == "reopen_temperature":
+        return venetian_only
     if key == "outdoor_minimum":
         return bool(room.get("outdoor_temperature"))
     if key == "irradiance_minimum":
         return bool(room.get("irradiance_sensor"))
     if key == "cloud_cover_maximum":
         return bool(room.get("cloud_cover_sensor"))
+    return True
+
+
+def _layer_number_relevant(room: dict, profile: str, key: str) -> bool:
+    """Hide targets that cannot be reached without room temperature."""
+    if room.get("indoor_temperature"):
+        return True
+    if key in {"heat_position", "heat_tilt", "solar_position"}:
+        return False
     return True
 
 
@@ -185,7 +224,6 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
             "Comfort temperature": "Comfort-Temperatur",
             "Solar temperature": "Solar-Temperatur",
             "Heat protection start": "Heat-Protection-Start",
-            "Heat protection release": "Heat-Protection-Freigabe",
             "Cool-room reopen threshold": "Wiederöffnungs-Temperatur",
             "Minimum outdoor temperature": "Mindestaußentemperatur",
             "Minimum irradiance": "Mindesteinstrahlung",
@@ -233,9 +271,9 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
 
 class PauseHoursNumber(SmartShadingEntity, NumberEntity):
     _attr_name = "Pause duration"
-    _attr_native_min_value = 0
-    _attr_native_max_value = 48
-    _attr_native_step = 0.5
+    _attr_native_min_value = PAUSE_DURATION_MIN_HOURS
+    _attr_native_max_value = PAUSE_DURATION_MAX_HOURS
+    _attr_native_step = PAUSE_DURATION_STEP_HOURS
     _attr_native_unit_of_measurement = "h"
     _attr_mode = NumberMode.SLIDER
     _attr_icon = "mdi:timer-outline"
@@ -247,12 +285,16 @@ class PauseHoursNumber(SmartShadingEntity, NumberEntity):
 
     @property
     def native_value(self):
-        return self.engine.rooms[self.room_id].pause_hours
+        return float(
+            self.engine.room_value(
+                self.room_id, "pause_duration_hours", 2.0
+            )
+        )
 
     @property
     def extra_state_attributes(self):
         attrs = super().extra_state_attributes
-        attrs["smart_shading_control_key"] = "pause_hours"
+        attrs["smart_shading_control_key"] = "pause_duration_hours"
         return attrs
 
     async def async_set_native_value(self, value: float) -> None:

@@ -67,6 +67,7 @@ class OptionsNavigationTests(unittest.TestCase):
             ],
         )
         labels = " ".join(route["label"] for route in routes)
+        self.assertIn("Room details · Living", labels)
         self.assertIn("Sun sectors · 1", labels)
         self.assertIn("Cover groups · 1", labels)
         self.assertIn("Individual covers · 2", labels)
@@ -96,6 +97,35 @@ class OptionsNavigationTests(unittest.TestCase):
             ["choose_group_for_covers", "manage_cover", "manage_cover", "choose_group_for_covers"],
         )
         self.assertTrue(all(r["room_id"] == "living" for r in sectors + groups + covers))
+        self.assertNotIn("placement", sectors[0])
+        self.assertEqual(sectors[-1]["placement"], "bottom")
+        self.assertNotIn("placement", groups[0])
+        self.assertEqual(groups[-1]["placement"], "bottom")
+        self.assertNotIn("placement", covers[0])
+        self.assertEqual(covers[-1]["placement"], "bottom")
+
+    def test_cover_routes_keep_stable_entity_identity(self):
+        routes = navigation.build_cover_routes(self.rooms[0], german=False)
+        cover_routes = [route for route in routes if route["action"] == "manage_cover"]
+        self.assertEqual(
+            [route["cover_entity"] for route in cover_routes],
+            ["cover.living_left", "cover.living_right"],
+        )
+        self.assertEqual([route["cover_index"] for route in cover_routes], [0, 1])
+
+    def test_legacy_cover_without_name_never_exposes_raw_entity_id(self):
+        room = self.rooms[0]
+        room["sectors"][0]["layers"][0]["covers"][0].update(
+            {"name": "", "entity": "cover.living_room_left"}
+        )
+
+        routes = navigation.build_cover_routes(room, german=False)
+
+        cover_route = next(
+            route for route in routes if route["action"] == "manage_cover"
+        )
+        self.assertEqual(cover_route["label"], "Cover 1 · Windows")
+        self.assertNotIn("_", cover_route["label"])
 
     def test_next_night_pause_requires_complete_night_source(self):
         room = self.rooms[0]

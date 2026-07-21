@@ -109,7 +109,7 @@ const roomStatus = {
   state: "solar",
   attributes: {
     name: "Raum A",
-    smart_shading_advanced_mode: true,
+    smart_shading_layout: "detailed",
     smart_shading_entry_id: "entry",
     smart_shading_room_id: "room",
     active_sectors: ["Süd links"],
@@ -204,7 +204,7 @@ if (fallbackEvent?.detail?.entityId !== "binary_sensor.night_source" || fallback
 
 const easyRoomStatus = JSON.parse(JSON.stringify(roomStatus));
 easyRoomStatus.entity_id = "sensor.easy_room_status";
-easyRoomStatus.attributes.smart_shading_advanced_mode = false;
+easyRoomStatus.attributes.smart_shading_layout = "compact";
 hass.states[easyRoomStatus.entity_id] = easyRoomStatus;
 const easyCard = new Card();
 easyCard.setConfig({ entity: easyRoomStatus.entity_id });
@@ -275,7 +275,7 @@ if (!noControlMarkup.includes("data-advanced")) throw new Error("Advanced view d
 card._openAdvanced(roomStatus, card._controls(roomStatus));
 if (!body.children.length) throw new Error("Advanced dialog was not appended to document.body");
 const dialog = body.children[0];
-if (!dialog.shadowRoot.innerHTML.includes("Erweiterte Ansicht")) throw new Error("Advanced dialog did not render");
+if (!dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog did not render");
 if (!dialog.shadowRoot.innerHTML.includes("26") || !dialog.shadowRoot.innerHTML.includes("18") || !dialog.shadowRoot.innerHTML.includes("Pausiert")) throw new Error("Advanced dialog missed lux or local pause details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
@@ -283,7 +283,7 @@ if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot
 if (dialog.dataset.contentWriteCount !== "1") throw new Error("Advanced dialog did not record its initial content write");
 dialog.shadowRoot.querySelector(".dialog").scrollTop = 123;
 card.hass = hass;
-if (!dialog.isConnected || !dialog.shadowRoot.innerHTML.includes("Erweiterte Ansicht")) throw new Error("Advanced dialog closed during state update");
+if (!dialog.isConnected || !dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog closed during state update");
 if (dialog.shadowRoot.innerHTML.includes("undefined")) throw new Error("Dialog rendered undefined");
 if (dialog.dataset.contentWriteCount !== "1") throw new Error("Unchanged Home Assistant state rewrote the Advanced dialog DOM");
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position on an unchanged update");

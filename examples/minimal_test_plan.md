@@ -14,20 +14,21 @@
    covers. Leave all optional refinements empty for the first test.
 2. Add the generated room card from the room-creation notification.
 3. Confirm that the card shows the compact Easy layout without Pause, Night, or
-   Advanced controls.
+   detailed controls.
 4. During valid sun geometry, run an evaluation and verify the configured solar
    target. Outside the sector, verify the open target.
 5. Enable the room Manual Override. Confirm that automation remains disabled
    until the override is explicitly turned off.
-6. Add at most one direct-sun confirmation source if needed: either a facade
-   binary entity or a lux sensor. Test weather and the outdoor-temperature gate
-   only after the geometry-only baseline works.
+6. For each sector, select exactly one source: geometry, a lux sensor, or an
+   external binary sun confirmation. Add further sectors through the sector
+   list. Test weather and the outdoor-temperature gate only after the
+   geometry-only baseline works.
 
 ## Advanced Mode
 
-1. Use a separate pilot entry or switch modes only after the Easy test passes.
-   Optional entity fields must remain empty when the installation does not use
-   them.
+1. Use a separate pilot config entry for Advanced. The setup variant is fixed
+   and cannot be switched later. Optional entity fields must remain empty when
+   the installation does not use them.
 2. Enable and test one Advanced feature at a time: schedule, Safety, Pause, Heat
    Protection, Night Mode, or external-movement detection.
 3. When testing external movement detection, verify both directions: Smart

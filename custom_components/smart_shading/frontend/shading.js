@@ -51,19 +51,19 @@ function localizedReason(value, language, fallback = "") {
     "Morning transition holds Night target while shading conditions settle": "Morgenübergang hält die Nachtposition, bis die Beschattungsbedingungen geklärt sind",
     "Morning transition window ended; cover opened": "Morgenübergang beendet; Behang geöffnet",
     "No sectors configured": "Keine Sektoren eingerichtet",
-    "Easy Mode has no schedule": "Easy Mode verwendet keinen Zeitplan",
-    "Night Mode is unavailable in Easy Mode": "Die Nachtfunktion ist im Easy Mode nicht verfügbar",
+    "This setup does not use an activity schedule": "Für diese Einrichtung wird kein Zeitplan verwendet",
+    "Night function is not configured for this setup": "Für diese Einrichtung ist keine Nachtfunktion konfiguriert",
     "Sun position is unavailable; cover positions held": "Sonnenposition nicht verfügbar; Behangpositionen werden gehalten",
     "Sun is active in a configured facade sector": "Sonne ist in einem konfigurierten Fassadensektor aktiv",
-    "Outdoor temperature gate blocks Easy Mode shading": "Die Außentemperaturfreigabe blockiert die Easy-Mode-Beschattung",
-    "Optional Sun confirmation blocks Easy Mode shading": "Die optionale Sonnenbestätigung blockiert die Easy-Mode-Beschattung",
+    "Outdoor temperature condition blocks shading": "Die Außentemperaturbedingung blockiert die Beschattung",
+    "Optional sun confirmation blocks shading": "Die optionale Sonnenbestätigung blockiert die Beschattung",
     "Sun is outside all configured facade sectors": "Sonne ist außerhalb aller konfigurierten Fassadensektoren",
     "Month outside shading season": "Monat außerhalb der Beschattungssaison",
     "Weekday outside shading schedule": "Wochentag außerhalb des Beschattungszeitplans",
     "Inside fixed shading time": "Innerhalb der festen Beschattungszeit",
     "Outside fixed shading time": "Außerhalb der festen Beschattungszeit",
     "Schedule permits normal shading": "Zeitplan erlaubt normale Beschattung",
-    "Night Mode requires Advanced Mode": "Die Nachtfunktion benötigt den Advanced Mode",
+    "Night function is not available in this setup": "Für diese Einrichtung ist keine Nachtfunktion verfügbar",
     "Night Mode disabled": "Nachtfunktion deaktiviert",
     "Night source is unknown or unavailable; positions held": "Nachtquelle ist unbekannt oder nicht verfügbar; Positionen werden gehalten",
     "Night source is on": "Nachtquelle ist aktiv",
@@ -160,7 +160,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   _labels() {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
     return de ? {
-      title: "Smart Shading · Erweiterte Ansicht",
+      title: "Smart Shading · Details",
       close: "Schließen",
       overview: "Laufzeitübersicht",
       sectors: "Sonnensektoren",
@@ -204,7 +204,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       openSource: "Quelle öffnen",
       blocked: "blockiert",
     } : {
-      title: "Smart Shading · Advanced view",
+      title: "Smart Shading · Details",
       close: "Close",
       overview: "Runtime overview",
       sectors: "Sun sectors",
@@ -639,7 +639,7 @@ class SmartShadingV4Card extends HTMLElement {
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
       safety: "Safety", heat: "Heat", night: "Nacht", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
-      blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Erweiterte Ansicht",
+      blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Details",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
       belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
       automatic: "Automatik", manualOverride: "Manuelle Sperre", sunInSector: "Sonne im Sektor", sunOutsideSector: "Sonne außerhalb", nightSchedule: "Nachtzeitplan bearbeiten",
@@ -652,7 +652,7 @@ class SmartShadingV4Card extends HTMLElement {
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
       safety: "Safety", heat: "Heat", night: "Night", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
-      blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Advanced view",
+      blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Details",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
       belowHorizon: "Night", outsideSector: "Outside", waitingLux: "Waiting for sun", waiting: "Waiting", active: "Active", detected: "Sun detected",
       automatic: "Automatic", manualOverride: "Manual Override", sunInSector: "Sun in sector", sunOutsideSector: "Sun outside sector", nightSchedule: "Edit night schedule",
@@ -842,7 +842,7 @@ class SmartShadingV4Card extends HTMLElement {
     }
 
     const attrs = roomState.attributes || {};
-    const advancedMode = attrs.smart_shading_advanced_mode === true;
+    const advancedMode = attrs.smart_shading_layout === "detailed";
     const room = attrs.configuration || {};
     const controls = this._controls(roomState);
     const sectors = asArray(room.sectors);
@@ -1144,6 +1144,6 @@ if (!customElements.get("smart-shading-card-editor")) customElements.define("sma
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "smart-shading-card")) {
-  window.customCards.push({ type: "smart-shading-card", name: "Smart Shading", description: "Compact Smart Shading room card with optional advanced dialog", preview: true });
+  window.customCards.push({ type: "smart-shading-card", name: "Smart Shading", description: "Smart Shading room card with an optional details dialog", preview: true });
 }
 console.info("%c SMART-SHADING %c loaded ", "color:white;background:#0aa4d6;font-weight:700", "color:#0aa4d6;background:#111");

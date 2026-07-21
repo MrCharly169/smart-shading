@@ -13,11 +13,11 @@ from .const import (
     PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
-    PAUSE_OPTIONS,
     PAUSE_TIMED,
     SUN_PRESET_OPTIONS,
 )
 from .entity import SmartShadingEntity, localized
+from .options_navigation import pause_modes_for_room
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -84,12 +84,7 @@ class RoomPauseSelect(SmartShadingEntity, SelectEntity):
         }
         self._reverse = {label: key for key, label in self._labels.items()}
         room = engine.room_config(room_id)
-        pause_options = list(PAUSE_OPTIONS)
-        if not (
-            engine.config.get("advanced_mode", False)
-            and room.get("night_enabled", False)
-        ):
-            pause_options.remove(PAUSE_NEXT_NIGHT_END)
+        pause_options = [PAUSE_AUTO, *pause_modes_for_room(room)]
         self._attr_options = [self._labels[key] for key in pause_options]
 
     @property

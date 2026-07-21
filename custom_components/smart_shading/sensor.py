@@ -172,12 +172,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     if self.engine.advanced_mode
                     else []
                 ),
-                "configured_mode": (
-                    "advanced"
-                    if self.engine.config.get("advanced_mode", False)
-                    else "easy"
-                ),
-                "effective_mode": "advanced" if self.engine.advanced_mode else "easy",
                 "easy_confirmation_state": self.runtime.easy_confirmation_state,
                 "easy_source_summary": self.runtime.easy_source_summary,
                 "easy_temperature_gate": {
@@ -193,13 +187,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "external_movement_detection_enabled": bool(
                     self.engine.advanced_mode
                     and room.get("external_movement_detection", False)
-                ),
-                "easy_mode_disabled_features": (
-                    [] if self.engine.advanced_mode else [
-                        "schedule", "advanced_temperature_profiles",
-                        "advanced_weather_logic", "safety", "pause", "heat", "night",
-                        "external_movement_detection", "per_cover_manual_entities",
-                    ]
                 ),
                 "schedule_active": self.runtime.schedule_active,
                 "schedule_reason": self.runtime.schedule_reason,
@@ -240,9 +227,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     "heat_temperature": self.engine.room_value(
                         self.room_id, "heat_temperature", 27.0
                     ),
-                    "heat_release_temperature": self.engine.room_value(
-                        self.room_id, "heat_release_temperature", 26.0
-                    ),
                     "reopen_temperature": self.engine.room_value(
                         self.room_id, "reopen_temperature", 22.0
                     ),
@@ -265,6 +249,85 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 ),
             }
         )
+        if self.engine.advanced_mode:
+            for key in (
+                "easy_confirmation_state",
+                "easy_source_summary",
+                "easy_temperature_gate",
+            ):
+                attrs.pop(key, None)
+        else:
+            for key in (
+                "targets",
+                "heat_active",
+                "finished_today",
+                "pause_mode",
+                "pause_hours",
+                "pause_until",
+                "manual_override_groups",
+                "external_movement_detection_configured",
+                "external_movement_detection_enabled",
+                "schedule_active",
+                "schedule_reason",
+                "next_schedule_change",
+                "night_enabled",
+                "night_active",
+                "night_blocked",
+                "night_reason",
+                "night_source",
+                "night_entity",
+                "night_source_state",
+                "night_next_transition",
+                "night_morning_hold_until",
+                "night_morning_handover_pending",
+                "night_morning_transition_minutes",
+                "night_evening_transition_minutes",
+                "temperature_settings",
+                "cover_pauses",
+            ):
+                attrs.pop(key, None)
+            attrs["configuration"] = {
+                "id": room.get("id"),
+                "name": room.get("name", ""),
+                "sectors": [
+                    {
+                        key: sector.get(key)
+                        for key in (
+                            "id",
+                            "name",
+                            "short",
+                            "azimuth_start",
+                            "azimuth_end",
+                            "elevation_min",
+                            "lux_sensor",
+                            "sun_presence_entity",
+                        )
+                    }
+                    | {
+                        "layers": [
+                            {
+                                "id": layer.get("id"),
+                                "name": layer.get("name", ""),
+                                "profile": layer.get("profile", ""),
+                                "covers": [
+                                    {
+                                        key: cover.get(key)
+                                        for key in (
+                                            "id",
+                                            "entity",
+                                            "name",
+                                            "short",
+                                        )
+                                    }
+                                    for cover in layer.get("covers", [])
+                                ],
+                            }
+                            for layer in sector.get("layers", [])
+                        ]
+                    }
+                    for sector in room.get("sectors", [])
+                ],
+            }
         return attrs
 
 

@@ -670,6 +670,28 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(due, before + timedelta(hours=3.5))
         self.assertLess(due, before + timedelta(hours=3.5, seconds=2))
 
+    async def test_unavailable_night_source_cannot_start_endless_cover_pause(self):
+        hass, engine, tomorrow = await self._engine(
+            "next_night_end",
+            night_enabled=True,
+            night_source="entity",
+            night_entity="schedule.night",
+        )
+        hass.states.values["schedule.night"] = FakeState("unavailable")
+
+        await self._position_call_and_feedback(engine)
+
+        pause = engine.cover_pauses["cover_one"]
+        self.assertTrue(pause.active)
+        self.assertEqual(pause.pause_mode, "next_sunrise")
+        self.assertEqual(pause.until, tomorrow)
+        self.assertFalse(pause.waiting_for_night)
+        self.assertIn("cover_one", engine._cover_pause_timer_unsubs)
+        saved = engine.store.cover_runtime("cover_one")
+        self.assertEqual(saved["pause_mode"], "next_sunrise")
+        self.assertEqual(saved["until"], tomorrow.isoformat())
+        self.assertFalse(saved["waiting_for_night"])
+
     async def test_manual_pause_has_no_expiry(self):
         _hass, engine, _tomorrow = await self._engine("manual")
         await self._position_call_and_feedback(engine)
