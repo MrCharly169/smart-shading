@@ -1646,9 +1646,18 @@ class SmartShadingEngine:
 
     async def async_set_pause_mode(self, room_id: str, mode: str) -> None:
         runtime = self.rooms[room_id]
-        runtime.pause_mode = mode
         now = dt_util.now()
         room = self.room_config(room_id)
+        if mode == PAUSE_NEXT_NIGHT_END:
+            _active, blocked, reason, _state, _next = self._night_status(room, now)
+            if blocked:
+                self._diag(
+                    "night_pause_fell_back_to_sunrise",
+                    room_id=room_id,
+                    reason=reason,
+                )
+                mode = PAUSE_NEXT_SUNRISE
+        runtime.pause_mode = mode
         self._cancel_room_pause_timer(room_id)
         if mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET}:
             runtime.pause_until = self._pause_until_from_sun(room_id, mode, now)
