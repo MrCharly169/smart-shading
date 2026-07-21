@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- fixed an Advanced profile-settings submit failure for every standard slat
+  preset by initializing the Custom-profile rerender state on all paths
+
 
 ## 4.6.2-beta.8 - 2026-07-21
 

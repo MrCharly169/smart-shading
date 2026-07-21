@@ -85,6 +85,26 @@ def _vol_schema_names(node: ast.AST) -> set[str]:
 
 
 class FlowContractTests(unittest.TestCase):
+    def test_standard_layer_profile_submit_initializes_custom_rerender_flag(self):
+        tree = ast.parse(FLOW_PATH.read_text(encoding="utf-8"))
+        options_flow = _class(tree, "SmartShadingOptionsFlow")
+        profile_step = _method(options_flow, "async_step_manage_layer_profile")
+
+        initializers = [
+            node
+            for node in profile_step.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name)
+                and target.id == "rerender_custom_curve"
+                for target in node.targets
+            )
+        ]
+
+        self.assertEqual(len(initializers), 1)
+        self.assertIsInstance(initializers[0].value, ast.Constant)
+        self.assertIs(initializers[0].value.value, False)
+
     def test_setup_choice_maps_only_the_supported_values(self):
         self.assertEqual(
             contract.SETUP_TYPES,
