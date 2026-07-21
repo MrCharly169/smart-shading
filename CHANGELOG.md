@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Setup product separation
+
+- lock the setup product after the initial Easy or Advanced choice and remove the later mode switch from house settings
+- migrate conflicting mode values out of legacy options and enforce the original choice again at runtime
+- keep the same task-based navigation while exposing only the functions available to the selected installation
+- remove repeated product terminology and internal-looking customer titles from the English and German setup text
+- offer the clearly labelled External sun confirmation in both setup variants and make it authoritative over Lux when configured
+- add regression coverage for immutable setup selection, customer-facing titles, product wording, and full-mode binary sun confirmation
+
 
 ## 4.6.2-beta.2 - 2026-07-21
 

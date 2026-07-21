@@ -25,9 +25,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 13", flow)
-        self.assertIn("if entry.version >= 13", migration)
-        self.assertIn("version=13", migration)
+        self.assertIn("VERSION = 14", flow)
+        self.assertIn("if entry.version >= 14", migration)
+        self.assertIn("version=14", migration)
         self.assertIn("if entry.version < 10", migration)
         self.assertIn("migrate_slat_config", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
@@ -442,6 +442,62 @@ class PackageTests(unittest.TestCase):
                 sun = groups["sun_control" if step == "room_setup" else "sun_confirmation"]
                 self.assertEqual(sun["data"]["sun_presence_entity"], expected)
                 self.assertIn("Lux", sun["data_description"]["lux_sensor"])
+
+    def test_setup_product_is_immutable_after_first_choice(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        options = flow[flow.index("class SmartShadingOptionsFlow"):]
+        global_settings = flow[
+            flow.index("async def async_step_global_settings"):
+            flow.index("async def async_step_add_room")
+        ]
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        migration = (COMP / "__init__.py").read_text(encoding="utf-8")
+
+        self.assertIn("VERSION = 14", flow)
+        self.assertIn("self.config_entry.data.get(CONF_ADVANCED_MODE", options)
+        self.assertIn("values.pop(CONF_ADVANCED_MODE, None)", global_settings)
+        self.assertNotIn("vol.Required(CONF_ADVANCED_MODE)", global_settings)
+        self.assertIn("self.entry.data.get(CONF_ADVANCED_MODE", engine)
+        self.assertIn("options.pop(CONF_ADVANCED_MODE, None)", migration)
+
+    def test_product_names_appear_only_at_the_initial_choice(self):
+        pattern = re.compile(r"\b(?:easy|advanced)\b", re.IGNORECASE)
+
+        def text_values(value):
+            if isinstance(value, dict):
+                for child in value.values():
+                    yield from text_values(child)
+            elif isinstance(value, list):
+                for child in value:
+                    yield from text_values(child)
+            elif isinstance(value, str):
+                yield value
+
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            allowed = {
+                data["config"]["step"]["user"]["description"],
+                data["config"]["step"]["user"]["data_description"]["setup_type"],
+                *data["selector"]["setup_type"]["options"].values(),
+            }
+            found = {text for text in text_values(data) if pattern.search(text)}
+            self.assertEqual(found, allowed, language)
+
+    def test_customer_titles_never_expose_internal_identifiers(self):
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for section in ("config", "options"):
+                for step_id, step in data[section]["step"].items():
+                    title = re.sub(r"\{[a-z0-9_]+\}", "", step.get("title", ""))
+                    self.assertNotRegex(title, r"[a-z]+_[a-z]+", (language, section, step_id))
 
     def test_card_editor_initializes_config_and_emits_changes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")

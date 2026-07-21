@@ -471,6 +471,35 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(runtime.effective_active)
         self.assertEqual(engine.rooms["room"].mode, "solar")
 
+    async def test_advanced_binary_confirmation_has_priority_over_lux(self):
+        config = base_config()
+        sector = config["rooms"][0]["sectors"][0]
+        sector.update({
+            "sun_presence_entity": "binary_sensor.facade_sun",
+            "sun_preset": "custom",
+            "sun_on_lux": 10000,
+            "sun_off_lux": 5000,
+            "sun_on_delay": 0,
+            "sun_off_delay": 0,
+        })
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState("off")
+        self.hass.states.values["sensor.lux"] = FakeState("50000")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("advanced_binary_off")
+        runtime = engine.sun_runtime["south"]
+        self.assertEqual(runtime.confirmation_source, "binary")
+        self.assertFalse(runtime.confirmation_state)
+        self.assertFalse(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "open")
+
+        self.hass.states.values["binary_sensor.facade_sun"] = FakeState("on")
+        await engine.async_evaluate_all("advanced_binary_on")
+        self.assertTrue(runtime.confirmation_state)
+        self.assertTrue(runtime.effective_active)
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+
     async def test_easy_unavailable_binary_falls_back_to_lux(self):
         config = base_config()
         config["advanced_mode"] = False
