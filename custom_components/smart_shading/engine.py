@@ -286,6 +286,11 @@ class SmartShadingEngine:
 
     def reload_config(self) -> None:
         self.config = {**self.entry.data, **self.entry.options}
+        # Product selection is immutable and belongs to config-entry data.
+        # Ignore conflicting values left in options by older beta versions.
+        self.config[CONF_ADVANCED_MODE] = bool(
+            self.entry.data.get(CONF_ADVANCED_MODE, False)
+        )
 
     def _rebuild_runtime(self) -> None:
         configured_room_ids: set[str] = set()
@@ -1887,10 +1892,28 @@ class SmartShadingEngine:
         if unsub:
             unsub()
 
-    def _sector_sun_pass(self, sector: dict[str, Any]) -> bool:
-        if not sector.get("lux_sensor"):
-            return True
-        return self.sun_runtime[sector["id"]].is_on
+    def _sector_sun_confirmation(
+        self, sector: dict[str, Any]
+    ) -> tuple[bool, str, str | None, bool | None]:
+        """Resolve the configured facade confirmation for full control.
+
+        An explicit binary source has priority. If it is unavailable, Lux is
+        used when configured; otherwise sun geometry remains sufficient.
+        """
+        binary_entity = str(sector.get(CONF_SUN_PRESENCE_ENTITY, "") or "")
+        if binary_entity:
+            state = self.hass.states.get(binary_entity)
+            value = str(getattr(state, "state", "") or "").lower()
+            if value == STATE_ON:
+                return True, "binary", binary_entity, True
+            if value == STATE_OFF:
+                return False, "binary", binary_entity, False
+
+        lux_entity = str(sector.get("lux_sensor", "") or "")
+        if lux_entity:
+            active = bool(self.sun_runtime[sector["id"]].is_on)
+            return active, "lux", lux_entity, active
+        return True, "geometry", None, None
 
     def _easy_weather_confirmation(self) -> tuple[bool | None, str | None]:
         """Return a conservative weather confirmation for Easy Mode."""
@@ -2553,13 +2576,12 @@ class SmartShadingEngine:
                 )
             )
             sector_runtime.geometry_active = geometry
-            sun_pass = self._sector_sun_pass(sector)
-            lux_sensor = str(sector.get("lux_sensor") or "")
-            sector_runtime.confirmation_source = "lux" if lux_sensor else "geometry"
-            sector_runtime.confirmation_entity = lux_sensor or None
-            sector_runtime.confirmation_state = (
-                bool(sector_runtime.is_on) if lux_sensor else None
+            sun_pass, confirmation_source, confirmation_entity, confirmation_state = (
+                self._sector_sun_confirmation(sector)
             )
+            sector_runtime.confirmation_source = confirmation_source
+            sector_runtime.confirmation_entity = confirmation_entity
+            sector_runtime.confirmation_state = confirmation_state
             sector_runtime.effective_active = bool(geometry and sun_pass)
             if not sun_up:
                 sector_runtime.status = "sun_below_horizon"
@@ -2567,9 +2589,15 @@ class SmartShadingEngine:
             elif not geometry:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun outside this sector"
-            elif sector.get("lux_sensor") and not sun_pass:
+            elif confirmation_source != "geometry" and not sun_pass:
+                # Keep the established status key; the customer label already
+                # reads "Waiting for Sun Presence" for Lux and binary sources.
                 sector_runtime.status = "waiting_for_lux"
-                sector_runtime.status_reason = sector_runtime.reason
+                sector_runtime.status_reason = (
+                    "External sun confirmation is off"
+                    if confirmation_source == "binary"
+                    else sector_runtime.reason
+                )
             else:
                 sector_runtime.status = "sun_detected"
                 sector_runtime.status_reason = "Sun detected in sector"
