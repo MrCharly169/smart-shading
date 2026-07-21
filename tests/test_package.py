@@ -368,7 +368,11 @@ class PackageTests(unittest.TestCase):
             "room_hub",
             "manage_room", "add_sector_flat", "manage_sector",
             "add_layer_flat", "manage_layer", "add_covers_flat",
-            "manage_cover",
+            "manage_cover", "sector_hub", "group_hub", "cover_hub",
+            "manage_room_details", "manage_room_maintenance",
+            "manage_automation", "manage_night", "manage_pause",
+            "manage_conditions", "choose_sector_for_group",
+            "choose_group_for_covers",
         }
         for language in ("de", "en"):
             data = json.loads(
@@ -386,6 +390,58 @@ class PackageTests(unittest.TestCase):
                 "cannot_delete_last_cover",
             ):
                 self.assertIn(error, data["options"]["error"])
+
+    def test_initial_setup_offers_complete_features_in_safe_order(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        cover = flow.index("async def async_step_compact_cover_details")
+        night = flow.index("async def async_step_initial_night_setup")
+        pause = flow.index("async def async_step_initial_pause_setup")
+        conditions = flow.index("async def async_step_initial_conditions_setup")
+        finish = flow.index("async def async_step_finish", conditions)
+        self.assertLess(cover, night)
+        self.assertLess(night, pause)
+        self.assertLess(pause, conditions)
+        self.assertLess(conditions, finish)
+        initial_cover = flow[cover:night]
+        for field in ("lock", "window", "invert_position", "invert_tilt"):
+            self.assertIn(f'"{field}"', initial_cover)
+        room_setup = flow[
+            flow.index("async def async_step_room_setup"):
+            flow.index("async def async_step_add_room", flow.index("async def async_step_room_setup"))
+        ]
+        self.assertNotIn('vol.Required("default_pause_mode"', room_setup)
+        self.assertIn("async_step_compact_cover_details", room_setup)
+
+    def test_customer_navigation_uses_task_categories(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        options = flow[flow.index("class SmartShadingOptionsFlow"):]
+        hub = options[
+            options.index("async def async_step_room_hub"):
+            options.index("async def async_step_manage_room_details")
+        ]
+        for builder in (
+            "build_room_routes", "build_sector_routes", "build_group_routes",
+            "build_cover_routes",
+        ):
+            self.assertIn(builder, options)
+        self.assertNotIn("for sector in room.get", hub)
+        self.assertIn("full=self.advanced_mode", hub)
+
+    def test_external_sun_confirmation_is_unambiguous(self):
+        for language, expected in (
+            ("en", "External sun confirmation (optional)"),
+            ("de", "Externe Sonnenbestätigung (optional)"),
+        ):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for section, step in (("config", "room_setup"), ("options", "manage_sector")):
+                groups = data[section]["step"][step].get("sections", {})
+                sun = groups["sun_control" if step == "room_setup" else "sun_confirmation"]
+                self.assertEqual(sun["data"]["sun_presence_entity"], expected)
+                self.assertIn("Lux", sun["data_description"]["lux_sensor"])
 
     def test_card_editor_initializes_config_and_emits_changes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
