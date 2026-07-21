@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from copy import deepcopy
+from enum import IntFlag
 import sys
 import types
 from pathlib import Path
@@ -14,6 +15,14 @@ COMP = ROOT / "custom_components" / "smart_shading"
 
 def _install_ha_stubs() -> None:
     ha = types.ModuleType("homeassistant")
+    components_mod = types.ModuleType("homeassistant.components")
+    cover_mod = types.ModuleType("homeassistant.components.cover")
+
+    class CoverEntityFeature(IntFlag):
+        SET_POSITION = 4
+        SET_TILT_POSITION = 128
+
+    cover_mod.CoverEntityFeature = CoverEntityFeature
     const_mod = types.ModuleType("homeassistant.const")
     const_mod.STATE_ON = "on"
     const_mod.STATE_OFF = "off"
@@ -55,6 +64,8 @@ def _install_ha_stubs() -> None:
     sys.modules.update(
         {
             "homeassistant": ha,
+            "homeassistant.components": components_mod,
+            "homeassistant.components.cover": cover_mod,
             "homeassistant.const": const_mod,
             "homeassistant.core": core_mod,
             "homeassistant.helpers": helpers,
@@ -251,6 +262,74 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             for call in self.hass.services.calls
             if call[0:2] == ("persistent_notification", service)
         ]
+
+    async def test_optional_maximum_opening_corrects_only_real_violations(self):
+        layer = self.engine.config["rooms"][0]["sectors"][0]["layers"][0]
+        cover = layer["covers"][0]
+        layer["position_tolerance"] = 5
+        cover["enforce_max_open_position"] = True
+        cover["max_open_position"] = 90
+        violating = FakeState(
+            "open", current_position=96, supported_features=4
+        )
+
+        self.assertTrue(
+            await self.engine._async_enforce_cover_maximum(
+                "cover.one", violating
+            )
+        )
+        correction_calls = [
+            call
+            for call in self.hass.services.calls
+            if call[0:2] == ("cover", "set_cover_position")
+        ]
+        self.assertEqual(len(correction_calls), 1)
+        self.assertEqual(correction_calls[0][2]["position"], 90)
+
+        # The 90-second internal cooldown acknowledges the still-violating
+        # feedback without sending the identical command again.
+        self.assertTrue(
+            await self.engine._async_enforce_cover_maximum(
+                "cover.one", violating
+            )
+        )
+        self.assertEqual(
+            len(
+                [
+                    call
+                    for call in self.hass.services.calls
+                    if call[0:2] == ("cover", "set_cover_position")
+                ]
+            ),
+            1,
+        )
+        self.assertFalse(
+            await self.engine._async_enforce_cover_maximum(
+                "cover.one",
+                FakeState("open", current_position=95, supported_features=4),
+            )
+        )
+
+    async def test_safety_has_priority_over_optional_maximum_opening(self):
+        room = self.engine.config["rooms"][0]
+        cover = room["sectors"][0]["layers"][0]["covers"][0]
+        cover["enforce_max_open_position"] = True
+        cover["max_open_position"] = 90
+        room["safety_blockers"] = ["binary_sensor.wind"]
+        self.hass.states.values["binary_sensor.wind"] = FakeState("on")
+
+        self.assertFalse(
+            await self.engine._async_enforce_cover_maximum(
+                "cover.one",
+                FakeState("open", current_position=100, supported_features=4),
+            )
+        )
+        self.assertFalse(
+            any(
+                call[0:2] == ("cover", "set_cover_position")
+                for call in self.hass.services.calls
+            )
+        )
 
     async def test_card_notification_is_created_once_for_a_new_room(self):
         registry = FakeEntityRegistry({
@@ -677,7 +756,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     self.hass, FakeEntry(config)
                 )
                 await engine.async_initialize()
-                engine._evening_release_reached = lambda _now: False
+                engine._evening_release_reached = lambda _room, _now: False
 
                 await engine.async_evaluate_all(f"advanced_{unit}_below_heat")
                 self.assertNotEqual(engine.rooms["room"].mode, "heat")
@@ -1437,7 +1516,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_initialize()
         # Heat behavior tests must not depend on the UTC time at which CI runs.
         # The dedicated evening-release test overrides this with ``True``.
-        engine._evening_release_reached = lambda now: False
+        engine._evening_release_reached = lambda _room, _now: False
         return engine, engine.room_config("room")
 
     async def test_heat_requires_room_sun_presence(self):
@@ -1553,6 +1632,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         engine, room = await self._make_heat_engine()
         now = datetime.now(timezone.utc)
         room.update({
+            "schedule_enabled": True,
             "active_months": [1 if now.month != 1 else 2],
             "heat_outside_schedule": False,
         })
@@ -1563,7 +1643,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_evening_release_finishes_heat_for_the_day(self):
         engine, _ = await self._make_heat_engine()
         self.hass.states.values["sensor.lux"] = FakeState("20000", unit_of_measurement="lx")
-        engine._evening_release_reached = lambda now: True
+        engine._evening_release_reached = lambda _room, _now: True
         await engine.async_evaluate_all("test_evening_release")
         self.assertFalse(engine.rooms["room"].heat_active)
         self.assertTrue(engine.rooms["room"].finished_today)

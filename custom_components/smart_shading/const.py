@@ -28,8 +28,8 @@ CONF_SUN_PRESENCE_ENTITY = "sun_presence_entity"
 CONF_ROOMS = "rooms"
 
 DEFAULT_EVALUATION_INTERVAL = 1200
-DEFAULT_POSITION_TOLERANCE = 2.0
-DEFAULT_TILT_TOLERANCE = 3.0
+DEFAULT_POSITION_TOLERANCE = 5.0
+DEFAULT_TILT_TOLERANCE = 5.0
 DEFAULT_COMMAND_COOLDOWN = 90
 DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False
 DEFAULT_EVENING_RELEASE_TIME = "18:00:00"
@@ -178,6 +178,8 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": True,
         "adaptive_tilt": True,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
+        "tilt_tolerance": DEFAULT_TILT_TOLERANCE,
         "tilt_preset": TILT_PRESET_BALANCED,
         "open_position": 100.0,
         "open_tilt": 0.0,
@@ -199,6 +201,7 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": False,
         "adaptive_tilt": False,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
         "open_position": 100.0,
         "comfort_position": 65.0,
         "solar_position": 25.0,
@@ -210,6 +213,7 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": False,
         "adaptive_tilt": False,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
         "open_position": 100.0,
         "comfort_position": 60.0,
         "solar_position": 15.0,
@@ -221,6 +225,7 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": False,
         "adaptive_tilt": False,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
         "open_position": 100.0,
         "comfort_position": 60.0,
         "solar_position": 30.0,
@@ -234,6 +239,8 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": True,
         "adaptive_tilt": True,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
+        "tilt_tolerance": DEFAULT_TILT_TOLERANCE,
         "tilt_preset": TILT_PRESET_BALANCED,
         "open_position": 100.0,
         "open_tilt": 0.0,
@@ -253,6 +260,7 @@ PROFILE_DEFAULTS = {
         "supports_position": True,
         "supports_tilt": False,
         "adaptive_tilt": False,
+        "position_tolerance": DEFAULT_POSITION_TOLERANCE,
         # For an awning, closed/retracted is the neutral and safety position.
         "open_position": 0.0,
         "comfort_position": 60.0,
@@ -351,7 +359,11 @@ def profile_uses_exterior_safety(profile: str) -> bool:
 
 
 def profile_target_keys(
-    profile: str, *, indoor_temperature: bool = True, night: bool = True
+    profile: str,
+    *,
+    indoor_temperature: bool = True,
+    night: bool = True,
+    safety: bool = True,
 ) -> tuple[str, ...]:
     """Return only target settings that can be reached in this room."""
     keys = PROFILE_TARGET_KEYS.get(profile, PROFILE_TARGET_KEYS[DEVICE_VENETIAN])
@@ -360,6 +372,7 @@ def profile_target_keys(
         for key in keys
         if (indoor_temperature or not key.startswith("heat_"))
         and (night or not key.startswith("night_"))
+        and (safety or not key.startswith("safety_"))
     )
 
 SCHEDULE_YEAR_ROUND = "year_round"
@@ -407,8 +420,11 @@ ROOM_DEFAULTS = {
     "weather_logic": "all",
     "heat_ignores_weather": True,
     "heat_requires_sun": True,
+    "evening_release_time": DEFAULT_EVENING_RELEASE_TIME,
+    "sunset_offset_minutes": DEFAULT_SUNSET_OFFSET_MINUTES,
     "comfort_requires_occupancy": False,
     "safety_behavior": "move_safe",
+    "schedule_enabled": False,
     "schedule_profile": SCHEDULE_YEAR_ROUND,
     "active_months": list(range(1, 13)),
     "active_weekdays": list(range(7)),

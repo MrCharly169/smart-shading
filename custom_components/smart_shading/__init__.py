@@ -14,12 +14,13 @@ from .const import (
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_SUN_PRESENCE_ENTITY,
-    CONF_WEATHER_ENTITY,
     CONF_ROOMS,
     CONF_TEST_MODE,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DAY_WINDOW_ALL_DAY,
     DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_EVENING_RELEASE_TIME,
+    DEFAULT_SUNSET_OFFSET_MINUTES,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DOMAIN,
     PLATFORMS,
@@ -57,7 +58,20 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     )
     result.pop(CONF_TEST_MODE, None)
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
-    result.setdefault(CONF_WEATHER_ENTITY, "")
+    result.pop("weather_entity", None)
+    legacy_evening_release = result.pop(
+        "evening_release_time", DEFAULT_EVENING_RELEASE_TIME
+    )
+    legacy_sunset_offset = result.pop(
+        "sunset_offset_minutes", DEFAULT_SUNSET_OFFSET_MINUTES
+    )
+    for obsolete in (
+        "position_tolerance",
+        "tilt_tolerance",
+        "command_cooldown",
+        "unknown_feedback_policy",
+    ):
+        result.pop(obsolete, None)
     # An obsolete pre-V4 curve after conversion to the KNX slat scale.
     old_curve = [(10.0, 10.0), (20.0, 50.0), (40.0, 85.0), (60.0, 90.0)]
 
@@ -71,6 +85,20 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             room.pop(obsolete, None)
         if room.get("day_window") == "sector_sun":
             room["day_window"] = DAY_WINDOW_ALL_DAY
+        if "schedule_enabled" not in room:
+            room["schedule_enabled"] = bool(
+                room.get("schedule_profile", "year_round") != "year_round"
+                or room.get("day_window", DAY_WINDOW_ALL_DAY)
+                != DAY_WINDOW_ALL_DAY
+                or list(room.get("active_months", range(1, 13)))
+                != list(range(1, 13))
+                or list(room.get("active_weekdays", range(7)))
+                != list(range(7))
+            )
+        if "evening_release_time" not in room:
+            room["evening_release_time"] = legacy_evening_release
+        if "sunset_offset_minutes" not in room:
+            room["sunset_offset_minutes"] = legacy_sunset_offset
         for key, value in ROOM_DEFAULTS.items():
             room.setdefault(key, deepcopy(value))
         room.setdefault("normal_shading_temperature", room.get("comfort_temperature", 23.5))
@@ -156,10 +184,12 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                     cover.setdefault("invert_position", False)
                     cover.setdefault("invert_tilt", False)
                     cover.setdefault("max_open_position", 100.0)
+                    cover.setdefault("enforce_max_open_position", False)
                     if not profile_supports_tilt(profile):
                         cover["invert_tilt"] = False
                     if not profile_supports_position(profile):
                         cover["max_open_position"] = 100.0
+                        cover["enforce_max_open_position"] = False
         room_profiles = {
             str(layer.get("profile", "venetian"))
             for sector in room.get("sectors", [])

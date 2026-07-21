@@ -110,6 +110,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                     profile,
                     indoor_temperature=bool(room.get("indoor_temperature")),
                     night=bool(room.get("night_enabled", False)),
+                    safety=bool(room.get("safety_blockers")),
                 )
                 for key in keys:
                     name, icon = TARGET_METADATA[key]
