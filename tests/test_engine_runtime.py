@@ -1482,6 +1482,25 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_evaluate_all("second_morning")
         self.assertEqual(engine.rooms["room"].pause_mode, "manual")
 
+    async def test_unavailable_night_pause_falls_back_to_next_morning(self):
+        config = base_config()
+        room = config["rooms"][0]
+        room.update({
+            "night_enabled": True,
+            "night_source": "entity",
+            "night_entity": "schedule.night",
+        })
+        self.hass.states.values["schedule.night"] = FakeState("unavailable")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_set_pause_mode("room", "next_night_end")
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.pause_mode, "next_sunrise")
+        self.assertIsNotNone(runtime.pause_until)
+        self.assertFalse(runtime.pause_waiting_for_night)
+
     async def test_room_sun_transition_triggers_immediate_heat_evaluation(self):
         engine, _ = await self._make_heat_engine()
         self.hass.states.values["sensor.lux"] = FakeState("1000", unit_of_measurement="lx")
