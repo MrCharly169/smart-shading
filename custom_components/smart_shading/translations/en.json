@@ -288,10 +288,9 @@
       },
       "init": {
         "title": "Manage Smart Shading",
-        "description": "Customer menus show only necessary choices. Technical values are grouped under Advanced settings.",
+        "description": "Select a room to manage it. This overview contains only rooms and house-wide actions.",
         "menu_options": {
           "add_room": "Add room",
-          "select_room": "Manage room",
           "global_settings": "Advanced house settings",
           "finish": "Save changes and reload"
         }
@@ -946,39 +945,15 @@
           }
         }
       },
-      "room_settings": {
-        "title": "Edit room",
-        "description": "All settings for the selected room are kept on this single editor level. Numbered sector, group and cover fields belong to the corresponding configured item.",
-        "data": {
-          "name": "Room name",
-          "delete_room": "Delete this room",
-          "weather_entity": "Weather entity",
-          "easy_temperature_gate": "Use outdoor temperature gate",
-          "indoor_temperature": "Indoor temperature",
-          "outdoor_temperature": "Outdoor temperature",
-          "outdoor_minimum": "Minimum outdoor temperature",
-          "safety_blockers": "Safety conditions",
-          "schedule_profile": "Activity profile",
-          "default_pause_mode": "Default pause action",
-          "heat_during_pause": "Allow heat protection during pause",
-          "external_movement_detection": "Pause after confirmed external cover movement",
-          "night_enabled": "Enable Night Mode",
-          "night_source": "Night source",
-          "night_entity": "Night schedule or on/off entity",
-          "night_morning_transition_minutes": "Morning transition window",
-          "night_evening_transition_minutes": "Evening transition window"
-        },
-        "data_description": {
-          "delete_room": "The room is removed after saving this page.",
-          "weather_entity": "Optional weather source for normal shading.",
-          "easy_temperature_gate": "Easy Mode only: require the selected outdoor sensor to reach the minimum.",
-          "outdoor_temperature": "Optional temperature source; leave empty if unused.",
-          "outdoor_minimum": "Minimum outdoor temperature for normal shading.",
-          "external_movement_detection": "Advanced Mode only. Requires reliable numeric position or tilt feedback."
+      "room_hub": {
+        "title": "Room · {room_name}",
+        "description": "Manage this room only. Each choice opens its complete, sectioned form directly; Back returns to the room list.",
+        "menu_options": {
+          "back_to_overview": "Back to room list"
         }
       },
       "manage_room": {
-        "title": "Room settings",
+        "title": "{room_name} · Room settings",
         "description": "Only settings available in the selected Easy or Advanced mode are shown. All groups below stay on this single page.",
         "sections": {
           "room_basics": {
@@ -1132,7 +1107,7 @@
         }
       },
       "manage_sector": {
-        "title": "Sun sector settings",
+        "title": "{room_name} · Sun sector · {sector_name}",
         "description": "The facade direction defines active sun geometry. Easy optionally uses Lux or an on/off entity; Advanced optionally uses Lux.",
         "sections": {
           "sector_identity": {
@@ -1188,7 +1163,7 @@
         }
       },
       "add_sector_flat": {
-        "title": "Add sun sector",
+        "title": "{room_name} · Add sun sector",
         "description": "Create a complete sector with its first cover group in one step.",
         "sections": {
           "sector_identity": {
@@ -1230,7 +1205,7 @@
         }
       },
       "manage_layer": {
-        "title": "Cover group settings",
+        "title": "{room_name} · Cover group · {group_name}",
         "description": "A group contains covers with the same physical behavior and target positions.",
         "sections": {
           "group_identity": {
@@ -1314,7 +1289,7 @@
         }
       },
       "add_layer_flat": {
-        "title": "Add cover group",
+        "title": "{room_name} · Add cover group to {sector_name}",
         "description": "Create a group and assign all matching covers at once.",
         "data": {
           "name": "Group name",
@@ -1330,7 +1305,7 @@
         }
       },
       "manage_cover": {
-        "title": "Cover settings",
+        "title": "{room_name} · Cover · {cover_name}",
         "description": "Easy Mode shows names only. Advanced Mode adds safety, Manual Entity and inversion settings.",
         "sections": {
           "cover_identity": {
@@ -1380,8 +1355,8 @@
         }
       },
       "add_covers_flat": {
-        "title": "Add covers",
-        "description": "Select unassigned covers. Names can be refined afterwards from the main overview.",
+        "title": "{room_name} · Add covers to {group_name}",
+        "description": "Select unassigned covers. Their names can be refined afterwards inside this room.",
         "data": {
           "cover_entities": "Covers"
         },

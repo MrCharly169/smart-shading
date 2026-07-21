@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Setup navigation
+
+- replaced the flattened options overview with one entry per room plus house-wide actions
+- added one room-scoped submenu that keeps sectors, cover groups, covers, and add actions inside their owning room
+- kept every object editor as a directly opened, sectioned form with contextual English and German titles and help text
+- return to the selected room after saving a room object instead of jumping back to the house overview
+- added navigation regressions proving that sectors, groups, and covers can never leak into the root menu again
+
 
 ## 4.6.2-beta.0 - 2026-07-20
 
