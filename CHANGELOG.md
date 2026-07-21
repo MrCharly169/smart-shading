@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.5 - 2026-07-21
+
 ### Logical setup profiles
 
 - made the selected physical cover type the shared capability contract for the
@@ -18,6 +21,7 @@
   sources, custom Easy thresholds and profile-incompatible settings
 - expanded the German and English setup guidance and recorded the reviewed
   wizard contract for future regressions
+
 
 ## 4.6.2-beta.4 - 2026-07-21
 
