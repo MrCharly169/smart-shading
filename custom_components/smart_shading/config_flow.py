@@ -344,6 +344,12 @@ class _SmartShadingWizardMixin:
 
     @property
     def advanced_mode(self) -> bool:
+        # The product selected during initial setup is immutable.  Options may
+        # contain stale values from older betas, but they must never switch an
+        # existing Easy installation into the complete product (or vice versa).
+        locked = getattr(self, "_locked_advanced_mode", None)
+        if locked is not None:
+            return bool(locked)
         return bool(self._working.get(CONF_ADVANCED_MODE, False))
 
     _STEP_PROGRESS = {
@@ -488,6 +494,8 @@ class _SmartShadingWizardMixin:
     ) -> ConfigFlowResult:
         if user_input is not None:
             values = dict(user_input)
+            # Mode selection belongs exclusively to the first setup screen.
+            values.pop(CONF_ADVANCED_MODE, None)
             # Weather is an Easy Mode refinement.  It remains stored while
             # Advanced Mode is selected, but only an Easy form may change or
             # clear it.
@@ -499,13 +507,12 @@ class _SmartShadingWizardMixin:
                 interval_minutes = float(values.pop("evaluation_interval_minutes"))
                 values[CONF_EVALUATION_INTERVAL] = max(60, int(interval_minutes * 60))
             self._working.update(values)
-            if not bool(self._working.get(CONF_ADVANCED_MODE, False)):
+            self._working[CONF_ADVANCED_MODE] = self.advanced_mode
+            if not self.advanced_mode:
                 self._working[CONF_DIAGNOSTIC_LEVEL] = "off"
                 self._working[CONF_TEST_MODE] = False
             return await self.async_step_init()
-        fields: dict[Any, Any] = {
-            vol.Required(CONF_ADVANCED_MODE): selector.BooleanSelector(),
-        }
+        fields: dict[Any, Any] = {}
         if not self.advanced_mode:
             fields[vol.Optional(CONF_WEATHER_ENTITY)] = _entity("weather")
         if self.advanced_mode:
@@ -850,7 +857,7 @@ class _SmartShadingWizardMixin:
         assert self._pending_sector is not None
         errors: dict[str, str] = {}
         if user_input is not None:
-            if not self.advanced_mode and user_input.get("lux_sensor") and user_input.get(
+            if user_input.get("lux_sensor") and user_input.get(
                 CONF_SUN_PRESENCE_ENTITY
             ):
                 errors["base"] = "choose_one_sun_confirmation"
@@ -869,10 +876,9 @@ class _SmartShadingWizardMixin:
                 SUN_PRESET_OPTIONS, "sun_preset"
             ),
         }
-        if not self.advanced_mode:
-            fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
-                ["binary_sensor", "input_boolean", "switch"]
-            )
+        fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+            ["binary_sensor", "input_boolean", "switch"]
+        )
         return self.async_show_form(
             step_id="sector_lux",
             data_schema=vol.Schema(fields),
@@ -1894,7 +1900,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 13
+    VERSION = 14
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -1924,6 +1930,7 @@ class SmartShadingConfigFlow(
                     "sunset_offset_minutes": DEFAULT_SUNSET_OFFSET_MINUTES,
                     CONF_ROOMS: [],
                 }
+                self._locked_advanced_mode = user_input["setup_type"] == "complete"
                 self._room_id = None
                 self._sector_id = None
                 self._layer_id = None
@@ -1960,7 +1967,7 @@ class SmartShadingConfigFlow(
             entities = list(user_input.get("cover_entities", []))
             if not entities:
                 errors["base"] = "select_at_least_one"
-            elif not self.advanced_mode and user_input.get("lux_sensor") and user_input.get(
+            elif user_input.get("lux_sensor") and user_input.get(
                 CONF_SUN_PRESENCE_ENTITY
             ):
                 errors["base"] = "choose_one_sun_confirmation"
@@ -1980,10 +1987,8 @@ class SmartShadingConfigFlow(
                 sector["id"] = _new_id(sector["name"])
                 sector["direction"] = direction
                 sector["lux_sensor"] = user_input.get("lux_sensor", "")
-                sector[CONF_SUN_PRESENCE_ENTITY] = (
-                    user_input.get(CONF_SUN_PRESENCE_ENTITY, "")
-                    if not self.advanced_mode
-                    else ""
+                sector[CONF_SUN_PRESENCE_ENTITY] = user_input.get(
+                    CONF_SUN_PRESENCE_ENTITY, ""
                 )
                 sector["sun_preset"] = user_input.get(
                     "sun_preset", PRESET_MEDIUM
@@ -2086,10 +2091,9 @@ class SmartShadingConfigFlow(
                 ["low", "medium", "high"], "sun_preset"
             ),
         }
-        if not self.advanced_mode:
-            sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
-                ["binary_sensor", "input_boolean", "switch"]
-            )
+        sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+            ["binary_sensor", "input_boolean", "switch"]
+        )
         optional_fields: dict[Any, Any] = {
             vol.Optional(CONF_WEATHER_ENTITY): _entity("weather"),
             vol.Required(
@@ -2614,9 +2618,13 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if not hasattr(self, "_working") or not self._working:
+            self._locked_advanced_mode = bool(
+                self.config_entry.data.get(CONF_ADVANCED_MODE, False)
+            )
             self._working = deepcopy(
                 {**self.config_entry.data, **self.config_entry.options}
             )
+            self._working[CONF_ADVANCED_MODE] = self._locked_advanced_mode
             self._working.setdefault(CONF_ROOMS, [])
             self._working.setdefault(CONF_ADVANCED_MODE, False)
             self._working.setdefault(
@@ -3274,8 +3282,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     ]
                     return await self.async_step_sector_hub()
             if (
-                not self.advanced_mode
-                and values.get("lux_sensor")
+                values.get("lux_sensor")
                 and values.get(CONF_SUN_PRESENCE_ENTITY)
             ):
                 errors["base"] = "choose_one_sun_confirmation"
@@ -3297,10 +3304,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     "name": str(values.get("name") or sector.get("name", "Sun sector")),
                     "short": str(values.get("short") or sector.get("short", "S")).upper(),
                     "lux_sensor": values.get("lux_sensor", ""),
-                    CONF_SUN_PRESENCE_ENTITY: (
-                        values.get(CONF_SUN_PRESENCE_ENTITY, "")
-                        if not self.advanced_mode
-                        else ""
+                    CONF_SUN_PRESENCE_ENTITY: values.get(
+                        CONF_SUN_PRESENCE_ENTITY, ""
                     ),
                     "sun_preset": values.get("sun_preset", PRESET_MEDIUM),
                 })
@@ -3349,11 +3354,10 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 vol.Required("sun_on_delay", default=sector.get("sun_on_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_on_delay"])): _number(0, 60, 0.5, "min"),
                 vol.Required("sun_off_delay", default=sector.get("sun_off_delay", SUN_PRESETS[PRESET_MEDIUM]["sun_off_delay"])): _number(0, 120, 0.5, "min"),
             })
-        if not self.advanced_mode:
-            confirmation[_optional_marker(
-                CONF_SUN_PRESENCE_ENTITY,
-                sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
-            )] = _entity(["binary_sensor", "input_boolean", "switch"])
+        confirmation[_optional_marker(
+            CONF_SUN_PRESENCE_ENTITY,
+            sector.get(CONF_SUN_PRESENCE_ENTITY, ""),
+        )] = _entity(["binary_sensor", "input_boolean", "switch"])
         schema = vol.Schema({
             vol.Required("sector_identity"): section(vol.Schema(identity), {"collapsed": False}),
             vol.Required("sun_confirmation"): section(vol.Schema(confirmation), {"collapsed": True}),
@@ -3374,8 +3378,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         if user_input is not None:
             values = _flatten_sections(user_input)
             if (
-                not self.advanced_mode
-                and values.get("lux_sensor")
+                values.get("lux_sensor")
                 and values.get(CONF_SUN_PRESENCE_ENTITY)
             ):
                 errors["base"] = "choose_one_sun_confirmation"
@@ -3388,10 +3391,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     "name": str(values.get("name") or sector["name"]),
                     "short": str(values.get("short") or sector["short"]).upper(),
                     "lux_sensor": values.get("lux_sensor", ""),
-                    CONF_SUN_PRESENCE_ENTITY: (
-                        values.get(CONF_SUN_PRESENCE_ENTITY, "")
-                        if not self.advanced_mode
-                        else ""
+                    CONF_SUN_PRESENCE_ENTITY: values.get(
+                        CONF_SUN_PRESENCE_ENTITY, ""
                     ),
                     "sun_preset": values.get("sun_preset", PRESET_MEDIUM),
                     "layers": [],
@@ -3419,10 +3420,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 ["low", "medium", "high"], "sun_preset"
             ),
         }
-        if not self.advanced_mode:
-            sector_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
-                ["binary_sensor", "input_boolean", "switch"]
-            )
+        sector_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+            ["binary_sensor", "input_boolean", "switch"]
+        )
         if self.advanced_mode:
             defaults = DIRECTION_PRESETS["south"]
             sector_fields.update({
@@ -3713,7 +3713,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 errors["base"] = "cover_already_assigned"
             elif not entities:
                 errors["base"] = "select_at_least_one"
-            elif not self.advanced_mode and user_input.get("lux_sensor") and user_input.get(
+            elif user_input.get("lux_sensor") and user_input.get(
                 CONF_SUN_PRESENCE_ENTITY
             ):
                 errors["base"] = "choose_one_sun_confirmation"
@@ -3723,10 +3723,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 sector["id"] = _new_id(sector["name"])
                 sector["direction"] = direction
                 sector["lux_sensor"] = user_input.get("lux_sensor", "")
-                sector[CONF_SUN_PRESENCE_ENTITY] = (
-                    user_input.get(CONF_SUN_PRESENCE_ENTITY, "")
-                    if not self.advanced_mode
-                    else ""
+                sector[CONF_SUN_PRESENCE_ENTITY] = user_input.get(
+                    CONF_SUN_PRESENCE_ENTITY, ""
                 )
                 sector["sun_preset"] = user_input.get(
                     "sun_preset", PRESET_MEDIUM
@@ -3802,10 +3800,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 ["low", "medium", "high"], "sun_preset"
             ),
         }
-        if not self.advanced_mode:
-            sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
-                ["binary_sensor", "input_boolean", "switch"]
-            )
+        sun_fields[vol.Optional(CONF_SUN_PRESENCE_ENTITY)] = _entity(
+            ["binary_sensor", "input_boolean", "switch"]
+        )
         optional_fields: dict[Any, Any] = {
             vol.Required(
                 CONF_EASY_TEMPERATURE_GATE, default=False
