@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.2 - 2026-07-21
+
 ### Customer setup
 
 - replaced the room object tree with task-based Room details, Sun sectors, Cover groups, Individual covers, Automation, Night, Pause, and Safety pages
