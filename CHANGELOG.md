@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.6 - 2026-07-21
+
 ### Initial setup hotfix
 
 - restored the first-room form handler so both Easy and Advanced setup can
