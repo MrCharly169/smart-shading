@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Structured room setup
+
+- replaced the parallel sector, group and individual-cover menus with one
+  sector → group → cover hierarchy in Easy and Advanced mode
+- made new sun sectors and cover groups atomic so they are saved only after a
+  group and at least one cover are assigned
+- removed duplicate Add actions and scoped every cover action to its group
+- moved Lux, external sun confirmation, custom geometry and outdoor-temperature
+  thresholds to focused follow-up pages so Next never reveals a required field
+  farther down the same long form
+
 
 ## 4.6.2-beta.6 - 2026-07-21
 

@@ -61,16 +61,14 @@ class OptionsNavigationTests(unittest.TestCase):
         self.assertEqual(
             [route["action"] for route in routes],
             [
-                "manage_room_details", "sector_hub", "group_hub", "cover_hub",
+                "manage_room_details", "structure_hub",
                 "manage_automation", "manage_night", "manage_pause",
                 "manage_conditions", "manage_room_maintenance",
             ],
         )
         labels = " ".join(route["label"] for route in routes)
         self.assertIn("Room details · Living", labels)
-        self.assertIn("Sun sectors · 1", labels)
-        self.assertIn("Cover groups · 1", labels)
-        self.assertIn("Individual covers · 2", labels)
+        self.assertIn("Shading structure · 1 sectors · 1 groups · 2 covers", labels)
         self.assertNotIn("South / Windows", labels)
 
     def test_simple_room_hides_unavailable_function_categories(self):
@@ -82,27 +80,51 @@ class OptionsNavigationTests(unittest.TestCase):
         ]
         self.assertNotIn("manage_night", actions)
         self.assertNotIn("manage_pause", actions)
-        self.assertEqual(actions[:4], [
-            "manage_room_details", "sector_hub", "group_hub", "cover_hub"
-        ])
-
-    def test_object_categories_have_one_add_action_and_scoped_items(self):
-        sectors = navigation.build_sector_routes(self.rooms[0], german=False)
-        groups = navigation.build_group_routes(self.rooms[0], german=False)
-        covers = navigation.build_cover_routes(self.rooms[0], german=False)
-        self.assertEqual([r["action"] for r in sectors], ["add_sector_flat", "manage_sector", "add_sector_flat"])
-        self.assertEqual([r["action"] for r in groups], ["choose_sector_for_group", "manage_layer", "choose_sector_for_group"])
         self.assertEqual(
-            [r["action"] for r in covers],
-            ["choose_group_for_covers", "manage_cover", "manage_cover", "choose_group_for_covers"],
+            actions,
+            ["manage_room_details", "structure_hub", "manage_room_maintenance"],
         )
-        self.assertTrue(all(r["room_id"] == "living" for r in sectors + groups + covers))
-        self.assertNotIn("placement", sectors[0])
+
+    def test_structure_is_hierarchical_and_each_level_has_one_add_action(self):
+        room = self.rooms[0]
+        sector = room["sectors"][0]
+        layer = sector["layers"][0]
+        structure = navigation.build_structure_routes(room, german=False)
+        sectors = navigation.build_sector_routes(room, sector, german=False)
+        groups = navigation.build_group_routes(
+            room, sector, layer, german=False
+        )
+        self.assertEqual(
+            [r["action"] for r in structure],
+            ["sector_hub", "add_sector_flat"],
+        )
+        self.assertEqual(
+            [r["action"] for r in sectors],
+            [
+                "manage_sector",
+                "manage_sector_source",
+                "group_hub",
+                "add_layer_flat",
+            ],
+        )
+        self.assertEqual(
+            [r["action"] for r in groups],
+            [
+                "manage_layer",
+                "manage_cover",
+                "manage_cover",
+                "add_covers_flat",
+            ],
+        )
+        self.assertTrue(
+            all(
+                route["room_id"] == "living"
+                for route in structure + sectors + groups
+            )
+        )
+        self.assertEqual(structure[-1]["placement"], "bottom")
         self.assertEqual(sectors[-1]["placement"], "bottom")
-        self.assertNotIn("placement", groups[0])
         self.assertEqual(groups[-1]["placement"], "bottom")
-        self.assertNotIn("placement", covers[0])
-        self.assertEqual(covers[-1]["placement"], "bottom")
 
     def test_cover_routes_keep_stable_entity_identity(self):
         routes = navigation.build_cover_routes(self.rooms[0], german=False)
@@ -124,7 +146,7 @@ class OptionsNavigationTests(unittest.TestCase):
         cover_route = next(
             route for route in routes if route["action"] == "manage_cover"
         )
-        self.assertEqual(cover_route["label"], "Cover 1 · Windows")
+        self.assertEqual(cover_route["label"], "Cover 1")
         self.assertNotIn("_", cover_route["label"])
 
     def test_next_night_pause_requires_complete_night_source(self):

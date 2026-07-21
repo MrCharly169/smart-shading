@@ -411,32 +411,46 @@ class WizardRouteContractTests(unittest.TestCase):
             _attribute_calls(first_room_handler),
         )
 
-    def test_object_creation_returns_to_the_list_that_started_it(self):
+    def test_object_creation_is_atomic_and_hierarchically_scoped(self):
         add_sector = _method(
             self.options_flow, "async_step_add_sector_flat"
         )
+        commit_sector = _method(
+            self.options_flow, "async_step_commit_pending_sector"
+        )
         add_group = _method(
             self.options_flow, "async_step_add_layer_flat"
+        )
+        commit_group = _method(
+            self.options_flow, "async_step_commit_pending_layer"
         )
         add_covers = _method(
             self.options_flow, "async_step_add_covers_flat"
         )
         source = FLOW_PATH.read_text(encoding="utf-8")
 
-        self.assertIn(
-            'self._after_sector_step = "sector_hub"',
-            ast.get_source_segment(source, add_sector) or "",
+        add_sector_source = ast.get_source_segment(source, add_sector) or ""
+        self.assertIn("self._pending_sector = sector", add_sector_source)
+        self.assertNotIn('setdefault("sectors", []).append', add_sector_source)
+        self.assertIn("async_step_add_sector_group", add_sector_source)
+
+        commit_sector_source = (
+            ast.get_source_segment(source, commit_sector) or ""
         )
+        self.assertIn('setdefault("sectors", []).append', commit_sector_source)
+        self.assertIn('sector["layers"][0].get("covers")', commit_sector_source)
+
+        add_group_source = ast.get_source_segment(source, add_group) or ""
+        self.assertIn("self._pending_layer = layer", add_group_source)
+        self.assertIn("async_step_add_group_covers", add_group_source)
+        self.assertNotIn('setdefault("layers", []).append', add_group_source)
+
+        commit_group_source = ast.get_source_segment(source, commit_group) or ""
+        self.assertIn('setdefault("layers", []).append', commit_group_source)
+        self.assertIn('layer.get("covers")', commit_group_source)
+
         self.assertIn(
-            "return await self.async_step_group_hub()",
-            ast.get_source_segment(source, add_group) or "",
-        )
-        self.assertNotIn(
-            '"cover_entities"',
-            ast.get_source_segment(source, add_group) or "",
-        )
-        self.assertIn(
-            'self._pending_cover_return_step = "cover_hub"',
+            'self._pending_cover_return_step = "group_hub"',
             ast.get_source_segment(source, add_covers) or "",
         )
 
@@ -492,15 +506,19 @@ class WizardRouteContractTests(unittest.TestCase):
             'sections[vol.Required("temperature_settings")]', source
         )
 
-    def test_dynamic_forms_keep_other_visible_values_before_rerender(self):
+    def test_dynamic_choices_use_focused_follow_up_steps(self):
         source = FLOW_PATH.read_text(encoding="utf-8")
         automation = ast.get_source_segment(
             source,
             _method(self.options_flow, "async_step_manage_automation"),
         ) or ""
-        sector = ast.get_source_segment(
+        sector_source = ast.get_source_segment(
             source,
-            _method(self.options_flow, "async_step_manage_sector"),
+            _method(self.options_flow, "async_step_manage_sector_source"),
+        ) or ""
+        source_details = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_configure_sector_source"),
         ) or ""
         night = ast.get_source_segment(
             source,
@@ -511,11 +529,10 @@ class WizardRouteContractTests(unittest.TestCase):
             automation.index("room.update(values)"),
             automation.index("return await self.async_step_manage_automation()"),
         )
-        source_change = sector[sector.index("selected_source != current_source"):]
-        self.assertLess(
-            source_change.index('sector["name"]'),
-            source_change.index("return await self.async_step_manage_sector()"),
-        )
+        self.assertIn("async_step_configure_sector_source", sector_source)
+        self.assertNotIn("async_step_manage_sector_source()", sector_source)
+        self.assertIn('step_id="configure_sector_source"', source_details)
+        self.assertNotIn("async_step_configure_sector_source()", source_details)
         night_change = night[night.index("source != current_source"):]
         self.assertLess(
             night_change.index('"night_morning_transition_minutes"'),
