@@ -288,10 +288,9 @@
       },
       "init": {
         "title": "Smart Shading verwalten",
-        "description": "Wählen Sie eine Aufgabe. Die kundenfreundlichen Menüs zeigen nur notwendige Entscheidungen; technische Werte liegen unter „Erweiterte Einstellungen“.",
+        "description": "Wählen Sie einen Raum zur Bearbeitung. Diese Übersicht enthält nur Räume und hausweite Aktionen.",
         "menu_options": {
           "add_room": "Raum hinzufügen",
-          "select_room": "Raum verwalten",
           "global_settings": "Erweiterte Hauseinstellungen",
           "finish": "Änderungen speichern und neu laden"
         }
@@ -946,39 +945,15 @@
           }
         }
       },
-      "room_settings": {
-        "title": "Raum bearbeiten",
-        "description": "Alle Einstellungen des gewählten Raums bleiben auf dieser einen Bearbeitungsebene. Nummerierte Sektor-, Gruppen- und Behangfelder gehören zum jeweils konfigurierten Element.",
-        "data": {
-          "name": "Raumname",
-          "delete_room": "Diesen Raum löschen",
-          "weather_entity": "Wetter-Entität",
-          "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
-          "indoor_temperature": "Raumtemperatur",
-          "outdoor_temperature": "Außentemperatur",
-          "outdoor_minimum": "Minimale Außentemperatur",
-          "safety_blockers": "Sicherheitsbedingungen",
-          "schedule_profile": "Aktivitätsprofil",
-          "default_pause_mode": "Standardaktion für Pause",
-          "heat_during_pause": "Heat Protection trotz Pause erlauben",
-          "external_movement_detection": "Nach bestätigter externer Behangfahrt pausieren",
-          "night_enabled": "Nachtfunktion aktivieren",
-          "night_source": "Nachtquelle",
-          "night_entity": "Nacht-Zeitplan oder Ein/Aus-Entität",
-          "night_morning_transition_minutes": "Morgendliches Übergangsfenster",
-          "night_evening_transition_minutes": "Abendliches Übergangsfenster"
-        },
-        "data_description": {
-          "delete_room": "Der Raum wird nach dem Speichern dieser Seite entfernt.",
-          "weather_entity": "Optionale Wetterquelle für normale Beschattung.",
-          "easy_temperature_gate": "Nur Easy Mode: Der Außensensor muss den Mindestwert erreichen.",
-          "outdoor_temperature": "Optionale Temperaturquelle; leer lassen, wenn ungenutzt.",
-          "outdoor_minimum": "Mindesttemperatur für normale Beschattung.",
-          "external_movement_detection": "Nur Advanced Mode. Benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+      "room_hub": {
+        "title": "Raum verwalten",
+        "description": "Hier wird nur dieser Raum verwaltet. Jede Auswahl öffnet direkt das vollständige Formular mit erklärten Bereichen; Zurück führt zur Raumliste.",
+        "menu_options": {
+          "back_to_overview": "Zur Raumliste"
         }
       },
       "manage_room": {
-        "title": "Raumeinstellungen",
+        "title": "{room_name} · Raumeinstellungen",
         "description": "Es werden nur Einstellungen des gewählten Easy- oder Advanced-Modus angezeigt. Alle Gruppen bleiben auf dieser einen Seite.",
         "sections": {
           "room_basics": {
@@ -1132,7 +1107,7 @@
         }
       },
       "manage_sector": {
-        "title": "Sonnensektor einstellen",
+        "title": "{room_name} · Sonnensektor · {sector_name}",
         "description": "Die Fassade bestimmt aktive Sonnengeometrie. Easy nutzt optional Lux oder Ein/Aus, Advanced optional Lux.",
         "sections": {
           "sector_identity": {
@@ -1188,7 +1163,7 @@
         }
       },
       "add_sector_flat": {
-        "title": "Sonnensektor hinzufügen",
+        "title": "{room_name} · Sonnensektor hinzufügen",
         "description": "Erstellen Sie Sektor, erste Behanggruppe und Behänge in einem Schritt.",
         "sections": {
           "sector_identity": {
@@ -1230,7 +1205,7 @@
         }
       },
       "manage_layer": {
-        "title": "Behanggruppe einstellen",
+        "title": "{room_name} · Behanggruppe · {group_name}",
         "description": "Eine Gruppe enthält Behänge mit gleichem physischem Verhalten und gleichen Zielpositionen.",
         "sections": {
           "group_identity": {
@@ -1314,7 +1289,7 @@
         }
       },
       "add_layer_flat": {
-        "title": "Behanggruppe hinzufügen",
+        "title": "{room_name} · Behanggruppe zu {sector_name} hinzufügen",
         "description": "Erstellen Sie eine Gruppe und ordnen Sie alle passenden Behänge gleichzeitig zu.",
         "data": {
           "name": "Gruppenname",
@@ -1330,7 +1305,7 @@
         }
       },
       "manage_cover": {
-        "title": "Behang einstellen",
+        "title": "{room_name} · Behang · {cover_name}",
         "description": "Easy zeigt nur Namen. Advanced ergänzt Safety, Manual Entity und Invertierung.",
         "sections": {
           "cover_identity": {
@@ -1380,8 +1355,8 @@
         }
       },
       "add_covers_flat": {
-        "title": "Behänge hinzufügen",
-        "description": "Wählen Sie noch nicht zugeordnete Behänge. Namen können danach in der Hauptübersicht angepasst werden.",
+        "title": "{room_name} · Behänge zu {group_name} hinzufügen",
+        "description": "Wählen Sie noch nicht zugeordnete Behänge. Die Namen können danach innerhalb dieses Raums angepasst werden.",
         "data": {
           "cover_entities": "Behänge"
         },

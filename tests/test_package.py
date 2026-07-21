@@ -118,8 +118,10 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("_roomSelector(roomState)", card)
         self.assertNotIn('data-toggle="advanced_mode"', card)
         self.assertIn('step_id="room_setup"', flow)
-        self.assertIn('step_id="room_settings"', flow)
         self.assertIn('"async_step_manage_"', flow)
+        self.assertIn("build_main_room_routes", flow)
+        self.assertIn("build_room_routes", flow)
+        self.assertIn("async_step_room_hub", flow)
         self.assertIn('"manage_room"', flow)
         self.assertIn('"manage_sector"', flow)
         self.assertIn('"manage_layer"', flow)
@@ -246,20 +248,17 @@ class PackageTests(unittest.TestCase):
                 self.assertIn("sun_entity", help_text)
                 self.assertIn("unknown_feedback_policy", help_text)
 
-    def test_final_two_level_setup_has_safe_optional_entities(self):
+    def test_reachable_options_forms_have_safe_optional_entities(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        room_settings = flow[flow.index("async def async_step_room_settings"):]
         self.assertIn('vol.Required("room_and_covers"): section(', flow)
         self.assertIn('vol.Required("sun_control"): section(', flow)
         self.assertIn("CONF_SUN_PRESENCE_ENTITY", flow)
         self.assertIn("CONF_WEATHER_ENTITY", flow)
         self.assertIn("CONF_EASY_TEMPERATURE_GATE", flow)
-        self.assertIn("_optional_marker", room_settings)
-        self.assertNotIn("sector.update(self._direction_defaults(direction))", room_settings)
-        self.assertLess(
-            room_settings.index("original_covers = list"),
-            room_settings.index('selected = list(user_input.get('),
-        )
+        options = flow[flow.index("class SmartShadingOptionsFlow"):]
+        for step in ("manage_room", "manage_sector", "manage_cover"):
+            start = options.index(f"async def async_step_{step}")
+            self.assertIn("_optional_marker", options[start:start + 14000])
         for language in ("de", "en"):
             data = json.loads(
                 (COMP / "translations" / f"{language}.json").read_text(
@@ -289,7 +288,10 @@ class PackageTests(unittest.TestCase):
             )
 
     def test_translation_placeholders_are_intentional(self):
-        allowed = {"current", "count", "entity_name"}
+        allowed = {
+            "current", "count", "entity_name", "room_name", "sector_name",
+            "group_name", "cover_name",
+        }
         pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
         for language in ("de", "en"):
             data = json.loads((COMP / "translations" / f"{language}.json").read_text(encoding="utf-8"))
@@ -333,10 +335,25 @@ class PackageTests(unittest.TestCase):
         self.assertIn("dataset.renderCount", card)
         self.assertNotIn("<details", card)
 
-    def test_options_editor_routes_every_item_directly_from_main_menu(self):
+    def test_options_editor_keeps_root_menu_room_only(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         options = flow[flow.index("class SmartShadingOptionsFlow"):]
+        init = options[
+            options.index("async def async_step_init"):
+            options.index("async def async_step_room_hub")
+        ]
         self.assertIn("def _add_option_route", options)
+        self.assertIn("build_main_room_routes", init)
+        self.assertNotIn("for sector in", init)
+        self.assertNotIn("for layer in", init)
+        self.assertNotIn("for cover_index", init)
+
+        hub = options[
+            options.index("async def async_step_room_hub"):
+            options.index("async def async_step_manage_room")
+        ]
+        self.assertIn("build_room_routes", hub)
+        self.assertIn('step_id="room_hub"', hub)
         for action in (
             "manage_room", "add_sector_flat", "manage_sector",
             "add_layer_flat", "manage_layer", "add_covers_flat",
@@ -348,6 +365,7 @@ class PackageTests(unittest.TestCase):
 
     def test_new_options_forms_are_fully_translated_in_en_and_de(self):
         required = {
+            "room_hub",
             "manage_room", "add_sector_flat", "manage_sector",
             "add_layer_flat", "manage_layer", "add_covers_flat",
             "manage_cover",
