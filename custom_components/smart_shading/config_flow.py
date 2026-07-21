@@ -976,6 +976,12 @@ class SmartShadingConfigFlow(
             errors=errors,
         )
 
+    async def async_step_room_setup(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the first-room form rendered after house settings."""
+        return await self._async_step_room_setup(user_input)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:

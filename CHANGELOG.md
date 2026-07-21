@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Initial setup hotfix
+
+- restored the first-room form handler so both Easy and Advanced setup can
+  continue after House settings instead of ending with an invalid flow
+
 
 ## 4.6.2-beta.5 - 2026-07-21
 
