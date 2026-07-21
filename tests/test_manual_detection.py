@@ -837,7 +837,7 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_window_return_can_be_disabled_per_cover(self):
         self.hass.states.values["cover.one"] = FakeState(
-            "open", current_position=90, current_tilt_position=100
+            "open", current_position=80, current_tilt_position=100
         )
         self._configure_window_return(enabled=False)
 
@@ -849,14 +849,14 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.engine._async_state_changed(
             FakeEvent(
                 "cover.one",
-                FakeState("open", current_position=90, current_tilt_position=100),
-                FakeState("opening", current_position=96, current_tilt_position=100),
+                FakeState("open", current_position=80, current_tilt_position=100),
+                FakeState("opening", current_position=90, current_tilt_position=100),
             )
         )
         await self.engine._async_state_changed(
             FakeEvent(
                 "cover.one",
-                FakeState("opening", current_position=96, current_tilt_position=100),
+                FakeState("opening", current_position=90, current_tilt_position=100),
                 FakeState("open", current_position=100, current_tilt_position=100),
             )
         )

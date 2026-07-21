@@ -181,6 +181,22 @@ class PackageTests(unittest.TestCase):
         self.assertFalse(const.profile_uses_exterior_safety(const.DEVICE_CURTAIN))
         self.assertNotIn("safety_position", const.PROFILE_TARGET_KEYS[const.DEVICE_CURTAIN])
         self.assertNotIn("safety_tilt", const.PROFILE_TARGET_KEYS[const.DEVICE_VERTICAL])
+        self.assertNotIn(
+            "night_position",
+            const.profile_target_keys(const.DEVICE_ROLLER, night=False),
+        )
+        self.assertNotIn(
+            "safety_position",
+            const.profile_target_keys(const.DEVICE_ROLLER, safety=False),
+        )
+        for profile in const.POSITION_PROFILES:
+            self.assertEqual(
+                const.PROFILE_DEFAULTS[profile]["position_tolerance"], 5.0
+            )
+        for profile in const.TILT_PROFILES:
+            self.assertEqual(
+                const.PROFILE_DEFAULTS[profile]["tilt_tolerance"], 5.0
+            )
 
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         numbers = (COMP / "number.py").read_text(encoding="utf-8")
@@ -432,7 +448,7 @@ class PackageTests(unittest.TestCase):
                     "data_description"
                 ]
                 self.assertIn("sun_entity", help_text)
-                self.assertIn("unknown_feedback_policy", help_text)
+                self.assertEqual({"sun_entity"}, set(help_text))
                 self.assertNotIn("advanced_mode", help_text)
 
     def test_every_literal_form_field_has_customer_copy(self):
@@ -458,6 +474,7 @@ class PackageTests(unittest.TestCase):
                 fields.add(node.args[0].value)
 
         section_keys = {
+            "room_details", "profile_behavior",
             "room_and_covers", "sun_control", "optional_improvements",
             "advanced_conditions", "schedule_settings", "temperature_settings",
             "sector_identity", "sun_confirmation", "sector_maintenance",
@@ -491,11 +508,10 @@ class PackageTests(unittest.TestCase):
 
     def test_reachable_options_forms_have_safe_optional_entities(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn('vol.Required("room_and_covers"): section(', flow)
-        self.assertIn('vol.Required("sun_control"): section(', flow)
+        self.assertIn('vol.Required("room_details"): section(', flow)
         self.assertIn('vol.Required("sun_source"', flow)
         self.assertIn("CONF_SUN_PRESENCE_ENTITY", flow)
-        self.assertIn("CONF_WEATHER_ENTITY", flow)
+        self.assertNotIn("CONF_WEATHER_ENTITY", flow)
         self.assertNotIn("CONF_EASY_TEMPERATURE_GATE", flow)
         self.assertIn("profile_supports_tilt", flow)
         tree = ast.parse(flow)
@@ -512,13 +528,19 @@ class PackageTests(unittest.TestCase):
             source = ast.get_source_segment(flow, method)
             self.assertIsNotNone(source)
             self.assertIn("_optional_marker", source)
+        source_method = next(
+            node for node in options_class.body
+            if isinstance(node, ast.AsyncFunctionDef)
+            and node.name == "async_step_manage_sector_source"
+        )
+        source_selector = ast.get_source_segment(flow, source_method) or ""
+        self.assertIn('"sun_source", default=current_source', source_selector)
         sector_method = next(
             node for node in options_class.body
             if isinstance(node, ast.AsyncFunctionDef)
-            and node.name == "async_step_manage_sector"
+            and node.name == "async_step_configure_sector_source"
         )
         sector_source = ast.get_source_segment(flow, sector_method) or ""
-        self.assertIn('vol.Required("sun_source"', sector_source)
         self.assertIn('vol.Required(\n                    "lux_sensor"', sector_source)
         self.assertIn("CONF_SUN_PRESENCE_ENTITY", sector_source)
         for language in ("de", "en"):
@@ -527,20 +549,15 @@ class PackageTests(unittest.TestCase):
                     encoding="utf-8"
                 )
             )
-            room_setup = data["config"]["step"]["room_setup"]
-            add_room = data["options"]["step"]["add_room"]
-            for step in (room_setup, add_room):
-                self.assertEqual(
-                    set(step["sections"]),
-                    {
-                        "room_and_covers",
-                        "sun_control",
-                        "optional_improvements",
-                        "advanced_conditions",
-                    },
+            for section in ("config", "options"):
+                self.assertIn(
+                    "room_details",
+                    data[section]["step"]["room_setup"]["sections"],
                 )
-                sun_data = step["sections"]["sun_control"]["data"]
-                self.assertEqual(set(sun_data), {"sun_source"})
+                self.assertIn(
+                    "room_details",
+                    data[section]["step"]["add_room"]["sections"],
+                )
             self.assertIn("sun_source_required", data["config"]["error"])
             self.assertIn("sun_source_required", data["options"]["error"])
 
@@ -1088,8 +1105,12 @@ class PackageTests(unittest.TestCase):
     def test_default_evaluation_interval_is_twenty_minutes(self):
         self.assertEqual(const.DEFAULT_EVALUATION_INTERVAL, 1200)
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
-        self.assertIn('float(self._working.get(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)) / 60', flow)
-        self.assertIn('interval_minutes * 60', flow)
+        self.assertIn(
+            "CONF_EVALUATION_INTERVAL: DEFAULT_EVALUATION_INTERVAL", flow
+        )
+        self.assertNotIn('vol.Required("evaluation_interval_minutes"', flow)
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        self.assertIn("timedelta(seconds=interval)", engine)
 
     def test_card_icons_use_centered_fixed_boxes(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")

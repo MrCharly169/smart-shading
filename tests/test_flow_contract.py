@@ -489,14 +489,32 @@ class WizardRouteContractTests(unittest.TestCase):
                     _async_step_calls(_method(owner, source)),
                 )
 
+        night_source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_night"),
+        ) or ""
+        conditions_source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_conditions"),
+        ) or ""
+        self.assertIn("async_step_initial_night_targets", night_source)
+        self.assertIn("async_step_initial_safety_targets", conditions_source)
+
     def test_schedule_form_hides_fields_until_they_can_take_effect(self):
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
             _method(self.options_flow, "async_step_manage_automation"),
         ) or ""
 
-        self.assertIn("if current_profile == SCHEDULE_CUSTOM:", source)
-        self.assertIn("if current_window == DAY_WINDOW_FIXED:", source)
+        self.assertIn(
+            "if current_schedule_enabled and current_profile == SCHEDULE_CUSTOM:",
+            source,
+        )
+        self.assertIn(
+            "if current_schedule_enabled and current_window == DAY_WINDOW_FIXED:",
+            source,
+        )
+        self.assertIn('"schedule_enabled"', source)
         self.assertIn(
             "current_profile != SCHEDULE_YEAR_ROUND", source
         )

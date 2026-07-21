@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Interactive profile setup
+
+- split Advanced setup into the fixed room → sun sector → cover group/type →
+  tailored profile → covers sequence and removed repeated cover-type choices
+- made schedule, Night, safety, pause and special functions explicitly optional,
+  with Night and safety targets appearing only after the matching function is enabled
+- moved 5% position and slat tolerances into physical group profiles, kept the
+  90-second duplicate-command protection internal and derived missing-feedback
+  behavior from each Home Assistant cover's capabilities
+- reduced House settings to genuine house-wide configuration and moved
+  diagnostics to its own support page and heat release timing into room automation
+- added an opt-in per-cover hard maximum opening under Special functions, with
+  event-driven correction, periodic fallback, safety priority and command cooldown
+- fixed singular cover/group/sector counts and translation placeholders in the
+  structured setup navigation
+
 
 ## 4.6.2-beta.7 - 2026-07-21
 

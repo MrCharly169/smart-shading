@@ -17,6 +17,12 @@ def _counts(room: dict[str, Any]) -> tuple[int, int, int]:
     return len(sectors), len(layers), len(covers)
 
 
+def _cover_count(count: int, *, german: bool) -> str:
+    if german:
+        return f"{count} Behang" if count == 1 else f"{count} Behänge"
+    return f"{count} cover" if count == 1 else f"{count} covers"
+
+
 def build_main_room_routes(
     rooms: list[dict[str, Any]], *, german: bool
 ) -> list[dict[str, Any]]:
@@ -41,11 +47,13 @@ def build_room_routes(
     room_name = _name(room, "Raum" if german else "Room")
     sectors, groups, covers = _counts(room)
     if german:
+        sector_label = f"{sectors} Sektor" if sectors == 1 else f"{sectors} Sektoren"
+        group_label = f"{groups} Gruppe" if groups == 1 else f"{groups} Gruppen"
         labels = [
             (f"Raumdaten · {room_name}", "manage_room_details"),
             (
-                f"Beschattungsstruktur · {sectors} Sektoren · "
-                f"{groups} Gruppen · {covers} Behänge",
+                f"Beschattungsstruktur · {sector_label} · "
+                f"{group_label} · {_cover_count(covers, german=True)}",
                 "structure_hub",
             ),
         ]
@@ -60,11 +68,13 @@ def build_room_routes(
             )
         labels.append(("Raum entfernen", "manage_room_maintenance"))
     else:
+        sector_label = f"{sectors} sector" if sectors == 1 else f"{sectors} sectors"
+        group_label = f"{groups} group" if groups == 1 else f"{groups} groups"
         labels = [
             (f"Room details · {room_name}", "manage_room_details"),
             (
-                f"Shading structure · {sectors} sectors · "
-                f"{groups} groups · {covers} covers",
+                f"Shading structure · {sector_label} · "
+                f"{group_label} · {_cover_count(covers, german=False)}",
                 "structure_hub",
             ),
         ]
@@ -94,11 +104,14 @@ def build_structure_routes(
     for sector in room.get("sectors", []):
         layers = list(sector.get("layers", []))
         cover_count = sum(len(layer.get("covers", [])) for layer in layers)
-        suffix = (
-            f"{len(layers)} Gruppen · {cover_count} Behänge"
-            if german
-            else f"{len(layers)} groups · {cover_count} covers"
+        group_count = len(layers)
+        group_label = (
+            f"{group_count} Gruppe" if german and group_count == 1
+            else f"{group_count} Gruppen" if german
+            else f"{group_count} group" if group_count == 1
+            else f"{group_count} groups"
         )
+        suffix = f"{group_label} · {_cover_count(cover_count, german=german)}"
         routes.append(
             {
                 "label": f"{_name(sector, fallback)} · {suffix}",
@@ -155,7 +168,7 @@ def build_sector_routes(
     group_fallback = "Behanggruppe" if german else "Cover group"
     for layer in sector.get("layers", []):
         count = len(layer.get("covers", []))
-        suffix = f"{count} Behänge" if german else f"{count} covers"
+        suffix = _cover_count(count, german=german)
         routes.append(
             {
                 "label": f"{_name(layer, group_fallback)} · {suffix}",
@@ -186,12 +199,19 @@ def build_group_routes(
     layer_id = layer["id"]
     routes: list[dict[str, Any]] = [
         {
-            "label": "Gruppeneinstellungen" if german else "Group settings",
+            "label": "Gruppe und Behangtyp" if german else "Group and cover type",
             "action": "manage_layer",
             "room_id": room_id,
             "sector_id": sector_id,
             "layer_id": layer_id,
-        }
+        },
+        {
+            "label": "Profileinstellungen" if german else "Profile settings",
+            "action": "manage_layer_profile",
+            "room_id": room_id,
+            "sector_id": sector_id,
+            "layer_id": layer_id,
+        },
     ]
     cover_fallback = "Behang" if german else "Cover"
     for cover_index, cover in enumerate(layer.get("covers", [])):
@@ -199,7 +219,7 @@ def build_group_routes(
         routes.append(
             {
                 "label": cover_name,
-                "action": "manage_cover",
+                "action": "cover_settings_hub",
                 "room_id": room_id,
                 "sector_id": sector_id,
                 "layer_id": layer_id,
@@ -228,7 +248,7 @@ def build_cover_routes(room: dict[str, Any], *, german: bool) -> list[dict[str, 
             routes.extend(
                 route
                 for route in build_group_routes(room, sector, layer, german=german)
-                if route["action"] == "manage_cover"
+                if route["action"] == "cover_settings_hub"
             )
     return routes
 

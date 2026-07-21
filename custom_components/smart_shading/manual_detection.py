@@ -11,8 +11,6 @@ from .const import (
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DEFAULT_EXTERNAL_MOVEMENT_DETECTION,
-    DEFAULT_POSITION_TOLERANCE,
-    DEFAULT_TILT_TOLERANCE,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     WINDOW_POLICY_IGNORE,
 )
@@ -566,12 +564,7 @@ class ManualOverrideDetectionMixin:
         room, cover = match
         new_position = self._state_attribute_number(state, "current_position")
         new_tilt = self._state_attribute_number(state, "current_tilt_position")
-        position_tolerance = float(
-            self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-        )
-        tilt_tolerance = float(
-            self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-        )
+        position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
         position_threshold = max(2.0, position_tolerance)
         tilt_threshold = max(3.0, tilt_tolerance)
 
@@ -836,18 +829,9 @@ class ManualOverrideDetectionMixin:
                 default=None,
             )
         age = (now - latest).total_seconds() if latest is not None else None
-        position_threshold = max(
-            2.0,
-            float(
-                self.config.get(
-                    "position_tolerance", DEFAULT_POSITION_TOLERANCE
-                )
-            ),
-        )
-        tilt_threshold = max(
-            3.0,
-            float(self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)),
-        )
+        position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
+        position_threshold = max(2.0, position_tolerance)
+        tilt_threshold = max(3.0, tilt_tolerance)
 
         raw = classify_cover_feedback(
             old_position=old_position,
@@ -859,12 +843,8 @@ class ManualOverrideDetectionMixin:
             target_position=memory.position if memory else None,
             target_tilt=memory.tilt if memory else None,
             command_age_seconds=age,
-            position_tolerance=float(
-                self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-            ),
-            tilt_tolerance=float(
-                self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-            ),
+            position_tolerance=position_tolerance,
+            tilt_tolerance=tilt_tolerance,
             command_timeout_seconds=180.0,
             position_change_threshold=position_threshold,
             tilt_change_threshold=tilt_threshold,
@@ -876,12 +856,8 @@ class ManualOverrideDetectionMixin:
             new_state=new_value,
             new_position=new_position,
             new_tilt=new_tilt,
-            position_tolerance=float(
-                self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-            ),
-            tilt_tolerance=float(
-                self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-            ),
+            position_tolerance=position_tolerance,
+            tilt_tolerance=tilt_tolerance,
         ):
             self._accept_motion_baseline(
                 observation,

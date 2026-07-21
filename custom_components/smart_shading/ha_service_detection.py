@@ -8,8 +8,6 @@ from homeassistant.const import STATE_ON
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DEFAULT_POSITION_TOLERANCE,
-    DEFAULT_TILT_TOLERANCE,
     PAUSE_MANUAL,
     PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
@@ -87,12 +85,7 @@ class HomeAssistantServiceDetectionMixin:
             return True
         position = self._state_attribute_number(state, "current_position")
         tilt = self._state_attribute_number(state, "current_tilt_position")
-        position_tolerance = float(
-            self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-        )
-        tilt_tolerance = float(
-            self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-        )
+        position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
 
         if service == "set_cover_position":
             target = service_data.get("position")
@@ -330,6 +323,10 @@ class HomeAssistantServiceDetectionMixin:
 
     async def _async_state_changed(self, event) -> None:
         entity_id = str(event.data.get("entity_id") or "")
+        if await self._async_enforce_cover_maximum(
+            entity_id, event.data.get("new_state")
+        ):
+            return
         intents = self._manual_service_intents()
         intent = intents.get(entity_id)
         if intent is not None:

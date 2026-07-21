@@ -68,7 +68,7 @@ class OptionsNavigationTests(unittest.TestCase):
         )
         labels = " ".join(route["label"] for route in routes)
         self.assertIn("Room details · Living", labels)
-        self.assertIn("Shading structure · 1 sectors · 1 groups · 2 covers", labels)
+        self.assertIn("Shading structure · 1 sector · 1 group · 2 covers", labels)
         self.assertNotIn("South / Windows", labels)
 
     def test_simple_room_hides_unavailable_function_categories(self):
@@ -111,8 +111,9 @@ class OptionsNavigationTests(unittest.TestCase):
             [r["action"] for r in groups],
             [
                 "manage_layer",
-                "manage_cover",
-                "manage_cover",
+                "manage_layer_profile",
+                "cover_settings_hub",
+                "cover_settings_hub",
                 "add_covers_flat",
             ],
         )
@@ -128,7 +129,11 @@ class OptionsNavigationTests(unittest.TestCase):
 
     def test_cover_routes_keep_stable_entity_identity(self):
         routes = navigation.build_cover_routes(self.rooms[0], german=False)
-        cover_routes = [route for route in routes if route["action"] == "manage_cover"]
+        cover_routes = [
+            route
+            for route in routes
+            if route["action"] == "cover_settings_hub"
+        ]
         self.assertEqual(
             [route["cover_entity"] for route in cover_routes],
             ["cover.living_left", "cover.living_right"],
@@ -144,7 +149,9 @@ class OptionsNavigationTests(unittest.TestCase):
         routes = navigation.build_cover_routes(room, german=False)
 
         cover_route = next(
-            route for route in routes if route["action"] == "manage_cover"
+            route
+            for route in routes
+            if route["action"] == "cover_settings_hub"
         )
         self.assertEqual(cover_route["label"], "Cover 1")
         self.assertNotIn("_", cover_route["label"])

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -63,6 +64,7 @@ from .const import (
     PRESET_CUSTOM,
     PRESET_MEDIUM,
     PROFILE_DEFAULTS,
+    profile_supports_position,
     SUN_PRESETS,
     VERSION,
     WINDOW_POLICY_BLOCK_ALL,
@@ -704,8 +706,131 @@ class SmartShadingEngine:
                     for cover in layer.get("covers", []):
                         yield room, sector, layer, cover
 
+    def _find_cover_context(self, entity_id: str):
+        return next(
+            (
+                (room, sector, layer, cover)
+                for room, sector, layer, cover in self._iter_covers()
+                if cover.get("entity") == entity_id
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _layer_tolerances(layer: dict[str, Any]) -> tuple[float, float]:
+        profile = str(layer.get("profile", DEVICE_VENETIAN))
+        defaults = PROFILE_DEFAULTS.get(
+            profile, PROFILE_DEFAULTS[DEVICE_VENETIAN]
+        )
+        return (
+            float(
+                layer.get(
+                    "position_tolerance",
+                    defaults.get(
+                        "position_tolerance", DEFAULT_POSITION_TOLERANCE
+                    ),
+                )
+            ),
+            float(
+                layer.get(
+                    "tilt_tolerance",
+                    defaults.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE),
+                )
+            ),
+        )
+
     def _find_cover_by_entity(self, entity_id: str):
         return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("entity") == entity_id), None)
+
+    def _cover_tolerances(self, entity_id: str) -> tuple[float, float]:
+        context = self._find_cover_context(entity_id)
+        if context is None:
+            return DEFAULT_POSITION_TOLERANCE, DEFAULT_TILT_TOLERANCE
+        return self._layer_tolerances(context[2])
+
+    async def _async_enforce_cover_maximum(
+        self, entity_id: str, state=None
+    ) -> bool:
+        """Correct one opt-in hard opening violation without command spam."""
+        if not self.advanced_mode:
+            return False
+        context = self._find_cover_context(entity_id)
+        if context is None:
+            return False
+        room, _sector, layer, cover = context
+        profile = str(layer.get("profile", DEVICE_VENETIAN))
+        if (
+            not profile_supports_position(profile)
+            or not bool(cover.get("enforce_max_open_position", False))
+            or self._room_safety_active(room)
+        ):
+            return False
+        state = state or self.hass.states.get(entity_id)
+        current = self._state_attribute_number(state, "current_position")
+        if current is None:
+            return False
+        logical_current = (
+            100.0 - float(current)
+            if bool(cover.get("invert_position", False))
+            else float(current)
+        )
+        maximum = clamp_percent(
+            float(cover.get("max_open_position", 100.0))
+        )
+        position_tolerance, _tilt_tolerance = self._layer_tolerances(layer)
+        if logical_current <= maximum + position_tolerance:
+            return False
+        supported_features = int(
+            state.attributes.get("supported_features", 0) if state else 0
+        )
+        if not supported_features & int(CoverEntityFeature.SET_POSITION):
+            return False
+        command_position = (
+            100.0 - maximum
+            if bool(cover.get("invert_position", False))
+            else maximum
+        )
+        now = dt_util.now()
+        memory = self.command_memory.setdefault(entity_id, CommandMemory())
+        if (
+            memory.position == command_position
+            and memory.position_at is not None
+            and (now - memory.position_at).total_seconds()
+            < DEFAULT_COMMAND_COOLDOWN
+        ):
+            return True
+        self._begin_own_command_session(
+            entity_id, "position", command_position, now
+        )
+        await self.hass.services.async_call(
+            "cover",
+            "set_cover_position",
+            {
+                "entity_id": entity_id,
+                "position": round(command_position),
+            },
+            blocking=False,
+        )
+        memory.position = command_position
+        memory.position_at = now
+        memory.last_activity_at = now
+        self._diag(
+            "maximum_opening_enforced",
+            force=True,
+            room_id=room.get("id"),
+            cover=cover.get("name", entity_id),
+            entity_id=entity_id,
+            detected=round(logical_current),
+            maximum=round(maximum),
+        )
+        return True
+
+    async def _async_enforce_all_maximum_openings(self) -> None:
+        for _room, _sector, _layer, cover in self._iter_covers():
+            if bool(cover.get("enforce_max_open_position", False)):
+                await self._async_enforce_cover_maximum(
+                    str(cover.get("entity") or "")
+                )
 
     def _find_cover_by_lock(self, entity_id: str):
         return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("lock") == entity_id), None)
@@ -872,6 +997,12 @@ class SmartShadingEngine:
                 default=None,
             )
         age = (now - latest).total_seconds() if latest is not None else None
+        context = self._find_cover_context(entity_id)
+        position_tolerance, tilt_tolerance = (
+            self._layer_tolerances(context[2])
+            if context is not None
+            else (DEFAULT_POSITION_TOLERANCE, DEFAULT_TILT_TOLERANCE)
+        )
         return classify_cover_feedback(
             old_position=self._state_attribute_number(old_state, "current_position"),
             new_position=self._state_attribute_number(new_state, "current_position"),
@@ -882,20 +1013,16 @@ class SmartShadingEngine:
             target_position=memory.position if memory else None,
             target_tilt=memory.tilt if memory else None,
             command_age_seconds=age,
-            position_tolerance=float(
-                self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-            ),
-            tilt_tolerance=float(
-                self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-            ),
+            position_tolerance=position_tolerance,
+            tilt_tolerance=tilt_tolerance,
             command_timeout_seconds=180.0,
             position_change_threshold=max(
                 2.0,
-                float(self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)),
+                position_tolerance,
             ),
             tilt_change_threshold=max(
                 3.0,
-                float(self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)),
+                tilt_tolerance,
             ),
         )
 
@@ -1801,6 +1928,7 @@ class SmartShadingEngine:
             self._diag("evaluation_started", full=True, at=now.isoformat())
             await self._daily_reset(now)
             await self._update_all_sun_presence(now)
+            await self._async_enforce_all_maximum_openings()
             for room in self.config.get(CONF_ROOMS, []):
                 try:
                     await self._evaluate_room(room, now)
@@ -2085,6 +2213,8 @@ class SmartShadingEngine:
 
     @staticmethod
     def _schedule_active_at(room: dict[str, Any], when: datetime) -> bool:
+        if not bool(room.get("schedule_enabled", False)):
+            return True
         months = {int(value) for value in room.get("active_months", range(1, 13))}
         weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
         if when.month not in months or when.weekday() not in weekdays:
@@ -2145,6 +2275,8 @@ class SmartShadingEngine:
     def _schedule_status(
         self, room: dict[str, Any], now: datetime
     ) -> tuple[bool, str, datetime | None]:
+        if not bool(room.get("schedule_enabled", False)):
+            return True, "Schedule not enabled", None
         months = {int(value) for value in room.get("active_months", range(1, 13))}
         weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
         active = self._schedule_active_at(room, now)
@@ -2493,7 +2625,7 @@ class SmartShadingEngine:
             # heat cycle later. Only the configured evening release clears it.
             runtime.heat_active = True
 
-        if runtime.heat_active and self._evening_release_reached(now):
+        if runtime.heat_active and self._evening_release_reached(room, now):
             runtime.heat_active = False
             runtime.finished_today = True
             evening_window = max(
@@ -2539,7 +2671,7 @@ class SmartShadingEngine:
         if (
             evening_window
             and next_night
-            and self._evening_release_reached(now)
+            and self._evening_release_reached(room, now)
             and now < next_night <= now + timedelta(minutes=evening_window)
         ):
             runtime.mode = MODE_IDLE
@@ -2811,8 +2943,13 @@ class SmartShadingEngine:
             MODE_SAFETY: 6,
         }.get(mode, 0)
 
-    def _evening_release_reached(self, now: datetime) -> bool:
-        fixed = self.config.get("evening_release_time", "18:00:00")
+    def _evening_release_reached(
+        self, room: dict[str, Any], now: datetime
+    ) -> bool:
+        fixed = room.get(
+            "evening_release_time",
+            self.config.get("evening_release_time", "18:00:00"),
+        )
         try:
             hour, minute, second = [int(part) for part in fixed.split(":")]
         except (AttributeError, ValueError):
@@ -2830,7 +2967,12 @@ class SmartShadingEngine:
         if parsed is None:
             return False
         release = dt_util.as_local(parsed) + timedelta(
-            minutes=int(self.config.get("sunset_offset_minutes", -15))
+            minutes=int(
+                room.get(
+                    "sunset_offset_minutes",
+                    self.config.get("sunset_offset_minutes", -15),
+                )
+            )
         )
         return now >= release
 
@@ -3234,12 +3376,7 @@ class SmartShadingEngine:
             "cover_pause_reason": pause_info["reason"],
         }
 
-        position_tolerance = float(
-            self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-        )
-        tilt_tolerance = float(
-            self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-        )
+        position_tolerance, tilt_tolerance = self._layer_tolerances(layer)
         position_needed = (
             current_position is None
             or abs(float(current_position) - displayed_position) > position_tolerance
@@ -3277,10 +3414,16 @@ class SmartShadingEngine:
 
         memory = self.command_memory.setdefault(entity_id, CommandMemory())
         now = dt_util.now()
-        cooldown = int(
-            self.config.get("command_cooldown", DEFAULT_COMMAND_COOLDOWN)
+        cooldown = DEFAULT_COMMAND_COOLDOWN
+        supported_features = int(
+            state.attributes.get("supported_features", 0) if state else 0
         )
-        unknown_policy = self.config.get("unknown_feedback_policy", "send")
+        can_set_position = bool(
+            supported_features & int(CoverEntityFeature.SET_POSITION)
+        )
+        can_set_tilt = bool(
+            supported_features & int(CoverEntityFeature.SET_TILT_POSITION)
+        )
         sent = 0
 
         position_correct = (
@@ -3297,7 +3440,11 @@ class SmartShadingEngine:
             suppressions.append("position_already_correct")
         elif position_cooldown:
             suppressions.append("position_command_cooldown")
-        elif current_position is None and unknown_policy == "skip":
+        elif (
+            current_position is None
+            and profile != DEVICE_BINARY
+            and not can_set_position
+        ):
             suppressions.append("position_feedback_unknown")
         else:
             self._begin_own_command_session(
@@ -3338,7 +3485,7 @@ class SmartShadingEngine:
                 suppressions.append("tilt_already_correct")
             elif tilt_cooldown:
                 suppressions.append("tilt_command_cooldown")
-            elif current_tilt is None and unknown_policy == "skip":
+            elif current_tilt is None and not can_set_tilt:
                 suppressions.append("tilt_feedback_unknown")
             else:
                 self._begin_own_command_session(
