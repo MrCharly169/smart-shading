@@ -35,6 +35,15 @@ DEFAULT_COMMAND_COOLDOWN = 90
 DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False
 DEFAULT_EVENING_RELEASE_TIME = "18:00:00"
 DEFAULT_SUNSET_OFFSET_MINUTES = -15
+PAUSE_DURATION_MIN_HOURS = 0.5
+PAUSE_DURATION_MAX_HOURS = 72.0
+PAUSE_DURATION_STEP_HOURS = 0.5
+OUTDOOR_MINIMUM_MIN_C = -20.0
+OUTDOOR_MINIMUM_MAX_C = 40.0
+OUTDOOR_MINIMUM_STEP_C = 0.5
+IRRADIANCE_MINIMUM_MIN = 0.0
+IRRADIANCE_MINIMUM_MAX = 2000.0
+IRRADIANCE_MINIMUM_STEP = 10.0
 
 DIAGNOSTIC_OFF = "off"
 DIAGNOSTIC_EVENTS = "events"
@@ -216,11 +225,10 @@ PROFILE_DEFAULTS = {
         "open_position": 100.0,
         "comfort_position": 60.0,
         "solar_position": 30.0,
-        # Interior curtains default to the solar position in heat mode.
-        # Full closure can be enabled in advanced settings.
+        # Interior curtains default to the solar position in heat mode. A
+        # customer may choose a separate heat position directly.
         "heat_position": 30.0,
         "night_position": 0.0,
-        "heat_close_enabled": False,
         "safety_position": 100.0,
     },
     DEVICE_VERTICAL: {
@@ -272,10 +280,9 @@ SCHEDULE_SUMMER = "summer"
 SCHEDULE_CUSTOM = "custom"
 SCHEDULE_OPTIONS = [SCHEDULE_YEAR_ROUND, SCHEDULE_SUMMER, SCHEDULE_CUSTOM]
 
-DAY_WINDOW_SECTOR_SUN = "sector_sun"
 DAY_WINDOW_FIXED = "fixed_time"
 DAY_WINDOW_ALL_DAY = "all_day"
-DAY_WINDOW_OPTIONS = [DAY_WINDOW_SECTOR_SUN, DAY_WINDOW_FIXED, DAY_WINDOW_ALL_DAY]
+DAY_WINDOW_OPTIONS = [DAY_WINDOW_ALL_DAY, DAY_WINDOW_FIXED]
 
 OUTSIDE_OPEN = "open"
 OUTSIDE_HOLD = "hold"
@@ -294,9 +301,6 @@ ROOM_DEFAULTS = {
     "night_end_offset_minutes": 0,
     "night_morning_transition_minutes": 0,
     "night_evening_transition_minutes": 0,
-    "indoor_temperature_name": "",
-    "display_name": "",
-    "outdoor_temperature_name": "",
     "indoor_temperature": "",
     "outdoor_temperature": "",
     # Easy Mode remains fully functional without these optional refinements.
@@ -313,21 +317,19 @@ ROOM_DEFAULTS = {
     "comfort_temperature": 23.5,
     "solar_temperature": 25.5,
     "heat_temperature": 27.0,
-    "heat_release_temperature": 26.0,
     "reopen_temperature": 22.0,
     "outdoor_minimum": 18.0,
     "irradiance_minimum": 150.0,
     "cloud_cover_maximum": 85.0,
     "weather_logic": "all",
     "heat_ignores_weather": True,
-    "heat_fail_safe": True,
     "heat_requires_sun": True,
     "comfort_requires_occupancy": False,
     "safety_behavior": "move_safe",
     "schedule_profile": SCHEDULE_YEAR_ROUND,
     "active_months": list(range(1, 13)),
     "active_weekdays": list(range(7)),
-    "day_window": DAY_WINDOW_SECTOR_SUN,
+    "day_window": DAY_WINDOW_ALL_DAY,
     "start_time": "00:00:00",
     "end_time": "23:59:59",
     "outside_schedule_behavior": OUTSIDE_OPEN,

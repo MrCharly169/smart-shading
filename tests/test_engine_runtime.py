@@ -393,6 +393,22 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine.async_set_room_enabled("room", False)
         self.assertEqual(engine.rooms["room"].mode, "disabled")
 
+    async def test_runtime_cannot_change_the_setup_variant_from_options(self):
+        for configured, crafted in ((False, True), (True, False)):
+            with self.subTest(configured=configured, crafted=crafted):
+                config = base_config()
+                config["advanced_mode"] = configured
+                entry = FakeEntry(config)
+                entry.options = {
+                    "advanced_mode": crafted,
+                    "evaluation_interval": 600,
+                }
+
+                engine = engine_mod.SmartShadingEngine(self.hass, entry)
+
+                self.assertIs(engine.advanced_mode, configured)
+                self.assertEqual(engine.config["evaluation_interval"], 600)
+
     async def test_advanced_sector_metadata_tracks_real_sun_not_room_wide_modes(self):
         config = base_config()
         room = config["rooms"][0]
@@ -586,6 +602,46 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(runtime.easy_temperature_value, 17.7778, places=3)
         self.assertFalse(runtime.easy_temperature_passed)
 
+    async def test_advanced_temperature_sources_normalize_fahrenheit_and_kelvin(self):
+        cases = (
+            ("°F", "80", "82", "68"),
+            ("K", "300", "301", "293.15"),
+        )
+        for unit, below_heat, above_heat, outdoor_value in cases:
+            with self.subTest(unit=unit):
+                config = base_config()
+                room = config["rooms"][0]
+                room.update(
+                    {
+                        "indoor_temperature": "sensor.indoor",
+                        "outdoor_temperature": "sensor.outdoor",
+                        "outdoor_minimum": 18.0,
+                        "normal_shading_temperature": 23.5,
+                        "heat_temperature": 27.0,
+                        "heat_requires_sun": False,
+                    }
+                )
+                self.hass.states.values["sensor.indoor"] = FakeState(
+                    below_heat, unit_of_measurement=unit
+                )
+                self.hass.states.values["sensor.outdoor"] = FakeState(
+                    outdoor_value, unit_of_measurement=unit
+                )
+                engine = engine_mod.SmartShadingEngine(
+                    self.hass, FakeEntry(config)
+                )
+                await engine.async_initialize()
+                engine._evening_release_reached = lambda _now: False
+
+                await engine.async_evaluate_all(f"advanced_{unit}_below_heat")
+                self.assertNotEqual(engine.rooms["room"].mode, "heat")
+
+                self.hass.states.values["sensor.indoor"] = FakeState(
+                    above_heat, unit_of_measurement=unit
+                )
+                await engine.async_evaluate_all(f"advanced_{unit}_above_heat")
+                self.assertEqual(engine.rooms["room"].mode, "heat")
+
     async def test_easy_temperature_gate_ignores_stale_unavailable_weather_value(self):
         config = base_config()
         config.update({"advanced_mode": False, "weather_entity": "weather.home"})
@@ -715,7 +771,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "cover_runtime": {"cover_one": {"active": True}},
         }
         await store.async_load()
-        self.assertEqual(store.data["runtime_schema"], 3)
+        self.assertEqual(store.data["runtime_schema"], 4)
         self.assertEqual(store.data["room_runtime"]["room"]["suppressed_commands"], 0)
         self.assertEqual(store.data["room_runtime"]["room"]["sent_commands"], 5)
         self.assertTrue(store.data["cover_runtime"]["cover_one"]["active"])
@@ -736,7 +792,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         }
         await store.async_load()
         layer = store.data["overrides"]["layer"]["layer"]
-        self.assertEqual(store.data["runtime_schema"], 3)
+        self.assertEqual(store.data["runtime_schema"], 4)
         self.assertEqual(layer["tilt_value_1"], 90.0)
         self.assertEqual(layer["heat_tilt"], 100.0)
         self.assertEqual(layer["open_position"], 100)
@@ -746,12 +802,89 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(layer["tilt_value_1"], 90.0)
         self.assertEqual(layer["heat_tilt"], 100.0)
 
+    async def test_runtime_store_migrates_pause_duration_into_one_override(self):
+        store = self.engine.store
+        store._store.value = {
+            "runtime_schema": 3,
+            "overrides": {},
+            "room_runtime": {
+                "room": {
+                    "pause_hours": 4.5,
+                    "pause_mode": "auto",
+                }
+            },
+        }
+
+        await store.async_load()
+
+        self.assertEqual(store.data["runtime_schema"], 4)
+        self.assertEqual(
+            store.data["overrides"]["room"]["room"][
+                "pause_duration_hours"
+            ],
+            4.5,
+        )
+        self.assertNotIn(
+            "pause_hours", store.data["room_runtime"]["room"]
+        )
+
+    async def test_configured_pause_duration_wins_over_stale_runtime_copy(self):
+        config = base_config()
+        config["rooms"][0]["pause_duration_hours"] = 4.0
+        engine = engine_mod.SmartShadingEngine(
+            self.hass, FakeEntry(config)
+        )
+        engine.store._store.value = {
+            "runtime_schema": 4,
+            "room_runtime": {
+                "room": {
+                    "pause_hours": 2.0,
+                    "pause_mode": "auto",
+                }
+            },
+        }
+
+        await engine.async_initialize()
+        await engine.async_set_pause_mode("room", "timed")
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.pause_hours, 4.0)
+        self.assertIsNotNone(runtime.pause_until)
+        remaining = runtime.pause_until - datetime.now(timezone.utc)
+        self.assertGreater(remaining, timedelta(hours=3, minutes=59))
+        self.assertLessEqual(remaining, timedelta(hours=4))
+        self.assertNotIn(
+            "pause_hours", engine.store.room_runtime("room")
+        )
+
+    async def test_runtime_store_can_clear_folded_configuration_overrides(self):
+        store = self.engine.store
+        store.data["overrides"] = {
+            "room": {"room": {"heat_temperature": 30.0}}
+        }
+
+        await store.async_clear_overrides()
+
+        self.assertEqual(store.data["overrides"], {})
+        self.assertEqual(store._store.value["overrides"], {})
+
     async def test_venetian_modes_use_knx_slat_semantics(self):
         layer = self.engine.layer_config("layer")
         self.assertEqual(self.engine._targets(layer, "open", 35), (100.0, 0.0))
         self.assertEqual(self.engine._targets(layer, "solar", 35), (0.0, 65.0))
         self.assertEqual(self.engine._targets(layer, "heat", 35), (0.0, 100.0))
         self.assertEqual(self.engine._targets(layer, "safety", 35), (100.0, 0.0))
+
+    async def test_curtain_heat_position_is_always_effective(self):
+        layer = self.engine.layer_config("layer")
+        layer.update(
+            {
+                "profile": "curtain",
+                "solar_position": 42.0,
+                "heat_position": 12.0,
+            }
+        )
+        self.assertEqual(self.engine._targets(layer, "heat", 35), (12.0, None))
 
     async def test_per_cover_slat_inversion_changes_only_command_value(self):
         layer = self.engine.layer_config("layer")
@@ -859,6 +992,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_safety_overrides_local_cover_pause_and_lock(self):
         config = base_config()
         config["rooms"][0]["safety_blockers"] = ["binary_sensor.wind"]
+        config["rooms"][0]["sectors"][0]["layers"][0]["covers"][0][
+            "max_open_position"
+        ] = 70
         self.hass.states.values["binary_sensor.wind"] = FakeState("on")
         self.hass.states.values["cover.one"] = FakeState("closed", current_position=0, current_tilt_position=0)
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
@@ -1209,7 +1345,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         # Heat behavior tests must not depend on the UTC time at which CI runs.
         # The dedicated evening-release test overrides this with ``True``.
         engine._evening_release_reached = lambda now: False
-        return engine, room
+        return engine, engine.room_config("room")
 
     async def test_heat_requires_room_sun_presence(self):
         engine, _ = await self._make_heat_engine()
@@ -1500,6 +1636,85 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime.pause_mode, "next_sunrise")
         self.assertIsNotNone(runtime.pause_until)
         self.assertFalse(runtime.pause_waiting_for_night)
+
+    async def test_disabled_night_pause_falls_back_to_next_morning(self):
+        config = base_config()
+        config["rooms"][0]["night_enabled"] = False
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_set_pause_mode("room", "next_night_end")
+
+        runtime = engine.rooms["room"]
+        self.assertEqual(runtime.pause_mode, "next_sunrise")
+        self.assertIsNotNone(runtime.pause_until)
+        self.assertFalse(runtime.pause_waiting_for_night)
+
+    async def test_reload_rehomes_orphaned_night_end_room_and_cover_pauses(self):
+        for night_values, source_state in (
+            ({"night_enabled": False}, None),
+            (
+                {
+                    "night_enabled": True,
+                    "night_source": "entity",
+                    "night_entity": "schedule.night",
+                },
+                "unavailable",
+            ),
+        ):
+            with self.subTest(night_values=night_values):
+                config = base_config()
+                config["rooms"][0].update(night_values)
+                if source_state is not None:
+                    self.hass.states.values["schedule.night"] = FakeState(
+                        source_state
+                    )
+                else:
+                    self.hass.states.values.pop("schedule.night", None)
+                engine = engine_mod.SmartShadingEngine(
+                    self.hass, FakeEntry(config)
+                )
+                engine.store._store.value = {
+                    "runtime_schema": 3,
+                    "room_runtime": {
+                        "room": {
+                            "pause_mode": "next_night_end",
+                            "pause_until": None,
+                            "pause_waiting_for_night": True,
+                        }
+                    },
+                    "cover_runtime": {
+                        "cover_one": {
+                            "active": True,
+                            "until": None,
+                            "reason": "external_or_physical_control",
+                            "pause_mode": "next_night_end",
+                            "waiting_for_night": True,
+                        }
+                    },
+                }
+
+                await engine.async_initialize()
+
+                room_pause = engine.rooms["room"]
+                cover_pause = engine.cover_pauses["cover_one"]
+                self.assertEqual(room_pause.pause_mode, "next_sunrise")
+                self.assertEqual(cover_pause.pause_mode, "next_sunrise")
+                self.assertIsNotNone(room_pause.pause_until)
+                self.assertEqual(cover_pause.until, room_pause.pause_until)
+                self.assertFalse(room_pause.pause_waiting_for_night)
+                self.assertFalse(cover_pause.waiting_for_night)
+                self.assertIn("room", engine._room_pause_timer_unsubs)
+                self.assertIn("cover_one", engine._cover_pause_timer_unsubs)
+
+                saved_room = engine.store.room_runtime("room")
+                saved_cover = engine.store.cover_runtime("cover_one")
+                self.assertEqual(saved_room["pause_mode"], "next_sunrise")
+                self.assertEqual(saved_cover["pause_mode"], "next_sunrise")
+                self.assertIsNotNone(saved_room["pause_until"])
+                self.assertEqual(saved_cover["until"], saved_room["pause_until"])
+                self.assertFalse(saved_room["pause_waiting_for_night"])
+                self.assertFalse(saved_cover["waiting_for_night"])
 
     async def test_room_sun_transition_triggers_immediate_heat_evaluation(self):
         engine, _ = await self._make_heat_engine()

@@ -21,7 +21,8 @@ manifest and changelog remain the version sources of truth.
   per-cover Manual Override entities, and optional movement detection.
 - Cover height follows Home Assistant semantics. Venetian slat position follows
   the documented KNX scale: `0%` open and `100%` closed.
-- Existing settings survive upgrades and mode switches unless a documented
+- The setup variant is chosen once per config entry and cannot be switched in
+  the options flow. Existing settings survive upgrades unless a documented
   migration intentionally transforms them.
 
 The executable baseline is maintained by the tests listed in

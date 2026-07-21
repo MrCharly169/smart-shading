@@ -3,974 +3,24 @@
   "config": {
     "step": {
       "user": {
-        "title": "Choose setup",
-        "description": "Choose Easy for sun-position shading with optional sensor refinements. Choose Advanced for schedules, temperatures, safety, Night, Pause and individual cover behavior. These names are not repeated in the later room menus.",
+        "title": "Choose setup type",
+        "description": "Easy provides quick shading based on sun position. Advanced adds schedules, temperature control, night operation, pauses, safety conditions and individual cover settings.",
         "data": {
           "house_name": "House or area name",
-          "setup_type": "Setup"
+          "setup_type": "Setup type"
         },
         "data_description": {
-          "house_name": "Used to identify this Smart Shading installation.",
-          "setup_type": "Easy keeps configuration short. Advanced offers every protection and automation function."
+          "house_name": "Names this Smart Shading setup.",
+          "setup_type": "Easy is quicker to configure. Advanced offers all automation and protection functions."
         }
       },
       "room_setup": {
         "title": "Set up the first room",
-        "description": "Add the first sector, cover group and covers. Complete setup continues through every remaining function before Smart Shading can be started.",
+        "description": "Choose the room, first facade, cover group and covers.",
         "sections": {
           "room_and_covers": {
             "name": "Room and covers",
-            "description": "Choose the facade and all covers that should move together.",
-            "data": {
-              "name": "Room name",
-              "direction": "Facade direction",
-              "group_name": "Cover group name",
-              "profile": "Cover type",
-              "cover_entities": "Covers",
-              "tilt_preset": "Slat profile"
-            },
-            "data_description": {
-              "name": "Shown as the room name in Home Assistant and on the dashboard card.",
-              "direction": "The preset defines when the sun reaches this facade.",
-              "group_name": "Optional label for the covers that move together in this room.",
-              "profile": "Select the physical cover type so suitable positions are used.",
-              "cover_entities": "Select at least one Home Assistant cover.",
-              "tilt_preset": "controls adaptive slat guidance."
-            }
-          },
-          "sun_control": {
-            "name": "Sun control",
-            "description": "Sun geometry always works. Add either Lux or an external on/off confirmation when available.",
-            "data": {
-              "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation (optional)",
-              "sun_preset": "Sun sensitivity",
-              "azimuth_start": "Custom azimuth start",
-              "azimuth_end": "Custom azimuth end",
-              "elevation_min": "Custom minimum sun elevation"
-            },
-            "data_description": {
-              "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-              "sun_presence_entity": "Use an existing on/off entity where on means direct sun. Leave empty when Lux or sun geometry should be used.",
-              "sun_preset": "Controls lux thresholds and delays when a lux sensor is selected.",
-              "azimuth_start": "Geometry values are needed only for a custom facade direction.",
-              "azimuth_end": "Geometry values are needed only for a custom facade direction.",
-              "elevation_min": "Geometry values are needed only for a custom facade direction."
-            }
-          },
-          "optional_improvements": {
-            "name": "Optional improvements",
-            "description": "These inputs can refine control but are not required.",
-            "data": {
-              "weather_entity": "Weather entity",
-              "easy_temperature_gate": "Use outdoor temperature gate",
-              "outdoor_temperature": "Outdoor temperature sensor",
-              "outdoor_minimum": "Minimum outdoor temperature"
-            },
-            "data_description": {
-              "weather_entity": "Allows unsuitable weather states to prevent normal shading.",
-              "easy_temperature_gate": "Optionally require a minimum outdoor temperature. Missing data never blocks shading.",
-              "outdoor_temperature": "Optional. Used first by the temperature gate; weather temperature is the fallback.",
-              "outdoor_minimum": "Minimum outdoor temperature for simple control shading."
-            }
-          },
-          "advanced_conditions": {
-            "name": "Additional functions",
-            "description": "Optional sensors and automation behavior.",
-            "data": {
-              "weather_entity": "Weather entity",
-              "indoor_temperature": "Indoor temperature",
-              "outdoor_temperature": "Outdoor temperature",
-              "outdoor_minimum": "Minimum outdoor temperature",
-              "safety_blockers": "Safety conditions",
-              "schedule_profile": "Activity profile",
-              "default_pause_mode": "Default pause mode",
-              "heat_during_pause": "Allow Heat Protection during a pause",
-              "external_movement_detection": "Detect external cover movement",
-              "diagnostic_level": "Diagnostic logging",
-              "evaluation_interval_minutes": "Periodic evaluation"
-            },
-            "data_description": {
-              "weather_entity": "Optional Home Assistant weather entity.",
-              "indoor_temperature": "Enables room comfort and heat thresholds.",
-              "outdoor_temperature": "Can block normal shading in cold conditions.",
-              "outdoor_minimum": "Minimum outdoor temperature for normal shading.",
-              "safety_blockers": "Wind, frost or other binary sensors; on means blocked.",
-              "schedule_profile": "Choose when normal shading may run. Heat and safety rules remain independent.",
-              "default_pause_mode": "Defines when a temporary room pause is released automatically.",
-              "heat_during_pause": "Keeps Heat Protection available while normal shading is paused.",
-              "external_movement_detection": "Pause only after confirmed numeric position or slat feedback.",
-              "diagnostic_level": "Events is recommended while testing.",
-              "evaluation_interval_minutes": "Additional check interval; state changes remain immediate."
-            }
-          }
-        }
-      },
-      "global_settings": {
-        "title": "General settings",
-        "description": "Choose house-wide behavior. Detailed technical values are grouped and normally keep their defaults.",
-        "data": {
-          "sun_entity": "Sun entity",
-          "position_tolerance": "Cover position tolerance",
-          "tilt_tolerance": "Slat position tolerance",
-          "command_cooldown": "Duplicate-command cooldown",
-          "unknown_feedback_policy": "Behavior without position feedback",
-          "evening_release_time": "Latest fixed evening release",
-          "sunset_offset_minutes": "Sunset offset",
-          "advanced_mode": "Enable complete functions",
-          "weather_entity": "Weather entity",
-          "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation"
-        },
-        "data_description": {
-          "sun_entity": "Provides sun elevation and azimuth. The Home Assistant sun entity is recommended.",
-          "position_tolerance": "No new position command is sent while feedback stays within this deviation.",
-          "tilt_tolerance": "No new slat command is sent while feedback stays within this deviation.",
-          "command_cooldown": "Prevents repeated identical commands.",
-          "unknown_feedback_policy": "Controls whether automation may continue when a cover has no numeric position feedback.",
-          "evening_release_time": "An active Heat Protection mode is released no later than this time.",
-          "sunset_offset_minutes": "Negative values mean before sunset; positive values mean after sunset.",
-          "advanced_mode": "Shows schedules, temperatures, safety, Night, Pause and detailed cover behavior.",
-          "weather_entity": "Optional weather source used by the selected mode.",
-          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
-        }
-      },
-      "add_room": {
-        "title": "Create room",
-        "description": "Select only sensors that exist. **Temperature and lux are sufficient for a complete shading strategy.** Safety sensors such as wind or frost are optional and override normal movement.",
-        "data": {
-          "name": "Room name",
-          "indoor_temperature": "Indoor temperature",
-          "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Safety conditions (optional)"
-        },
-        "data_description": {
-          "name": "Neutral example: Living area, Room A, or Office.",
-          "indoor_temperature": "Controls Comfort, Solar, and Heat Protection. Without this sensor only sun-dependent logic operates.",
-          "outdoor_temperature": "Can prevent normal shading in cold weather. Leave empty for the first test if unavailable.",
-          "safety_blockers": "Multiple selection: wind, frost, rain, or maintenance sensors. Normally `on` means danger is active. Leave empty when none are available."
-        }
-      },
-      "room_schedule": {
-        "title": "When should shading operate?",
-        "description": "The schedule only defines when normal shading is generally permitted. Sun position, lux, and temperature then decide whether movement is actually required. **Safety always remains active.** Choosing “Custom schedule” opens a separate page after Continue.",
-        "data": {
-          "schedule_profile": "Activity profile"
-        },
-        "data_description": {
-          "schedule_profile": "All year: always permitted. Summer season: May through September. Custom: months, weekdays, and optional fixed times."
-        }
-      },
-      "room_schedule_custom": {
-        "title": "Define a custom schedule",
-        "description": "Choose months, weekdays, and the daily permission rule. Start and end times are requested on a **separate next page only** when “Fixed time window” is selected.",
-        "data": {
-          "active_months": "Active months",
-          "active_weekdays": "Active weekdays",
-          "day_window": "Daily permission",
-          "outside_schedule_behavior": "Behavior outside schedule",
-          "heat_outside_schedule": "Allow heat protection outside schedule"
-        },
-        "data_description": {
-          "active_months": "Normal solar shading may operate during these months.",
-          "active_weekdays": "Select every weekday that should be active.",
-          "day_window": "“Sun in sector” needs no fixed clock time and is the recommended default.",
-          "outside_schedule_behavior": "Safety remains active regardless of this choice.",
-          "heat_outside_schedule": "Recommended: enabled, so overheating can still be prevented outside the normal season."
-        }
-      },
-      "sector_direction": {
-        "title": "Select facade direction",
-        "description": "Select the direction of the window or cover group. Smart Shading automatically applies a practical azimuth range and minimum solar elevation. These angles do **not** need to be configured in the normal customer wizard; they remain editable later under “Advanced sector geometry”.",
-        "data": {
-          "direction": "Facade direction"
-        },
-        "data_description": {
-          "direction": "Example: if the facade faces approximately south, choose “South (S)”."
-        }
-      },
-      "sector_lux": {
-        "title": "Detect direct sunlight",
-        "description": "A lux sensor is optional but recommended. With a lux sensor Smart Shading creates a delayed Sun Presence binary sensor for the sector.",
-        "data": {
-          "lux_sensor": "Lux sensor for this sector (optional)",
-          "sun_preset": "Sun Presence sensitivity"
-        },
-        "data_description": {
-          "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-          "sun_preset": "Balanced is the recommended starting point. Custom exposes all thresholds and delays."
-        }
-      },
-      "sector_lux_custom": {
-        "title": "Custom Sun Presence",
-        "description": "ON and OFF use hysteresis to avoid movement during short cloud periods. **ON must be higher than OFF.**",
-        "data": {
-          "sun_on_lux": "Sun detected above",
-          "sun_off_lux": "Sun no longer detected below",
-          "sun_on_delay": "ON delay",
-          "sun_off_delay": "OFF delay"
-        },
-        "data_description": {
-          "sun_on_lux": "The value must remain above this threshold for the complete ON delay.",
-          "sun_off_lux": "The value must remain below this threshold for the complete OFF delay.",
-          "sun_on_delay": "Prevents activation from brief bright peaks.",
-          "sun_off_delay": "Prevents opening during brief cloud periods."
-        }
-      },
-      "add_layer": {
-        "title": "Create cover group",
-        "description": "A layer groups covers that share the same physical strategy. Select a cover type and Smart Shading applies suitable defaults.",
-        "data": {
-          "name": "Cover group name",
-          "profile": "Cover type"
-        },
-        "data_description": {
-          "name": "Neutral example: Window group, Cover group A, or South exterior blinds.",
-          "profile": "Exterior venetian blinds lower fully for sun shading and then guide only their slats. Heat Protection closes the slats completely."
-        }
-      },
-      "layer_tilt_profile": {
-        "title": "Select slat guidance",
-        "description": "During active sun shading the exterior blind moves fully down. The profile controls only the slat position: “More glare protection” closes further, “Balanced” is the default, and “More daylight” opens further. 0% = fully open, 100% = fully closed. “Custom” opens the four editable stages next.",
-        "data": {
-          "tilt_preset": "Slat profile"
-        },
-        "data_description": {
-          "tilt_preset": "Balanced is the recommended default. Custom exposes all four sun elevations and slat positions."
-        }
-      },
-      "layer_tilt_custom": {
-        "title": "Customize adaptive slat guidance",
-        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully open · 100% = fully closed",
-        "data": {
-          "elevation_1": "Very low sun – from elevation",
-          "tilt_1": "Very low sun – slat position",
-          "elevation_2": "Low sun – from elevation",
-          "tilt_2": "Low sun – slat position",
-          "elevation_3": "Medium sun – from elevation",
-          "tilt_3": "Medium sun – slat position",
-          "elevation_4": "High sun – from elevation",
-          "tilt_4": "High sun – slat position"
-        },
-        "data_description": {
-          "elevation_1": "Typical in the morning or evening. Default: 10°.",
-          "tilt_1": "Nearly closed for strong glare protection. Default: 90% closed.",
-          "elevation_2": "Default: 20°.",
-          "tilt_2": "Allows more daylight. Default: 65% closed.",
-          "elevation_3": "Default: 40°.",
-          "tilt_3": "Medium slat position. Default: 35% closed.",
-          "elevation_4": "Typical for high midday sun. Default: 60°.",
-          "tilt_4": "Wide open for daylight. Default: 15% closed."
-        }
-      },
-      "add_covers": {
-        "title": "Assign covers",
-        "description": "Select all covers for this group at once. The next step asks for a short display name and short code for each selected cover.",
-        "data": {
-          "cover_entities": "Cover entities"
-        },
-        "data_description": {
-          "cover_entities": "Multiple selection is supported. A cover can be assigned only once within a house."
-        }
-      },
-      "after_room": {
-        "title": "Review setup",
-        "description": "This room is ready. Add sectors, groups, covers or another room, review the room, or start Smart Shading.",
-        "menu_options": {
-          "add_more_covers": "Add more covers to this group",
-          "add_another_layer": "Add another cover group to this sector",
-          "add_another_sector": "Add another sun sector",
-          "add_another_room": "Add another room",
-          "finish": "Save and start integration",
-          "configure_current_room": "Manage current room"
-        }
-      },
-      "init": {
-        "title": "Manage Smart Shading",
-        "description": "Select a room to manage it. This overview contains only rooms and house-wide actions.",
-        "menu_options": {
-          "add_room": "Add room",
-          "global_settings": "House settings",
-          "finish": "Save changes and reload"
-        }
-      },
-      "select_room": {
-        "title": "Select room",
-        "data": {
-          "room_id": "Room"
-        }
-      },
-      "room_actions": {
-        "title": "Manage room",
-        "menu_options": {
-          "edit_room_basic": "Name and sensors",
-          "edit_room_schedule": "Activity schedule",
-          "room_advanced": "Advanced room logic",
-          "add_sector": "Add sun sector",
-          "select_sector": "Manage sun sector",
-          "delete_room": "Delete room",
-          "edit_room_pause": "Pause / manual override",
-          "edit_room_night": "Night Mode",
-          "back_to_overview": "Back to setup overview"
-        }
-      },
-      "edit_room_basic": {
-        "title": "Room and sensors",
-        "description": "Change only sensors that are actually available.",
-        "data": {
-          "name": "Room name",
-          "indoor_temperature": "Indoor temperature",
-          "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Wind, frost, rain, or other safety sensors (optional)",
-          "indoor_temperature_name": "Room temperature display name",
-          "outdoor_temperature_name": "Outdoor temperature display name"
-        },
-        "data_description": {
-          "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
-          "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
-          "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
-        }
-      },
-      "edit_room_schedule": {
-        "title": "When should shading operate?",
-        "description": "The schedule only defines when normal shading is generally permitted. Sun position, lux, and temperature then decide whether movement is actually required. **Safety always remains active.** Choosing “Custom schedule” opens a separate page after Continue.",
-        "data": {
-          "schedule_profile": "Activity profile"
-        },
-        "data_description": {
-          "schedule_profile": "All year: always permitted. Summer season: May through September. Custom: months, weekdays, and optional fixed times."
-        }
-      },
-      "edit_room_schedule_custom": {
-        "title": "Define a custom schedule",
-        "description": "Choose months, weekdays, and the daily permission rule. Start and end times are requested on a **separate next page only** when “Fixed time window” is selected.",
-        "data": {
-          "active_months": "Active months",
-          "active_weekdays": "Active weekdays",
-          "day_window": "Daily permission",
-          "outside_schedule_behavior": "Behavior outside schedule",
-          "heat_outside_schedule": "Allow heat protection outside schedule"
-        },
-        "data_description": {
-          "active_months": "Normal solar shading may operate during these months.",
-          "active_weekdays": "Select every weekday that should be active.",
-          "day_window": "“Sun in sector” needs no fixed clock time and is the recommended default.",
-          "outside_schedule_behavior": "Safety remains active regardless of this choice.",
-          "heat_outside_schedule": "Recommended: enabled, so overheating can still be prevented outside the normal season."
-        }
-      },
-      "room_advanced": {
-        "title": "Advanced room logic",
-        "description": "Visible temperature thresholds depend on the cover profiles used in the room. Rooms with exterior venetian blinds only have normal solar shading and heat protection.",
-        "data": {
-          "comfort_temperature": "Comfort from",
-          "solar_temperature": "Solar from",
-          "heat_temperature": "Heat protection from",
-          "heat_release_temperature": "Release heat protection below",
-          "reopen_temperature": "Reopen below",
-          "irradiance_sensor": "Global irradiance sensor (optional)",
-          "cloud_cover_sensor": "Cloud cover sensor (optional)",
-          "weather_permission": "Weather/API permission (optional)",
-          "glare_sensor": "Glare sensor (optional)",
-          "occupancy_sensor": "Occupancy sensor (optional)",
-          "weather_logic": "Combine weather conditions",
-          "heat_ignores_weather": "Heat protection ignores weather",
-          "heat_fail_safe": "Keep active heat mode on sensor failure",
-          "heat_requires_sun": "Require sun to start heat protection",
-          "comfort_requires_occupancy": "Comfort only while occupied",
-          "safety_behavior": "Safety response",
-          "normal_shading_temperature": "Normal shading from"
-        },
-        "data_description": {
-          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun."
-        }
-      },
-      "select_sector": {
-        "title": "Select sun sector",
-        "data": {
-          "sector_id": "Sector"
-        }
-      },
-      "sector_actions": {
-        "title": "Manage sun sector",
-        "menu_options": {
-          "edit_sector_customer": "Direction and lux sensor",
-          "edit_sector_advanced": "Advanced sector geometry",
-          "add_layer": "Add cover group",
-          "select_layer": "Manage cover group",
-          "delete_sector": "Delete sector",
-          "room_actions": "Back to room"
-        }
-      },
-      "edit_sector_customer": {
-        "title": "Direction and sunlight",
-        "description": "Changing the facade direction reapplies suitable default azimuth values. Custom lux values remain available separately.",
-        "data": {
-          "direction": "Compass direction",
-          "lux_sensor": "Lux sensor (optional)",
-          "sun_preset": "Sun Presence sensitivity",
-          "name": "Display name",
-          "short": "Short code"
-        }
-      },
-      "edit_sector_lux_custom": {
-        "title": "Customize Sun Presence",
-        "description": "ON must be higher than OFF.",
-        "data": {
-          "sun_on_lux": "Sun detected above",
-          "sun_off_lux": "Sun no longer detected below",
-          "sun_on_delay": "ON delay",
-          "sun_off_delay": "OFF delay"
-        }
-      },
-      "edit_sector_advanced": {
-        "title": "Fine-tune the solar sector",
-        "description": "This page is only needed for special cases and expert tuning. **0°/360° = north, 90° = east, 180° = south, 270° = west.** The range defines between which solar directions this window group is considered directly exposed. North-facing ranges may wrap across zero, for example 300° to 60°.",
-        "data": {
-          "name": "Solar sector display name",
-          "short": "Short label",
-          "azimuth_start": "Sector starts at solar azimuth",
-          "azimuth_end": "Sector ends after solar azimuth",
-          "elevation_min": "Start shading from solar elevation"
-        },
-        "data_description": {
-          "name": "Shown in status sensors and the dashboard card, for example “South”.",
-          "short": "Compact card label, for example S, SW, or E.",
-          "azimuth_start": "First solar direction considered direct sun. Example for south: 120°.",
-          "azimuth_end": "Last solar direction considered direct sun. Example for south: 240°.",
-          "elevation_min": "0° is the horizon and 90° is directly overhead. 10° ignores very low sun near the horizon; trees or neighboring buildings may justify a higher value."
-        }
-      },
-      "select_layer": {
-        "title": "Select cover group",
-        "data": {
-          "layer_id": "Cover group"
-        }
-      },
-      "layer_actions": {
-        "title": "Manage cover group",
-        "menu_options": {
-          "edit_layer_customer": "Name, type and slat profile",
-          "edit_layer_advanced": "Advanced targets",
-          "add_covers": "Add multiple covers",
-          "select_cover": "Configure one cover",
-          "remove_covers": "Remove covers",
-          "delete_layer": "Delete cover group",
-          "sector_actions": "Back to sector"
-        }
-      },
-      "edit_layer_customer": {
-        "title": "Cover group",
-        "description": "Changing the cover type reapplies suitable profile defaults while assigned covers remain unchanged.",
-        "data": {
-          "name": "Cover group name",
-          "profile": "Cover type"
-        }
-      },
-      "edit_layer_tilt_profile": {
-        "title": "Slat profile",
-        "description": "KNX slat semantics: 0% means fully open, 100% means fully closed.",
-        "data": {
-          "tilt_preset": "Slat profile"
-        }
-      },
-      "edit_layer_tilt_custom": {
-        "title": "Adaptive slat guidance",
-        "description": "The blind stays down; values control only the slat position (0% open, 100% closed).",
-        "data": {
-          "elevation_1": "Very low sun – from",
-          "tilt_1": "Very low sun – slat position",
-          "elevation_2": "Low sun – from",
-          "tilt_2": "Low sun – slat position",
-          "elevation_3": "Medium sun – from",
-          "tilt_3": "Medium sun – slat position",
-          "elevation_4": "High sun – from",
-          "tilt_4": "High sun – slat position"
-        }
-      },
-      "edit_layer_advanced": {
-        "title": "Advanced targets",
-        "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
-        "data": {
-          "open_position": "Neutral/open position",
-          "comfort_position": "Comfort position",
-          "solar_position": "Solar position",
-          "heat_position": "Heat position",
-          "night_position": "Night position",
-          "safety_position": "Safety position",
-          "comfort_tilt": "Comfort slat position",
-          "heat_tilt": "Heat slat position",
-          "night_tilt": "Night slat position"
-        }
-      },
-      "select_cover": {
-        "title": "Select cover",
-        "data": {
-          "cover_index": "Cover"
-        }
-      },
-      "edit_cover": {
-        "title": "Configure individual cover",
-        "description": "These values override only this cover. The shared movement strategy remains configured for the cover group.",
-        "data": {
-          "name": "Display name",
-          "lock": "Automation/manual lock (optional)",
-          "window": "Window contact (optional)",
-          "window_safe_state": "Safe window state",
-          "window_policy": "Behavior for unsafe window",
-          "window_returns_to_automation": "Return to automation after the window closes",
-          "max_open_position": "Maximum open position",
-          "invert_position": "Additionally invert position",
-          "invert_tilt": "Additionally invert slats",
-          "short": "Short code"
-        },
-        "data_description": {
-          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
-          "max_open_position": "Example: 90% when a cover must never open fully for safety reasons.",
-          "invert_position": "Use only when the Home Assistant entity itself reports 0/100 in the wrong direction. KNX inversion normally belongs in the KNX cover configuration.",
-          "invert_tilt": "The default is the KNX slat scale: 0% fully open and 100% fully closed. Enable this only when this cover exposes the opposite direction.",
-          "short": "Short label used by the card."
-        }
-      },
-      "remove_covers": {
-        "title": "Remove covers",
-        "data": {
-          "cover_indices": "Covers to remove"
-        }
-      },
-      "room_schedule_time": {
-        "title": "Set the daily time window",
-        "description": "These times are only used because “Fixed time window” was selected. Overnight windows are supported, for example 22:00 to 06:00.",
-        "data": {
-          "start_time": "Permit shading from",
-          "end_time": "Permit shading until"
-        },
-        "data_description": {
-          "start_time": "Normal automation may operate from this time.",
-          "end_time": "After this time, the selected outside-schedule behavior applies."
-        }
-      },
-      "sector_geometry": {
-        "title": "Fine-tune the solar sector",
-        "description": "This page is only needed for special cases and expert tuning. **0°/360° = north, 90° = east, 180° = south, 270° = west.** The range defines between which solar directions this window group is considered directly exposed. North-facing ranges may wrap across zero, for example 300° to 60°.",
-        "data": {
-          "name": "Solar sector display name",
-          "short": "Short label",
-          "azimuth_start": "Sector starts at solar azimuth",
-          "azimuth_end": "Sector ends after solar azimuth",
-          "elevation_min": "Start shading from solar elevation"
-        },
-        "data_description": {
-          "name": "Shown in status sensors and the dashboard card, for example “South”.",
-          "short": "Compact card label, for example S, SW, or E.",
-          "azimuth_start": "First solar direction considered direct sun. Example for south: 120°.",
-          "azimuth_end": "Last solar direction considered direct sun. Example for south: 240°.",
-          "elevation_min": "0° is the horizon and 90° is directly overhead. 10° ignores very low sun near the horizon; trees or neighboring buildings may justify a higher value."
-        }
-      },
-      "edit_room_schedule_time": {
-        "title": "Set the daily time window",
-        "description": "These times are only used because “Fixed time window” was selected. Overnight windows are supported, for example 22:00 to 06:00.",
-        "data": {
-          "start_time": "Permit shading from",
-          "end_time": "Permit shading until"
-        },
-        "data_description": {
-          "start_time": "Normal automation may operate from this time.",
-          "end_time": "After this time, the selected outside-schedule behavior applies."
-        }
-      },
-      "room_pause_setup": {
-        "title": "Pause and manual override",
-        "description": "By default, pressing Pause pauses until the next morning relative to sunrise. Safety always remains active. Heat protection may optionally continue during a pause.",
-        "data": {
-          "default_pause_mode": "Default pause action",
-          "pause_sun_offset_minutes": "Sun offset",
-          "pause_duration_hours": "Duration for “Fixed duration”",
-          "heat_during_pause": "Allow heat protection during pause"
-        },
-        "data_description": {
-          "default_pause_mode": "Recommended: until next morning. “Until manually resumed” never ends automatically.",
-          "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
-          "pause_duration_hours": "Only used when a fixed-duration pause is started.",
-          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
-        }
-      },
-      "room_advanced_setup": {
-        "title": "Advanced temperature logic",
-        "description": "The displayed values depend on the cover profile. Exterior venetian blinds only use normal adaptive shading and heat protection; redundant comfort/solar stages are hidden.",
-        "data": {
-          "comfort_temperature": "Comfort from",
-          "solar_temperature": "Solar from",
-          "heat_temperature": "Heat protection from",
-          "heat_release_temperature": "Release heat protection below",
-          "reopen_temperature": "Reopen below",
-          "normal_shading_temperature": "Normal shading from"
-        },
-        "data_description": {
-          "comfort_temperature": "First normal shading threshold.",
-          "solar_temperature": "Stronger solar heat reduction.",
-          "heat_temperature": "Strongest thermal protection.",
-          "heat_release_temperature": "Hysteresis to prevent heat mode from toggling repeatedly.",
-          "reopen_temperature": "Below this value the covers may reopen.",
-          "normal_shading_temperature": "From this room temperature normal solar shading may lower the cover fully and guide the slats adaptively."
-        }
-      },
-      "edit_room_pause": {
-        "title": "Pause settings",
-        "description": "By default, pressing Pause pauses until the next morning relative to sunrise. Safety always remains active. Heat protection may optionally continue during a pause.",
-        "data": {
-          "default_pause_mode": "Default pause action",
-          "pause_sun_offset_minutes": "Sun offset",
-          "pause_duration_hours": "Duration for “Fixed duration”",
-          "heat_during_pause": "Allow heat protection during pause"
-        },
-        "data_description": {
-          "default_pause_mode": "Recommended: until next morning. “Until manually resumed” never ends automatically.",
-          "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
-          "pause_duration_hours": "Only used when a fixed-duration pause is started.",
-          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
-        }
-      },
-      "edit_room_night": {
-        "title": "Night Mode",
-        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
-        "data": {
-          "night_enabled": "Enable Night Mode",
-          "night_source": "Night source",
-          "night_morning_transition_minutes": "Morning transition window",
-          "night_evening_transition_minutes": "Evening transition window"
-        },
-        "data_description": {
-          "night_morning_transition_minutes": "Hold the Night target while a geometrically relevant sector waits for its shading conditions. 0 disables the hold.",
-          "night_evening_transition_minutes": "Hold the current target when Night starts shortly after evening release. 0 disables the hold."
-        }
-      },
-      "edit_room_night_entity": {
-        "title": "Select Night source entity",
-        "description": "Use a Home Assistant Schedule Helper for weekly planning. On means Night active; off means daytime evaluation.",
-        "data": {
-          "night_entity": "Schedule or on/off entity"
-        }
-      },
-      "edit_room_night_sun": {
-        "title": "Night relative to the sun",
-        "description": "Set separate offsets for the Night start at sunset and Night end at sunrise.",
-        "data": {
-          "night_start_offset_minutes": "Offset from sunset",
-          "night_end_offset_minutes": "Offset from sunrise"
-        }
-      },
-      "room_pause_sun_setup": {
-        "title": "Pause relative to the sun",
-        "description": "Choose how many minutes before or after the selected sun event normal automation resumes. 0 minutes means exactly at sunrise or sunset.",
-        "data": {
-          "pause_sun_offset_minutes": "Offset from sun event"
-        },
-        "data_description": {
-          "pause_sun_offset_minutes": "Negative values resume earlier; positive values resume later. Recommended next-morning default: 0 minutes."
-        }
-      },
-      "room_pause_duration_setup": {
-        "title": "Fixed pause duration",
-        "description": "This duration is used when the pause mode is set to “For a fixed duration”.",
-        "data": {
-          "pause_duration_hours": "Pause duration"
-        },
-        "data_description": {
-          "pause_duration_hours": "Normal automation resumes automatically when the duration ends."
-        }
-      },
-      "sector_identity": {
-        "title": "Name the sun sector",
-        "description": "The direction range is already preset. Give this sector a unique display name and short code. For multiple south sectors, names such as “South left” and “South right” are useful.",
-        "data": {
-          "name": "Display name",
-          "short": "Short code"
-        },
-        "data_description": {
-          "name": "This name appears in status entities and the card.",
-          "short": "Short code for chips and the sun track, e.g. S1."
-        }
-      },
-      "name_selected_cover": {
-        "title": "Name cover {current} of {count}",
-        "description": "Selected entity: **{entity_name}**\n\nThe display name and short code are used in the card. The technical entity ID remains internal and is not shown.",
-        "data": {
-          "name": "Display name",
-          "short": "Short code",
-          "lock": "Manual Entity (optional)",
-          "window": "Window contact (optional)",
-          "window_safe_state": "Safe window state",
-          "window_policy": "Behavior when window is unsafe",
-          "window_returns_to_automation": "Return to automation after the window closes",
-          "max_open_position": "Maximum open position",
-          "invert_position": "Invert height",
-          "invert_tilt": "Invert slat position"
-        },
-        "data_description": {
-          "name": "Short, clear name for this cover.",
-          "short": "Short code for status chips, e.g. C1.",
-          "lock": "Optional switch or input boolean used to pause this cover. The same entity may be shared by several covers.",
-          "window": "Example: window closed. Define the safe state below.",
-          "window_safe_state": "",
-          "window_policy": "Block closing only still permits a safe opening movement.",
-          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
-          "max_open_position": "Limits opening for this cover.",
-          "invert_position": "Use only when reported cover height runs in the opposite direction.",
-          "invert_tilt": "Use only when reported slat position runs in the opposite direction."
-        }
-      },
-      "compact_room": {
-        "title": "Room, sensors and core behavior",
-        "description": "Configure the room on one page. Temperature, safety and outdoor sensors are optional. The schedule only grants permission; sun position, lux and temperature determine actual movement.",
-        "data": {
-          "name": "Room name",
-          "indoor_temperature": "Room temperature (optional)",
-          "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Wind, frost or rain sensors (optional)",
-          "schedule_profile": "Active period",
-          "default_pause_mode": "Default pause action",
-          "heat_during_pause": "Allow heat protection during pause"
-        },
-        "data_description": {
-          "safety_blockers": "Multiple selection is supported. Normally, on means danger is active.",
-          "default_pause_mode": "This rule is used only when the room is paused later."
-        }
-      },
-      "compact_schedule_custom": {
-        "title": "Custom schedule",
-        "description": "Only required because Custom was selected. Safety always remains active.",
-        "data": {
-          "active_months": "Active months",
-          "active_weekdays": "Active weekdays",
-          "day_window": "Daily permission",
-          "outside_schedule_behavior": "Outside schedule",
-          "heat_outside_schedule": "Allow heat protection outside schedule"
-        }
-      },
-      "compact_sector": {
-        "title": "Sun sector and lux sensor",
-        "description": "Select the facade direction and optionally a lux sensor. Name and abbreviation are used in the card and entities. Sensitive means a lower lux threshold.",
-        "data": {
-          "direction": "Compass direction",
-          "name": "Sector display name",
-          "short": "Abbreviation",
-          "lux_sensor": "Lux sensor (optional)",
-          "sun_preset": "Sun Presence sensitivity"
-        }
-      },
-      "compact_sun_custom": {
-        "title": "Custom Sun Presence values",
-        "description": "These values are lux thresholds. ON must be higher than OFF.",
-        "data": {
-          "sun_on_lux": "Sun detected from",
-          "sun_off_lux": "Sun no longer detected below",
-          "sun_on_delay": "ON delay",
-          "sun_off_delay": "OFF delay"
-        }
-      },
-      "compact_layer": {
-        "title": "Cover group and covers",
-        "description": "Select the cover type and add multiple covers at once. Exterior venetian blinds automatically use fully lowered adaptive shading and fully closed heat protection.",
-        "data": {
-          "name": "Cover group name",
-          "profile": "Cover type",
-          "tilt_preset": "Slat profile",
-          "cover_entities": "Select covers"
-        }
-      },
-      "compact_tilt_custom": {
-        "title": "Custom slat curve",
-        "description": "The blind is fully lowered during shading. These values control only the slat position: 0% fully open, 100% fully closed.",
-        "data": {
-          "elevation_1": "Level 1: from sun elevation",
-          "elevation_2": "Level 2: from sun elevation",
-          "elevation_3": "Level 3: from sun elevation",
-          "elevation_4": "Level 4: from sun elevation",
-          "tilt_1": "Level 1: slat position",
-          "tilt_2": "Level 2: slat position",
-          "tilt_3": "Level 3: slat position",
-          "tilt_4": "Level 4: slat position"
-        }
-      },
-      "compact_cover_details": {
-        "title": "Cover {current} of {count}: details",
-        "description": "Choose a short display name. Window contact and automation lock are optional but used by both card and control logic. Selected: {entity_name}",
-        "data": {
-          "name": "Display name",
-          "short": "Abbreviation",
-          "lock": "Manual Entity (optional)",
-          "window": "Window contact (optional)",
-          "window_safe_state": "Safe window state",
-          "window_policy": "Behavior when window is unsafe",
-          "window_returns_to_automation": "Return to automation after the window closes",
-          "max_open_position": "Maximum open position",
-          "invert_position": "Invert height",
-          "invert_tilt": "Invert slat position"
-        },
-        "data_description": {
-          "window": "Example: window closed. Define the safe state below.",
-          "window_policy": "Block closing only still permits a safe opening movement.",
-          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
-          "max_open_position": "Limits opening for this cover.",
-          "invert_position": "Use only when reported cover height runs in the opposite direction.",
-          "invert_tilt": "Use only when reported slat position runs in the opposite direction.",
-          "lock": "Optional switch or input boolean used to pause this cover. The same entity may be shared by several covers."
-        }
-      },
-      "initial_night_setup": {
-        "title": "Night function",
-        "description": "Choose whether and when this room moves to its Night targets. Leave it off if Night control is not needed.",
-        "data": {
-          "night_enabled": "Enable Night function",
-          "night_source": "Source",
-          "night_entity": "Night entity (optional)",
-          "night_start_offset_minutes": "Start offset",
-          "night_end_offset_minutes": "End offset",
-          "night_morning_transition_minutes": "Morning transition",
-          "night_evening_transition_minutes": "Evening transition"
-        },
-        "data_description": {
-          "night_enabled": "Enable automatic Night positions for this room.",
-          "night_source": "Choose an entity or automatic sunset/sunrise.",
-          "night_entity": "Required only for the entity source; schedule and on/off helpers are supported.",
-          "night_start_offset_minutes": "Moves Night start before or after the selected source.",
-          "night_end_offset_minutes": "Moves Night end before or after the selected source.",
-          "night_morning_transition_minutes": "Allows a calm handover after Night ends.",
-          "night_evening_transition_minutes": "Allows a calm handover when Night begins."
-        }
-      },
-      "initial_pause_setup": {
-        "title": "Pause and manual control",
-        "description": "Choose the default pause duration. A pause until the end of Night appears only when the Night function has a valid source.",
-        "data": {
-          "default_pause_mode": "Default pause duration",
-          "pause_sun_offset_minutes": "Sun event offset",
-          "pause_duration_hours": "Fixed duration",
-          "heat_during_pause": "Allow Heat Protection during pause"
-        },
-        "data_description": {
-          "default_pause_mode": "Determines when a newly started pause normally ends.",
-          "pause_sun_offset_minutes": "Applies only to sunrise or sunset based pauses.",
-          "pause_duration_hours": "Applies only to fixed-duration pauses.",
-          "heat_during_pause": "Allows urgent Heat Protection while normal automation is paused."
-        }
-      },
-      "initial_conditions_setup": {
-        "title": "Temperatures, Heat and safety",
-        "description": "Review the remaining optional inputs and thresholds. Empty sensors are ignored.",
-        "data": {
-          "heat_temperature": "Heat threshold",
-          "heat_release_temperature": "Heat release threshold",
-          "reopen_temperature": "Reopen threshold",
-          "normal_shading_temperature": "Shading threshold",
-          "comfort_temperature": "Comfort threshold",
-          "solar_temperature": "Solar threshold",
-          "irradiance_sensor": "Irradiance sensor (optional)",
-          "cloud_cover_sensor": "Cloud sensor (optional)",
-          "weather_permission": "Weather permission (optional)",
-          "glare_sensor": "Glare sensor (optional)",
-          "occupancy_sensor": "Occupancy sensor (optional)",
-          "heat_requires_sun": "Require sun for Heat Protection",
-          "safety_behavior": "Safety behavior"
-        },
-        "data_description": {
-          "heat_temperature": "Starts Heat Protection at or above this indoor temperature.",
-          "heat_release_temperature": "Releases the heat latch only below this value and at the configured release time.",
-          "reopen_temperature": "Allows normal shading to reopen below this value.",
-          "normal_shading_temperature": "Starts normal venetian-blind shading at or above this value.",
-          "comfort_temperature": "Starts the first shading stage.",
-          "solar_temperature": "Starts the stronger solar stage.",
-          "irradiance_sensor": "Optional solar-radiation input.",
-          "cloud_cover_sensor": "Optional cloud-cover percentage input.",
-          "weather_permission": "Optional on/off permission from an external weather rule.",
-          "glare_sensor": "Optional on/off glare permission.",
-          "occupancy_sensor": "Optional room occupancy input.",
-          "heat_requires_sun": "Requires direct sun in at least one room sector before Heat Protection starts.",
-          "safety_behavior": "Choose whether danger moves covers safe or only blocks normal movement."
-        }
-      }
-    },
-    "error": {
-      "temperature_order": "Comfort must be lower than Solar, and Solar lower than Heat Protection.",
-      "release_order": "Reopen must be lower than heat release, and heat release lower than heat start.",
-      "lux_hysteresis": "The ON lux threshold must be higher than the OFF lux threshold.",
-      "elevation_order": "The four sun elevations must be strictly increasing.",
-      "cover_already_assigned": "At least one selected cover is already assigned within this house.",
-      "select_at_least_one": "Select at least one item.",
-      "choose_one_sun_confirmation": "Choose either a lux sensor or a sun-detected on/off entity, not both.",
-      "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
-      "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
-      "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
-      "cannot_delete_last_sector": "A room must keep at least one sun sector. Add another sector first.",
-      "cannot_delete_last_layer": "A sector must keep at least one cover group. Add another group first.",
-      "cannot_delete_last_cover": "A cover group must keep at least one cover. Add another cover first.",
-      "cannot_delete_last_room": "A Smart Shading entry must keep at least one room. Add another room first.",
-      "night_entity_required": "Night Mode uses the entity source. Select a schedule or on/off entity.",
-      "pause_requires_night": "The next-night-end pause requires Night Mode to remain enabled."
-    },
-    "abort": {
-      "no_rooms": "No rooms have been configured yet.",
-      "no_sectors": "This room has no sun sectors yet.",
-      "no_layers": "This sector has no cover groups yet.",
-      "no_covers": "This cover group has no covers yet.",
-      "already_configured": "This house name is already configured."
-    }
-  },
-  "options": {
-    "step": {
-      "user": {
-        "title": "Set up Smart Shading",
-        "description": "Requirement: The Home Assistant Sun integration and the `sun.sun` entity must be present and available. Smart Shading uses it automatically for sun direction and elevation. If it is missing, the wizard shows a clear error and does not finish setup.",
-        "data": {
-          "house_name": "House or area name",
-          "advanced_mode": "Use advanced mode",
-          "diagnostic_level": "Diagnostic logging"
-        },
-        "data_description": {
-          "house_name": "Neutral example: house, apartment, or building section.",
-          "advanced_mode": "Easy runs only sun-geometry shading and one indefinite room Manual Override. Advanced enables the complete Smart Shading feature set.",
-          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision."
-        }
-      },
-      "global_settings": {
-        "title": "General settings",
-        "description": "Choose house-wide behavior. Detailed technical values are grouped and normally keep their defaults.",
-        "data": {
-          "sun_entity": "Sun entity",
-          "position_tolerance": "Cover position tolerance",
-          "tilt_tolerance": "Slat position tolerance",
-          "command_cooldown": "Duplicate-command cooldown",
-          "unknown_feedback_policy": "Behavior without position feedback",
-          "evening_release_time": "Latest fixed evening release",
-          "sunset_offset_minutes": "Sunset offset",
-          "advanced_mode": "Enable complete functions",
-          "weather_entity": "Weather entity",
-          "diagnostic_level": "Diagnostic logging",
-          "evaluation_interval_minutes": "Periodic evaluation"
-        },
-        "data_description": {
-          "sun_entity": "Provides sun elevation and azimuth. The Home Assistant sun entity is recommended.",
-          "position_tolerance": "No new position command is sent while feedback stays within this deviation.",
-          "tilt_tolerance": "No new slat command is sent while feedback stays within this deviation.",
-          "command_cooldown": "Prevents repeated identical commands.",
-          "unknown_feedback_policy": "Controls whether automation may continue when a cover has no numeric position feedback.",
-          "evening_release_time": "An active Heat Protection mode is released no later than this time.",
-          "sunset_offset_minutes": "Negative values mean before sunset; positive values mean after sunset.",
-          "advanced_mode": "Shows schedules, temperatures, safety, Night, Pause and detailed cover behavior.",
-          "weather_entity": "Optional weather source used by the selected mode.",
-          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
-          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
-        }
-      },
-      "add_room": {
-        "title": "Create room",
-        "description": "Add a complete room without leaving this editor.",
-        "sections": {
-          "room_and_covers": {
-            "name": "Room and covers",
+            "description": "Choose the facade and covers that use the same physical profile.",
             "data": {
               "name": "Room name",
               "direction": "Facade direction",
@@ -980,102 +30,256 @@
             },
             "data_description": {
               "name": "Shown as the room name in Home Assistant and on the dashboard card.",
-              "direction": "The preset defines when the sun reaches this facade.",
-              "group_name": "Optional label for the covers that move together in this room.",
-              "profile": "Select the physical cover type so suitable positions are used.",
-              "cover_entities": "Select at least one unassigned cover."
+              "direction": "Defines when the sun reaches this facade.",
+              "group_name": "Name for covers that share physical behavior and target positions.",
+              "profile": "Select the physical cover type so suitable defaults are used.",
+              "cover_entities": "Select at least one unassigned Home Assistant cover."
             }
           },
           "sun_control": {
             "name": "Sun control",
-            "description": "Sun geometry always works. Add either Lux or an external on/off confirmation when available.",
+            "description": "Choose how direct sun should be confirmed for the first sector.",
             "data": {
-              "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation (optional)",
-              "sun_preset": "Sun sensitivity",
-              "azimuth_start": "Custom azimuth start",
-              "azimuth_end": "Custom azimuth end",
-              "elevation_min": "Custom minimum sun elevation"
+              "sun_source": "Sun source"
             },
             "data_description": {
-              "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-              "sun_presence_entity": "Use an existing on/off entity where on means direct sun. Leave empty when Lux or sun geometry should be used.",
-              "sun_preset": "Lux sensitivity when a lux sensor is selected.",
-              "azimuth_start": "Geometry values are needed only for a custom facade direction.",
-              "azimuth_end": "Geometry values are needed only for a custom facade direction.",
-              "elevation_min": "Geometry values are needed only for a custom facade direction."
+              "sun_source": "Choose the available source used to confirm direct sun."
             }
           },
           "optional_improvements": {
-            "name": "Optional improvements",
+            "name": "Optional temperature gate",
+            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
             "data": {
               "easy_temperature_gate": "Use outdoor temperature gate",
               "outdoor_temperature": "Outdoor temperature sensor",
               "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "easy_temperature_gate": "Optionally require a minimum outdoor temperature. Missing data never blocks shading.",
-              "outdoor_temperature": "Optional. Used first by the temperature gate; weather temperature is the fallback.",
-              "outdoor_minimum": "Minimum outdoor temperature for simple control shading."
-            },
-            "description": "These inputs can refine control but are not required."
+              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
+              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
+              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+            }
           },
           "advanced_conditions": {
-            "name": "Additional functions",
+            "name": "Temperature sources",
+            "description": "Add the available room and outdoor temperature sensors.",
             "data": {
-              "weather_entity": "Weather entity",
               "indoor_temperature": "Indoor temperature",
               "outdoor_temperature": "Outdoor temperature",
-              "outdoor_minimum": "Minimum outdoor temperature",
-              "safety_blockers": "Safety conditions",
-              "external_movement_detection": "Detect external cover movement"
+              "outdoor_minimum": "Minimum outdoor temperature"
             },
             "data_description": {
-              "weather_entity": "Optional Home Assistant weather entity.",
-              "indoor_temperature": "Enables room comfort and heat thresholds.",
-              "outdoor_temperature": "Can block normal shading in cold conditions.",
-              "outdoor_minimum": "Minimum outdoor temperature for normal shading.",
-              "safety_blockers": "Wind, frost or other binary sensors; on means blocked.",
-              "external_movement_detection": "Requires reliable numeric position or slat feedback."
-            },
-            "description": "Optional sensors and automation behavior."
+              "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
+              "outdoor_temperature": "Optional source for outdoor-temperature conditions.",
+              "outdoor_minimum": "Minimum outdoor temperature for normal shading."
+            }
           }
+        }
+      },
+      "global_settings": {
+        "title": "House settings",
+        "description": "Change settings that apply to the entire house.",
+        "data": {
+          "sun_entity": "Sun entity",
+          "position_tolerance": "Cover position tolerance",
+          "tilt_tolerance": "Slat position tolerance",
+          "command_cooldown": "Duplicate-command cooldown",
+          "unknown_feedback_policy": "Behavior without position feedback",
+          "evening_release_time": "Latest fixed evening release",
+          "sunset_offset_minutes": "Sunset offset",
+          "weather_entity": "Weather entity",
+          "diagnostic_level": "Diagnostic logging",
+          "evaluation_interval_minutes": "Periodic evaluation"
+        },
+        "data_description": {
+          "sun_entity": "Provides sun elevation and azimuth. The Home Assistant sun entity is recommended.",
+          "position_tolerance": "No new position command is sent while feedback stays within this deviation.",
+          "tilt_tolerance": "No new slat command is sent while feedback stays within this deviation.",
+          "command_cooldown": "Prevents repeated identical commands.",
+          "unknown_feedback_policy": "Controls whether automation may continue when a cover has no numeric position feedback.",
+          "evening_release_time": "Active heat protection ends no later than this time.",
+          "sunset_offset_minutes": "Negative values mean before sunset; positive values mean after sunset.",
+          "weather_entity": "Optional weather source for shading decisions.",
+          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
+          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
+        }
+      },
+      "add_room": {
+        "title": "Add room",
+        "description": "Choose the room, first facade, cover group and covers.",
+        "sections": {
+          "room_and_covers": {
+            "name": "Room and covers",
+            "description": "Choose the facade and covers that use the same physical profile.",
+            "data": {
+              "name": "Room name",
+              "direction": "Facade direction",
+              "group_name": "Cover group name",
+              "profile": "Cover type",
+              "cover_entities": "Covers"
+            },
+            "data_description": {
+              "name": "Shown as the room name in Home Assistant and on the dashboard card.",
+              "direction": "Defines when the sun reaches this facade.",
+              "group_name": "Name for covers that share physical behavior and target positions.",
+              "profile": "Select the physical cover type so suitable defaults are used.",
+              "cover_entities": "Select at least one unassigned Home Assistant cover."
+            }
+          },
+          "sun_control": {
+            "name": "Sun control",
+            "description": "Choose how direct sun should be confirmed for the first sector.",
+            "data": {
+              "sun_source": "Sun source"
+            },
+            "data_description": {
+              "sun_source": "Choose the available source used to confirm direct sun."
+            }
+          },
+          "optional_improvements": {
+            "name": "Optional temperature gate",
+            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "data": {
+              "easy_temperature_gate": "Use outdoor temperature gate",
+              "outdoor_temperature": "Outdoor temperature sensor",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
+              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
+              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+            }
+          },
+          "advanced_conditions": {
+            "name": "Temperature sources",
+            "description": "Add the available room and outdoor temperature sensors.",
+            "data": {
+              "indoor_temperature": "Indoor temperature",
+              "outdoor_temperature": "Outdoor temperature",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
+              "outdoor_temperature": "Optional source for outdoor-temperature conditions.",
+              "outdoor_minimum": "Minimum outdoor temperature for normal shading."
+            }
+          }
+        }
+      },
+      "init": {
+        "title": "Manage Smart Shading",
+        "description": "Add or open a room, adjust house settings, or review the setup.",
+        "menu_options": {
+          "add_room": "Add room",
+          "global_settings": "House settings",
+          "finish": "Review and start"
+        }
+      },
+      "compact_cover_details": {
+        "title": "Configure cover {current} of {count}",
+        "description": "Selected: {entity_name}. Check the name and short name.",
+        "data": {
+          "name": "Display name",
+          "short": "Abbreviation",
+          "lock": "Manual pause entity (optional)",
+          "window": "Window contact (optional)",
+          "window_safe_state": "Safe window state",
+          "window_policy": "Behavior when window is unsafe",
+          "window_returns_to_automation": "Return to automation after the window closes",
+          "max_open_position": "Maximum open position",
+          "invert_position": "Invert height",
+          "invert_tilt": "Invert slat position"
+        },
+        "data_description": {
+          "name": "Shown on the dashboard card.",
+          "short": "Short label for compact displays, for example C1.",
+          "window": "Example: window closed. Define the safe state below.",
+          "window_safe_state": "State in which automatic movement is allowed.",
+          "window_policy": "Block closing only still permits a safe opening movement.",
+          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
+          "max_open_position": "Limits opening for this cover.",
+          "invert_position": "Use only when reported cover height runs in the opposite direction.",
+          "invert_tilt": "Use only when reported slat position runs in the opposite direction.",
+          "lock": "Pauses this cover. Reusing the same entity groups several covers for manual control."
         }
       },
       "room_hub": {
         "title": "Manage room",
-        "description": "Choose a task. Sectors, groups and covers each have their own clear list.",
+        "description": "Choose what you want to configure.",
         "menu_options": {
           "back_to_overview": "Back to room list"
         }
       },
-      "manage_room": {
-        "title": "{room_name} · Room settings",
-        "description": "Only settings available in the selected Easy or Advanced mode are shown. All groups below stay on this single page.",
+      "sector_hub": {
+        "title": "Sun sectors",
+        "description": "Add a sector or open an existing one. A sector describes one facade or sun direction.",
+        "menu_options": {}
+      },
+      "group_hub": {
+        "title": "Cover groups",
+        "description": "Add a group or edit an existing group. Covers in one group share physical behavior and target positions.",
+        "menu_options": {}
+      },
+      "cover_hub": {
+        "title": "Individual covers",
+        "description": "Add covers or edit their names and short names.",
+        "menu_options": {}
+      },
+      "choose_sector_for_group": {
+        "title": "Choose sun sector",
+        "description": "Select the sector that should receive the new cover group.",
+        "data": {
+          "sector_id": "Sun sector"
+        },
+        "data_description": {
+          "sector_id": "The group will belong to this sun sector."
+        }
+      },
+      "choose_group_for_covers": {
+        "title": "Choose cover group",
+        "description": "Select the group that should receive the new covers.",
+        "data": {
+          "group_id": "Cover group"
+        },
+        "data_description": {
+          "group_id": "The covers will inherit this group’s physical behavior and targets."
+        }
+      },
+      "manage_room_details": {
+        "title": "Room details",
+        "description": "Edit the name and primary temperature sources.",
+        "data": {
+          "name": "Room name",
+          "indoor_temperature": "Indoor temperature (optional)",
+          "outdoor_temperature": "Outdoor temperature (optional)",
+          "outdoor_minimum": "Minimum outdoor temperature",
+          "easy_temperature_gate": "Use temperature gate"
+        },
+        "data_description": {
+          "name": "Name used in cards and status entities.",
+          "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
+          "outdoor_temperature": "Optional outdoor temperature source.",
+          "outdoor_minimum": "Below this value, temperature-dependent shading does not start.",
+          "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block."
+        }
+      },
+      "manage_room_maintenance": {
+        "title": "Remove room",
+        "description": "This removes the room and all of its sectors, groups and cover assignments.",
+        "data": {
+          "delete_room": "Remove this room"
+        },
+        "data_description": {
+          "delete_room": "Deletes the complete room configuration."
+        }
+      },
+      "manage_automation": {
+        "title": "Automation",
+        "description": "Set active times. Temperature stages appear when a room sensor is configured.",
         "sections": {
-          "room_basics": {
-            "name": "Room and core inputs",
-            "description": "Only inputs supported by the selected Easy or Advanced mode are shown.",
-            "data": {
-              "name": "Room name",
-              "easy_temperature_gate": "Use outdoor temperature gate",
-              "indoor_temperature": "Indoor temperature",
-              "outdoor_temperature": "Outdoor temperature",
-              "outdoor_minimum": "Minimum outdoor temperature",
-              "safety_blockers": "Safety conditions"
-            },
-            "data_description": {
-              "name": "Name shown in entities and on the dashboard card.",
-              "easy_temperature_gate": "Easy Mode shades only above the threshold. Missing readings fail open.",
-              "indoor_temperature": "Advanced only. Used for normal shading and Heat Protection thresholds.",
-              "outdoor_temperature": "Optional. Easy uses it only when the temperature gate is enabled.",
-              "outdoor_minimum": "Minimum outdoor temperature for normal shading.",
-              "safety_blockers": "Advanced only. Select entities where on means danger, such as wind or frost."
-            }
-          },
           "schedule_settings": {
             "name": "Schedule",
-            "description": "Advanced only. It permits normal shading; sun and the configured conditions still decide whether to move.",
+            "description": "When normal shading may run.",
             "data": {
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
@@ -1084,128 +288,116 @@
               "start_time": "Start time",
               "end_time": "End time",
               "outside_schedule_behavior": "Outside the schedule",
-              "heat_outside_schedule": "Allow Heat Protection outside schedule"
+              "heat_outside_schedule": "Allow heat protection outside schedule"
             },
             "data_description": {
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
-              "day_window": "Choose sector sun, all day, or a fixed daily time window.",
+              "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; Safety still applies.",
+              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies.",
               "heat_outside_schedule": "Keeps overheating protection available outside normal shading times."
             }
           },
-          "pause_settings": {
-            "name": "Pause behavior",
-            "description": "Advanced only. Safety always has priority over a pause.",
-            "data": {
-              "default_pause_mode": "Default pause action",
-              "pause_sun_offset_minutes": "Sun-event offset",
-              "pause_duration_hours": "Timed pause duration",
-              "heat_during_pause": "Allow Heat Protection during pause",
-              "external_movement_detection": "Detect confirmed external movement"
-            },
-            "data_description": {
-              "default_pause_mode": "Release at the selected sun event, after a duration, or only manually.",
-              "pause_sun_offset_minutes": "Negative values release before the selected sun event.",
-              "pause_duration_hours": "Used only for a timed pause.",
-              "heat_during_pause": "Allows Heat Protection while normal automation remains paused.",
-              "external_movement_detection": "Uses numeric position or slat feedback; state-only opening/closing changes are ignored."
-            }
-          },
-          "night_settings": {
-            "name": "Night Mode",
-            "description": "Advanced only. Use either an on/off schedule entity or sunrise and sunset.",
-            "data": {
-              "night_enabled": "Enable Night Mode",
-              "night_source": "Night source",
-              "night_entity": "Night schedule or on/off entity",
-              "night_start_offset_minutes": "Sunset offset",
-              "night_end_offset_minutes": "Sunrise offset",
-              "night_morning_transition_minutes": "Morning handover window",
-              "night_evening_transition_minutes": "Evening handover window"
-            },
-            "data_description": {
-              "night_enabled": "Closes the configured cover groups during the active night period.",
-              "night_source": "Use an on/off entity or calculate the period from sunset and sunrise.",
-              "night_entity": "Required only when the entity source is selected.",
-              "night_start_offset_minutes": "Moves the calculated night start relative to sunset.",
-              "night_end_offset_minutes": "Moves the calculated night end relative to sunrise.",
-              "night_morning_transition_minutes": "Checks current sun conditions before handing over to daytime automation.",
-              "night_evening_transition_minutes": "Smooth handover period before Night Mode takes control."
-            }
-          },
           "temperature_settings": {
-            "name": "Temperature levels",
-            "description": "Advanced only. Hysteresis prevents rapid switching between modes.",
+            "name": "Temperatures and heat protection",
+            "description": "Thresholds are checked in a safe order.",
             "data": {
               "normal_shading_temperature": "Normal shading from",
               "comfort_temperature": "Comfort from",
               "solar_temperature": "Solar from",
-              "heat_temperature": "Heat Protection from",
-              "heat_release_temperature": "Release Heat Protection below",
+              "heat_temperature": "Heat protection from",
               "reopen_temperature": "Reopen below"
             },
             "data_description": {
               "normal_shading_temperature": "Exterior blinds start normal sun shading above this indoor temperature.",
               "comfort_temperature": "First indoor threshold for compatible cover profiles.",
               "solar_temperature": "Stronger solar-protection threshold for compatible profiles.",
-              "heat_temperature": "Heat Protection may start above this indoor temperature.",
-              "heat_release_temperature": "Heat Protection releases only below this value at the configured evening release.",
-              "reopen_temperature": "Lower hysteresis threshold for returning to the open state."
-            }
-          },
-          "condition_settings": {
-            "name": "Optional advanced conditions",
-            "description": "Leave every unused entity empty. No optional input is required.",
-            "data": {
-              "irradiance_sensor": "Irradiance sensor",
-              "irradiance_minimum": "Minimum irradiance",
-              "cloud_cover_sensor": "Cloud cover sensor",
-              "cloud_cover_maximum": "Maximum cloud cover",
-              "weather_permission": "Weather permission",
-              "glare_sensor": "Glare sensor",
-              "occupancy_sensor": "Occupancy sensor",
-              "weather_logic": "Combine weather inputs",
-              "heat_ignores_weather": "Heat ignores normal weather conditions",
-              "heat_fail_safe": "Use heat fail-safe",
-              "heat_requires_sun": "Heat requires an active sun sector",
-              "comfort_requires_occupancy": "Comfort requires occupancy",
-              "safety_behavior": "Safety behavior"
-            },
-            "data_description": {
-              "irradiance_sensor": "Optional global solar-radiation value.",
-              "irradiance_minimum": "Normal shading requires at least this irradiance when the sensor is configured.",
-              "cloud_cover_sensor": "Optional cloud percentage sensor.",
-              "cloud_cover_maximum": "Normal shading requires cloud cover at or below this value.",
-              "weather_permission": "Optional binary permission; on allows normal shading.",
-              "glare_sensor": "Optional binary glare request.",
-              "occupancy_sensor": "Optional room occupancy input.",
-              "weather_logic": "Require all configured weather inputs or any one of them.",
-              "heat_ignores_weather": "Lets Heat Protection start even when normal weather conditions fail.",
-              "heat_fail_safe": "Keeps an active Heat Protection state when a required sensor becomes unavailable.",
-              "heat_requires_sun": "At least one room sector must currently have sun to start Heat Protection.",
-              "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
-              "safety_behavior": "Move to the safe target or block normal commands while unsafe."
-            }
-          },
-          "room_maintenance": {
-            "name": "Remove room",
-            "description": "Deletion takes effect after saving this page.",
-            "data": {
-              "delete_room": "Delete this room"
-            },
-            "data_description": {
-              "delete_room": "The last remaining room cannot be deleted."
+              "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
+              "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
             }
           }
         }
       },
+      "manage_night": {
+        "title": "Night function",
+        "description": "Choose when this room moves to its night position.",
+        "data": {
+          "night_enabled": "Enable night function",
+          "night_source": "Night source",
+          "night_entity": "Night schedule or on/off entity",
+          "night_start_offset_minutes": "Sunset offset",
+          "night_end_offset_minutes": "Sunrise offset",
+          "night_morning_transition_minutes": "Morning handover window",
+          "night_evening_transition_minutes": "Evening handover window"
+        },
+        "data_description": {
+          "night_enabled": "Closes the configured cover groups during the active night period.",
+          "night_source": "Use an on/off entity or calculate the period from sunset and sunrise.",
+          "night_entity": "Required only when the entity source is selected.",
+          "night_start_offset_minutes": "Moves the calculated night start relative to sunset.",
+          "night_end_offset_minutes": "Moves the calculated night end relative to sunrise.",
+          "night_morning_transition_minutes": "Checks current sun conditions before handing over to daytime automation.",
+          "night_evening_transition_minutes": "Smooth handover before the night function takes control."
+        }
+      },
+      "manage_pause": {
+        "title": "Pause and manual control",
+        "description": "Choose when a pause ends and whether external movement starts one.",
+        "data": {
+          "default_pause_mode": "Default pause action",
+          "pause_sun_offset_minutes": "Sun-event offset",
+          "pause_duration_hours": "Timed pause duration",
+          "heat_during_pause": "Allow heat protection during pause",
+          "external_movement_detection": "Detect confirmed external movement"
+        },
+        "data_description": {
+          "default_pause_mode": "Release at the selected sun event, after a duration, or only manually.",
+          "pause_sun_offset_minutes": "Negative values release before the selected sun event.",
+          "pause_duration_hours": "Used only for a timed pause.",
+          "heat_during_pause": "Allows heat protection while normal automation remains paused.",
+          "external_movement_detection": "Starts a pause after confirmed position or slat movement outside Smart Shading."
+        }
+      },
+      "manage_conditions": {
+        "title": "Safety and conditions",
+        "description": "Add optional weather, occupancy and safety inputs. Empty fields are ignored.",
+        "data": {
+          "safety_blockers": "Safety sensors (optional)",
+          "irradiance_sensor": "Irradiance sensor",
+          "irradiance_minimum": "Minimum irradiance",
+          "cloud_cover_sensor": "Cloud cover sensor",
+          "cloud_cover_maximum": "Maximum cloud cover",
+          "weather_permission": "Weather permission",
+          "glare_sensor": "Glare sensor",
+          "occupancy_sensor": "Occupancy sensor",
+          "weather_logic": "Combine weather inputs",
+          "heat_ignores_weather": "Heat ignores normal weather conditions",
+          "heat_requires_sun": "Heat requires an active sun sector",
+          "comfort_requires_occupancy": "Comfort requires occupancy",
+          "safety_behavior": "Safety behavior"
+        },
+        "data_description": {
+          "irradiance_sensor": "Optional global solar-radiation value.",
+          "irradiance_minimum": "Normal shading requires at least this irradiance when the sensor is configured.",
+          "cloud_cover_sensor": "Optional cloud percentage sensor.",
+          "cloud_cover_maximum": "Normal shading requires cloud cover at or below this value.",
+          "weather_permission": "Optional binary permission; on allows normal shading.",
+          "glare_sensor": "Optional binary glare request.",
+          "occupancy_sensor": "Optional room occupancy input.",
+          "weather_logic": "Require all configured weather inputs or any one of them.",
+          "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
+          "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
+          "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
+          "safety_behavior": "Move to the safe target or block normal commands while unsafe.",
+          "safety_blockers": "Wind, frost or other on/off sensors; on means danger is active."
+        }
+      },
       "manage_sector": {
         "title": "{room_name} · Sun sector · {sector_name}",
-        "description": "Configure facade direction and one optional sun confirmation source.",
+        "description": "Set the facade direction and optional direct-sun confirmation.",
         "sections": {
           "sector_identity": {
             "name": "Facade geometry",
@@ -1229,20 +421,22 @@
           },
           "sun_confirmation": {
             "name": "Sun confirmation",
-            "description": "Sun geometry always works. Add either Lux or an external on/off confirmation when available.",
+            "description": "Select the source first. Only the fields needed by that source are shown.",
             "data": {
+              "sun_source": "Sun source",
               "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation (optional)",
+              "sun_presence_entity": "External sun confirmation",
               "sun_preset": "Sun sensitivity",
               "sun_on_lux": "Sun detected above",
               "sun_off_lux": "Sun no longer detected below",
-              "sun_on_delay": "ON delay",
-              "sun_off_delay": "OFF delay"
+              "sun_on_delay": "On delay",
+              "sun_off_delay": "Off delay"
             },
             "data_description": {
-              "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-              "sun_presence_entity": "Use an existing on/off entity where on means direct sun. Leave empty when Lux or sun geometry should be used.",
-              "sun_preset": "Selects Lux thresholds and delays.",
+              "sun_source": "Choose the available source used to confirm direct sun.",
+              "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
+              "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
+              "sun_preset": "Selects brightness thresholds and delays.",
               "sun_on_lux": "Custom Lux only. Must be higher than the off threshold.",
               "sun_off_lux": "Custom Lux only. Sun clears below this value.",
               "sun_on_delay": "Custom Lux only. Filters brief bright peaks.",
@@ -1262,71 +456,23 @@
       },
       "add_sector_flat": {
         "title": "{room_name} · Add sun sector",
-        "description": "Create a complete sector with its first cover group in one step.",
-        "sections": {
-          "sector_identity": {
-            "name": "Sun sector",
-            "data": {
-              "direction": "Facade direction",
-              "lux_sensor": "Lux sensor",
-              "sun_presence_entity": "External sun confirmation (optional)",
-              "sun_preset": "Sun sensitivity",
-              "azimuth_start": "Azimuth start",
-              "azimuth_end": "Azimuth end",
-              "elevation_min": "Minimum sun elevation"
-            },
-            "data_description": {
-              "direction": "Choose a facade preset. Custom angles are available when complete functions are enabled.",
-              "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-              "sun_presence_entity": "Use an existing on/off entity where on means direct sun. Leave empty when Lux or sun geometry should be used.",
-              "sun_preset": "Lux sensitivity; ignored when no Lux sensor is selected.",
-              "azimuth_start": "Custom direction only.",
-              "azimuth_end": "Custom direction only.",
-              "elevation_min": "Custom direction only."
-            }
-          },
-          "cover_group": {
-            "name": "First cover group",
-            "data": {
-              "group_name": "Group name",
-              "profile": "Cover type",
-              "cover_entities": "Covers",
-              "tilt_preset": "Slat profile"
-            },
-            "data_description": {
-              "group_name": "Covers with the same physical behavior belong in one group.",
-              "profile": "Select the physical cover type so suitable defaults are used.",
-              "cover_entities": "Select one or more covers that are not assigned elsewhere.",
-              "tilt_preset": "Adaptive slat guidance is available for supported exterior blinds."
-            }
-          }
-        },
+        "description": "Add another sun sector to this room.",
         "data": {
           "name": "Sector name",
           "short": "Short name",
           "direction": "Facade direction",
-          "lux_sensor": "Illuminance sensor (optional)",
-          "sun_presence_entity": "External sun confirmation (optional)",
-          "sun_preset": "Sensitivity",
-          "azimuth_start": "Azimuth start",
-          "azimuth_end": "Azimuth end",
-          "elevation_min": "Minimum sun elevation"
+          "sun_source": "Sun source"
         },
         "data_description": {
-          "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-          "sun_presence_entity": "Use an existing on/off entity where on means direct sun. Leave empty when Lux or sun geometry should be used.",
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_preset": "Controls how readily Lux is treated as direct sun.",
-          "azimuth_start": "First horizontal sun angle of the custom sector.",
-          "azimuth_end": "Last horizontal sun angle of the custom sector.",
-          "elevation_min": "Minimum sun height for this sector."
+          "sun_source": "Choose the available source used to confirm direct sun."
         }
       },
       "manage_layer": {
         "title": "{room_name} · Cover group · {group_name}",
-        "description": "Configure physical behavior and shared target positions.",
+        "description": "Set the name and cover type for this group.",
         "sections": {
           "group_identity": {
             "name": "Group and profile",
@@ -1374,7 +520,6 @@
               "comfort_position": "Comfort position",
               "comfort_tilt": "Comfort slat position",
               "solar_position": "Solar position",
-              "solar_tilt": "Solar slat position",
               "heat_position": "Heat position",
               "heat_tilt": "Heat slat position",
               "night_position": "Night position",
@@ -1388,13 +533,12 @@
               "comfort_position": "Cover height in Comfort mode.",
               "comfort_tilt": "Slat position in Comfort mode.",
               "solar_position": "Cover height during normal solar shading.",
-              "solar_tilt": "Slat position during solar shading when no adaptive curve applies.",
-              "heat_position": "Cover height during Heat Protection.",
-              "heat_tilt": "Slat position during Heat Protection.",
-              "night_position": "Cover height during Night Mode.",
-              "night_tilt": "Slat position during Night Mode.",
-              "safety_position": "Cover height requested by Safety.",
-              "safety_tilt": "Slat position requested by Safety."
+              "heat_position": "Cover height during heat protection.",
+              "heat_tilt": "Slat position during heat protection.",
+              "night_position": "Cover height during the night function.",
+              "night_tilt": "Slat position during the night function.",
+              "safety_position": "Cover height requested by a safety condition.",
+              "safety_tilt": "Slat position requested by a safety condition."
             }
           },
           "group_maintenance": {
@@ -1410,23 +554,19 @@
       },
       "add_layer_flat": {
         "title": "{room_name} · Add cover group to {sector_name}",
-        "description": "Create a group and assign all matching covers at once.",
+        "description": "Create a group for covers with the same physical behavior.",
         "data": {
           "name": "Group name",
-          "profile": "Cover type",
-          "cover_entities": "Covers",
-          "tilt_preset": "Slat profile"
+          "profile": "Cover type"
         },
         "data_description": {
           "name": "Name shown for the new group.",
-          "profile": "Select the physical cover type.",
-          "cover_entities": "Select unassigned covers with matching behavior.",
-          "tilt_preset": "Adaptive slat guidance is available for supported exterior blinds."
+          "profile": "Sets suitable defaults for this physical cover type. Add covers separately under Individual covers."
         }
       },
       "manage_cover": {
         "title": "{room_name} · Cover · {cover_name}",
-        "description": "Configure this cover, its Manual Entity, window behavior and inversion.",
+        "description": "Edit the name and available settings for this cover.",
         "sections": {
           "cover_identity": {
             "name": "Display",
@@ -1441,9 +581,9 @@
           },
           "cover_automation": {
             "name": "Automation and safety",
-            "description": "Every entity is optional. Covers sharing the same Manual Entity form one logical room group.",
+            "description": "All entities are optional. Covers sharing one manual-pause entity pause and resume together.",
             "data": {
-              "lock": "Manual Entity",
+              "lock": "Manual pause entity",
               "window": "Window contact",
               "window_safe_state": "Safe window state",
               "window_policy": "Behavior while unsafe",
@@ -1476,7 +616,7 @@
       },
       "add_covers_flat": {
         "title": "{room_name} · Add covers to {group_name}",
-        "description": "Select unassigned covers. Their names can be refined afterwards inside this room.",
+        "description": "Select unassigned covers. Check their names in the next step.",
         "data": {
           "cover_entities": "Covers"
         },
@@ -1484,138 +624,370 @@
           "cover_entities": "Multiple selection is supported; already assigned covers are rejected."
         }
       },
-      "room_schedule": {
-        "title": "When should shading operate?",
-        "description": "The schedule only defines when normal shading is generally permitted. Sun position, lux, and temperature then decide whether movement is actually required. **Safety always remains active.** Choosing “Custom schedule” opens a separate page after Continue.",
+      "finish": {
+        "title": "Review and start",
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources}\n\nActive functions: {active_functions}\n\n{review_warnings}",
         "data": {
-          "schedule_profile": "Activity profile"
+          "confirm_start": "Start Smart Shading"
         },
         "data_description": {
-          "schedule_profile": "All year: always permitted. Summer season: May through September. Custom: months, weekdays, and optional fixed times."
+          "confirm_start": "Confirm that you reviewed the setup and want to start automation."
         }
-      },
-      "room_schedule_custom": {
-        "title": "Define a custom schedule",
-        "description": "Choose months, weekdays, and the daily permission rule. Start and end times are requested on a **separate next page only** when “Fixed time window” is selected.",
+      }
+    },
+    "error": {
+      "temperature_order": "Comfort shading must start below solar shading, and solar shading below heat protection.",
+      "lux_hysteresis": "The ON lux threshold must be higher than the OFF lux threshold.",
+      "elevation_order": "The four sun elevations must be strictly increasing.",
+      "cover_already_assigned": "At least one selected cover is already assigned within this house.",
+      "select_at_least_one": "Select at least one item.",
+      "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
+      "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
+      "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
+      "cannot_delete_last_sector": "A room must keep at least one sun sector. Add another sector first.",
+      "cannot_delete_last_layer": "A sector must keep at least one cover group. Add another group first.",
+      "cannot_delete_last_cover": "A cover group must keep at least one cover. Add another cover first.",
+      "cannot_delete_last_room": "A Smart Shading entry must keep at least one room. Add another room first.",
+      "night_entity_required": "Select a schedule or on/off entity for the night function.",
+      "pause_requires_night": "This pause duration requires an enabled night function.",
+      "option_not_available": "This function is not available in this setup.",
+      "incomplete_configuration": "Resolve the open items shown in the summary before starting.",
+      "confirm_start_required": "Confirm that you want to start Smart Shading.",
+      "sun_source_required": "Select the entity required by this sun source.",
+      "temperature_source_required": "Select an outdoor temperature sensor or a house weather source before enabling the temperature gate.",
+      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
+    },
+    "abort": {
+      "no_rooms": "No rooms have been configured yet.",
+      "already_configured": "This house name is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "global_settings": {
+        "title": "House settings",
+        "description": "Change settings that apply to the entire house.",
         "data": {
-          "active_months": "Active months",
-          "active_weekdays": "Active weekdays",
-          "day_window": "Daily permission",
-          "outside_schedule_behavior": "Behavior outside schedule",
-          "heat_outside_schedule": "Allow heat protection outside schedule"
+          "sun_entity": "Sun entity",
+          "position_tolerance": "Cover position tolerance",
+          "tilt_tolerance": "Slat position tolerance",
+          "command_cooldown": "Duplicate-command cooldown",
+          "unknown_feedback_policy": "Behavior without position feedback",
+          "evening_release_time": "Latest fixed evening release",
+          "sunset_offset_minutes": "Sunset offset",
+          "weather_entity": "Weather entity",
+          "diagnostic_level": "Diagnostic logging",
+          "evaluation_interval_minutes": "Periodic evaluation"
         },
         "data_description": {
-          "active_months": "Normal solar shading may operate during these months.",
-          "active_weekdays": "Select every weekday that should be active.",
-          "day_window": "“Sun in sector” needs no fixed clock time and is the recommended default.",
-          "outside_schedule_behavior": "Safety remains active regardless of this choice.",
-          "heat_outside_schedule": "Recommended: enabled, so overheating can still be prevented outside the normal season."
+          "sun_entity": "Provides sun elevation and azimuth. The Home Assistant sun entity is recommended.",
+          "position_tolerance": "No new position command is sent while feedback stays within this deviation.",
+          "tilt_tolerance": "No new slat command is sent while feedback stays within this deviation.",
+          "command_cooldown": "Prevents repeated identical commands.",
+          "unknown_feedback_policy": "Controls whether automation may continue when a cover has no numeric position feedback.",
+          "evening_release_time": "Active heat protection ends no later than this time.",
+          "sunset_offset_minutes": "Negative values mean before sunset; positive values mean after sunset.",
+          "weather_entity": "Optional weather source for shading decisions.",
+          "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
+          "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
         }
       },
-      "sector_direction": {
-        "title": "Select facade direction",
-        "description": "Select the direction of the window or cover group. Smart Shading automatically applies a practical azimuth range and minimum solar elevation. These angles do **not** need to be configured in the normal customer wizard; they remain editable later under “Advanced sector geometry”.",
+      "add_room": {
+        "title": "Add room",
+        "description": "Choose the room, first facade, cover group and covers.",
+        "sections": {
+          "room_and_covers": {
+            "name": "Room and covers",
+            "description": "Choose the facade and covers that use the same physical profile.",
+            "data": {
+              "name": "Room name",
+              "direction": "Facade direction",
+              "group_name": "Cover group name",
+              "profile": "Cover type",
+              "cover_entities": "Covers"
+            },
+            "data_description": {
+              "name": "Shown as the room name in Home Assistant and on the dashboard card.",
+              "direction": "Defines when the sun reaches this facade.",
+              "group_name": "Name for covers that share physical behavior and target positions.",
+              "profile": "Select the physical cover type so suitable defaults are used.",
+              "cover_entities": "Select at least one unassigned Home Assistant cover."
+            }
+          },
+          "sun_control": {
+            "name": "Sun control",
+            "description": "Choose how direct sun should be confirmed for the first sector.",
+            "data": {
+              "sun_source": "Sun source"
+            },
+            "data_description": {
+              "sun_source": "Choose the available source used to confirm direct sun."
+            }
+          },
+          "optional_improvements": {
+            "name": "Optional temperature gate",
+            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "data": {
+              "easy_temperature_gate": "Use outdoor temperature gate",
+              "outdoor_temperature": "Outdoor temperature sensor",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
+              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
+              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+            }
+          },
+          "advanced_conditions": {
+            "name": "Temperature sources",
+            "description": "Add the available room and outdoor temperature sensors.",
+            "data": {
+              "indoor_temperature": "Indoor temperature",
+              "outdoor_temperature": "Outdoor temperature",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
+              "outdoor_temperature": "Optional source for outdoor-temperature conditions.",
+              "outdoor_minimum": "Minimum outdoor temperature for normal shading."
+            }
+          }
+        }
+      },
+      "room_hub": {
+        "title": "Manage room",
+        "description": "Choose what you want to configure.",
+        "menu_options": {
+          "back_to_overview": "Back to room list"
+        }
+      },
+      "manage_sector": {
+        "title": "{room_name} · Sun sector · {sector_name}",
+        "description": "Set the facade direction and optional direct-sun confirmation.",
+        "sections": {
+          "sector_identity": {
+            "name": "Facade geometry",
+            "data": {
+              "name": "Sector name",
+              "short": "Short code",
+              "direction": "Facade direction",
+              "azimuth_start": "Azimuth start",
+              "azimuth_end": "Azimuth end",
+              "elevation_min": "Minimum sun elevation"
+            },
+            "data_description": {
+              "name": "Name shown in the card and status entities.",
+              "short": "Compact facade label, for example S or SW.",
+              "direction": "A preset reapplies matching geometry; choose Custom to edit the angles below.",
+              "azimuth_start": "Custom only. First sun direction included in the sector.",
+              "azimuth_end": "Custom only. Last sun direction included; ranges may wrap across north.",
+              "elevation_min": "Custom only. Ignore sun below this elevation."
+            },
+            "description": "Geometry values are needed only for a custom facade direction."
+          },
+          "sun_confirmation": {
+            "name": "Sun confirmation",
+            "description": "Select the source first. Only the fields needed by that source are shown.",
+            "data": {
+              "sun_source": "Sun source",
+              "lux_sensor": "Lux sensor",
+              "sun_presence_entity": "External sun confirmation",
+              "sun_preset": "Sun sensitivity",
+              "sun_on_lux": "Sun detected above",
+              "sun_off_lux": "Sun no longer detected below",
+              "sun_on_delay": "On delay",
+              "sun_off_delay": "Off delay"
+            },
+            "data_description": {
+              "sun_source": "Choose the available source used to confirm direct sun.",
+              "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
+              "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
+              "sun_preset": "Selects brightness thresholds and delays.",
+              "sun_on_lux": "Custom Lux only. Must be higher than the off threshold.",
+              "sun_off_lux": "Custom Lux only. Sun clears below this value.",
+              "sun_on_delay": "Custom Lux only. Filters brief bright peaks.",
+              "sun_off_delay": "Custom Lux only. Filters brief clouds."
+            }
+          },
+          "sector_maintenance": {
+            "name": "Remove sector",
+            "data": {
+              "delete_sector": "Delete this sector"
+            },
+            "data_description": {
+              "delete_sector": "A room must always keep at least one sector."
+            }
+          }
+        }
+      },
+      "add_sector_flat": {
+        "title": "{room_name} · Add sun sector",
+        "description": "Add another sun sector to this room.",
         "data": {
-          "direction": "Facade direction"
+          "name": "Sector name",
+          "short": "Short name",
+          "direction": "Facade direction",
+          "sun_source": "Sun source"
         },
         "data_description": {
-          "direction": "Example: if the facade faces approximately south, choose “South (S)”."
+          "name": "Name used in cards and status entities.",
+          "short": "Short label for compact displays.",
+          "direction": "Facade direction used for sun geometry.",
+          "sun_source": "Choose the available source used to confirm direct sun."
         }
       },
-      "sector_lux": {
-        "title": "Detect direct sunlight",
-        "description": "A lux sensor is optional but recommended. With a lux sensor Smart Shading creates a delayed Sun Presence binary sensor for the sector.",
-        "data": {
-          "lux_sensor": "Lux sensor for this sector (optional)",
-          "sun_preset": "Sun Presence sensitivity"
-        },
-        "data_description": {
-          "lux_sensor": "Optional Lux/illuminance sensor. Smart Shading creates its own Sun Presence status from the selected thresholds.",
-          "sun_preset": "Balanced is the recommended starting point. Custom exposes all thresholds and delays."
+      "manage_layer": {
+        "title": "{room_name} · Cover group · {group_name}",
+        "description": "Set the name and cover type for this group.",
+        "sections": {
+          "group_identity": {
+            "name": "Group and profile",
+            "data": {
+              "name": "Group name",
+              "profile": "Cover type",
+              "tilt_preset": "Slat profile"
+            },
+            "data_description": {
+              "name": "Name shown for this cover group.",
+              "profile": "Changing the type reapplies matching defaults and keeps assigned covers.",
+              "tilt_preset": "Select Custom to use the four editable stages below."
+            }
+          },
+          "slat_curve": {
+            "name": "Slat guidance",
+            "description": "Used only with the Custom slat profile. Elevations must increase.",
+            "data": {
+              "elevation_1": "Stage 1 sun elevation",
+              "tilt_1": "Stage 1 slat position",
+              "elevation_2": "Stage 2 sun elevation",
+              "tilt_2": "Stage 2 slat position",
+              "elevation_3": "Stage 3 sun elevation",
+              "tilt_3": "Stage 3 slat position",
+              "elevation_4": "Stage 4 sun elevation",
+              "tilt_4": "Stage 4 slat position"
+            },
+            "data_description": {
+              "elevation_1": "Lowest sun elevation stage.",
+              "tilt_1": "0% fully open, 100% fully closed.",
+              "elevation_2": "Must be higher than stage 1.",
+              "tilt_2": "0% fully open, 100% fully closed.",
+              "elevation_3": "Must be higher than stage 2.",
+              "tilt_3": "0% fully open, 100% fully closed.",
+              "elevation_4": "Must be higher than stage 3.",
+              "tilt_4": "0% fully open, 100% fully closed."
+            }
+          },
+          "target_positions": {
+            "name": "Target positions",
+            "description": "0% and 100% follow Home Assistant cover position. Slats use 0% fully open and 100% fully closed.",
+            "data": {
+              "open_position": "Open position",
+              "open_tilt": "Open slat position",
+              "comfort_position": "Comfort position",
+              "comfort_tilt": "Comfort slat position",
+              "solar_position": "Solar position",
+              "heat_position": "Heat position",
+              "heat_tilt": "Heat slat position",
+              "night_position": "Night position",
+              "night_tilt": "Night slat position",
+              "safety_position": "Safety position",
+              "safety_tilt": "Safety slat position"
+            },
+            "data_description": {
+              "open_position": "Neutral cover height; Home Assistant uses 100% as open.",
+              "open_tilt": "Neutral slat position; 0% is fully open.",
+              "comfort_position": "Cover height in Comfort mode.",
+              "comfort_tilt": "Slat position in Comfort mode.",
+              "solar_position": "Cover height during normal solar shading.",
+              "heat_position": "Cover height during heat protection.",
+              "heat_tilt": "Slat position during heat protection.",
+              "night_position": "Cover height during the night function.",
+              "night_tilt": "Slat position during the night function.",
+              "safety_position": "Cover height requested by a safety condition.",
+              "safety_tilt": "Slat position requested by a safety condition."
+            }
+          },
+          "group_maintenance": {
+            "name": "Remove group",
+            "data": {
+              "delete_layer": "Delete this cover group"
+            },
+            "data_description": {
+              "delete_layer": "A sector must always keep at least one cover group."
+            }
+          }
         }
       },
-      "sector_lux_custom": {
-        "title": "Custom Sun Presence",
-        "description": "ON and OFF use hysteresis to avoid movement during short cloud periods. **ON must be higher than OFF.**",
+      "add_layer_flat": {
+        "title": "{room_name} · Add cover group to {sector_name}",
+        "description": "Create a group for covers with the same physical behavior.",
         "data": {
-          "sun_on_lux": "Sun detected above",
-          "sun_off_lux": "Sun no longer detected below",
-          "sun_on_delay": "ON delay",
-          "sun_off_delay": "OFF delay"
-        },
-        "data_description": {
-          "sun_on_lux": "The value must remain above this threshold for the complete ON delay.",
-          "sun_off_lux": "The value must remain below this threshold for the complete OFF delay.",
-          "sun_on_delay": "Prevents activation from brief bright peaks.",
-          "sun_off_delay": "Prevents opening during brief cloud periods."
-        }
-      },
-      "add_layer": {
-        "title": "Create cover group",
-        "description": "A layer groups covers that share the same physical strategy. Select a cover type and Smart Shading applies suitable defaults.",
-        "data": {
-          "name": "Cover group name",
+          "name": "Group name",
           "profile": "Cover type"
         },
         "data_description": {
-          "name": "Neutral example: Window group, Cover group A, or South exterior blinds.",
-          "profile": "Exterior venetian blinds lower fully for sun shading and then guide only their slats. Heat Protection closes the slats completely."
+          "name": "Name shown for the new group.",
+          "profile": "Sets suitable defaults for this physical cover type. Add covers separately under Individual covers."
         }
       },
-      "layer_tilt_profile": {
-        "title": "Select slat guidance",
-        "description": "During active sun shading the exterior blind moves fully down. The profile controls only the slat position: “More glare protection” closes further, “Balanced” is the default, and “More daylight” opens further. 0% = fully open, 100% = fully closed. “Custom” opens the four editable stages next.",
+      "manage_cover": {
+        "title": "{room_name} · Cover · {cover_name}",
+        "description": "Edit the name and available settings for this cover.",
+        "sections": {
+          "cover_identity": {
+            "name": "Display",
+            "data": {
+              "name": "Display name",
+              "short": "Short code"
+            },
+            "data_description": {
+              "name": "Friendly name shown on the card.",
+              "short": "Compact label shown where space is limited."
+            }
+          },
+          "cover_automation": {
+            "name": "Automation and safety",
+            "description": "All entities are optional. Covers sharing one manual-pause entity pause and resume together.",
+            "data": {
+              "lock": "Manual pause entity",
+              "window": "Window contact",
+              "window_safe_state": "Safe window state",
+              "window_policy": "Behavior while unsafe",
+              "window_returns_to_automation": "Return to automation after closing",
+              "max_open_position": "Maximum normal open position",
+              "invert_position": "Invert cover position",
+              "invert_tilt": "Invert slat position"
+            },
+            "data_description": {
+              "lock": "If several covers in this room use the same entity, they pause and resume together.",
+              "window": "Optional binary sensor used for window or door safety.",
+              "window_safe_state": "The contact state in which normal movement is allowed.",
+              "window_policy": "Block every command or only commands that close while unsafe.",
+              "window_returns_to_automation": "Window-triggered safety and return movements do not create a manual pause.",
+              "max_open_position": "Limits normal opening, while an unsafe-window target may still open further.",
+              "invert_position": "Use only when this entity exposes the opposite Home Assistant height scale.",
+              "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed."
+            }
+          },
+          "cover_maintenance": {
+            "name": "Remove cover",
+            "data": {
+              "remove_cover": "Remove this cover from the group"
+            },
+            "data_description": {
+              "remove_cover": "A cover group must always keep at least one cover."
+            }
+          }
+        }
+      },
+      "add_covers_flat": {
+        "title": "{room_name} · Add covers to {group_name}",
+        "description": "Select unassigned covers. Check their names in the next step.",
         "data": {
-          "tilt_preset": "Slat profile"
+          "cover_entities": "Covers"
         },
         "data_description": {
-          "tilt_preset": "Balanced is the recommended default. Custom exposes all four sun elevations and slat positions."
-        }
-      },
-      "layer_tilt_custom": {
-        "title": "Customize adaptive slat guidance",
-        "description": "The four stages apply from their configured sun elevation. The blind itself remains fully down.\n\n0% = fully open · 100% = fully closed",
-        "data": {
-          "elevation_1": "Very low sun – from elevation",
-          "tilt_1": "Very low sun – slat position",
-          "elevation_2": "Low sun – from elevation",
-          "tilt_2": "Low sun – slat position",
-          "elevation_3": "Medium sun – from elevation",
-          "tilt_3": "Medium sun – slat position",
-          "elevation_4": "High sun – from elevation",
-          "tilt_4": "High sun – slat position"
-        },
-        "data_description": {
-          "elevation_1": "Typical in the morning or evening. Default: 10°.",
-          "tilt_1": "Nearly closed for strong glare protection. Default: 90% closed.",
-          "elevation_2": "Default: 20°.",
-          "tilt_2": "Allows more daylight. Default: 65% closed.",
-          "elevation_3": "Default: 40°.",
-          "tilt_3": "Medium slat position. Default: 35% closed.",
-          "elevation_4": "Typical for high midday sun. Default: 60°.",
-          "tilt_4": "Wide open for daylight. Default: 15% closed."
-        }
-      },
-      "add_covers": {
-        "title": "Assign covers",
-        "description": "Select all covers for this group at once. The next step asks for a short display name and short code for each selected cover.",
-        "data": {
-          "cover_entities": "Cover entities"
-        },
-        "data_description": {
-          "cover_entities": "Multiple selection is supported. A cover can be assigned only once within a house."
-        }
-      },
-      "after_room": {
-        "title": "Setup overview",
-        "description": "The current room is functional. Before saving, you can manage it, add more items, or start the integration. After saving, the card code is automatically generated as a Home Assistant notification.",
-        "menu_options": {
-          "add_more_covers": "Add more covers to this group",
-          "add_another_layer": "Add another cover group to this sector",
-          "add_another_sector": "Add another sun sector",
-          "add_another_room": "Add another room",
-          "finish": "Save and start integration",
-          "configure_current_room": "Manage current room"
+          "cover_entities": "Multiple selection is supported; already assigned covers are rejected."
         }
       },
       "init": {
@@ -1623,422 +995,8 @@
         "description": "Choose a room or a house-wide task. Each room opens a short task overview.",
         "menu_options": {
           "add_room": "Add room",
-          "select_room": "Manage room",
           "global_settings": "House settings",
           "finish": "Save changes and reload"
-        }
-      },
-      "select_room": {
-        "title": "Select room",
-        "data": {
-          "room_id": "Room"
-        }
-      },
-      "room_actions": {
-        "title": "Manage room",
-        "menu_options": {
-          "edit_room_basic": "Name and sensors",
-          "edit_room_schedule": "Activity schedule",
-          "room_advanced": "Advanced room logic",
-          "add_sector": "Add sun sector",
-          "select_sector": "Manage sun sector",
-          "delete_room": "Delete room",
-          "edit_room_pause": "Pause / manual override",
-          "edit_room_night": "Night Mode",
-          "back_to_overview": "Back to setup overview"
-        }
-      },
-      "edit_room_basic": {
-        "title": "Room and sensors",
-        "description": "Change only sensors that are actually available.",
-        "data": {
-          "name": "Room name",
-          "indoor_temperature": "Indoor temperature",
-          "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Wind, frost, rain, or other safety sensors (optional)",
-          "indoor_temperature_name": "Room temperature display name",
-          "outdoor_temperature_name": "Outdoor temperature display name"
-        },
-        "data_description": {
-          "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
-          "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
-          "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
-        }
-      },
-      "edit_room_schedule": {
-        "title": "When should shading operate?",
-        "description": "The schedule only defines when normal shading is generally permitted. Sun position, lux, and temperature then decide whether movement is actually required. **Safety always remains active.** Choosing “Custom schedule” opens a separate page after Continue.",
-        "data": {
-          "schedule_profile": "Activity profile"
-        },
-        "data_description": {
-          "schedule_profile": "All year: always permitted. Summer season: May through September. Custom: months, weekdays, and optional fixed times."
-        }
-      },
-      "edit_room_schedule_custom": {
-        "title": "Define a custom schedule",
-        "description": "Choose months, weekdays, and the daily permission rule. Start and end times are requested on a **separate next page only** when “Fixed time window” is selected.",
-        "data": {
-          "active_months": "Active months",
-          "active_weekdays": "Active weekdays",
-          "day_window": "Daily permission",
-          "outside_schedule_behavior": "Behavior outside schedule",
-          "heat_outside_schedule": "Allow heat protection outside schedule"
-        },
-        "data_description": {
-          "active_months": "Normal solar shading may operate during these months.",
-          "active_weekdays": "Select every weekday that should be active.",
-          "day_window": "“Sun in sector” needs no fixed clock time and is the recommended default.",
-          "outside_schedule_behavior": "Safety remains active regardless of this choice.",
-          "heat_outside_schedule": "Recommended: enabled, so overheating can still be prevented outside the normal season."
-        }
-      },
-      "room_advanced": {
-        "title": "Advanced room logic",
-        "description": "Visible temperature thresholds depend on the cover profiles used in the room. Rooms with exterior venetian blinds only have normal solar shading and heat protection.",
-        "data": {
-          "comfort_temperature": "Comfort from",
-          "solar_temperature": "Solar from",
-          "heat_temperature": "Heat protection from",
-          "heat_release_temperature": "Release heat protection below",
-          "reopen_temperature": "Reopen below",
-          "irradiance_sensor": "Global irradiance sensor (optional)",
-          "cloud_cover_sensor": "Cloud cover sensor (optional)",
-          "weather_permission": "Weather/API permission (optional)",
-          "glare_sensor": "Glare sensor (optional)",
-          "occupancy_sensor": "Occupancy sensor (optional)",
-          "weather_logic": "Combine weather conditions",
-          "heat_ignores_weather": "Heat protection ignores weather",
-          "heat_fail_safe": "Keep active heat mode on sensor failure",
-          "heat_requires_sun": "Require sun to start heat protection",
-          "comfort_requires_occupancy": "Comfort only while occupied",
-          "safety_behavior": "Safety response",
-          "normal_shading_temperature": "Normal shading from"
-        },
-        "data_description": {
-          "normal_shading_temperature": "From this room temperature, an exterior venetian blind lowers fully and guides its slats adaptively while the sector has sun."
-        }
-      },
-      "select_sector": {
-        "title": "Select sun sector",
-        "data": {
-          "sector_id": "Sector"
-        }
-      },
-      "sector_actions": {
-        "title": "Manage sun sector",
-        "menu_options": {
-          "edit_sector_customer": "Direction and lux sensor",
-          "edit_sector_advanced": "Advanced sector geometry",
-          "add_layer": "Add cover group",
-          "select_layer": "Manage cover group",
-          "delete_sector": "Delete sector",
-          "room_actions": "Back to room"
-        }
-      },
-      "edit_sector_customer": {
-        "title": "Direction and sunlight",
-        "description": "Changing the facade direction reapplies suitable default azimuth values. Custom lux values remain available separately.",
-        "data": {
-          "direction": "Compass direction",
-          "lux_sensor": "Lux sensor (optional)",
-          "sun_preset": "Sun Presence sensitivity",
-          "name": "Display name",
-          "short": "Short code"
-        }
-      },
-      "edit_sector_lux_custom": {
-        "title": "Customize Sun Presence",
-        "description": "ON must be higher than OFF.",
-        "data": {
-          "sun_on_lux": "Sun detected above",
-          "sun_off_lux": "Sun no longer detected below",
-          "sun_on_delay": "ON delay",
-          "sun_off_delay": "OFF delay"
-        }
-      },
-      "edit_sector_advanced": {
-        "title": "Fine-tune the solar sector",
-        "description": "This page is only needed for special cases and expert tuning. **0°/360° = north, 90° = east, 180° = south, 270° = west.** The range defines between which solar directions this window group is considered directly exposed. North-facing ranges may wrap across zero, for example 300° to 60°.",
-        "data": {
-          "name": "Solar sector display name",
-          "short": "Short label",
-          "azimuth_start": "Sector starts at solar azimuth",
-          "azimuth_end": "Sector ends after solar azimuth",
-          "elevation_min": "Start shading from solar elevation"
-        },
-        "data_description": {
-          "name": "Shown in status sensors and the dashboard card, for example “South”.",
-          "short": "Compact card label, for example S, SW, or E.",
-          "azimuth_start": "First solar direction considered direct sun. Example for south: 120°.",
-          "azimuth_end": "Last solar direction considered direct sun. Example for south: 240°.",
-          "elevation_min": "0° is the horizon and 90° is directly overhead. 10° ignores very low sun near the horizon; trees or neighboring buildings may justify a higher value."
-        }
-      },
-      "select_layer": {
-        "title": "Select cover group",
-        "data": {
-          "layer_id": "Cover group"
-        }
-      },
-      "layer_actions": {
-        "title": "Manage cover group",
-        "menu_options": {
-          "edit_layer_customer": "Name, type and slat profile",
-          "edit_layer_advanced": "Advanced targets",
-          "add_covers": "Add multiple covers",
-          "select_cover": "Configure one cover",
-          "remove_covers": "Remove covers",
-          "delete_layer": "Delete cover group",
-          "sector_actions": "Back to sector"
-        }
-      },
-      "edit_layer_customer": {
-        "title": "Cover group",
-        "description": "Changing the cover type reapplies suitable profile defaults while assigned covers remain unchanged.",
-        "data": {
-          "name": "Cover group name",
-          "profile": "Cover type"
-        }
-      },
-      "edit_layer_tilt_profile": {
-        "title": "Slat profile",
-        "description": "KNX slat semantics: 0% means fully open, 100% means fully closed.",
-        "data": {
-          "tilt_preset": "Slat profile"
-        }
-      },
-      "edit_layer_tilt_custom": {
-        "title": "Adaptive slat guidance",
-        "description": "The blind stays down; values control only the slat position (0% open, 100% closed).",
-        "data": {
-          "elevation_1": "Very low sun – from",
-          "tilt_1": "Very low sun – slat position",
-          "elevation_2": "Low sun – from",
-          "tilt_2": "Low sun – slat position",
-          "elevation_3": "Medium sun – from",
-          "tilt_3": "Medium sun – slat position",
-          "elevation_4": "High sun – from",
-          "tilt_4": "High sun – slat position"
-        }
-      },
-      "edit_layer_advanced": {
-        "title": "Advanced targets",
-        "description": "Only values relevant to the selected cover type are shown. Cover height: 0% closed, 100% open. Slat position: 0% fully open, 100% fully closed.",
-        "data": {
-          "open_position": "Neutral/open position",
-          "comfort_position": "Comfort position",
-          "solar_position": "Solar position",
-          "heat_position": "Heat position",
-          "night_position": "Night position",
-          "safety_position": "Safety position",
-          "comfort_tilt": "Comfort slat position",
-          "heat_tilt": "Heat slat position",
-          "night_tilt": "Night slat position"
-        }
-      },
-      "select_cover": {
-        "title": "Select cover",
-        "data": {
-          "cover_index": "Cover"
-        }
-      },
-      "edit_cover": {
-        "title": "Configure individual cover",
-        "description": "These values override only this cover. The shared movement strategy remains configured for the cover group.",
-        "data": {
-          "name": "Display name",
-          "lock": "Automation/manual lock (optional)",
-          "window": "Window contact (optional)",
-          "window_safe_state": "Safe window state",
-          "window_policy": "Behavior for unsafe window",
-          "window_returns_to_automation": "Return to automation after the window closes",
-          "max_open_position": "Maximum open position",
-          "invert_position": "Additionally invert position",
-          "invert_tilt": "Additionally invert slats",
-          "short": "Short code"
-        },
-        "data_description": {
-          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
-          "max_open_position": "Example: 90% when a cover must never open fully for safety reasons.",
-          "invert_position": "Use only when the Home Assistant entity itself reports 0/100 in the wrong direction. KNX inversion normally belongs in the KNX cover configuration.",
-          "invert_tilt": "The default is the KNX slat scale: 0% fully open and 100% fully closed. Enable this only when this cover exposes the opposite direction.",
-          "short": "Short label used by the card."
-        }
-      },
-      "remove_covers": {
-        "title": "Remove covers",
-        "data": {
-          "cover_indices": "Covers to remove"
-        }
-      },
-      "room_schedule_time": {
-        "title": "Set the daily time window",
-        "description": "These times are only used because “Fixed time window” was selected. Overnight windows are supported, for example 22:00 to 06:00.",
-        "data": {
-          "start_time": "Permit shading from",
-          "end_time": "Permit shading until"
-        },
-        "data_description": {
-          "start_time": "Normal automation may operate from this time.",
-          "end_time": "After this time, the selected outside-schedule behavior applies."
-        }
-      },
-      "sector_geometry": {
-        "title": "Fine-tune the solar sector",
-        "description": "This page is only needed for special cases and expert tuning. **0°/360° = north, 90° = east, 180° = south, 270° = west.** The range defines between which solar directions this window group is considered directly exposed. North-facing ranges may wrap across zero, for example 300° to 60°.",
-        "data": {
-          "name": "Solar sector display name",
-          "short": "Short label",
-          "azimuth_start": "Sector starts at solar azimuth",
-          "azimuth_end": "Sector ends after solar azimuth",
-          "elevation_min": "Start shading from solar elevation"
-        },
-        "data_description": {
-          "name": "Shown in status sensors and the dashboard card, for example “South”.",
-          "short": "Compact card label, for example S, SW, or E.",
-          "azimuth_start": "First solar direction considered direct sun. Example for south: 120°.",
-          "azimuth_end": "Last solar direction considered direct sun. Example for south: 240°.",
-          "elevation_min": "0° is the horizon and 90° is directly overhead. 10° ignores very low sun near the horizon; trees or neighboring buildings may justify a higher value."
-        }
-      },
-      "edit_room_schedule_time": {
-        "title": "Set the daily time window",
-        "description": "These times are only used because “Fixed time window” was selected. Overnight windows are supported, for example 22:00 to 06:00.",
-        "data": {
-          "start_time": "Permit shading from",
-          "end_time": "Permit shading until"
-        },
-        "data_description": {
-          "start_time": "Normal automation may operate from this time.",
-          "end_time": "After this time, the selected outside-schedule behavior applies."
-        }
-      },
-      "room_pause_setup": {
-        "title": "Pause and manual override",
-        "description": "By default, pressing Pause pauses until the next morning relative to sunrise. Safety always remains active. Heat protection may optionally continue during a pause.",
-        "data": {
-          "default_pause_mode": "Default pause action",
-          "pause_sun_offset_minutes": "Sun offset",
-          "pause_duration_hours": "Duration for “Fixed duration”",
-          "heat_during_pause": "Allow heat protection during pause"
-        },
-        "data_description": {
-          "default_pause_mode": "Recommended: until next morning. “Until manually resumed” never ends automatically.",
-          "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
-          "pause_duration_hours": "Only used when a fixed-duration pause is started.",
-          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection."
-        }
-      },
-      "room_advanced_setup": {
-        "title": "Advanced temperature logic",
-        "description": "The displayed values depend on the cover profile. Exterior venetian blinds only use normal adaptive shading and heat protection; redundant comfort/solar stages are hidden.",
-        "data": {
-          "comfort_temperature": "Comfort from",
-          "solar_temperature": "Solar from",
-          "heat_temperature": "Heat protection from",
-          "heat_release_temperature": "Release heat protection below",
-          "reopen_temperature": "Reopen below",
-          "normal_shading_temperature": "Normal shading from"
-        },
-        "data_description": {
-          "comfort_temperature": "First normal shading threshold.",
-          "solar_temperature": "Stronger solar heat reduction.",
-          "heat_temperature": "Strongest thermal protection.",
-          "heat_release_temperature": "Hysteresis to prevent heat mode from toggling repeatedly.",
-          "reopen_temperature": "Below this value the covers may reopen.",
-          "normal_shading_temperature": "From this room temperature normal solar shading may lower the cover fully and guide the slats adaptively."
-        }
-      },
-      "edit_room_pause": {
-        "title": "Pause settings",
-        "description": "By default, pressing Pause pauses until the next morning relative to sunrise. Safety always remains active. Heat protection may optionally continue during a pause.",
-        "data": {
-          "default_pause_mode": "Default pause action",
-          "pause_sun_offset_minutes": "Sun offset",
-          "pause_duration_hours": "Duration for “Fixed duration”",
-          "heat_during_pause": "Allow heat protection during pause",
-          "external_movement_detection": "Pause after confirmed external cover movement"
-        },
-        "data_description": {
-          "default_pause_mode": "Recommended: until next morning. “Until manually resumed” never ends automatically.",
-          "pause_sun_offset_minutes": "0 minutes means exactly at the sun event. Positive values extend the pause.",
-          "pause_duration_hours": "Only used when a fixed-duration pause is started.",
-          "heat_during_pause": "Safety always overrides a pause. This option only affects heat protection.",
-          "external_movement_detection": "Advanced Mode only. Disabled for new rooms by default and requires reliable numeric position or tilt feedback."
-        }
-      },
-      "edit_room_night": {
-        "title": "Night Mode",
-        "description": "Advanced Mode only. Night Mode positions this room from one source. Transition windows avoid short open-close movements.",
-        "data": {
-          "night_enabled": "Enable Night Mode",
-          "night_source": "Night source",
-          "night_morning_transition_minutes": "Morning transition window",
-          "night_evening_transition_minutes": "Evening transition window"
-        },
-        "data_description": {
-          "night_morning_transition_minutes": "Hold the Night target while a geometrically relevant sector waits for its shading conditions. 0 disables the hold.",
-          "night_evening_transition_minutes": "Hold the current target when Night starts shortly after evening release. 0 disables the hold."
-        }
-      },
-      "edit_room_night_entity": {
-        "title": "Select Night source entity",
-        "description": "Use a Home Assistant Schedule Helper for weekly planning. On means Night active; off means daytime evaluation.",
-        "data": {
-          "night_entity": "Schedule or on/off entity"
-        }
-      },
-      "edit_room_night_sun": {
-        "title": "Night relative to the sun",
-        "description": "Set separate offsets for the Night start at sunset and Night end at sunrise.",
-        "data": {
-          "night_start_offset_minutes": "Offset from sunset",
-          "night_end_offset_minutes": "Offset from sunrise"
-        }
-      },
-      "room_pause_sun_setup": {
-        "title": "Pause relative to the sun",
-        "description": "Choose how many minutes before or after the selected sun event normal automation resumes. 0 minutes means exactly at sunrise or sunset.",
-        "data": {
-          "pause_sun_offset_minutes": "Offset from sun event"
-        },
-        "data_description": {
-          "pause_sun_offset_minutes": "Negative values resume earlier; positive values resume later. Recommended next-morning default: 0 minutes."
-        }
-      },
-      "room_pause_duration_setup": {
-        "title": "Fixed pause duration",
-        "description": "This duration is used when the pause mode is set to “For a fixed duration”.",
-        "data": {
-          "pause_duration_hours": "Pause duration"
-        },
-        "data_description": {
-          "pause_duration_hours": "Normal automation resumes automatically when the duration ends."
-        }
-      },
-      "sector_identity": {
-        "title": "Name the sun sector",
-        "description": "The direction range is already preset. Give this sector a unique display name and short code. For multiple south sectors, names such as “South left” and “South right” are useful.",
-        "data": {
-          "name": "Display name",
-          "short": "Short code"
-        },
-        "data_description": {
-          "name": "This name appears in status entities and the card.",
-          "short": "Short code for chips and the sun track, e.g. S1."
-        }
-      },
-      "name_selected_cover": {
-        "title": "Name cover {current} of {count}",
-        "description": "Selected entity: **{entity_name}**\n\nThe display name and short code are used in the card. The technical entity ID remains internal and is not shown.",
-        "data": {
-          "name": "Display name",
-          "short": "Short code"
-        },
-        "data_description": {
-          "name": "Short, clear name for this cover.",
-          "short": "Short code for status chips, e.g. C1."
         }
       },
       "sector_hub": {
@@ -2053,7 +1011,7 @@
       },
       "cover_hub": {
         "title": "Individual covers",
-        "description": "Add covers or edit their Manual Entity, window behavior and inversion.",
+        "description": "Add covers or edit their names and short names.",
         "menu_options": {}
       },
       "manage_room_details": {
@@ -2068,10 +1026,10 @@
         },
         "data_description": {
           "name": "Name used in cards and status entities.",
-          "indoor_temperature": "Optional room temperature used for shading and Heat Protection.",
+          "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
           "outdoor_temperature": "Optional outdoor temperature source.",
           "outdoor_minimum": "Below this value, temperature-dependent shading does not start.",
-          "easy_temperature_gate": "When enabled, normal shading waits for the minimum outdoor temperature. Missing data does not block."
+          "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block."
         }
       },
       "manage_room_maintenance": {
@@ -2085,8 +1043,8 @@
         }
       },
       "manage_automation": {
-        "title": "Automation and temperatures",
-        "description": "Configure schedule, temperature stages and Heat Protection.",
+        "title": "Automation",
+        "description": "Set active times. Temperature stages appear when a room sensor is configured.",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
@@ -2099,46 +1057,44 @@
               "start_time": "Start time",
               "end_time": "End time",
               "outside_schedule_behavior": "Outside the schedule",
-              "heat_outside_schedule": "Allow Heat Protection outside schedule"
+              "heat_outside_schedule": "Allow heat protection outside schedule"
             },
             "data_description": {
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
-              "day_window": "Choose sector sun, all day, or a fixed daily time window.",
+              "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; Safety still applies.",
+              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies.",
               "heat_outside_schedule": "Keeps overheating protection available outside normal shading times."
             }
           },
           "temperature_settings": {
-            "name": "Temperatures and Heat Protection",
+            "name": "Temperatures and heat protection",
             "description": "Thresholds are checked in a safe order.",
             "data": {
               "normal_shading_temperature": "Normal shading from",
               "comfort_temperature": "Comfort from",
               "solar_temperature": "Solar from",
-              "heat_temperature": "Heat Protection from",
-              "heat_release_temperature": "Release Heat Protection below",
+              "heat_temperature": "Heat protection from",
               "reopen_temperature": "Reopen below"
             },
             "data_description": {
               "normal_shading_temperature": "Exterior blinds start normal sun shading above this indoor temperature.",
               "comfort_temperature": "First indoor threshold for compatible cover profiles.",
               "solar_temperature": "Stronger solar-protection threshold for compatible profiles.",
-              "heat_temperature": "Heat Protection may start above this indoor temperature.",
-              "heat_release_temperature": "Heat Protection releases only below this value at the configured evening release.",
-              "reopen_temperature": "Lower hysteresis threshold for returning to the open state."
+              "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
+              "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
             }
           }
         }
       },
       "manage_night": {
         "title": "Night function",
-        "description": "Configure Night before choosing a Night-dependent pause duration.",
+        "description": "Choose when this room moves to its night position.",
         "data": {
-          "night_enabled": "Enable Night Mode",
+          "night_enabled": "Enable night function",
           "night_source": "Night source",
           "night_entity": "Night schedule or on/off entity",
           "night_start_offset_minutes": "Sunset offset",
@@ -2153,31 +1109,32 @@
           "night_start_offset_minutes": "Moves the calculated night start relative to sunset.",
           "night_end_offset_minutes": "Moves the calculated night end relative to sunrise.",
           "night_morning_transition_minutes": "Checks current sun conditions before handing over to daytime automation.",
-          "night_evening_transition_minutes": "Smooth handover period before Night Mode takes control."
+          "night_evening_transition_minutes": "Smooth handover before the night function takes control."
         }
       },
       "manage_pause": {
         "title": "Pause and manual control",
-        "description": "Choose the default pause duration and automatic detection. Manual Entities are assigned under Individual covers.",
+        "description": "Choose when a pause ends and whether external movement starts one.",
         "data": {
           "default_pause_mode": "Default pause action",
           "pause_sun_offset_minutes": "Sun-event offset",
           "pause_duration_hours": "Timed pause duration",
-          "heat_during_pause": "Allow Heat Protection during pause",
+          "heat_during_pause": "Allow heat protection during pause",
           "external_movement_detection": "Detect confirmed external movement"
         },
         "data_description": {
           "default_pause_mode": "Release at the selected sun event, after a duration, or only manually.",
           "pause_sun_offset_minutes": "Negative values release before the selected sun event.",
           "pause_duration_hours": "Used only for a timed pause.",
-          "heat_during_pause": "Allows Heat Protection while normal automation remains paused.",
-          "external_movement_detection": "Uses numeric position or slat feedback; state-only opening/closing changes are ignored."
+          "heat_during_pause": "Allows heat protection while normal automation remains paused.",
+          "external_movement_detection": "Starts a pause after confirmed position or slat movement outside Smart Shading."
         }
       },
       "manage_conditions": {
         "title": "Safety and conditions",
-        "description": "Optional inputs can permit shading or trigger a safe position. Empty inputs are ignored.",
+        "description": "Add optional weather, occupancy and safety inputs. Empty fields are ignored.",
         "data": {
+          "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
           "irradiance_minimum": "Minimum irradiance",
           "cloud_cover_sensor": "Cloud cover sensor",
@@ -2187,7 +1144,6 @@
           "occupancy_sensor": "Occupancy sensor",
           "weather_logic": "Combine weather inputs",
           "heat_ignores_weather": "Heat ignores normal weather conditions",
-          "heat_fail_safe": "Use heat fail-safe",
           "heat_requires_sun": "Heat requires an active sun sector",
           "comfort_requires_occupancy": "Comfort requires occupancy",
           "safety_behavior": "Safety behavior"
@@ -2201,12 +1157,11 @@
           "glare_sensor": "Optional binary glare request.",
           "occupancy_sensor": "Optional room occupancy input.",
           "weather_logic": "Require all configured weather inputs or any one of them.",
-          "heat_ignores_weather": "Lets Heat Protection start even when normal weather conditions fail.",
-          "heat_fail_safe": "Keeps an active Heat Protection state when a required sensor becomes unavailable.",
-          "heat_requires_sun": "At least one room sector must currently have sun to start Heat Protection.",
+          "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
+          "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
           "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
           "safety_behavior": "Move to the safe target or block normal commands while unsafe.",
-          "safety_blockers": "Optional wind, frost or other danger entities; on means danger."
+          "safety_blockers": "Wind, frost or other on/off sensors; on means danger is active."
         }
       },
       "choose_sector_for_group": {
@@ -2228,32 +1183,123 @@
         "data_description": {
           "group_id": "The covers will inherit this group’s physical behavior and targets."
         }
+      },
+      "compact_cover_details": {
+        "title": "Configure cover {current} of {count}",
+        "description": "Selected: {entity_name}. Check the name and short name.",
+        "data": {
+          "name": "Display name",
+          "short": "Abbreviation",
+          "lock": "Manual pause entity (optional)",
+          "window": "Window contact (optional)",
+          "window_safe_state": "Safe window state",
+          "window_policy": "Behavior when window is unsafe",
+          "window_returns_to_automation": "Return to automation after the window closes",
+          "max_open_position": "Maximum open position",
+          "invert_position": "Invert height",
+          "invert_tilt": "Invert slat position"
+        },
+        "data_description": {
+          "name": "Shown on the dashboard card.",
+          "short": "Short label for compact displays, for example C1.",
+          "window": "Example: window closed. Define the safe state below.",
+          "window_safe_state": "State in which automatic movement is allowed.",
+          "window_policy": "Block closing only still permits a safe opening movement.",
+          "window_returns_to_automation": "Enabled by default. Window-triggered movement while unsafe and the return movement after closing do not create a manual pause. Explicit cover and room pauses remain active.",
+          "max_open_position": "Limits opening for this cover.",
+          "invert_position": "Use only when reported cover height runs in the opposite direction.",
+          "invert_tilt": "Use only when reported slat position runs in the opposite direction.",
+          "lock": "Pauses this cover. Reusing the same entity groups several covers for manual control."
+        }
+      },
+      "finish": {
+        "title": "Configuration incomplete",
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources}\n\nActive functions: {active_functions}\n\n{review_warnings}"
+      },
+      "room_setup": {
+        "title": "Set up the first room",
+        "description": "Choose the room, first facade, cover group and covers.",
+        "sections": {
+          "room_and_covers": {
+            "name": "Room and covers",
+            "description": "Choose the facade and covers that use the same physical profile.",
+            "data": {
+              "name": "Room name",
+              "direction": "Facade direction",
+              "group_name": "Cover group name",
+              "profile": "Cover type",
+              "cover_entities": "Covers"
+            },
+            "data_description": {
+              "name": "Shown as the room name in Home Assistant and on the dashboard card.",
+              "direction": "Defines when the sun reaches this facade.",
+              "group_name": "Name for covers that share physical behavior and target positions.",
+              "profile": "Select the physical cover type so suitable defaults are used.",
+              "cover_entities": "Select at least one unassigned Home Assistant cover."
+            }
+          },
+          "sun_control": {
+            "name": "Sun control",
+            "description": "Choose how direct sun should be confirmed for the first sector.",
+            "data": {
+              "sun_source": "Sun source"
+            },
+            "data_description": {
+              "sun_source": "Choose the available source used to confirm direct sun."
+            }
+          },
+          "optional_improvements": {
+            "name": "Optional temperature gate",
+            "description": "Use this only if normal shading should wait for mild outdoor conditions.",
+            "data": {
+              "easy_temperature_gate": "Use outdoor temperature gate",
+              "outdoor_temperature": "Outdoor temperature sensor",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "easy_temperature_gate": "Requires an outdoor sensor or the house weather source. Temporary missing data does not block.",
+              "outdoor_temperature": "Primary source for this gate; the house weather source is the fallback.",
+              "outdoor_minimum": "Normal shading starts only above this value when the gate is enabled."
+            }
+          },
+          "advanced_conditions": {
+            "name": "Temperature sources",
+            "description": "Add the available room and outdoor temperature sensors.",
+            "data": {
+              "indoor_temperature": "Indoor temperature",
+              "outdoor_temperature": "Outdoor temperature",
+              "outdoor_minimum": "Minimum outdoor temperature"
+            },
+            "data_description": {
+              "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
+              "outdoor_temperature": "Optional source for outdoor-temperature conditions.",
+              "outdoor_minimum": "Minimum outdoor temperature for normal shading."
+            }
+          }
+        }
       }
     },
     "error": {
-      "temperature_order": "Comfort must be lower than Solar, and Solar lower than Heat Protection.",
-      "release_order": "Reopen must be lower than heat release, and heat release lower than heat start.",
+      "temperature_order": "Comfort shading must start below solar shading, and solar shading below heat protection.",
       "lux_hysteresis": "The ON lux threshold must be higher than the OFF lux threshold.",
       "elevation_order": "The four sun elevations must be strictly increasing.",
       "cover_already_assigned": "At least one selected cover is already assigned within this house.",
       "select_at_least_one": "Select at least one item.",
-      "choose_one_sun_confirmation": "Choose either a lux sensor or a sun-detected on/off entity, not both.",
-      "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
-      "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
       "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
       "cannot_delete_last_room": "A Smart Shading entry must keep at least one room. Add another room first.",
       "cannot_delete_last_sector": "A room must keep at least one sun sector. Add another sector first.",
       "cannot_delete_last_layer": "A sector must keep at least one cover group. Add another group first.",
       "cannot_delete_last_cover": "A cover group must keep at least one cover. Add another cover first.",
-      "night_entity_required": "Night Mode uses the entity source. Select a schedule or on/off entity.",
-      "pause_requires_night": "The next-night-end pause requires Night Mode to remain enabled."
+      "night_entity_required": "Select a schedule or on/off entity for the night function.",
+      "pause_requires_night": "This pause duration requires an enabled night function.",
+      "option_not_available": "This function is not available in this setup.",
+      "incomplete_configuration": "Resolve the open items shown in the summary before saving changes.",
+      "sun_source_required": "Select the entity required by this sun source.",
+      "temperature_source_required": "Select an outdoor temperature sensor or a house weather source before enabling the temperature gate.",
+      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
     },
     "abort": {
-      "no_rooms": "No rooms have been configured yet.",
-      "no_sectors": "This room has no sun sectors yet.",
-      "no_layers": "This sector has no cover groups yet.",
-      "no_covers": "This cover group has no covers yet.",
-      "already_configured": "This house name is already configured."
+      "no_rooms": "No rooms have been configured yet."
     }
   },
   "selector": {
@@ -2274,7 +1320,8 @@
         "southwest": "Southwest (SW)",
         "west": "West (W)",
         "northwest": "Northwest (NW)",
-        "custom": "Custom"
+        "custom": "Custom",
+        "keep_current": "Keep current direction"
       }
     },
     "sun_preset": {
@@ -2282,7 +1329,15 @@
         "low": "Low sensitivity",
         "medium": "Balanced",
         "high": "High sensitivity",
-        "custom": "Custom"
+        "custom": "Custom",
+        "keep_current": "Keep current sensitivity"
+      }
+    },
+    "sun_source": {
+      "options": {
+        "geometry": "Calculated sun position",
+        "lux": "Brightness sensor",
+        "external": "External sun confirmation"
       }
     },
     "tilt_preset": {
@@ -2313,7 +1368,6 @@
     },
     "day_window": {
       "options": {
-        "sector_sun": "Only while the sun is in the sector",
         "fixed_time": "Fixed time window",
         "all_day": "All day"
       }
@@ -2384,10 +1438,9 @@
     },
     "pause_mode": {
       "options": {
-        "auto": "Not paused",
         "next_sunrise": "Until next morning",
         "next_sunset": "Until next sunset",
-        "next_night_end": "Until the end of the next Night",
+        "next_night_end": "Until the night function ends",
         "timed": "For a fixed duration",
         "manual": "Until manually resumed"
       }

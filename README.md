@@ -43,8 +43,8 @@ type: custom:smart-shading-card
 entity: sensor.YOUR_ROOM_STATUS
 ```
 
-The card automatically follows the mode selected in the integration. It has no
-separate Easy/Advanced switch.
+The card automatically follows the setup variant chosen when the integration is
+created. It has no separate Easy/Advanced switch.
 
 ## Easy and Advanced Mode
 
@@ -53,20 +53,22 @@ separate Easy/Advanced switch.
   binary direct-sun, weather, and outdoor-temperature inputs can refine the
   decision; leaving all of them empty keeps the geometry-only behavior. The
   override remains active until a user or an explicit automation turns it off.
-- **Advanced Mode** adds Sun Presence/lux, temperatures, weather, schedules,
-  Safety, Pause, Heat Protection, Night Mode, diagnostics, per-cover manual
-  entities, and optional external-movement detection.
+- **Advanced Mode** adds configurable geometry and Lux confirmation,
+  temperatures, schedules, Safety, Pause, Heat Protection, Night Mode,
+  diagnostics, per-cover Manual Override entities, and optional
+  external-movement detection.
 
-Advanced settings remain stored while Easy Mode is selected, but Easy Mode
-does not execute them. New rooms keep external-movement pause detection off
-until it is explicitly enabled in Advanced Mode.
+The setup variant is fixed for the config entry. To use the other variant,
+create a new Smart Shading entry and configure it from the beginning. New
+Advanced rooms keep external-movement pause detection off until it is
+explicitly enabled.
 
-Easy Mode evaluates its optional inputs in a predictable order. A facade-level
-binary direct-sun entity has priority over its lux sensor. A weather entity is
-only a coarse fallback when no facade source provides a usable answer. The
-outdoor-temperature minimum is applied only when its dedicated gate is enabled.
-Unavailable optional inputs fall back to sun geometry instead of stopping the
-automation.
+Each Easy sector uses one source: sun geometry, a Lux sensor, or an external
+binary sun confirmation. Lux creates Smart Shading's internal confirmation
+state; an external entity is a separate alternative. Weather is only a coarse
+fallback when the selected sector source has no usable answer. The outdoor
+temperature minimum applies only when its gate is enabled. Unavailable optional
+inputs fall back to sun geometry instead of stopping the automation.
 
 ## Updating
 

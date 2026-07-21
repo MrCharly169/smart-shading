@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Setup wizard
+
+- separated Easy and Advanced into immutable setup variants chosen once, with no later mode switch or cross-mode configuration pages
+- rebuilt initial setup and later editing around the same customer tasks, including independent add loops for rooms, sun sectors, cover groups, and individual covers
+- made Advanced setup offer every applicable function in a fixed order, with Night configured before Pause and Night-end pauses available only when they can be released safely
+- clarified geometry, Lux, and external sun confirmation; removed ineffective fields and dependent choices that cannot work with the selected sources
+- replaced internal labels and repeated mode terminology with concise, complete English and German guidance
+- hardened migration, saved runtime overrides, temperature units, pause recovery, and Easy/Advanced entity boundaries
+
 
 ## 4.6.2-beta.2 - 2026-07-21
 
