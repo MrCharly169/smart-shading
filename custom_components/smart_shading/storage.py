@@ -6,7 +6,12 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, STORAGE_VERSION
+from .const import (
+    DOMAIN,
+    PAUSE_DURATION_MAX_HOURS,
+    PAUSE_DURATION_MIN_HOURS,
+    STORAGE_VERSION,
+)
 from .logic import migrate_slat_overrides
 
 
@@ -24,7 +29,7 @@ class RuntimeStore:
             "cover_runtime": {},
             "card_notification_ids": [],
             "day_key": None,
-            "runtime_schema": 3,
+            "runtime_schema": 4,
         }
 
     async def async_load(self) -> None:
@@ -46,8 +51,39 @@ class RuntimeStore:
                     self.data.get("overrides", {})
                 )
                 changed = True
+            if schema < 4:
+                overrides = self.data.get("overrides")
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                    self.data["overrides"] = overrides
+                room_overrides = overrides.get("room")
+                if not isinstance(room_overrides, dict):
+                    room_overrides = {}
+                    overrides["room"] = room_overrides
+                room_runtime = self.data.get("room_runtime")
+                if not isinstance(room_runtime, dict):
+                    room_runtime = {}
+                    self.data["room_runtime"] = room_runtime
+                for room_id, runtime in room_runtime.items():
+                    if not isinstance(runtime, dict) or "pause_hours" not in runtime:
+                        continue
+                    try:
+                        duration = float(runtime["pause_hours"])
+                    except (TypeError, ValueError):
+                        duration = 2.0
+                    duration = max(
+                        PAUSE_DURATION_MIN_HOURS,
+                        min(PAUSE_DURATION_MAX_HOURS, duration),
+                    )
+                    current = room_overrides.get(str(room_id))
+                    if not isinstance(current, dict):
+                        current = {}
+                        room_overrides[str(room_id)] = current
+                    current.setdefault("pause_duration_hours", duration)
+                    runtime.pop("pause_hours", None)
+                changed = True
             if changed:
-                self.data["runtime_schema"] = 3
+                self.data["runtime_schema"] = 4
                 await self.async_save()
 
     async def async_save(self) -> None:
@@ -76,6 +112,12 @@ class RuntimeStore:
             object_id, {}
         ).update(values)
         await self.async_save()
+
+    async def async_clear_overrides(self) -> None:
+        """Remove overrides after the options wizard folded them into config."""
+        if self.data.get("overrides"):
+            self.data["overrides"] = {}
+            await self.async_save()
 
     def room_runtime(self, room_id: str) -> dict[str, Any]:
         return deepcopy(self.data.setdefault("room_runtime", {}).setdefault(room_id, {}))

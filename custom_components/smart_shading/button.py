@@ -125,14 +125,14 @@ class ResetFinishedButton(SmartShadingEntity, ButtonEntity):
 
 
 class ResetSunPresenceButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Reset Sun Presence"
+    _attr_name = "Reset sun detection"
     _attr_icon = "mdi:weather-sunny-off"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str, sector_id: str) -> None:
         super().__init__(engine, room_id=room_id, sector_id=sector_id)
         sector = engine.sector_config(sector_id)
-        self._attr_name = f"{sector['name']} · {localized(engine, 'Reset Sun Presence', 'Sun Presence zurücksetzen')}"
+        self._attr_name = f"{sector['name']} · {localized(engine, 'Reset sun detection', 'Sonnenerkennung zurücksetzen')}"
         self._attr_unique_id = (
             f"{self.entry.entry_id}_{sector_id}_reset_sun_presence"
         )

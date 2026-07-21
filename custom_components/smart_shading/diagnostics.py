@@ -32,7 +32,6 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "schema_version": 5,
         "integration_version": VERSION,
         "evaluation_interval_seconds": engine.config.get("evaluation_interval", 1200),
-        "test_mode_legacy": engine.test_mode,
         "input_states": {
             entity_id: _state_snapshot(hass, entity_id)
             for entity_id in configured_entities

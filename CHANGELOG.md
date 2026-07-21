@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Setup wizard
+
+- rebuilt initial setup and later editing around one consistent house, room, task, and object-list navigation
+- added independent add loops for rooms, sun sectors, cover groups, and individual covers, with a blocking final review for incomplete objects
+- made Advanced setup offer every applicable function in a fixed order, with Night before Pause and safe Night-end pause recovery
+- kept external sun confirmation available in both setup variants while making geometry, Lux, and external sources explicit and mutually exclusive
+- removed ineffective or source-less controls and replaced internal labels with concise, complete English and German guidance
+- hardened the immutable setup choice, saved runtime overrides, temperature units, pause migration, and Easy/Advanced entity boundaries
+
 
 ## 4.6.2-beta.3 - 2026-07-21
 

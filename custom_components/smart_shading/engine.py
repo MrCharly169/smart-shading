@@ -27,7 +27,6 @@ from .const import (
     CONF_ROOMS,
     CONF_SUN_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
-    CONF_TEST_MODE,
     CONF_WEATHER_ENTITY,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
@@ -56,6 +55,8 @@ from .const import (
     MODE_SOLAR,
     OUTSIDE_OPEN,
     PAUSE_AUTO,
+    PAUSE_DURATION_MAX_HOURS,
+    PAUSE_DURATION_MIN_HOURS,
     PAUSE_MANUAL,
     PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
@@ -77,6 +78,7 @@ from .logic import (
     parse_numeric_value,
     sun_presence_step,
 )
+from .flow_contract import sun_source_for_sector, working_config
 from .models import (
     CommandMemory,
     CoverPauseRuntime,
@@ -283,14 +285,10 @@ class SmartShadingEngine:
         await self.store.async_load()
         self._day_key = self.store.day_key()
         self._rebuild_runtime()
+        await self._async_reconcile_night_end_pauses()
 
     def reload_config(self) -> None:
-        self.config = {**self.entry.data, **self.entry.options}
-        # Product selection is immutable and belongs to config-entry data.
-        # Ignore conflicting values left in options by older beta versions.
-        self.config[CONF_ADVANCED_MODE] = bool(
-            self.entry.data.get(CONF_ADVANCED_MODE, False)
-        )
+        self.config = working_config(self.entry.data, self.entry.options)
 
     def _rebuild_runtime(self) -> None:
         configured_room_ids: set[str] = set()
@@ -313,7 +311,9 @@ class SmartShadingEngine:
             }
             saved_pause_mode = saved.get("pause_mode", PAUSE_AUTO)
             runtime.pause_mode = legacy_pause_modes.get(saved_pause_mode, saved_pause_mode)
-            runtime.pause_hours = float(saved.get("pause_hours", room.get("pause_duration_hours", 2.0)))
+            runtime.pause_hours = self._configured_pause_duration(
+                room_id, room
+            )
             runtime.pause_until = _parse_datetime(saved.get("pause_until"))
             runtime.pause_waiting_for_night = bool(
                 saved.get("pause_waiting_for_night", False)
@@ -399,6 +399,7 @@ class SmartShadingEngine:
         self.async_stop()
         self.reload_config()
         self._rebuild_runtime()
+        await self._async_reconcile_night_end_pauses()
         await self._async_sync_sun_requirement_notification()
 
         entities = sorted(self.referenced_entities())
@@ -786,7 +787,7 @@ class SmartShadingEngine:
         return None
 
     def _find_sectors_by_source(self, entity_id: str) -> list[dict[str, Any]]:
-        """Return every sector using an Easy Mode confirmation source.
+        """Return every sector using a confirmation source.
 
         A single facade sensor is commonly shared by multiple sectors.  The
         state listener therefore must never stop after the first match.
@@ -837,12 +838,10 @@ class SmartShadingEngine:
         for sector in room.get("sectors", []):
             if not bool(self.sector_value(sector["id"], "enabled", True)):
                 continue
-            runtime = self.sun_runtime.get(sector["id"])
-            if (
-                runtime is not None
-                and runtime.is_on
-                and runtime.current_lux is not None
-            ):
+            confirmed, source, _entity, state = (
+                self._advanced_sector_confirmation(sector)
+            )
+            if source in {"lux", "binary"} and confirmed and state is True:
                 return True
         return False
 
@@ -1152,8 +1151,9 @@ class SmartShadingEngine:
                 result.add(room["night_entity"])
             result.update(room.get("safety_blockers", []))
             for sector in room.get("sectors", []):
-                if sector.get("lux_sensor"):
-                    result.add(sector["lux_sensor"])
+                for key in ("lux_sensor", CONF_SUN_PRESENCE_ENTITY):
+                    if sector.get(key):
+                        result.add(sector[key])
                 for layer in sector.get("layers", []):
                     for cover in layer.get("covers", []):
                         result.add(cover["entity"])
@@ -1199,7 +1199,7 @@ class SmartShadingEngine:
         default = str(
             self.config.get(
                 CONF_DIAGNOSTIC_LEVEL,
-                DIAGNOSTIC_EVENTS if self.config.get(CONF_TEST_MODE, False) else DIAGNOSTIC_OFF,
+                DIAGNOSTIC_OFF,
             )
         )
         value = str(
@@ -1208,11 +1208,6 @@ class SmartShadingEngine:
             )
         )
         return value if value in {DIAGNOSTIC_OFF, DIAGNOSTIC_EVENTS, DIAGNOSTIC_FULL} else DIAGNOSTIC_OFF
-
-    @property
-    def test_mode(self) -> bool:
-        # Legacy compatibility for existing entities and diagnostics.
-        return self.diagnostic_level != DIAGNOSTIC_OFF
 
     @property
     def advanced_mode(self) -> bool:
@@ -1226,11 +1221,6 @@ class SmartShadingEngine:
         )
         self._diag("diagnostic_level", level=level, force=True)
         self._notify()
-
-    async def async_set_test_mode(self, enabled: bool) -> None:
-        await self.async_set_diagnostic_level(
-            DIAGNOSTIC_EVENTS if enabled else DIAGNOSTIC_OFF
-        )
 
     def _diag(self, event: str, *, full: bool = False, force: bool = False, **data: Any) -> None:
         level = self.diagnostic_level
@@ -1311,11 +1301,6 @@ class SmartShadingEngine:
                 "current_tilt_position": state.attributes.get("current_tilt_position") if state else None,
             }
 
-        disabled_in_easy = [
-            "schedule", "advanced_temperature_profiles", "advanced_weather_logic",
-            "safety", "pause", "heat", "night", "external_movement_detection",
-            "per_cover_manual_entities", "diagnostics",
-        ]
         shared_manual_entities: dict[str, list[str]] = {}
         for room, _sector, _layer, cover in self._iter_covers():
             if room_id is not None and room.get("id") != room_id:
@@ -1334,15 +1319,10 @@ class SmartShadingEngine:
 
         payload = {
             "integration_version": VERSION,
-            "schema_version": 2,
+            "schema_version": 3,
             "entry_id": self.entry.entry_id,
             "room_id": room_id,
             "exported_at": now.isoformat(),
-            "mode": {
-                "configured": "advanced" if self.config.get(CONF_ADVANCED_MODE, False) else "easy",
-                "effective": "advanced" if self.advanced_mode else "easy",
-                "forced_off_features": [] if self.advanced_mode else disabled_in_easy,
-            },
             "shared_manual_override_groups": shared_manual_entities,
             "evaluation_interval_seconds": self.config.get(
                 CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL
@@ -1604,6 +1584,89 @@ class SmartShadingEngine:
             candidate += timedelta(days=1)
         return candidate + timedelta(minutes=float(self.room_value(room_id, "pause_sun_offset_minutes", room.get("pause_sun_offset_minutes", 0))))
 
+    def _configured_pause_duration(
+        self, room_id: str, room: dict[str, Any] | None = None
+    ) -> float:
+        """Return the one effective, bounded timed-pause duration."""
+        room = room or self.room_config(room_id)
+        try:
+            value = float(
+                self.room_value(
+                    room_id,
+                    "pause_duration_hours",
+                    room.get("pause_duration_hours", 2.0),
+                )
+            )
+        except (TypeError, ValueError):
+            value = 2.0
+        return max(
+            PAUSE_DURATION_MIN_HOURS,
+            min(PAUSE_DURATION_MAX_HOURS, value),
+        )
+
+    def _night_pause_release_is_valid(
+        self, room: dict[str, Any], now: datetime
+    ) -> bool:
+        """Return whether Night can still release a persisted pause."""
+        if not self.advanced_mode or not room.get("night_enabled", False):
+            return False
+        if str(room.get("night_source", "entity")) not in {"entity", "sun"}:
+            return False
+        _active, blocked, _reason, _state, _next = self._night_status(room, now)
+        return not blocked
+
+    async def _async_reconcile_night_end_pauses(self) -> None:
+        """Give orphaned Night-end pauses a persistent sunrise release."""
+        now = dt_util.now()
+        for room in self.config.get(CONF_ROOMS, []):
+            room_id = str(room["id"])
+            if self._night_pause_release_is_valid(room, now):
+                continue
+
+            due: datetime | None = None
+
+            def sunrise_due() -> datetime:
+                nonlocal due
+                if due is None:
+                    due = self._pause_until_from_sun(
+                        room_id, PAUSE_NEXT_SUNRISE, now
+                    ) or (now + timedelta(hours=12))
+                return due
+
+            room_fell_back = False
+            runtime = self.rooms.get(room_id)
+            if runtime is not None and runtime.pause_mode == PAUSE_NEXT_NIGHT_END:
+                runtime.pause_mode = PAUSE_NEXT_SUNRISE
+                runtime.pause_until = sunrise_due()
+                runtime.pause_waiting_for_night = False
+                self._schedule_room_pause_timer(room_id, runtime.pause_until)
+                await self._save_room_runtime(runtime)
+                room_fell_back = True
+
+            cover_fallbacks = 0
+            for pause in self.cover_pauses.values():
+                if (
+                    str(pause.room_id) != room_id
+                    or not pause.active
+                    or pause.pause_mode != PAUSE_NEXT_NIGHT_END
+                ):
+                    continue
+                pause.pause_mode = PAUSE_NEXT_SUNRISE
+                pause.until = sunrise_due()
+                pause.waiting_for_night = False
+                self._schedule_cover_pause_timer(pause.cover_id, pause.until)
+                await self._save_cover_pause(pause)
+                cover_fallbacks += 1
+
+            if room_fell_back or cover_fallbacks:
+                self._diag(
+                    "night_pause_reload_fell_back_to_sunrise",
+                    room_id=room_id,
+                    room_pause=room_fell_back,
+                    cover_pauses=cover_fallbacks,
+                    until=sunrise_due().isoformat(),
+                )
+
     def _cancel_room_pause_timer(self, room_id: str) -> None:
         unsub = self._room_pause_timer_unsubs.pop(room_id, None)
         if unsub:
@@ -1653,15 +1716,15 @@ class SmartShadingEngine:
         runtime = self.rooms[room_id]
         now = dt_util.now()
         room = self.room_config(room_id)
-        if mode == PAUSE_NEXT_NIGHT_END:
-            _active, blocked, reason, _state, _next = self._night_status(room, now)
-            if blocked:
-                self._diag(
-                    "night_pause_fell_back_to_sunrise",
-                    room_id=room_id,
-                    reason=reason,
-                )
-                mode = PAUSE_NEXT_SUNRISE
+        if (
+            mode == PAUSE_NEXT_NIGHT_END
+            and not self._night_pause_release_is_valid(room, now)
+        ):
+            self._diag(
+                "night_pause_fell_back_to_sunrise",
+                room_id=room_id,
+            )
+            mode = PAUSE_NEXT_SUNRISE
         runtime.pause_mode = mode
         self._cancel_room_pause_timer(room_id)
         if mode in {PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET}:
@@ -1670,7 +1733,7 @@ class SmartShadingEngine:
                 runtime.pause_until = now + timedelta(hours=12)
             self._schedule_room_pause_timer(room_id, runtime.pause_until)
         elif mode == PAUSE_TIMED:
-            duration = float(runtime.pause_hours or room.get("pause_duration_hours", 2.0))
+            duration = self._configured_pause_duration(room_id, room)
             runtime.pause_hours = duration
             runtime.pause_until = now + timedelta(hours=duration)
             self._schedule_room_pause_timer(room_id, runtime.pause_until)
@@ -1712,7 +1775,14 @@ class SmartShadingEngine:
 
     async def async_set_pause_hours(self, room_id: str, hours: float) -> None:
         runtime = self.rooms[room_id]
+        hours = max(
+            PAUSE_DURATION_MIN_HOURS,
+            min(PAUSE_DURATION_MAX_HOURS, float(hours)),
+        )
         runtime.pause_hours = hours
+        await self.store.async_set_override(
+            "room", room_id, "pause_duration_hours", hours
+        )
         if runtime.pause_mode == PAUSE_TIMED:
             runtime.pause_until = dt_util.now() + timedelta(hours=hours)
             self._schedule_room_pause_timer(room_id, runtime.pause_until)
@@ -1892,31 +1962,42 @@ class SmartShadingEngine:
         if unsub:
             unsub()
 
-    def _sector_sun_confirmation(
+    def _advanced_sector_confirmation(
         self, sector: dict[str, Any]
     ) -> tuple[bool, str, str | None, bool | None]:
-        """Resolve the configured facade confirmation for full control.
+        """Resolve one explicit Advanced sun source with legacy fallback.
 
-        An explicit binary source has priority. If it is unavailable, Lux is
-        used when configured; otherwise sun geometry remains sufficient.
+        Current setup stores exactly one source. Legacy beta entries may still
+        contain both an external entity and Lux; the external entity remains
+        authoritative, while an unavailable external state safely falls back
+        to the legacy Lux source and then to geometry.
         """
-        binary_entity = str(sector.get(CONF_SUN_PRESENCE_ENTITY, "") or "")
-        if binary_entity:
-            state = self.hass.states.get(binary_entity)
+        source = sun_source_for_sector(sector, advanced=True)
+        if source == "external":
+            entity_id = str(
+                sector.get(CONF_SUN_PRESENCE_ENTITY, "") or ""
+            )
+            state = self.hass.states.get(entity_id) if entity_id else None
             value = str(getattr(state, "state", "") or "").lower()
             if value == STATE_ON:
-                return True, "binary", binary_entity, True
+                return True, "binary", entity_id, True
             if value == STATE_OFF:
-                return False, "binary", binary_entity, False
+                return False, "binary", entity_id, False
 
-        lux_entity = str(sector.get("lux_sensor", "") or "")
-        if lux_entity:
+            legacy_lux = str(sector.get("lux_sensor", "") or "")
+            if legacy_lux:
+                active = bool(self.sun_runtime[sector["id"]].is_on)
+                return active, "lux", legacy_lux, active
+            return True, "geometry", None, None
+
+        if source == "lux":
+            entity_id = str(sector.get("lux_sensor", "") or "")
             active = bool(self.sun_runtime[sector["id"]].is_on)
-            return active, "lux", lux_entity, active
+            return active, "lux", entity_id or None, active
         return True, "geometry", None, None
 
     def _easy_weather_confirmation(self) -> tuple[bool | None, str | None]:
-        """Return a conservative weather confirmation for Easy Mode."""
+        """Return a conservative optional weather confirmation."""
         entity_id = str(self.config.get(CONF_WEATHER_ENTITY, "") or "")
         state = self.hass.states.get(entity_id) if entity_id else None
         value = str(getattr(state, "state", "") or "").lower()
@@ -2148,7 +2229,7 @@ class SmartShadingEngine:
     ) -> tuple[bool, bool, str, str | None, datetime | None]:
         """Return active, blocked, reason, source state and next transition."""
         if not self.config.get(CONF_ADVANCED_MODE, False):
-            return False, False, "Night Mode requires Advanced Mode", None, None
+            return False, False, "Night function is not available in this setup", None, None
         if not room.get("night_enabled", False):
             return False, False, "Night Mode disabled", None, None
 
@@ -2422,10 +2503,10 @@ class SmartShadingEngine:
             return
 
         indoor_entity = room.get("indoor_temperature", "")
-        indoor = _state_number(self.hass, indoor_entity)
+        indoor = _temperature_state_celsius(self.hass, indoor_entity)
         indoor_valid = indoor is not None
         outdoor_entity = room.get("outdoor_temperature", "")
-        outdoor = _state_number(self.hass, outdoor_entity)
+        outdoor = _temperature_state_celsius(self.hass, outdoor_entity)
         outdoor_valid = outdoor is not None
         weather_pass, weather_failed = self._weather_pass(room)
         outdoor_ok = not outdoor_entity or (
@@ -2576,9 +2657,12 @@ class SmartShadingEngine:
                 )
             )
             sector_runtime.geometry_active = geometry
-            sun_pass, confirmation_source, confirmation_entity, confirmation_state = (
-                self._sector_sun_confirmation(sector)
-            )
+            (
+                sun_pass,
+                confirmation_source,
+                confirmation_entity,
+                confirmation_state,
+            ) = self._advanced_sector_confirmation(sector)
             sector_runtime.confirmation_source = confirmation_source
             sector_runtime.confirmation_entity = confirmation_entity
             sector_runtime.confirmation_state = confirmation_state
@@ -2590,8 +2674,6 @@ class SmartShadingEngine:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun outside this sector"
             elif confirmation_source != "geometry" and not sun_pass:
-                # Keep the established status key; the customer label already
-                # reads "Waiting for Sun Presence" for Lux and binary sources.
                 sector_runtime.status = "waiting_for_lux"
                 sector_runtime.status_reason = (
                     "External sun confirmation is off"
@@ -2828,7 +2910,7 @@ class SmartShadingEngine:
         temperature gate fails open when no usable temperature is available.
         """
         runtime.schedule_active = True
-        runtime.schedule_reason = "Easy Mode has no schedule"
+        runtime.schedule_reason = "This setup does not use an activity schedule"
         runtime.next_schedule_change = None
         runtime.pause_mode = PAUSE_AUTO
         runtime.pause_until = None
@@ -2837,7 +2919,7 @@ class SmartShadingEngine:
         runtime.shading_active = False
         runtime.night_active = False
         runtime.night_blocked = False
-        runtime.night_reason = "Night Mode is unavailable in Easy Mode"
+        runtime.night_reason = "Night function is not configured for this setup"
         runtime.easy_confirmation_state = "inactive"
         runtime.easy_source_summary = "Sun geometry"
 
@@ -2955,7 +3037,7 @@ class SmartShadingEngine:
             elif not temperature_pass:
                 sector_runtime.status = "temperature_blocked"
                 sector_runtime.status_reason = (
-                    "Outdoor temperature is below the Easy Mode threshold"
+                    "Outdoor temperature is below the configured threshold"
                 )
             else:
                 sector_runtime.status = "sun_detected"
@@ -3007,9 +3089,9 @@ class SmartShadingEngine:
         if active_count:
             runtime.reason = "Sun is active in a configured facade sector"
         elif geometry_count and not temperature_pass:
-            runtime.reason = "Outdoor temperature gate blocks Easy Mode shading"
+            runtime.reason = "Outdoor temperature condition blocks shading"
         elif geometry_count:
-            runtime.reason = "Optional Sun confirmation blocks Easy Mode shading"
+            runtime.reason = "Optional sun confirmation blocks shading"
         else:
             runtime.reason = "Sun is outside all configured facade sectors"
         await self._save_room_runtime(runtime)
@@ -3122,13 +3204,6 @@ class SmartShadingEngine:
                 "open_tilt", float(defaults["open_tilt"])
             )
 
-        # Interior curtains use the solar target in heat mode unless advanced
-        # full heat closure is explicitly enabled.
-        if profile == DEVICE_CURTAIN and mode == MODE_HEAT:
-            if layer.get("heat_close_enabled", defaults.get("heat_close_enabled", False)):
-                return 0.0, None
-            return value("heat_position", float(defaults["heat_position"])), None
-
         key = f"{mode}_position"
         default_position = float(defaults.get(key, defaults.get("open_position", 100.0)))
         return value(key, default_position), None
@@ -3147,10 +3222,10 @@ class SmartShadingEngine:
     ) -> None:
         entity_id = cover["entity"]
         profile = layer.get("profile", DEVICE_VENETIAN)
-        if mode == MODE_SAFETY and cover.get("safety_position_override") is not None:
-            target_position = clamp_percent(float(cover["safety_position_override"]))
-        max_open = clamp_percent(float(cover.get("max_open_position", 100.0)))
-        target_position = min(clamp_percent(target_position), max_open)
+        target_position = clamp_percent(target_position)
+        if mode != MODE_SAFETY and profile != DEVICE_BINARY:
+            max_open = clamp_percent(float(cover.get("max_open_position", 100.0)))
+            target_position = min(target_position, max_open)
 
         state = self.hass.states.get(entity_id)
         current_position = (
@@ -3409,7 +3484,6 @@ class SmartShadingEngine:
             {
                 "enabled": runtime.enabled,
                 "pause_mode": runtime.pause_mode,
-                "pause_hours": runtime.pause_hours,
                 "pause_until": _serialize_datetime(runtime.pause_until),
                 "pause_waiting_for_night": runtime.pause_waiting_for_night,
                 "heat_active": runtime.heat_active,

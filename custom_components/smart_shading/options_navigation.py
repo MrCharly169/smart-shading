@@ -38,10 +38,11 @@ def build_room_routes(
 ) -> list[dict[str, Any]]:
     """Return task categories for one room, never its internal object tree."""
     room_id = room["id"]
+    room_name = _name(room, "Raum" if german else "Room")
     sectors, groups, covers = _counts(room)
     if german:
         labels = [
-            ("Raumdaten", "manage_room_details"),
+            (f"Raumdaten · {room_name}", "manage_room_details"),
             (f"Sonnensektoren · {sectors}", "sector_hub"),
             (f"Behanggruppen · {groups}", "group_hub"),
             (f"Einzelne Behänge · {covers}", "cover_hub"),
@@ -49,7 +50,7 @@ def build_room_routes(
         if full:
             labels.extend(
                 [
-                    ("Automatik und Temperaturen", "manage_automation"),
+                    ("Automatik", "manage_automation"),
                     ("Nachtfunktion", "manage_night"),
                     ("Pause und manuelle Bedienung", "manage_pause"),
                     ("Sicherheit und Bedingungen", "manage_conditions"),
@@ -58,7 +59,7 @@ def build_room_routes(
         labels.append(("Raum entfernen", "manage_room_maintenance"))
     else:
         labels = [
-            ("Room details", "manage_room_details"),
+            (f"Room details · {room_name}", "manage_room_details"),
             (f"Sun sectors · {sectors}", "sector_hub"),
             (f"Cover groups · {groups}", "group_hub"),
             (f"Individual covers · {covers}", "cover_hub"),
@@ -66,7 +67,7 @@ def build_room_routes(
         if full:
             labels.extend(
                 [
-                    ("Automation and temperatures", "manage_automation"),
+                    ("Automation", "manage_automation"),
                     ("Night function", "manage_night"),
                     ("Pause and manual control", "manage_pause"),
                     ("Safety and conditions", "manage_conditions"),
@@ -102,7 +103,9 @@ def build_sector_routes(
         for sector in room.get("sectors", [])
     )
     if len(routes) > 1:
-        routes.append(dict(routes[0]))
+        bottom_add = dict(routes[0])
+        bottom_add["placement"] = "bottom"
+        routes.append(bottom_add)
     return routes
 
 
@@ -133,7 +136,9 @@ def build_group_routes(
                 }
             )
     if len(routes) > 1:
-        routes.append(dict(routes[0]))
+        bottom_add = dict(routes[0])
+        bottom_add["placement"] = "bottom"
+        routes.append(bottom_add)
     return routes
 
 
@@ -157,7 +162,7 @@ def build_cover_routes(
             for cover_index, cover in enumerate(layer.get("covers", [])):
                 cover_name = _name(
                     cover,
-                    str(cover.get("entity") or f"{cover_fallback} {cover_index + 1}"),
+                    f"{cover_fallback} {cover_index + 1}",
                 )
                 routes.append(
                     {
@@ -167,10 +172,13 @@ def build_cover_routes(
                         "sector_id": sector["id"],
                         "layer_id": layer["id"],
                         "cover_index": cover_index,
+                        "cover_entity": cover.get("entity", ""),
                     }
                 )
     if len(routes) > 1:
-        routes.append(dict(routes[0]))
+        bottom_add = dict(routes[0])
+        bottom_add["placement"] = "bottom"
+        routes.append(bottom_add)
     return routes
 
 

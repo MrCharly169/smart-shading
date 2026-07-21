@@ -407,17 +407,20 @@ class HomeAssistantServiceDetectionMixin:
             due = self._pause_until_from_sun(room_id, mode, now)
             return mode, due or (now + timedelta(hours=12))
         if mode == PAUSE_TIMED:
-            hours = float(
-                self.room_value(
-                    room_id,
-                    "pause_duration_hours",
-                    room.get("pause_duration_hours", 2.0),
-                )
-            )
+            hours = self._configured_pause_duration(room_id, room)
             return mode, now + timedelta(hours=hours)
         if mode == PAUSE_MANUAL:
             return mode, None
         if mode == PAUSE_NEXT_NIGHT_END:
+            if not self._night_pause_release_is_valid(room, now):
+                due = self._pause_until_from_sun(
+                    room_id, PAUSE_NEXT_SUNRISE, now
+                )
+                self._diag(
+                    "night_cover_pause_fell_back_to_sunrise",
+                    room_id=room_id,
+                )
+                return PAUSE_NEXT_SUNRISE, due or (now + timedelta(hours=12))
             return mode, None
 
         # A malformed legacy value must not create an unintended endless pause.
