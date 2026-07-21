@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.9 - 2026-07-21
+
 ### Fixed
 
 - fixed an Advanced profile-settings submit failure for every standard slat
