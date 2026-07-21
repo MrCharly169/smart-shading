@@ -4,19 +4,19 @@
     "step": {
       "user": {
         "title": "Einrichtung wählen",
-        "description": "Easy nutzt den Sonnenstand mit optionalen Sensorverbesserungen. Advanced ergänzt Zeitpläne, Temperaturen, Sicherheit, Nacht, Pause und individuelles Behangverhalten. In den späteren Raummenüs werden diese Begriffe nicht ständig wiederholt.",
+        "description": "Easy richtet schnell eine Beschattung nach Sonnenstand ein. Advanced ergänzt Zeitpläne, Temperaturstufen, Sicherheit, Nacht, Pause und individuelles Behangverhalten.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
           "setup_type": "Einrichtung"
         },
         "data_description": {
           "house_name": "Kennzeichnet diese Smart-Shading-Installation.",
-          "setup_type": "Easy hält die Konfiguration kurz. Advanced bietet alle Schutz- und Automatikfunktionen."
+          "setup_type": "Easy benötigt nur Raum, Fassade und Behänge. Advanced führt zusätzlich durch alle optionalen Automatik- und Schutzfunktionen."
         }
       },
       "room_setup": {
         "title": "Ersten Raum einrichten",
-        "description": "Fügen Sie den ersten Sektor, die Behanggruppe und die Behänge hinzu. Bei vollständiger Einrichtung werden danach alle weiteren Funktionen angeboten, bevor Smart Shading gestartet werden kann.",
+        "description": "Fügen Sie den ersten Fassadensektor, die Behanggruppe und die Behänge hinzu. Danach bietet der Assistent jede verfügbare Einstellung dieser Installation an.",
         "sections": {
           "room_and_covers": {
             "name": "Raum und Behänge",
@@ -71,7 +71,7 @@
               "weather_entity": "Ungeeignete Wetterzustände können normale Beschattung verhindern.",
               "easy_temperature_gate": "Optionaler Mindestwert für die Außentemperatur. Fehlende Werte blockieren nie.",
               "outdoor_temperature": "Optional. Wird zuerst verwendet; die Wettertemperatur dient als Fallback.",
-              "outdoor_minimum": "Mindest-Außentemperatur für die einfache Steuerung-Mode-Beschattung."
+              "outdoor_minimum": "Mindest-Außentemperatur für die Beschattung."
             }
           },
           "advanced_conditions": {
@@ -182,7 +182,7 @@
       },
       "sector_direction": {
         "title": "Himmelsrichtung auswählen",
-        "description": "Wählen Sie die Richtung der Fenster- oder Behanggruppe. Smart Shading setzt automatisch einen praxistauglichen Azimutbereich und eine minimale Sonnenhöhe. Im normalen Kundenassistenten müssen diese Winkel **nicht** eingestellt werden; sie bleiben später unter „Erweiterte Sektorgeometrie“ anpassbar.",
+        "description": "Wählen Sie die Richtung der Fenster- oder Behanggruppe. Smart Shading setzt automatisch einen praxistauglichen Azimutbereich und eine minimale Sonnenhöhe. Eigene Winkel bleiben später unter „Sektorgeometrie“ anpassbar.",
         "data": {
           "direction": "Himmelsrichtung"
         },
@@ -306,7 +306,7 @@
         "menu_options": {
           "edit_room_basic": "Name und Sensoren",
           "edit_room_schedule": "Aktivitätszeitraum",
-          "room_advanced": "Erweiterte Raumlogik",
+          "room_advanced": "Temperaturen und Bedingungen",
           "add_sector": "Sonnensektor hinzufügen",
           "select_sector": "Sonnensektor verwalten",
           "delete_room": "Raum löschen",
@@ -328,8 +328,8 @@
         },
         "data_description": {
           "safety_blockers": "Mehrfachauswahl möglich. Wählen Sie nur Binary-Sensoren, bei denen `on` Gefahr bedeutet. Ohne solche Sensoren bleibt das Feld leer.",
-          "indoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt.",
-          "outdoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt."
+          "indoor_temperature_name": "Optionale Bezeichnung für die detaillierte Dashboard-Card; rohe Entity-IDs werden nie angezeigt.",
+          "outdoor_temperature_name": "Optionale Bezeichnung für die detaillierte Dashboard-Card; rohe Entity-IDs werden nie angezeigt."
         }
       },
       "edit_room_schedule": {
@@ -361,7 +361,7 @@
         }
       },
       "room_advanced": {
-        "title": "Erweiterte Raumlogik",
+        "title": "Temperaturen und Bedingungen",
         "description": "Die sichtbaren Temperaturschwellen richten sich nach den im Raum verwendeten Behangtypen. Bei reinen Außenjalousien gibt es nur normale Sonnenbeschattung und Heat Protection.",
         "data": {
           "comfort_temperature": "Comfort ab",
@@ -396,7 +396,7 @@
         "title": "Sonnensektor verwalten",
         "menu_options": {
           "edit_sector_customer": "Richtung und Lux-Sensor",
-          "edit_sector_advanced": "Erweiterte Sektorgeometrie",
+          "edit_sector_advanced": "Sektorgeometrie",
           "add_layer": "Behanggruppe hinzufügen",
           "select_layer": "Behanggruppe verwalten",
           "delete_sector": "Sektor löschen",
@@ -452,7 +452,7 @@
         "title": "Behanggruppe verwalten",
         "menu_options": {
           "edit_layer_customer": "Name, Typ und Lamellenprofil",
-          "edit_layer_advanced": "Erweiterte Zielwerte",
+          "edit_layer_advanced": "Zielpositionen",
           "add_covers": "Mehrere Covers hinzufügen",
           "select_cover": "Ein einzelnes Cover konfigurieren",
           "remove_covers": "Covers entfernen",
@@ -490,7 +490,7 @@
         }
       },
       "edit_layer_advanced": {
-        "title": "Erweiterte Zielwerte",
+        "title": "Zielpositionen",
         "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Behanghöhe: 0 % geschlossen, 100 % offen. Lamellenposition: 0 % vollständig offen, 100 % vollständig geschlossen.",
         "data": {
           "open_position": "Ruhe-/Öffnungsposition",
@@ -598,7 +598,7 @@
         }
       },
       "room_advanced_setup": {
-        "title": "Erweiterte Temperaturlogik",
+        "title": "Temperaturlogik",
         "description": "Die angezeigten Werte hängen vom Behangtyp ab. Bei Außenjalousien gibt es nur normale adaptive Beschattung und Heat Protection; redundante Comfort-/Solarstufen werden nicht angezeigt.",
         "data": {
           "comfort_temperature": "Comfort ab",
@@ -635,7 +635,7 @@
       },
       "edit_room_night": {
         "title": "Nachtfunktion",
-        "description": "Nur im erweiterten Modus. Die Nachtfunktion positioniert diesen Raum über eine Quelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
+        "description": "Positioniert diesen Raum über eine Nachtquelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
@@ -926,12 +926,12 @@
         "description": "Voraussetzung: Die Home-Assistant-Sonnenintegration und die Entität `sun.sun` müssen vorhanden und verfügbar sein. Smart Shading verwendet sie automatisch für Sonnenrichtung und Sonnenhöhe. Fehlt die Entität, zeigt der Assistent einen konkreten Fehler und beendet die Einrichtung nicht.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
-          "advanced_mode": "Erweiterten Modus verwenden",
+          "advanced_mode": "Einrichtungsart (festgelegt)",
           "diagnostic_level": "Diagnoseprotokoll"
         },
         "data_description": {
           "house_name": "Neutrales Beispiel: Haus, Wohnung oder Gebäudeteil.",
-          "advanced_mode": "Easy nutzt ausschließlich Sonnengeometrie und einen unbefristeten Manual Override pro Raum. Advanced aktiviert den vollständigen Funktionsumfang.",
+          "advanced_mode": "Die gewählte Einrichtung kann später nicht gewechselt werden. Für einen anderen Funktionsumfang muss eine neue Installation angelegt werden.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung."
         }
       },
@@ -1051,11 +1051,11 @@
       },
       "manage_room": {
         "title": "{room_name} · Raumeinstellungen",
-        "description": "Es werden nur Einstellungen des gewählten Easy- oder Advanced-Modus angezeigt. Alle Gruppen bleiben auf dieser einen Seite.",
+        "description": "Es werden nur Einstellungen dieser Installation angezeigt. Alle Gruppen bleiben auf dieser einen Seite.",
         "sections": {
           "room_basics": {
             "name": "Raum und Grundeingänge",
-            "description": "Nur Eingänge des gewählten Easy- oder Advanced-Modus werden angezeigt.",
+            "description": "Es werden nur unterstützte Eingänge dieser Installation angezeigt.",
             "data": {
               "name": "Raumname",
               "easy_temperature_gate": "Außentemperatur-Freigabe verwenden",
@@ -1066,16 +1066,16 @@
             },
             "data_description": {
               "name": "Name in Entitäten und auf der Dashboard-Karte.",
-              "easy_temperature_gate": "Easy beschattet nur oberhalb der Schwelle. Fehlende Werte blockieren nicht.",
-              "indoor_temperature": "Nur Advanced. Wird für normale Beschattung und Heat-Protection-Schwellen verwendet.",
-              "outdoor_temperature": "Optional. Easy nutzt ihn nur bei aktivierter Temperaturfreigabe.",
+              "easy_temperature_gate": "Beschattet nur oberhalb der Schwelle. Fehlende Werte blockieren nicht.",
+              "indoor_temperature": "Wird für normale Beschattung und Heat-Protection-Schwellen verwendet.",
+              "outdoor_temperature": "Optional. Wird nur bei aktivierter Temperaturfreigabe verwendet.",
               "outdoor_minimum": "Minimale Außentemperatur für normale Beschattung.",
-              "safety_blockers": "Nur Advanced. Wählen Sie Entitäten, bei denen Ein Gefahr bedeutet, etwa Wind oder Frost."
+              "safety_blockers": "Wählen Sie Entitäten, bei denen Ein Gefahr bedeutet, etwa Wind oder Frost."
             }
           },
           "schedule_settings": {
             "name": "Zeitplan",
-            "description": "Nur Advanced. Er erlaubt normale Beschattung; Sonne und Bedingungen entscheiden weiterhin über die Fahrt.",
+            "description": "Erlaubt normale Beschattung; Sonne und Bedingungen entscheiden weiterhin über die Fahrt.",
             "data": {
               "schedule_profile": "Aktivitätsprofil",
               "active_months": "Aktive Monate",
@@ -1099,7 +1099,7 @@
           },
           "pause_settings": {
             "name": "Pausenverhalten",
-            "description": "Nur Advanced. Safety hat immer Vorrang vor einer Pause.",
+            "description": "Safety hat immer Vorrang vor einer Pause.",
             "data": {
               "default_pause_mode": "Standardaktion für Pause",
               "pause_sun_offset_minutes": "Offset zum Sonnenereignis",
@@ -1117,7 +1117,7 @@
           },
           "night_settings": {
             "name": "Nachtfunktion",
-            "description": "Nur Advanced. Verwenden Sie einen Ein/Aus-Zeitplan oder Sonnenauf- und -untergang.",
+            "description": "Verwenden Sie einen Ein/Aus-Zeitplan oder Sonnenauf- und -untergang.",
             "data": {
               "night_enabled": "Nachtfunktion aktivieren",
               "night_source": "Nachtquelle",
@@ -1139,7 +1139,7 @@
           },
           "temperature_settings": {
             "name": "Temperaturstufen",
-            "description": "Nur Advanced. Die Hysterese verhindert ein schnelles Wechseln der Modi.",
+            "description": "Die Hysterese verhindert ein schnelles Wechseln der Temperaturzustände.",
             "data": {
               "normal_shading_temperature": "Normale Beschattung ab",
               "comfort_temperature": "Comfort ab",
@@ -1158,7 +1158,7 @@
             }
           },
           "condition_settings": {
-            "name": "Optionale Advanced-Bedingungen",
+            "name": "Optionale Bedingungen",
             "description": "Lassen Sie jede ungenutzte Entität leer. Kein optionaler Eingang ist erforderlich.",
             "data": {
               "irradiance_sensor": "Globalstrahlungssensor",
@@ -1514,7 +1514,7 @@
       },
       "sector_direction": {
         "title": "Himmelsrichtung auswählen",
-        "description": "Wählen Sie die Richtung der Fenster- oder Behanggruppe. Smart Shading setzt automatisch einen praxistauglichen Azimutbereich und eine minimale Sonnenhöhe. Im normalen Kundenassistenten müssen diese Winkel **nicht** eingestellt werden; sie bleiben später unter „Erweiterte Sektorgeometrie“ anpassbar.",
+        "description": "Wählen Sie die Richtung der Fenster- oder Behanggruppe. Smart Shading setzt automatisch einen praxistauglichen Azimutbereich und eine minimale Sonnenhöhe. Eigene Winkel bleiben später unter „Sektorgeometrie“ anpassbar.",
         "data": {
           "direction": "Himmelsrichtung"
         },
@@ -1639,7 +1639,7 @@
         "menu_options": {
           "edit_room_basic": "Name und Sensoren",
           "edit_room_schedule": "Aktivitätszeitraum",
-          "room_advanced": "Erweiterte Raumlogik",
+          "room_advanced": "Temperaturen und Bedingungen",
           "add_sector": "Sonnensektor hinzufügen",
           "select_sector": "Sonnensektor verwalten",
           "delete_room": "Raum löschen",
@@ -1661,8 +1661,8 @@
         },
         "data_description": {
           "safety_blockers": "Mehrfachauswahl möglich. Wählen Sie nur Binary-Sensoren, bei denen `on` Gefahr bedeutet. Ohne solche Sensoren bleibt das Feld leer.",
-          "indoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt.",
-          "outdoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt."
+          "indoor_temperature_name": "Optionale Bezeichnung für die detaillierte Dashboard-Card; rohe Entity-IDs werden nie angezeigt.",
+          "outdoor_temperature_name": "Optionale Bezeichnung für die detaillierte Dashboard-Card; rohe Entity-IDs werden nie angezeigt."
         }
       },
       "edit_room_schedule": {
@@ -1694,7 +1694,7 @@
         }
       },
       "room_advanced": {
-        "title": "Erweiterte Raumlogik",
+        "title": "Temperaturen und Bedingungen",
         "description": "Die sichtbaren Temperaturschwellen richten sich nach den im Raum verwendeten Behangtypen. Bei reinen Außenjalousien gibt es nur normale Sonnenbeschattung und Heat Protection.",
         "data": {
           "comfort_temperature": "Comfort ab",
@@ -1729,7 +1729,7 @@
         "title": "Sonnensektor verwalten",
         "menu_options": {
           "edit_sector_customer": "Richtung und Lux-Sensor",
-          "edit_sector_advanced": "Erweiterte Sektorgeometrie",
+          "edit_sector_advanced": "Sektorgeometrie",
           "add_layer": "Behanggruppe hinzufügen",
           "select_layer": "Behanggruppe verwalten",
           "delete_sector": "Sektor löschen",
@@ -1785,7 +1785,7 @@
         "title": "Behanggruppe verwalten",
         "menu_options": {
           "edit_layer_customer": "Name, Typ und Lamellenprofil",
-          "edit_layer_advanced": "Erweiterte Zielwerte",
+          "edit_layer_advanced": "Zielpositionen",
           "add_covers": "Mehrere Covers hinzufügen",
           "select_cover": "Ein einzelnes Cover konfigurieren",
           "remove_covers": "Covers entfernen",
@@ -1823,7 +1823,7 @@
         }
       },
       "edit_layer_advanced": {
-        "title": "Erweiterte Zielwerte",
+        "title": "Zielpositionen",
         "description": "Es werden nur Werte angezeigt, die zum gewählten Behangtyp passen. Behanghöhe: 0 % geschlossen, 100 % offen. Lamellenposition: 0 % vollständig offen, 100 % vollständig geschlossen.",
         "data": {
           "open_position": "Ruhe-/Öffnungsposition",
@@ -1931,7 +1931,7 @@
         }
       },
       "room_advanced_setup": {
-        "title": "Erweiterte Temperaturlogik",
+        "title": "Temperaturlogik",
         "description": "Die angezeigten Werte hängen vom Behangtyp ab. Bei Außenjalousien gibt es nur normale adaptive Beschattung und Heat Protection; redundante Comfort-/Solarstufen werden nicht angezeigt.",
         "data": {
           "comfort_temperature": "Comfort ab",
@@ -1965,12 +1965,12 @@
           "pause_sun_offset_minutes": "0 Minuten bedeutet exakt zum Sonnenereignis. Positive Werte verlängern die Pause.",
           "pause_duration_hours": "Wird nur verwendet, wenn die Pause als feste Dauer gestartet wird.",
           "heat_during_pause": "Safety übersteuert eine Pause immer. Diese Option betrifft nur Heat Protection.",
-          "external_movement_detection": "Nur Advanced Mode. Für neue Räume standardmäßig deaktiviert; benötigt zuverlässige numerische Positions- oder Lamellenrückmeldungen."
+          "external_movement_detection": "Standardmäßig deaktiviert. Nur bei zuverlässiger numerischer Positions- oder Lamellenrückmeldung aktivieren."
         }
       },
       "edit_room_night": {
         "title": "Nachtfunktion",
-        "description": "Nur im erweiterten Modus. Die Nachtfunktion positioniert diesen Raum über eine Quelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
+        "description": "Positioniert diesen Raum über eine Nachtquelle. Übergangsfenster vermeiden kurze Öffnen-Schließen-Fahrten.",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
