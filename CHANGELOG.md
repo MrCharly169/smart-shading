@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.3 - 2026-07-21
+
 ### Setup product separation
 
 - lock the setup product after the initial Easy or Advanced choice and remove the later mode switch from house settings
