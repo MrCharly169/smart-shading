@@ -3084,6 +3084,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             str(self.room().get("indoor_temperature") or "").strip()
         )
         errors: dict[str, str] = {}
+        rerender_custom_curve = False
         if user_input is not None:
             values = _flatten_sections(user_input)
             curve_values_present = all(
