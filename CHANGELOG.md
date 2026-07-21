@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 4.6.2-beta.1 - 2026-07-21
+
 ### Setup navigation
 
 - replaced the flattened options overview with one entry per room plus house-wide actions
