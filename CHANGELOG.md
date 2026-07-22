@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Real Home Assistant release laboratory
+
+- added blocking clean-install, config/options-flow, browser, lifecycle,
+  registry and previous-release upgrade laboratories for every beta/stable
+  publication
+- execute Easy and Advanced setup in Home Assistant Core, cover every physical
+  profile and supported wizard choice, create additional rooms/sectors/groups via
+  Options, and reject newly added wizard surfaces without an E2E owner
+- run Playwright against the real Home Assistant frontend and real integration
+  entities instead of a standalone card harness, retaining HA logs, registries,
+  screenshots, traces, videos, JUnit and sanitized lifecycle snapshots
+- added protected persistent-lab and post-publication HACS qualification
+  workflows for isolated upgrade testing without production HA or public SSH
+
 
 ## 4.6.2-beta.9 - 2026-07-21
 

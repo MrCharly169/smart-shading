@@ -23,9 +23,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ha-e2e:
+    name: Required real Home Assistant gate
+    uses: ./.github/workflows/ha-e2e.yml
+
+  ha-ui-e2e:
+    name: Required real Home Assistant browser gate
+    uses: ./.github/workflows/ha-ui-e2e.yml
+
+  ha-upgrade-e2e:
+    name: Required previous-release upgrade gate
+    uses: ./.github/workflows/ha-upgrade-e2e.yml
+
   release:
     name: Publish ${{ inputs.channel }} release
+    needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e]
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.metadata.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,3 +115,11 @@ jobs:
           body_path: dist/release-notes.md
           fail_on_unmatched_files: true
           files: dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip
+
+  ha-hacs-qualification:
+    name: Qualify published tag through isolated HACS
+    needs: release
+    uses: ./.github/workflows/ha-hacs-e2e.yml
+    with:
+      tag: ${{ needs.release.outputs.release_tag }}
+    secrets: inherit

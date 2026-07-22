@@ -27,6 +27,8 @@ jobs:
         run: python scripts/check_pr_changelog.py "origin/${{ github.base_ref }}"
       - name: Python tests
         run: python -m unittest discover -s tests -v
+      - name: Verify wizard E2E ownership
+        run: python scripts/ha_e2e/check_wizard_coverage.py
       - name: Compile integration
         run: python -m compileall custom_components/smart_shading
       - name: Validate canonical frontend syntax

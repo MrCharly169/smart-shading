@@ -1,0 +1,50 @@
+name: Protected Persistent HA Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_scope:
+        description: Type dedicated-test-only
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smart-shading-persistent-lab
+  cancel-in-progress: false
+
+jobs:
+  persistent-lab:
+    runs-on: [self-hosted, linux, smart-shading-lab]
+    environment: ha-persistent-lab
+    timeout-minutes: 30
+    env:
+      HA_PERSISTENT_SCOPE: ${{ inputs.confirm_scope }}
+      HA_PERSISTENT_URL: ${{ secrets.HA_URL }}
+      HA_PERSISTENT_TOKEN: ${{ secrets.HA_TOKEN }}
+      HA_PERSISTENT_INSTANCE_NAME: ${{ secrets.HA_INSTANCE_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build candidate archive
+        run: python scripts/build_release.py --output dist/smart_shading.zip
+      - name: Deploy only through the runner-local lab adapter
+        run: /opt/smart-shading-lab/bin/deploy-candidate "$GITHUB_WORKSPACE/dist/smart_shading.zip"
+      - name: Verify upgraded persistent instance
+        run: python scripts/ha_e2e/run_persistent_lab.py --phase before-restart --output artifacts/ha-persistent/before-restart.json
+      - name: Restart only through the runner-local lab adapter
+        run: /opt/smart-shading-lab/bin/restart-home-assistant
+      - name: Verify persistence after restart
+        run: python scripts/ha_e2e/run_persistent_lab.py --phase after-restart --output artifacts/ha-persistent/after-restart.json
+      - name: Upload sanitized persistent-lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-persistent-${{ github.sha }}
+          path: artifacts/ha-persistent
+          if-no-files-found: warn
+          retention-days: 30
