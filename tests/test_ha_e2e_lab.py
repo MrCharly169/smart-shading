@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from scripts.ha_e2e.run_scenarios import (
     ApiError,
+    advanced_execution_settings_payload,
     assert_entry_variant,
     submit_options_expect_error,
     wait_for_home_assistant,
@@ -25,6 +26,49 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_advanced_execution_settings_payload_is_complete(self):
+        self.assertEqual(
+            advanced_execution_settings_payload(),
+            {
+                "command_stagger_seconds": 0.0,
+                "stagger_scope": "room",
+                "safety_bypasses_stagger": True,
+                "target_verification_enabled": False,
+                "verification_retries": 1,
+                "movement_seconds": 45.0,
+                "settling_seconds": 5.0,
+                "source_stale_seconds": 0.0,
+            },
+        )
+
+    def test_advanced_automation_submissions_include_execution_settings(self):
+        runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
+        tree = ast.parse(runner.read_text(encoding="utf-8"))
+        submission_keys: list[set[str]] = []
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in {"submit_flow", "submit_options_flow"}
+                and len(node.args) >= 4
+                and isinstance(node.args[2], ast.Constant)
+                and node.args[2].value == "manage_automation"
+            ):
+                continue
+            self.assertIsInstance(node.args[3], ast.Dict)
+            payload = node.args[3]
+            submission_keys.append(
+                {
+                    key.value
+                    for key in payload.keys
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str)
+                }
+            )
+
+        self.assertEqual(len(submission_keys), 10)
+        for keys in submission_keys:
+            self.assertIn("execution_settings", keys)
+
     def test_upgrade_checkpoint_reads_only_persisted_smart_shading_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = Path(temp_dir) / "core.config_entries"
@@ -237,6 +281,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("LIVE_WIZARD_TRANSITIONS", runner)
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
+        self.assertIn("advanced_execution_settings_payload", runner)
+        self.assertIn('"execution_settings": execution_settings', runner)
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("legacy_compatible=True", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)

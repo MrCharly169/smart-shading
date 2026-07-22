@@ -393,6 +393,25 @@ def _created_entry_id(
     return str(matching[0]["entry_id"])
 
 
+def advanced_execution_settings_payload() -> dict[str, Any]:
+    """Return the complete required Advanced automation section.
+
+    Home Assistant validates the outer section schema before the integration
+    can flatten it.  Keep every real-HA exercise on the same explicit
+    execution defaults as a newly created Advanced room.
+    """
+    return {
+        "command_stagger_seconds": 0.0,
+        "stagger_scope": "room",
+        "safety_bypasses_stagger": True,
+        "target_verification_enabled": False,
+        "verification_retries": 1,
+        "movement_seconds": 45.0,
+        "settling_seconds": 5.0,
+        "source_stale_seconds": 0.0,
+    }
+
+
 def create_advanced_entry(
     api: HomeAssistantApi,
     scenario: dict[str, Any],
@@ -551,6 +570,7 @@ def create_advanced_entry(
         "normal_shading_temperature": 23.5,
         "reopen_temperature": 22,
     }
+    execution_settings = advanced_execution_settings_payload()
     result = submit_flow(
         api,
         flow_id,
@@ -558,6 +578,7 @@ def create_advanced_entry(
         {
             "schedule_settings": {"schedule_enabled": True},
             "temperature_settings": temperature_settings,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -572,6 +593,7 @@ def create_advanced_entry(
                 "day_window": "fixed_time",
             },
             "temperature_settings": temperature_settings,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -592,6 +614,7 @@ def create_advanced_entry(
                 "heat_outside_schedule": True,
             },
             "temperature_settings": temperature_settings,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_night")
@@ -1030,6 +1053,7 @@ def assert_existing_room_schedule_transition(
         "normal_shading_temperature": 23.5,
         "reopen_temperature": 22,
     }
+    execution_settings = advanced_execution_settings_payload()
     flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
     result = submit_options_flow(
         api,
@@ -1038,6 +1062,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": False},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -1048,6 +1073,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": False},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     save_options_from_room_hub(api, flow_id, result)
@@ -1070,6 +1096,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": True},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -1090,6 +1117,7 @@ def assert_existing_room_schedule_transition(
                 "heat_outside_schedule": True,
             },
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     save_options_from_room_hub(api, flow_id, result)
@@ -1678,6 +1706,7 @@ def probe_choice_matrix(
         "comfort_temperature": 23.5,
         "solar_temperature": 25.5,
     }
+    execution_settings = advanced_execution_settings_payload()
     for profile in ("year_round", "summer", "custom"):
         flow_id, _ = replay_options_path(
             api, advanced_entry_id, "manage_automation"
@@ -1700,6 +1729,7 @@ def probe_choice_matrix(
                         "heat_outside_schedule": True,
                     },
                     "temperature_settings": temperature,
+                    "execution_settings": execution_settings,
                 },
             )
             expect_step(result, "manage_automation")
@@ -1726,6 +1756,7 @@ def probe_choice_matrix(
                 {
                     "schedule_settings": schedule_settings,
                     "temperature_settings": temperature,
+                    "execution_settings": execution_settings,
                 },
             )
             expect_step(result, "room_hub")
@@ -1760,6 +1791,7 @@ def probe_choice_matrix(
                     "heat_outside_schedule": True,
                 },
                 "temperature_settings": temperature,
+                "execution_settings": execution_settings,
             },
         )
         expect_step(result, "room_hub")
