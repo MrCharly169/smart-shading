@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 
 
 LIVE_WIZARD_COVERAGE: dict[str, set[str]] = {}
+LIVE_WIZARD_TRANSITIONS: set[str] = set()
 OPTIONS_SURFACE_PATHS: dict[tuple[str, str], tuple[str, ...]] = {}
 
 
@@ -904,6 +905,290 @@ def save_options_from_group_hub(
         raise AssertionError(f"Options flow did not save group changes: {result}")
 
 
+def save_options_from_room_hub(
+    api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
+) -> None:
+    """Persist an edited room through the same review exit used by customers."""
+    expect_step(result, "room_hub")
+    result = submit_options_flow(
+        api, flow_id, "room_hub", {"next_step_id": "back_to_overview"}
+    )
+    expect_step(result, "init")
+    result = submit_options_flow(
+        api, flow_id, "init", {"next_step_id": "finish"}
+    )
+    if result.get("type") != "create_entry":
+        raise AssertionError(f"Options flow did not save room changes: {result}")
+
+
+def assert_existing_room_night_transition(
+    api: HomeAssistantApi,
+    scenario: dict[str, Any],
+    entry_id: str,
+) -> None:
+    """Disable and re-enable Night on a persisted room, including runtime use."""
+    flow_id, _ = replay_options_path(api, entry_id, "manage_night")
+    result = submit_options_flow(
+        api, flow_id, "manage_night", {"night_enabled": False}
+    )
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
+        "configuration", {}
+    )
+    if configuration.get("night_enabled") is not False:
+        raise AssertionError(
+            f"Night disable was not persisted for an existing room: {configuration}"
+        )
+    LIVE_WIZARD_TRANSITIONS.add(
+        "existing_room.night_enabled.on_to_off.save_reload"
+    )
+
+    explore_options_surfaces(api, entry_id)
+    flow_id, _ = replay_options_path(api, entry_id, "manage_night")
+    result = submit_options_flow(
+        api, flow_id, "manage_night", {"night_enabled": True}
+    )
+    expect_step(result, "manage_night")
+    night_values = {
+        "night_enabled": True,
+        "night_source": "sun",
+        "night_start_offset_minutes": 0,
+        "night_end_offset_minutes": 0,
+        "night_morning_transition_minutes": 0,
+        "night_evening_transition_minutes": 0,
+    }
+    result = submit_options_flow(
+        api, flow_id, "manage_night", night_values
+    )
+    # A legacy room may still retain a different disabled source. In that
+    # case the first submit intentionally rebuilds the source-specific form.
+    if result.get("step_id") == "manage_night":
+        result = submit_options_flow(
+            api, flow_id, "manage_night", night_values
+        )
+    expect_step(result, "initial_night_targets")
+    while result.get("step_id") == "initial_night_targets":
+        target_values = {
+            field: 100 if field.endswith("tilt") else 0
+            for field in _schema_fields(result.get("data_schema", []))
+        }
+        if not target_values:
+            raise AssertionError(
+                f"Night target step did not expose target fields: {result}"
+            )
+        result = submit_options_flow(
+            api, flow_id, "initial_night_targets", target_values
+        )
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+
+    room_state = entry_room_state(api, entry_id)
+    configuration = room_state.get("attributes", {}).get("configuration", {})
+    if not configuration.get("night_enabled"):
+        raise AssertionError(
+            f"Night enable was not persisted for an existing room: {configuration}"
+        )
+    if configuration.get("night_source") != "sun":
+        raise AssertionError(
+            f"Night source was not persisted for an existing room: {configuration}"
+        )
+    layers = [
+        layer
+        for sector in configuration.get("sectors", [])
+        for layer in sector.get("layers", [])
+    ]
+    if not layers or any("night_position" not in layer for layer in layers):
+        raise AssertionError(
+            f"Night targets were not persisted for all existing layers: {layers}"
+        )
+
+    below_horizon = dict(scenario["initial"]["sun.sun"])
+    below_horizon["state"] = "below_horizon"
+    set_fixture_state(api, "sun.sun", below_horizon)
+    room_state = evaluate_entry(api, entry_id)
+    if room_state.get("state") != "night" or not room_state.get(
+        "attributes", {}
+    ).get("night_active"):
+        raise AssertionError(
+            f"Persisted Night configuration did not run after reload: {room_state}"
+        )
+    set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
+    LIVE_WIZARD_TRANSITIONS.add(
+        "existing_room.night_enabled.off_to_on.targets.save_reload.runtime"
+    )
+
+
+def assert_existing_room_schedule_transition(
+    api: HomeAssistantApi, entry_id: str
+) -> None:
+    """Persist both states of the schedule selector and its revealed fields."""
+    temperatures = {
+        "heat_temperature": 27,
+        "evening_release_time": "18:00:00",
+        "sunset_offset_minutes": 0,
+        "normal_shading_temperature": 23.5,
+        "reopen_temperature": 22,
+    }
+    flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "schedule_settings": {"schedule_enabled": False},
+            "temperature_settings": temperatures,
+        },
+    )
+    expect_step(result, "manage_automation")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "schedule_settings": {"schedule_enabled": False},
+            "temperature_settings": temperatures,
+        },
+    )
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
+        "configuration", {}
+    )
+    if configuration.get("schedule_enabled") is not False:
+        raise AssertionError(
+            "Schedule disable was not persisted for an existing room: "
+            f"{configuration}"
+        )
+
+    explore_options_surfaces(api, entry_id)
+    flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "schedule_settings": {"schedule_enabled": True},
+            "temperature_settings": temperatures,
+        },
+    )
+    expect_step(result, "manage_automation")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "schedule_settings": {
+                "schedule_enabled": True,
+                "schedule_profile": "custom",
+                "day_window": "fixed_time",
+                "active_months": [str(value) for value in range(1, 13)],
+                "active_weekdays": [str(value) for value in range(7)],
+                "start_time": "06:00:00",
+                "end_time": "22:00:00",
+                "outside_schedule_behavior": "open",
+                "heat_outside_schedule": True,
+            },
+            "temperature_settings": temperatures,
+        },
+    )
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
+        "configuration", {}
+    )
+    if not configuration.get("schedule_enabled"):
+        raise AssertionError(
+            "Schedule enable was not persisted for an existing room: "
+            f"{configuration}"
+        )
+    LIVE_WIZARD_TRANSITIONS.add(
+        "existing_room.schedule_enabled.on_to_off_to_on.save_reload"
+    )
+
+
+def assert_existing_cover_limit_transition(
+    api: HomeAssistantApi, entry_id: str
+) -> None:
+    """Persist both states of the optional maximum-opening cover limit."""
+
+    def current_cover() -> dict[str, Any]:
+        configuration = entry_room_state(api, entry_id).get(
+            "attributes", {}
+        ).get("configuration", {})
+        covers = [
+            cover
+            for sector in configuration.get("sectors", [])
+            for layer in sector.get("layers", [])
+            for cover in layer.get("covers", [])
+        ]
+        if len(covers) != 1:
+            raise AssertionError(
+                f"Expected one cover during limit transition, got {covers}"
+            )
+        return covers[0]
+
+    flow_id, _ = replay_options_path(
+        api, entry_id, "manage_cover_special"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_cover_special",
+        {"enforce_max_open_position": False},
+    )
+    expect_step(result, "cover_settings_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "cover_settings_hub",
+        {"next_step_id": "back_to_group"},
+    )
+    save_options_from_group_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    if current_cover().get("enforce_max_open_position") is not False:
+        raise AssertionError(
+            f"Maximum-opening disable was not persisted: {current_cover()}"
+        )
+
+    explore_options_surfaces(api, entry_id)
+    flow_id, _ = replay_options_path(
+        api, entry_id, "manage_cover_special"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_cover_special",
+        {"enforce_max_open_position": True},
+    )
+    expect_step(result, "manage_cover_special")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_cover_special",
+        {"enforce_max_open_position": True, "max_open_position": 85},
+    )
+    expect_step(result, "cover_settings_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "cover_settings_hub",
+        {"next_step_id": "back_to_group"},
+    )
+    save_options_from_group_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    cover = current_cover()
+    if not cover.get("enforce_max_open_position") or float(
+        cover.get("max_open_position", -1)
+    ) != 85:
+        raise AssertionError(
+            f"Maximum-opening enable was not persisted: {cover}"
+        )
+    LIVE_WIZARD_TRANSITIONS.add(
+        "existing_cover.enforce_max_open_position.on_to_off_to_on.save_reload"
+    )
+
+
 def add_advanced_group_through_options(
     api: HomeAssistantApi,
     entry_id: str,
@@ -1686,7 +1971,7 @@ def assert_choice_contract(evidence: dict[str, Any]) -> None:
 
 
 def assert_live_wizard_coverage(output_dir: Path) -> None:
-    """Fail the real HA job when a mandatory flow surface was not observed."""
+    """Fail when mandatory real-HA surfaces or state changes were not observed."""
     contract_path = (
         Path(__file__).parents[2]
         / "e2e"
@@ -1696,8 +1981,12 @@ def assert_live_wizard_coverage(output_dir: Path) -> None:
     )
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     required = set(contract["live_required"])
+    required_transitions = set(contract["live_transitions"])
     observed = set(LIVE_WIZARD_COVERAGE)
     missing = sorted(required - observed)
+    missing_transitions = sorted(
+        required_transitions - LIVE_WIZARD_TRANSITIONS
+    )
     report = {
         "required": sorted(required),
         "observed": {
@@ -1705,13 +1994,17 @@ def assert_live_wizard_coverage(output_dir: Path) -> None:
             for step, fields in sorted(LIVE_WIZARD_COVERAGE.items())
         },
         "missing": missing,
+        "required_transitions": sorted(required_transitions),
+        "observed_transitions": sorted(LIVE_WIZARD_TRANSITIONS),
+        "missing_transitions": missing_transitions,
     }
     (output_dir / "wizard-coverage-live.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
     )
-    if missing:
+    if missing or missing_transitions:
         raise AssertionError(
-            f"Mandatory wizard surfaces were not exercised in real HA: {missing}"
+            "Mandatory wizard coverage was not exercised in real HA: "
+            f"surfaces={missing}, transitions={missing_transitions}"
         )
 
 
@@ -2165,6 +2458,12 @@ def run_bootstrap(
     wait_for_entry_loaded(api, advanced_entry_id)
     wait_for_smart_shading_entities(api, advanced_entry_id)
     assert_entry_variant(api, advanced_entry_id, True)
+    explore_options_surfaces(api, advanced_entry_id)
+    assert_existing_room_night_transition(api, scenario, advanced_entry_id)
+    explore_options_surfaces(api, advanced_entry_id)
+    assert_existing_room_schedule_transition(api, advanced_entry_id)
+    explore_options_surfaces(api, advanced_entry_id)
+    assert_existing_cover_limit_transition(api, advanced_entry_id)
     explore_options_surfaces(api, advanced_entry_id)
     for profile, cover_entity, name in (
         ("vertical_blind", "cover.advanced_vertical", "Vertical blind"),

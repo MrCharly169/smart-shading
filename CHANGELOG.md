@@ -15,6 +15,15 @@
   screenshots, traces, videos, JUnit and sanitized lifecycle snapshots
 - added protected persistent-lab and post-publication HACS qualification
   workflows for isolated upgrade testing without production HA or public SSH
+- made Stable and Beta Home Assistant equally blocking pre-publication gates and
+  validate Python, JavaScript, JSON, shell and workflow syntax repository-wide
+- require every new Boolean wizard field to declare an executable acceptance
+  owner and verify persisted Night, schedule and maximum-opening transitions
+
+### Fixed
+
+- fixed enabling Night for an existing room so its cover targets are collected,
+  saved, reloaded and available to the runtime just like during initial setup
 
 
 ## 4.6.2-beta.9 - 2026-07-21

@@ -67,6 +67,31 @@
     "compact_cover_details",
     "finish"
   ],
+  "live_transitions": [
+    "existing_room.night_enabled.on_to_off.save_reload",
+    "existing_room.night_enabled.off_to_on.targets.save_reload.runtime",
+    "existing_room.schedule_enabled.on_to_off_to_on.save_reload",
+    "existing_cover.enforce_max_open_position.on_to_off_to_on.save_reload"
+  ],
+  "boolean_field_contract": {
+    "window_returns_to_automation": "runtime-unit",
+    "invert_position": "real-ha-flow",
+    "invert_tilt": "real-ha-flow",
+    "confirm_start": "real-ha-flow",
+    "delete_room": "validation-unit",
+    "schedule_enabled": "real-ha-transition",
+    "heat_outside_schedule": "real-ha-flow",
+    "night_enabled": "real-ha-transition",
+    "external_movement_detection": "real-ha-flow",
+    "heat_during_pause": "real-ha-flow",
+    "comfort_requires_occupancy": "real-ha-flow",
+    "heat_ignores_weather": "real-ha-flow",
+    "heat_requires_sun": "real-ha-flow",
+    "delete_sector": "validation-unit",
+    "delete_layer": "validation-unit",
+    "remove_cover": "validation-unit",
+    "enforce_max_open_position": "real-ha-transition"
+  },
   "choice_contract": {
     "setup_type": ["simple", "complete"],
     "direction_easy": [

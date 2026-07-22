@@ -1234,6 +1234,28 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("generate_release_notes:", workflow)
         self.assertNotIn("push:\n    tags:", workflow)
 
+    def test_every_release_path_uses_the_repository_wide_syntax_gate(self):
+        for relative in (
+            ".github/workflows/validate.yml",
+            ".github/workflows/prepare-release.yml",
+            ".github/workflows/release.yml",
+        ):
+            with self.subTest(workflow=relative):
+                workflow = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("python scripts/check_source_syntax.py", workflow)
+
+        checker = (ROOT / "scripts" / "check_source_syntax.py").read_text(
+            encoding="utf-8"
+        )
+        for expected in (
+            "py_compile.compile",
+            '"node", "--check"',
+            '"bash", "-n"',
+            'require "yaml"',
+            "json.load",
+        ):
+            self.assertIn(expected, checker)
+
     def test_prepare_release_workflow_creates_only_a_reviewable_draft_pr(self):
         workflow = (
             ROOT / ".github" / "workflows" / "prepare-release.yml"

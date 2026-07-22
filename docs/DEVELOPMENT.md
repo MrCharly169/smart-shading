@@ -6,9 +6,7 @@ Run from the repository root:
 
 ```bash
 python -m unittest discover -s tests -v
-python -m compileall custom_components/smart_shading
-node --check custom_components/smart_shading/frontend/shading.js
-node --check custom_components/smart_shading/frontend/smart-shading-card.js
+python scripts/check_source_syntax.py
 node tests/test_card_runtime.js
 python scripts/build_release.py --check
 python scripts/ha_e2e/check_wizard_coverage.py
@@ -17,8 +15,8 @@ python scripts/ha_e2e/check_wizard_coverage.py
 With Docker available, run `scripts/ha_e2e/run_lab.sh` before changing setup,
 runtime, registry or migration behavior. Setup/Card changes must also pass the
 real HA Playwright job described in `docs/HA_E2E_LAB.md`. Every new customer
-flow surface or choice must update `wizard_coverage.json` and its executable
-scenario owner.
+flow surface, choice, Boolean field, or required persisted state transition must
+update `wizard_coverage.json` and its executable scenario owner.
 
 ## Branches
 
@@ -86,9 +84,11 @@ After the preparation pull request is merged, run
 - Beta: branch `develop`, channel `beta`, exact beta manifest version.
 - Stable: branch `main`, channel `stable`, exact stable manifest version.
 
-The publication workflow repeats validation, creates the immutable tag, builds
-the recovery ZIP, and publishes either a GitHub prerelease or the latest stable
-release. The release body comes directly from the matching changelog section.
+The publication workflow repeats validation and blocks on both Stable and Beta
+Home Assistant, the clean lifecycle, browser/Card, and previous-release upgrade
+labs before it creates the immutable tag. It then builds the recovery ZIP and
+publishes either a GitHub prerelease or the latest stable release. The release
+body comes directly from the matching changelog section.
 After a stable publication, synchronize `main` back into `develop` before the
 next development cycle.
 

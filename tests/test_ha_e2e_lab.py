@@ -230,6 +230,10 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("assert_choice_contract", runner)
         self.assertIn("probe_invalid_wizard_inputs", runner)
         self.assertIn("assert_live_wizard_coverage", runner)
+        self.assertIn("assert_existing_room_night_transition", runner)
+        self.assertIn("assert_existing_room_schedule_transition", runner)
+        self.assertIn("assert_existing_cover_limit_transition", runner)
+        self.assertIn("LIVE_WIZARD_TRANSITIONS", runner)
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
         self.assertIn("run_upgrade_bootstrap", runner)
@@ -311,9 +315,11 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('type: "lovelace/config/save"', browser)
         self.assertIn('type: "custom:smart-shading-card"', browser)
         self.assertIn("home-assistant:beta", nightly)
-        self.assertIn("continue-on-error", nightly)
+        self.assertNotIn("continue-on-error", nightly)
+        self.assertIn("workflow_call:", nightly)
         self.assertIn("pull_request:", nightly)
         self.assertIn("github.event.pull_request.head.sha", nightly)
+        self.assertIn("github.sha", nightly)
         self.assertIn("[self-hosted, linux, smart-shading-lab]", persistent)
         self.assertIn("environment: ha-persistent-lab", persistent)
         self.assertNotIn("ssh ", persistent.lower())
@@ -326,7 +332,11 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ha-e2e.yml", release)
         self.assertIn("uses: ./.github/workflows/ha-ui-e2e.yml", release)
         self.assertIn("uses: ./.github/workflows/ha-upgrade-e2e.yml", release)
-        self.assertIn("needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e]", release)
+        self.assertIn("uses: ./.github/workflows/ha-nightly.yml", release)
+        self.assertIn(
+            "needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e, ha-matrix-e2e]",
+            release,
+        )
         self.assertIn("uses: ./.github/workflows/ha-hacs-e2e.yml", release)
         self.assertIn("needs: release", release)
 
@@ -337,6 +347,11 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             )
         )
         self.assertGreaterEqual(len(coverage["all_surfaces"]), 35)
+        self.assertEqual(len(coverage["live_transitions"]), 4)
+        self.assertEqual(
+            coverage["boolean_field_contract"]["night_enabled"],
+            "real-ha-transition",
+        )
         self.assertEqual(
             set(coverage["choice_contract"]["profile"]),
             {
@@ -348,6 +363,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             ROOT / "scripts" / "ha_e2e" / "check_wizard_coverage.py"
         ).read_text(encoding="utf-8")
         self.assertIn("Flow surfaces missing E2E ownership", checker)
+        self.assertIn(
+            "Boolean wizard fields missing an acceptance-test owner", checker
+        )
 
     def test_upgrade_lab_installs_previous_tag_before_candidate(self):
         workflow = (

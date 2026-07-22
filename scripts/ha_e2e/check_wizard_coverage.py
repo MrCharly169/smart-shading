@@ -100,6 +100,49 @@ def resolved_symbols(*paths: Path) -> dict[str, object]:
     return symbols
 
 
+def boolean_fields(tree: ast.AST, symbols: dict[str, object]) -> set[str]:
+    """Return every customer field backed by a BooleanSelector."""
+
+    def is_boolean_selector(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "BooleanSelector"
+        )
+
+    def marker_name(node: ast.AST) -> str | None:
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"Required", "Optional"}
+            and node.args
+        ):
+            return None
+        key = node.args[0]
+        if isinstance(key, ast.Constant) and isinstance(key.value, str):
+            return key.value
+        if isinstance(key, ast.Name):
+            resolved = symbols.get(key.id)
+            return resolved if isinstance(resolved, str) else None
+        return None
+
+    result: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values):
+                if key is not None and is_boolean_selector(value):
+                    name = marker_name(key)
+                    if name:
+                        result.add(name)
+        if isinstance(node, ast.Assign) and is_boolean_selector(node.value):
+            for target in node.targets:
+                if isinstance(target, ast.Subscript):
+                    name = marker_name(target.slice)
+                    if name:
+                        result.add(name)
+    return result
+
+
 def main() -> int:
     tree = ast.parse(FLOW.read_text(encoding="utf-8"), filename=str(FLOW))
     contract = json.loads(COVERAGE.read_text(encoding="utf-8"))
@@ -114,6 +157,39 @@ def main() -> int:
         errors.append(f"Stale E2E surface declarations: {stale}")
 
     symbols = resolved_symbols(CONSTANTS, FLOW_CONTRACT)
+    declared_boolean_fields = set(contract["boolean_field_contract"])
+    actual_boolean_fields = boolean_fields(tree, symbols)
+    missing_boolean_fields = sorted(
+        actual_boolean_fields - declared_boolean_fields
+    )
+    stale_boolean_fields = sorted(
+        declared_boolean_fields - actual_boolean_fields
+    )
+    if missing_boolean_fields:
+        errors.append(
+            "Boolean wizard fields missing an acceptance-test owner: "
+            f"{missing_boolean_fields}"
+        )
+    if stale_boolean_fields:
+        errors.append(
+            "Stale Boolean wizard field declarations: "
+            f"{stale_boolean_fields}"
+        )
+    allowed_owners = {
+        "real-ha-transition",
+        "real-ha-flow",
+        "runtime-unit",
+        "validation-unit",
+    }
+    invalid_owners = {
+        field: owner
+        for field, owner in contract["boolean_field_contract"].items()
+        if owner not in allowed_owners
+    }
+    if invalid_owners:
+        errors.append(
+            f"Invalid Boolean wizard field owners: {invalid_owners}"
+        )
     source_contracts = {
         "setup_type": set(symbols["SETUP_TYPES"]),
         "direction_easy": set(symbols["DIRECTION_OPTIONS"]) - {"custom"},
@@ -156,7 +232,8 @@ def main() -> int:
         print("\n".join(errors), file=sys.stderr)
         return 1
     print(
-        f"Wizard coverage contract owns {len(actual)} customer flow surfaces"
+        f"Wizard coverage contract owns {len(actual)} customer flow surfaces "
+        f"and {len(actual_boolean_fields)} Boolean fields"
     )
     return 0
 

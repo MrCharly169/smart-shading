@@ -12,13 +12,14 @@ The current laboratory:
 4. completes independent Easy and Advanced setups through Home Assistant's real config-flow HTTP API;
 5. creates additional rooms, sectors, groups and covers through the real Options flow;
 6. submits every direction, sun source, cover profile, schedule profile, Night source, Pause mode and Safety behavior in disposable HA flows;
-7. deliberately submits contradictory Easy geometry, Lux hysteresis and duplicate-cover data and requires the wizard's validation errors;
-8. changes fixture states and records every cover service issued by Smart Shading;
-9. checks authoritative unavailable external/Lux sources and the Safety priority path;
-10. reloads and unloads config entries and proves Easy/Advanced state does not leak;
-11. restarts HA without replacing its configuration and verifies stable entity IDs;
-12. deletes and reinstalls the Advanced entry and rejects stale entity/device registry records;
-13. exports JSON, JUnit, HA logs, registry summaries and browser evidence.
+7. toggles Night, schedule and maximum-opening functions on already persisted objects, saves them, reloads HA, verifies their stored targets and executes Night at runtime;
+8. deliberately submits contradictory Easy geometry, Lux hysteresis and duplicate-cover data and requires the wizard's validation errors;
+9. changes fixture states and records every cover service issued by Smart Shading;
+10. checks authoritative unavailable external/Lux sources and the Safety priority path;
+11. reloads and unloads config entries and proves Easy/Advanced state does not leak;
+12. restarts HA without replacing its configuration and verifies stable entity IDs;
+13. deletes and reinstalls the Advanced entry and rejects stale entity/device registry records;
+14. exports JSON, JUnit, HA logs, registry summaries and browser evidence.
 
 No production Home Assistant instance, KNX installation, MQTT broker or external hardware is contacted.
 
@@ -55,7 +56,12 @@ The test-only integration under `e2e/ha/fixture/` provides stable entity IDs and
 
 ## Wizard coverage contract
 
-`wizard_coverage.json` owns every customer-facing form/menu and the important choice sets. `check_wizard_coverage.py` fails when a developer adds or removes a flow surface without updating that contract. The real HA runner writes `wizard-coverage-live.json` and fails when a mandatory surface was not actually observed.
+`wizard_coverage.json` owns every customer-facing form/menu, important choice set,
+Boolean field and persisted state transition. `check_wizard_coverage.py` fails
+when a developer adds or removes a flow surface or Boolean field without
+updating that contract. The real HA runner writes
+`wizard-coverage-live.json` and fails when a mandatory surface or transition was
+not actually observed.
 
 This avoids an unbounded Cartesian product while preserving the intended guarantee: every individual option, every conditional branch, every physical cover profile and every safety-critical combination has an executable owner.
 
@@ -64,11 +70,14 @@ This avoids an unbounded Cartesian product while preserving the intended guarant
 - `ha-e2e.yml` runs the clean real-HA lifecycle for relevant pull requests and pushes to `develop`.
 - `ha-ui-e2e.yml` starts the same HA lab, signs into the disposable frontend, opens the actual Smart Shading dialog and mounts the real Card against real config-entry entities at desktop and mobile widths.
 - `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published tag first and upgrades it to the candidate.
-- `ha-nightly.yml` runs relevant pull requests on stable HA and the experimental HA beta image. The schedule checks the latest `develop` candidate, while a manual run may select another branch or tag.
+- `ha-nightly.yml` runs relevant pull requests on stable and beta HA as equally required jobs. Scheduled and manual runs test the selected workflow commit unless a candidate branch or tag is supplied explicitly.
 - `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`.
 - `ha-hacs-e2e.yml` is called by the publishing workflow after every release and installs that exact tag through HACS in the isolated persistent lab. Keeping it in the same workflow avoids GitHub's suppression of workflows recursively triggered by the normal Actions token.
 
-The release workflow requires clean HA, real browser and previous-release upgrade gates before publishing. HACS qualification necessarily runs after publication because HACS can only install a published GitHub tag.
+The release workflow requires Stable and Beta HA, clean lifecycle, real browser
+and previous-release upgrade gates before publishing. HACS qualification
+necessarily runs after publication because HACS can only install a published
+GitHub tag.
 
 Artifacts retain HA/container logs, generated configuration, sanitized config entries, entity/device registries, recorded calls, snapshots, scenario/coverage results, JUnit, screenshots, traces and videos. The disposable access token stays only in the temporary lab directory.
 

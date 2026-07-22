@@ -529,6 +529,8 @@ class WizardRouteContractTests(unittest.TestCase):
             _method(self.options_flow, "async_step_manage_conditions"),
         ) or ""
         self.assertIn("async_step_initial_night_targets", night_source)
+        self.assertIn('else "room_hub"', night_source)
+        self.assertIn('_night_just_enabled', night_source)
         self.assertIn("async_step_initial_safety_targets", conditions_source)
 
     def test_schedule_form_hides_fields_until_they_can_take_effect(self):

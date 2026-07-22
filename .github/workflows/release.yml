@@ -35,9 +35,15 @@ jobs:
     name: Required previous-release upgrade gate
     uses: ./.github/workflows/ha-upgrade-e2e.yml
 
+  ha-matrix-e2e:
+    name: Required stable and beta Home Assistant gate
+    uses: ./.github/workflows/ha-nightly.yml
+    with:
+      candidate_ref: ${{ github.sha }}
+
   release:
     name: Publish ${{ inputs.channel }} release
-    needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e]
+    needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e, ha-matrix-e2e]
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.metadata.outputs.tag }}
@@ -84,13 +90,10 @@ jobs:
 
       - name: Run Python tests
         run: python -m unittest discover -s tests -v
-      - name: Compile integration
-        run: python -m compileall custom_components/smart_shading
-      - name: Validate frontend
-        run: |
-          node --check custom_components/smart_shading/frontend/shading.js
-          node --check custom_components/smart_shading/frontend/smart-shading-card.js
-          node tests/test_card_runtime.js
+      - name: Validate all source and workflow syntax
+        run: python scripts/check_source_syntax.py
+      - name: Run frontend regression tests
+        run: node tests/test_card_runtime.js
 
       - name: Build manual installation archive
         run: >-
