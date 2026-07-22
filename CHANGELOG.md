@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 5.0.0-beta.0 - 2026-07-22
+
 ### Decision and execution foundation
 
 - add a deterministic, traceable Advanced decision pipeline with normalized
@@ -40,6 +43,7 @@
 - moved published-tag HACS qualification to an automatic GitHub-hosted job that
   uses the official HACS backend, verifies public release selection and runs the
   downloaded tag artifact through a fresh real Home Assistant lifecycle
+
 
 ## 4.6.2 - 2026-07-22
 
