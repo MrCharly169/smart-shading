@@ -1,13 +1,31 @@
-## Problem
+## Problem and intended behavior
 
-## Change
+<!-- Describe the observed behavior and the exact intended result. -->
 
-## Regression coverage
+## Changes
 
-- [ ] Python tests pass
-- [ ] Frontend syntax/runtime tests pass
+<!-- Summarize logic, entities, frontend, documentation, and migration changes. -->
+
+## Validation
+
+- [ ] Python regression tests pass
+- [ ] Integration compiles
+- [ ] Canonical frontend syntax check passes
+- [ ] Frontend runtime test passes
 - [ ] Release structure check passes
-- [ ] Existing configuration migration considered
-- [ ] Safety priority considered
+- [ ] Real Home Assistant/protocol validation is completed or explicitly listed as pending
 
-## Manual validation
+## Repository consistency
+
+- [ ] Added or updated regression coverage
+- [ ] Updated `CHANGELOG.md → Unreleased` for every user-visible production change
+- [ ] Updated README/docs when installation, configuration, entities, Card, Advanced Mode, or workflows changed
+- [ ] Kept GitHub-facing text and documentation in English
+- [ ] Updated Home Assistant UI text in both English and German when translation keys changed
+- [ ] Kept `/smart_shading/shading.js` as the versionless canonical resource
+- [ ] Did not duplicate the manifest version elsewhere
+- [ ] Described migration impact below
+
+## Migration impact
+
+<!-- State "None" or explain what existing users must change. -->

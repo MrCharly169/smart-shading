@@ -6,6 +6,8 @@ htmlcov/
 dist/
 artifacts/
 e2e/ui/node_modules/
+e2e/ui/test-results/
+e2e/ui/playwright-report/
 .DS_Store
 .vscode/
 .idea/

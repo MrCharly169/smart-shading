@@ -46,16 +46,16 @@ class SmartShadingEntity(Entity):
             name=f"Smart Shading · {self.entry.title}",
             manufacturer="Smart Shading",
             model="House controller",
-            configuration_url="/config/integrations/integration/smart_shading",
         )
 
     @property
     def extra_state_attributes(self):
         attributes = {
             "smart_shading_entry_id": self.entry.entry_id,
-            "smart_shading_test_mode": self.engine.test_mode,
             "smart_shading_diagnostic_level": self.engine.diagnostic_level,
-            "smart_shading_advanced_mode": self.engine.advanced_mode,
+            "smart_shading_layout": (
+                "detailed" if self.engine.advanced_mode else "compact"
+            ),
         }
         if self.room_id:
             attributes["smart_shading_room_id"] = self.room_id

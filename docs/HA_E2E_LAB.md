@@ -8,16 +8,20 @@ The current laboratory:
 
 1. builds the installable Smart Shading release ZIP;
 2. installs that packaged integration into a clean Home Assistant configuration;
-3. loads repository-owned virtual venetian and roller-shutter covers, Lux sensors, temperature sensors, binary sensors, and deterministic sun geometry;
-4. completes independent Easy and Advanced setups through Home Assistant's config-flow HTTP API, including source-specific and profile-specific pages;
-5. changes an external sun-confirmation entity and records the cover service issued by Smart Shading;
-6. checks authoritative unavailable external/Lux sources and the Safety priority path;
-7. reloads config entries and proves Easy/Advanced state does not leak between them;
-8. restarts the Home Assistant container without replacing its configuration and verifies stable entity IDs;
-9. deletes and reinstalls the Advanced entry and checks registry/runtime cleanup;
-10. exports sanitized JSON and JUnit results plus diagnostic evidence.
+3. loads repository-owned virtual covers for every supported physical profile, Lux/temperature sensors, binary sensors, helpers and deterministic sun geometry;
+4. completes independent Easy and Advanced setups through Home Assistant's real config-flow HTTP API;
+5. creates additional rooms, sectors, groups and covers through the real Options flow;
+6. submits every direction, sun source, cover profile, schedule profile, Night source, Pause mode and Safety behavior in disposable HA flows;
+7. toggles Night, schedule and maximum-opening functions on already persisted objects, saves them, reloads HA, verifies their stored targets and executes Night at runtime;
+8. deliberately submits contradictory Easy geometry, Lux hysteresis and duplicate-cover data and requires the wizard's validation errors;
+9. changes fixture states and records every cover service issued by Smart Shading;
+10. checks authoritative unavailable external/Lux sources and the Safety priority path;
+11. reloads and unloads config entries and proves Easy/Advanced state does not leak;
+12. restarts HA without replacing its configuration and verifies stable entity IDs;
+13. deletes and reinstalls the Advanced entry and rejects stale entity/device registry records;
+14. exports JSON, JUnit, HA logs, registry summaries and browser evidence.
 
-No production Home Assistant instance, KNX installation, MQTT broker, or external hardware is contacted.
+No production Home Assistant instance, KNX installation, MQTT broker or external hardware is contacted.
 
 ## Run locally
 
@@ -36,37 +40,53 @@ HA_E2E_ARTIFACT_DIR=/tmp/smart-shading-e2e \
 scripts/ha_e2e/run_lab.sh
 ```
 
-The laboratory uses an explicit container name, a dedicated Docker network, a temporary configuration directory, loopback-only port publishing, and a trap that removes only that laboratory container, network, and directory.
+Set `HA_E2E_UPGRADE_FROM_REF=v4.6.2-beta.9` to install that tag first, create representative Easy and Advanced entries through a legacy-compatible path, replace it with the working candidate and repeat migration, restart, runtime, reinstall and registry checks. The clean-install jobs own the exhaustive current-wizard matrix, so a known defect in an old optional wizard branch cannot prevent upgrade validation from reaching the candidate. Set `HA_E2E_RUN_UI=1` after installing the Playwright dependencies to run the real HA browser suite inside the same laboratory lifetime.
+
+The laboratory uses an explicit container name, a dedicated Docker network, a temporary configuration directory, loopback-only port publishing and a cleanup trap scoped to that laboratory.
 
 ## Fixture and scenarios
 
-The test-only integration lives under `e2e/ha/fixture/`. It provides stable entity IDs and the services:
+The test-only integration under `e2e/ha/fixture/` provides stable entity IDs and the services:
 
-- `smart_shading_test_fixture.set_state` controls values, availability, cover feedback, and `sun.sun` geometry;
-- `smart_shading_test_fixture.reset_calls` clears the recorded cover-service history;
-- `sensor.fixture_service_calls` exposes every command with service name and service data.
+- `smart_shading_test_fixture.set_state` controls values, availability, cover feedback and `sun.sun` geometry;
+- `smart_shading_test_fixture.reset_calls` clears recorded cover-service history;
+- `sensor.fixture_service_calls` exposes every command with service name and data.
 
-Scenarios are version-controlled JSON data under `e2e/ha/scenarios/`. `easy_lifecycle.json` drives the real HA lifecycle. `interaction_matrix.json` is the traceable Issue #73 coverage contract and identifies whether each behavior runs in the HA lab, fast engine suite, migration suite, or Playwright.
+`easy_lifecycle.json` drives the real HA lifecycle. `interaction_matrix.json` maps Issue #73 behavior to its executable owner.
+
+## Wizard coverage contract
+
+`wizard_coverage.json` owns every customer-facing form/menu, important choice set,
+Boolean field and persisted state transition. `check_wizard_coverage.py` fails
+when a developer adds or removes a flow surface or Boolean field without
+updating that contract. The real HA runner writes
+`wizard-coverage-live.json` and fails when a mandatory surface or transition was
+not actually observed.
+
+This avoids an unbounded Cartesian product while preserving the intended guarantee: every individual option, every conditional branch, every physical cover profile and every safety-critical combination has an executable owner.
 
 ## CI behavior and evidence
 
-`.github/workflows/ha-e2e.yml` runs for relevant pull-request paths, pushes to `develop`, and manual dispatches. Documentation-only changes do not start the container laboratory.
+- `ha-e2e.yml` runs the clean real-HA lifecycle for relevant pull requests and pushes to `develop`.
+- `ha-ui-e2e.yml` starts the same HA lab, signs into the disposable frontend, opens the actual Smart Shading dialog and mounts the real Card against real config-entry entities at desktop and mobile widths.
+- `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published tag first and upgrades it to the candidate.
+- `ha-nightly.yml` runs relevant pull requests on stable and beta HA as equally required jobs. Scheduled and manual runs test the selected workflow commit unless a candidate branch or tag is supplied explicitly.
+- `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`.
+- `ha-hacs-e2e.yml` is called by the publishing workflow after every release and installs that exact tag through HACS in the isolated persistent lab. Keeping it in the same workflow avoids GitHub's suppression of workflows recursively triggered by the normal Actions token.
 
-The `ha-e2e-<sha>` artifact contains:
+The release workflow requires Stable and Beta HA, clean lifecycle, real browser
+and previous-release upgrade gates before publishing. HACS qualification
+necessarily runs after publication because HACS can only install a published
+GitHub tag.
 
-- `home-assistant.log`, the scenario-runner log, and complete container output;
-- container image/inspect metadata;
-- the generated Home Assistant configuration and scenario definition;
-- sanitized config-entry and entity snapshots;
-- recorded cover service calls;
-- phase result JSON and JUnit XML.
+Artifacts retain HA/container logs, generated configuration, sanitized config entries, entity/device registries, recorded calls, snapshots, scenario/coverage results, JUnit, screenshots, traces and videos. The disposable access token stays only in the temporary lab directory.
 
-The disposable access token stays only in the temporary laboratory directory and is removed during cleanup. It is never copied to artifacts.
+## Persistent runner prerequisites
 
-## Additional workflows
+The dedicated runner must provide these root-owned adapters:
 
-- `ha-ui-e2e.yml` runs the real card code in Chromium at desktop and mobile widths, validates variant binding, and retains traces/screenshots/videos on failure.
-- `ha-nightly.yml` runs the lifecycle against stable Home Assistant and, as an experimental signal, the beta image.
-- `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`. Deployment and restart are fixed runner-local adapters under `/opt/smart-shading-lab/bin`; the workflow contains no public SSH path and refuses an instance whose protected name/scope does not match.
+- `/opt/smart-shading-lab/bin/deploy-candidate`
+- `/opt/smart-shading-lab/bin/restart-home-assistant`
+- `/opt/smart-shading-lab/bin/hacs-install-release`
 
-The ephemeral HA and browser workflows are required by `release.yml` before GitHub release publication. The persistent lab remains an explicitly dispatched, protected-environment qualification because its infrastructure and credentials are external to this repository.
+The protected `ha-persistent-lab` environment supplies `HA_URL`, `HA_TOKEN`, `HA_INSTANCE_NAME` and `HA_HACS_UPDATE_ENTITY`. The target must be disposable and must never point to production Home Assistant or KNX.

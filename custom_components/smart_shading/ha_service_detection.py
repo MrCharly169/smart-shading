@@ -8,9 +8,8 @@ from homeassistant.const import STATE_ON
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DEFAULT_POSITION_TOLERANCE,
-    DEFAULT_TILT_TOLERANCE,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
     PAUSE_TIMED,
@@ -33,6 +32,7 @@ MANUAL_COVER_SERVICES = {
     "stop_cover_tilt",
     "set_cover_tilt_position",
 }
+MANUAL_SERVICE_INTENT_TIMEOUT_SECONDS = 60.0
 
 
 @dataclass(slots=True)
@@ -46,6 +46,7 @@ class PendingManualServiceIntent:
     created_at: datetime
     requested_entity_ids: tuple[str, ...]
     context_id: str | None
+    user_initiated: bool
 
 
 class HomeAssistantServiceDetectionMixin:
@@ -54,6 +55,8 @@ class HomeAssistantServiceDetectionMixin:
     async def async_start(self) -> None:
         """Start runtime and watch explicit HA cover service calls."""
         await super().async_start()
+        if not self.advanced_mode:
+            return
         self._unsubs.append(
             self.hass.bus.async_listen(
                 EVENT_CALL_SERVICE, self._async_cover_service_called
@@ -82,12 +85,7 @@ class HomeAssistantServiceDetectionMixin:
             return True
         position = self._state_attribute_number(state, "current_position")
         tilt = self._state_attribute_number(state, "current_tilt_position")
-        position_tolerance = float(
-            self.config.get("position_tolerance", DEFAULT_POSITION_TOLERANCE)
-        )
-        tilt_tolerance = float(
-            self.config.get("tilt_tolerance", DEFAULT_TILT_TOLERANCE)
-        )
+        position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
 
         if service == "set_cover_position":
             target = service_data.get("position")
@@ -138,17 +136,13 @@ class HomeAssistantServiceDetectionMixin:
             return None
 
     def _state_change_confirms_manual_intent(self, old_state, new_state) -> bool:
-        """Confirm that the exact service target produced real cover feedback."""
+        """Confirm an explicit service intent with numeric cover feedback."""
         if old_state is None or new_state is None:
             return False
         if getattr(old_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
         if getattr(new_state, "state", None) in {"unknown", "unavailable", "none", ""}:
             return False
-
-        if getattr(old_state, "state", None) != getattr(new_state, "state", None):
-            if getattr(new_state, "state", None) in {"opening", "closing", "open", "closed"}:
-                return True
 
         for key in ("current_position", "current_tilt_position"):
             before = self._state_value(old_state, key)
@@ -159,6 +153,8 @@ class HomeAssistantServiceDetectionMixin:
 
     async def _async_cover_service_called(self, event) -> None:
         """Record external HA cover intent; pause only after that entity moves."""
+        if not self.advanced_mode:
+            return
         if event.data.get(ATTR_DOMAIN) != "cover":
             return
         service = str(event.data.get(ATTR_SERVICE) or "")
@@ -178,6 +174,7 @@ class HomeAssistantServiceDetectionMixin:
         service_data = dict(event.data.get(ATTR_SERVICE_DATA) or {})
         requested = tuple(dict.fromkeys(self._service_entity_ids(service_data)))
         context_id = getattr(context, "id", None)
+        user_initiated = bool(getattr(context, "user_id", None))
         now = dt_util.now()
         intents = self._manual_service_intents()
 
@@ -188,6 +185,30 @@ class HomeAssistantServiceDetectionMixin:
             ):
                 continue
             room, cover = match
+            if not self._external_movement_detection_enabled(room):
+                self._diag(
+                    "manual_cover_service_detection_disabled",
+                    full=True,
+                    room_id=room["id"],
+                    entity_id=entity_id,
+                    service=service,
+                )
+                continue
+            if (
+                not user_initiated
+                and self._window_automation_context_active(cover, now=now)
+            ):
+                intents.pop(entity_id, None)
+                self._diag(
+                    "window_automation_service_ignored",
+                    force=True,
+                    room_id=room["id"],
+                    cover=cover.get("name", entity_id),
+                    entity_id=entity_id,
+                    service=service,
+                    context_id=context_id,
+                )
+                continue
             intents[entity_id] = PendingManualServiceIntent(
                 entity_id=entity_id,
                 room_id=str(room["id"]),
@@ -196,6 +217,7 @@ class HomeAssistantServiceDetectionMixin:
                 created_at=now,
                 requested_entity_ids=requested,
                 context_id=context_id,
+                user_initiated=user_initiated,
             )
             self._diag(
                 "manual_cover_service_intent",
@@ -209,11 +231,17 @@ class HomeAssistantServiceDetectionMixin:
             )
 
     async def _async_room_pause_state_changed(
-        self, room_id: str, paused: bool
+        self, room_id: str, paused: bool, release_mode: str | None = None
     ) -> None:
         """Mirror a room pause to every configured cover manual entity."""
         now = dt_util.now()
         intents = self._manual_service_intents()
+        changed_locks: set[str] = set()
+        room_pause_matches = bool(
+            release_mode
+            and self.rooms.get(room_id)
+            and self.rooms[room_id].pause_mode == release_mode
+        )
 
         for room, _sector, _layer, cover in self._iter_covers():
             if str(room.get("id")) != str(room_id):
@@ -221,6 +249,8 @@ class HomeAssistantServiceDetectionMixin:
 
             entity_id = str(cover.get("entity") or "")
             intents.pop(entity_id, None)
+            if paused:
+                self._cancel_own_command_session(entity_id)
             lock = str(cover.get("lock") or "")
             domain = lock.split(".", 1)[0] if "." in lock else ""
 
@@ -228,7 +258,9 @@ class HomeAssistantServiceDetectionMixin:
                 if (
                     lock
                     and domain in {"switch", "input_boolean"}
+                    and lock not in changed_locks
                 ):
+                    changed_locks.add(lock)
                     self._owned_lock_changes[lock] = (STATE_ON, now)
                     await self.hass.services.async_call(
                         domain,
@@ -239,12 +271,44 @@ class HomeAssistantServiceDetectionMixin:
                 continue
 
             pause = self.cover_pauses.get(self._cover_id(cover))
-            if pause and pause.active:
+            pause_matches_release = bool(
+                pause
+                and pause.active
+                and release_mode is not None
+                and pause.pause_mode == release_mode
+            )
+            if (
+                pause
+                and pause.active
+                and (release_mode is None or pause.pause_mode == release_mode)
+            ):
                 await self._clear_cover_pause(
                     room, cover, unlock=False, evaluate=False
                 )
 
-            if lock and domain in {"switch", "input_boolean"}:
+            other_pause_uses_lock = any(
+                candidate_pause.active
+                and candidate_pause.pause_mode != release_mode
+                and any(
+                    self._cover_id(candidate) == candidate_pause.cover_id
+                    and candidate.get("lock") == lock
+                    for candidate_room, _s, _l, candidate in self._iter_covers()
+                    if str(candidate_room.get("id")) == str(room_id)
+                )
+                for candidate_pause in self.cover_pauses.values()
+            )
+            if (
+                lock
+                and domain in {"switch", "input_boolean"}
+                and lock not in changed_locks
+                and not other_pause_uses_lock
+                and (
+                    release_mode is None
+                    or room_pause_matches
+                    or pause_matches_release
+                )
+            ):
+                changed_locks.add(lock)
                 self._owned_lock_changes[lock] = ("off", now)
                 await self.hass.services.async_call(
                     domain,
@@ -253,15 +317,38 @@ class HomeAssistantServiceDetectionMixin:
                     blocking=False,
                 )
 
-        await super()._async_room_pause_state_changed(room_id, paused)
+        await super()._async_room_pause_state_changed(
+            room_id, paused, release_mode=release_mode
+        )
 
     async def _async_state_changed(self, event) -> None:
         entity_id = str(event.data.get("entity_id") or "")
+        if await self._async_enforce_cover_maximum(
+            entity_id, event.data.get("new_state")
+        ):
+            return
         intents = self._manual_service_intents()
         intent = intents.get(entity_id)
         if intent is not None:
             now = dt_util.now()
-            if (now - intent.created_at).total_seconds() > 15.0:
+            match = self._find_cover_by_entity(entity_id)
+            if (
+                not intent.user_initiated
+                and match is not None
+                and self._window_automation_context_active(match[1], now=now)
+            ):
+                intents.pop(entity_id, None)
+                self._diag(
+                    "window_automation_service_feedback_ignored",
+                    force=True,
+                    room_id=match[0]["id"],
+                    entity_id=entity_id,
+                    service=intent.service,
+                    context_id=intent.context_id,
+                )
+            elif (
+                now - intent.created_at
+            ).total_seconds() > MANUAL_SERVICE_INTENT_TIMEOUT_SECONDS:
                 intents.pop(entity_id, None)
                 self._diag(
                     "manual_cover_service_intent_expired",
@@ -317,15 +404,20 @@ class HomeAssistantServiceDetectionMixin:
             due = self._pause_until_from_sun(room_id, mode, now)
             return mode, due or (now + timedelta(hours=12))
         if mode == PAUSE_TIMED:
-            hours = float(
-                self.room_value(
-                    room_id,
-                    "pause_duration_hours",
-                    room.get("pause_duration_hours", 2.0),
-                )
-            )
+            hours = self._configured_pause_duration(room_id, room)
             return mode, now + timedelta(hours=hours)
         if mode == PAUSE_MANUAL:
+            return mode, None
+        if mode == PAUSE_NEXT_NIGHT_END:
+            if not self._night_pause_release_is_valid(room, now):
+                due = self._pause_until_from_sun(
+                    room_id, PAUSE_NEXT_SUNRISE, now
+                )
+                self._diag(
+                    "night_cover_pause_fell_back_to_sunrise",
+                    room_id=room_id,
+                )
+                return PAUSE_NEXT_SUNRISE, due or (now + timedelta(hours=12))
             return mode, None
 
         # A malformed legacy value must not create an unintended endless pause.
@@ -341,65 +433,107 @@ class HomeAssistantServiceDetectionMixin:
         set_lock: bool = True,
         notify: bool = True,
     ) -> None:
-        """Activate only this cover using the pause mode chosen in the wizard."""
-        entity_id = str(cover.get("entity") or "")
-        observation = self.cover_motion.get(entity_id)
-        if observation is not None:
-            self._clear_motion_candidate(observation)
-            observation.phase = "paused"
-
-        cover_id = self._cover_id(cover)
-        pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
-            cover_id, entity_id, room["id"]
-        )
+        """Pause one room-local Manual group with one shared release point."""
+        members = self._manual_group_members(room, cover)
         now = dt_util.now()
-        already_active = bool(
-            pause.active and (pause.until is None or pause.until > now)
-        )
-        pause_mode = str(
-            self.room_value(
-                room["id"],
-                "default_pause_mode",
-                room.get("default_pause_mode", PAUSE_NEXT_SUNRISE),
-            )
-        )
+        intents = self._manual_service_intents()
+        for member in members:
+            entity_id = str(member.get("entity") or "")
+            intents.pop(entity_id, None)
+            self._cancel_own_command_session(entity_id)
+            observation = self.cover_motion.get(entity_id)
+            if observation is not None:
+                self._clear_motion_candidate(observation)
+                observation.phase = "paused"
 
-        if not already_active:
-            pause.active = True
-            pause_mode, pause.until = self._configured_cover_pause_until(room, now)
-            pause.reason = reason
-            pause.started_at = now
-            pause.lock_owned = False
-
-        lock = str(cover.get("lock") or "")
-        if set_lock and lock:
-            domain = lock.split(".", 1)[0] if "." in lock else ""
-            if domain in {"switch", "input_boolean"}:
-                self._owned_lock_changes[lock] = (STATE_ON, now)
-                await self.hass.services.async_call(
-                    domain,
-                    "turn_on",
-                    {"entity_id": lock},
-                    blocking=False,
+        active_pause = next(
+            (
+                candidate
+                for member in members
+                if (
+                    (candidate := self.cover_pauses.get(self._cover_id(member)))
+                    and candidate.active
+                    and (candidate.until is None or candidate.until > now)
                 )
-                pause.lock_owned = True
-
-        self.cover_pauses[cover_id] = pause
-        await self._save_cover_pause(pause)
-        if pause.until:
-            self._schedule_cover_pause_timer(cover_id, pause.until)
+            ),
+            None,
+        )
+        if active_pause is None:
+            pause_mode, shared_until = self._configured_cover_pause_until(room, now)
+            shared_started_at = now
+            shared_reason = reason
         else:
-            timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
-            if timer:
-                timer()
+            pause_mode = active_pause.pause_mode
+            shared_until = active_pause.until
+            shared_started_at = active_pause.started_at or now
+            shared_reason = active_pause.reason or reason
 
-        if not already_active:
+        lock = str(cover.get("lock") or "").strip()
+        domain = lock.split(".", 1)[0] if "." in lock else ""
+        wrote_lock = bool(
+            set_lock
+            and lock
+            and domain in {"switch", "input_boolean"}
+            and not self.hass.states.is_state(lock, STATE_ON)
+        )
+        if wrote_lock:
+            self._owned_lock_changes[lock] = (STATE_ON, now)
+            await self.hass.services.async_call(
+                domain,
+                "turn_on",
+                {"entity_id": lock},
+                blocking=False,
+            )
+
+        group_owned_lock = wrote_lock or any(
+            bool(
+                (candidate := self.cover_pauses.get(self._cover_id(member)))
+                and candidate.active
+                and candidate.lock_owned
+            )
+            for member in members
+        )
+        started: list[str] = []
+        for member in members:
+            entity_id = str(member.get("entity") or "")
+            cover_id = self._cover_id(member)
+            pause = self.cover_pauses.get(cover_id) or CoverPauseRuntime(
+                cover_id, entity_id, room["id"]
+            )
+            already_active = bool(
+                pause.active and (pause.until is None or pause.until > now)
+            )
+            if not already_active:
+                pause.active = True
+                started.append(entity_id or cover_id)
+            # A shared Manual entity is one logical pause. Normalize legacy or
+            # partially restored member state to the same lifecycle values.
+            pause.until = shared_until
+            pause.reason = shared_reason
+            pause.started_at = shared_started_at
+            pause.pause_mode = pause_mode
+            pause.waiting_for_night = (
+                pause_mode == PAUSE_NEXT_NIGHT_END
+                and not self.rooms[room["id"]].night_active
+            )
+            pause.lock_owned = group_owned_lock
+            self.cover_pauses[cover_id] = pause
+            await self._save_cover_pause(pause)
+            if pause.until:
+                self._schedule_cover_pause_timer(cover_id, pause.until)
+            else:
+                timer = self._cover_pause_timer_unsubs.pop(cover_id, None)
+                if timer:
+                    timer()
+
+        if started:
             self._diag(
-                "cover_pause_started",
+                "manual_override_group_started",
                 room_id=room["id"],
-                cover=cover.get("name", entity_id),
+                manual_entity=lock or None,
+                covers=started,
                 pause_mode=pause_mode,
-                until=pause.until.isoformat() if pause.until else None,
+                until=shared_until.isoformat() if shared_until else None,
                 reason=reason,
             )
         if notify:

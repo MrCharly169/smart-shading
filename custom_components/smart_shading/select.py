@@ -10,17 +10,21 @@ from .const import (
     DIAGNOSTIC_OPTIONS,
     PAUSE_AUTO,
     PAUSE_MANUAL,
+    PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_NEXT_SUNSET,
-    PAUSE_OPTIONS,
     PAUSE_TIMED,
     SUN_PRESET_OPTIONS,
 )
 from .entity import SmartShadingEntity, localized
+from .options_navigation import pause_modes_for_room
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
+    if not engine.advanced_mode:
+        async_add_entities([])
+        return
     entities = [DiagnosticLoggingSelect(engine)]
     for room_id in engine.rooms:
         entities.append(RoomPauseSelect(engine, room_id))
@@ -74,11 +78,14 @@ class RoomPauseSelect(SmartShadingEntity, SelectEntity):
             PAUSE_AUTO: localized(engine, "Not paused", "Nicht pausiert"),
             PAUSE_NEXT_SUNRISE: localized(engine, "Until next morning", "Bis zum nächsten Morgen"),
             PAUSE_NEXT_SUNSET: localized(engine, "Until next sunset", "Bis zum nächsten Sonnenuntergang"),
+            PAUSE_NEXT_NIGHT_END: localized(engine, "Until the end of the next Night", "Bis zum Ende der nächsten Nacht"),
             PAUSE_TIMED: localized(engine, "For a fixed duration", "Für eine feste Dauer"),
             PAUSE_MANUAL: localized(engine, "Until manually resumed", "Bis manuell fortgesetzt"),
         }
         self._reverse = {label: key for key, label in self._labels.items()}
-        self._attr_options = [self._labels[key] for key in PAUSE_OPTIONS]
+        room = engine.room_config(room_id)
+        pause_options = [PAUSE_AUTO, *pause_modes_for_room(room)]
+        self._attr_options = [self._labels[key] for key in pause_options]
 
     @property
     def current_option(self):

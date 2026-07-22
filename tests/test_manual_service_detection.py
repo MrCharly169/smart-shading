@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+import sys
 import unittest
 
 from test_engine_runtime import (
@@ -22,6 +23,7 @@ controller_mod = _load(
     "custom_components.smart_shading.controller",
     COMP / "controller.py",
 )
+engine_mod = sys.modules["custom_components.smart_shading.engine"]
 
 
 class ServiceEvent:
@@ -70,6 +72,30 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         engine = controller_mod.SmartShadingEngine(hass, FakeEntry(config))
         await engine.async_initialize()
         return hass, engine, tomorrow
+
+    @staticmethod
+    def _add_second_cover(hass, engine, *, shared_lock: bool) -> None:
+        covers = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"]
+        covers.append(
+            {
+                **covers[0],
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": (
+                    "switch.cover_lock"
+                    if shared_lock
+                    else "switch.cover_two_lock"
+                ),
+            }
+        )
+        hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, current_tilt_position=100
+        )
+        if not shared_lock:
+            hass.states.values["switch.cover_two_lock"] = FakeState("off")
+        engine._rebuild_runtime()
 
     async def _position_call_and_feedback(
         self,
@@ -131,6 +157,26 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(pause.until)
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_state_only_feedback_does_not_confirm_manual_service_intent(self):
+        hass, engine, _tomorrow = await self._engine()
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": "cover.one", "position": 40},
+            )
+        )
+        await engine._async_state_changed(
+            FakeEvent(
+                "cover.one",
+                FakeState("open", current_position=100, current_tilt_position=100),
+                FakeState("closing", current_position=100, current_tilt_position=100),
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertIn("cover.one", engine._manual_service_intents())
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+
     async def test_multi_target_call_pauses_only_cover_that_really_moves(self):
         hass, engine, _tomorrow = await self._engine()
         room = engine.config["rooms"][0]
@@ -170,6 +216,156 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
         self.assertEqual(hass.states.get("switch.cover_two_lock").state, "off")
         self.assertIn("cover.two", engine._manual_service_intents())
+
+    async def test_shared_manual_entity_pauses_whole_room_group_with_one_write(self):
+        hass, engine, _tomorrow = await self._engine()
+        self._add_second_cover(hass, engine, shared_lock=True)
+        hass.services.calls.clear()
+
+        await self._position_call_and_feedback(engine)
+
+        first = engine.cover_pauses["cover_one"]
+        second = engine.cover_pauses["cover_two"]
+        self.assertTrue(first.active)
+        self.assertTrue(second.active)
+        self.assertEqual(second.pause_mode, first.pause_mode)
+        self.assertEqual(second.until, first.until)
+        self.assertEqual(second.started_at, first.started_at)
+        self.assertEqual(
+            [
+                call
+                for call in hass.services.calls
+                if call[0:2] == ("switch", "turn_on")
+            ],
+            [
+                (
+                    "switch",
+                    "turn_on",
+                    {"entity_id": "switch.cover_lock"},
+                    False,
+                )
+            ],
+        )
+        self.assertEqual(
+            engine.manual_override_groups("room"),
+            [
+                {
+                    "entity_id": "switch.cover_lock",
+                    "covers": ["cover.one", "cover.two"],
+                    "cover_ids": ["cover_one", "cover_two"],
+                    "size": 2,
+                }
+            ],
+        )
+
+    async def test_shared_manual_entity_off_releases_group_once(self):
+        _hass, engine, _tomorrow = await self._engine()
+        self._add_second_cover(_hass, engine, shared_lock=True)
+        await self._position_call_and_feedback(engine)
+
+        # Consume the state acknowledgement for Smart Shading's own ON write.
+        await engine._async_state_changed(
+            FakeEvent(
+                "switch.cover_lock",
+                FakeState("off"),
+                FakeState("on"),
+            )
+        )
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        await engine._async_state_changed(
+            FakeEvent(
+                "switch.cover_lock",
+                FakeState("on"),
+                FakeState("off"),
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(engine.cover_pauses["cover_two"].active)
+        self.assertNotEqual(engine.cover_motion["cover.one"].phase, "paused")
+        self.assertNotEqual(engine.cover_motion["cover.two"].phase, "paused")
+        self.assertIsNone(engine.cover_motion["cover.one"].candidate_direction)
+        self.assertIsNone(engine.cover_motion["cover.two"].candidate_direction)
+        self.assertEqual(calls, ["manual_group_released:switch.cover_lock"])
+
+    async def test_shared_manual_entity_timer_clears_group_once(self):
+        hass, engine, _tomorrow = await self._engine()
+        self._add_second_cover(hass, engine, shared_lock=True)
+        callbacks = []
+        original = engine_mod.async_call_later
+        engine_mod.async_call_later = lambda _hass, _seconds, callback: (
+            callbacks.append(callback) or (lambda: None)
+        )
+        try:
+            await self._position_call_and_feedback(engine)
+        finally:
+            engine_mod.async_call_later = original
+
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        self.assertEqual(len(callbacks), 2)
+        await callbacks[0](datetime.now(timezone.utc))
+        await callbacks[1](datetime.now(timezone.utc))
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(engine.cover_pauses["cover_two"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+        self.assertEqual(
+            calls, ["manual_group_released:switch.cover_lock"]
+        )
+
+    async def test_expired_shared_group_is_not_reactivated_by_stale_lock_state(self):
+        hass, engine, _tomorrow = await self._engine()
+        self._add_second_cover(hass, engine, shared_lock=True)
+        expired = datetime.now(timezone.utc) - timedelta(minutes=1)
+        for cover_id in ("cover_one", "cover_two"):
+            pause = engine.cover_pauses[cover_id]
+            pause.active = True
+            pause.until = expired
+            pause.reason = "external_or_physical_control"
+            pause.lock_owned = True
+        hass.states.values["switch.cover_lock"] = FakeState("on")
+        hass.services.calls.clear()
+        original_call = hass.services.async_call
+
+        async def delayed_lock_off(domain, service, data, blocking=False):
+            if (
+                domain in {"switch", "input_boolean"}
+                and service == "turn_off"
+                and data.get("entity_id") == "switch.cover_lock"
+            ):
+                hass.services.calls.append(
+                    (domain, service, dict(data), blocking)
+                )
+                return
+            await original_call(domain, service, data, blocking=blocking)
+
+        hass.services.async_call = delayed_lock_off
+        await engine._async_sync_configured_locks()
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertFalse(engine.cover_pauses["cover_two"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+        self.assertEqual(
+            len(
+                [
+                    call
+                    for call in hass.services.calls
+                    if call[0:2] == ("switch", "turn_off")
+                    and call[2].get("entity_id") == "switch.cover_lock"
+                ]
+            ),
+            1,
+        )
 
     async def test_multi_target_call_pauses_second_cover_only_after_its_feedback(self):
         hass, engine, _tomorrow = await self._engine()
@@ -238,6 +434,21 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("cover.one", engine._manual_service_intents())
         self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
 
+    async def test_disabled_external_detection_ignores_explicit_ha_service(self):
+        hass, engine, _tomorrow = await self._engine(
+            external_movement_detection=False
+        )
+        await engine._async_cover_service_called(
+            ServiceEvent(
+                "set_cover_position",
+                {"entity_id": "cover.one", "position": 40},
+            )
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", engine._manual_service_intents())
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+
     async def test_automation_parent_context_is_external_intent(self):
         hass, engine, _tomorrow = await self._engine()
         await self._position_call_and_feedback(
@@ -247,6 +458,63 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_window_automation_service_does_not_create_manual_pause(self):
+        hass, engine, _tomorrow = await self._engine()
+        cover = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"][0]
+        cover.update(
+            {
+                "window": "binary_sensor.window",
+                "window_safe_state": "on",
+                "window_policy": "block_closing",
+                "window_returns_to_automation": True,
+            }
+        )
+        hass.states.values["binary_sensor.window"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await self._position_call_and_feedback(
+            engine,
+            target=100,
+            old_position=90,
+            new_position=96,
+            user_id=None,
+            parent_id="window-automation-context",
+        )
+
+        self.assertFalse(engine.cover_pauses["cover_one"].active)
+        self.assertNotIn("cover.one", engine._manual_service_intents())
+        self.assertEqual(hass.states.get("switch.cover_lock").state, "off")
+
+    async def test_direct_user_service_still_pauses_while_window_is_unsafe(self):
+        hass, engine, _tomorrow = await self._engine()
+        cover = engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"][0]
+        cover.update(
+            {
+                "window": "binary_sensor.window",
+                "window_safe_state": "on",
+                "window_policy": "block_closing",
+                "window_returns_to_automation": True,
+            }
+        )
+        hass.states.values["binary_sensor.window"] = FakeState("off")
+        engine._rebuild_runtime()
+
+        await self._position_call_and_feedback(
+            engine,
+            target=40,
+            old_position=90,
+            new_position=70,
+            user_id="user-1",
+            parent_id=None,
+        )
+
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(
+            engine.cover_pauses["cover_one"].reason,
+            "home_assistant_manual_service",
+        )
         self.assertEqual(hass.states.get("switch.cover_lock").state, "on")
 
     async def test_room_pause_sets_every_configured_manual_entity_on(self):
@@ -316,7 +584,7 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(engine.cover_pauses["cover_one"].active)
-        self.assertEqual(calls, ["cover_pause_ended:cover_one"])
+        self.assertEqual(calls, ["manual_group_released:switch.cover_lock"])
 
     async def test_resume_room_clears_local_cover_pause_and_owned_lock(self):
         hass, engine, _tomorrow = await self._engine()
@@ -401,6 +669,28 @@ class ManualServiceDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(due)
         self.assertGreaterEqual(due, before + timedelta(hours=3.5))
         self.assertLess(due, before + timedelta(hours=3.5, seconds=2))
+
+    async def test_unavailable_night_source_cannot_start_endless_cover_pause(self):
+        hass, engine, tomorrow = await self._engine(
+            "next_night_end",
+            night_enabled=True,
+            night_source="entity",
+            night_entity="schedule.night",
+        )
+        hass.states.values["schedule.night"] = FakeState("unavailable")
+
+        await self._position_call_and_feedback(engine)
+
+        pause = engine.cover_pauses["cover_one"]
+        self.assertTrue(pause.active)
+        self.assertEqual(pause.pause_mode, "next_sunrise")
+        self.assertEqual(pause.until, tomorrow)
+        self.assertFalse(pause.waiting_for_night)
+        self.assertIn("cover_one", engine._cover_pause_timer_unsubs)
+        saved = engine.store.cover_runtime("cover_one")
+        self.assertEqual(saved["pause_mode"], "next_sunrise")
+        self.assertEqual(saved["until"], tomorrow.isoformat())
+        self.assertFalse(saved["waiting_for_night"])
 
     async def test_manual_pause_has_no_expiry(self):
         _hass, engine, _tomorrow = await self._engine("manual")

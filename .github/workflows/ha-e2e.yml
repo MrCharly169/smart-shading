@@ -52,6 +52,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Verify wizard E2E ownership
+        run: python scripts/ha_e2e/check_wizard_coverage.py
       - name: Run ephemeral Home Assistant laboratory
         run: scripts/ha_e2e/run_lab.sh
       - name: Publish scenario summary
