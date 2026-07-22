@@ -14,6 +14,9 @@ from scripts.ha_e2e.run_scenarios import (
     wait_for_home_assistant,
 )
 from scripts.ha_e2e.check_registry import registry_result
+from scripts.ha_e2e.wait_for_config_entries import (
+    stored_smart_shading_entry_ids,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -22,6 +25,29 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_upgrade_checkpoint_reads_only_persisted_smart_shading_entries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = Path(temp_dir) / "core.config_entries"
+            storage.write_text(
+                json.dumps(
+                    {
+                        "data": {
+                            "entries": [
+                                {"domain": "smart_shading", "entry_id": "easy"},
+                                {
+                                    "domain": "smart_shading",
+                                    "entry_id": "advanced",
+                                },
+                                {"domain": "sun", "entry_id": "ignored"},
+                            ]
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = stored_smart_shading_entry_ids(storage)
+        self.assertEqual(result, {"easy", "advanced"})
+
     def test_registry_audit_distinguishes_removed_and_reinstalled_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = Path(temp_dir)
@@ -209,6 +235,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("legacy_compatible=True", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)
+        self.assertIn("wait_for_config_entries.py", shell)
         self.assertIn("run_interaction_matrix", runner)
         self.assertIn('"set_entry_enabled"', runner)
         self.assertNotIn('/unload"', runner)

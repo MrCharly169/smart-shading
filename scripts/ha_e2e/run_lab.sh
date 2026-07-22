@@ -109,6 +109,10 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
 
 if [[ -n "${UPGRADE_FROM_REF}" ]]; then
+  python3 "${ROOT_DIR}/scripts/ha_e2e/wait_for_config_entries.py" \
+    --storage "${CONFIG_DIR}/.storage/core.config_entries" \
+    --state "${STATE_FILE}" \
+    --wait-seconds 60
   cp "${CONFIG_DIR}/custom_components/smart_shading/manifest.json" \
     "${ARTIFACT_DIR}/manifest-before-upgrade.json"
   docker exec "${CONTAINER_NAME}" \
