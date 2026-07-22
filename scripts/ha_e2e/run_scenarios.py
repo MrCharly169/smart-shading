@@ -96,7 +96,7 @@ def wait_for_home_assistant(api: HomeAssistantApi, timeout: int = 180) -> None:
             else:
                 api.get("/api/onboarding", authenticated=False)
             return
-        except (URLError, ApiError, TimeoutError) as exc:
+        except (URLError, ApiError, TimeoutError, ConnectionError) as exc:
             last_error = exc
             time.sleep(2)
     raise RuntimeError(f"Home Assistant did not become ready: {last_error}")

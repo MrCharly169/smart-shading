@@ -4,6 +4,9 @@ import ast
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+
+from scripts.ha_e2e.run_scenarios import wait_for_home_assistant
 
 
 ROOT = Path(__file__).parents[1]
@@ -12,6 +15,26 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_readiness_retries_transient_connection_reset(self):
+        class ResetOnceApi:
+            token = None
+
+            def __init__(self):
+                self.calls = 0
+
+            def get(self, path, *, authenticated=True):
+                self.calls += 1
+                if self.calls == 1:
+                    raise ConnectionResetError("Home Assistant is still starting")
+                return {"done": False}
+
+        api = ResetOnceApi()
+        with patch("scripts.ha_e2e.run_scenarios.time.sleep") as sleep:
+            wait_for_home_assistant(api, timeout=1)
+
+        self.assertEqual(api.calls, 2)
+        sleep.assert_called_once_with(2)
+
     def test_scenario_declares_setup_action_runtime_and_restart_checks(self):
         scenario = json.loads(
             (LAB / "scenarios" / "easy_lifecycle.json").read_text(encoding="utf-8")
