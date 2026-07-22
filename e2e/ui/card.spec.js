@@ -43,8 +43,10 @@ test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }
   ).toBeVisible();
   await page.getByRole("button", { name: "OK", exact: true }).click();
   await expect(page.getByText("Choose setup type", { exact: true })).toBeVisible();
-  await expect(page.getByText("House or area name", { exact: true })).toBeVisible();
-  await expect(page.getByText("Setup type", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "House or area name*", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText("Setup type *", { exact: true })).toBeVisible();
   await expect(page.locator("ha-dialog:visible, ha-md-dialog:visible")).toHaveCount(1);
   expect(errors).toEqual([]);
 });
@@ -66,7 +68,17 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
       (state) => state.attributes.smart_shading_layout === "detailed"
     );
     if (!easy || !advanced) throw new Error("Missing Easy or Advanced room state");
-    return hass.callWS({
+    const resourceUrl = "/smart_shading/shading.js";
+    return hass.callWS({ type: "lovelace/resources/list" }).then((resources) => {
+      if (resources.some((resource) => resource.url === resourceUrl)) {
+        return null;
+      }
+      return hass.callWS({
+        type: "lovelace/resources/create",
+        res_type: "module",
+        url: resourceUrl,
+      });
+    }).then(() => hass.callWS({
       type: "lovelace/config/save",
       config: {
         title: "Smart Shading E2E",
@@ -87,7 +99,7 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
           ],
         }],
       },
-    }).then(() => ({ easy: easy.entity_id, advanced: advanced.entity_id }));
+    })).then(() => ({ easy: easy.entity_id, advanced: advanced.entity_id }));
   });
   expect(entities.easy).toContain("sensor.");
   expect(entities.advanced).toContain("sensor.");

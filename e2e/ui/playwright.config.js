@@ -4,6 +4,7 @@ module.exports = defineConfig({
   testDir: ".",
   testMatch: "card.spec.js",
   timeout: 30_000,
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: [["line"], ["junit", { outputFile: "../../artifacts/ha-ui-e2e/junit.xml" }]],
   use: {
