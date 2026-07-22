@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntryDisabler
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 
 from .store import DOMAIN, get_store
 
@@ -34,6 +36,21 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     async def async_reset_calls(_call: ServiceCall) -> None:
         store.reset_calls()
 
+    async def async_set_entry_enabled(call: ServiceCall) -> None:
+        entry_id = str(call.data["entry_id"])
+        enabled = bool(call.data["enabled"])
+        disabled_by = None if enabled else ConfigEntryDisabler.USER
+        if not await hass.config_entries.async_set_disabled_by(
+            entry_id, disabled_by
+        ):
+            raise HomeAssistantError(
+                f"Config entry {entry_id} could not be "
+                f"{'enabled' if enabled else 'disabled'}"
+            )
+
     hass.services.async_register(DOMAIN, "set_state", async_set_state)
     hass.services.async_register(DOMAIN, "reset_calls", async_reset_calls)
+    hass.services.async_register(
+        DOMAIN, "set_entry_enabled", async_set_entry_enabled
+    )
     return True

@@ -1846,12 +1846,12 @@ def reload_entry(api: HomeAssistantApi, entry_id: str) -> None:
 
 
 def unload_and_reload_entry(api: HomeAssistantApi, entry_id: str) -> None:
-    """Prove that the integration releases and recreates its HA platforms."""
-    result = api.post(
-        f"/api/config/config_entries/entry/{entry_id}/unload", {}
+    """Prove that disabling releases and re-enabling recreates HA platforms."""
+    api.call_service(
+        "smart_shading_test_fixture",
+        "set_entry_enabled",
+        {"entry_id": entry_id, "enabled": False},
     )
-    if result.get("require_restart"):
-        raise AssertionError(f"Config entry could not unload cleanly: {result}")
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         matching = [
@@ -1863,8 +1863,13 @@ def unload_and_reload_entry(api: HomeAssistantApi, entry_id: str) -> None:
             break
         time.sleep(1)
     else:
-        raise AssertionError(f"Config entry {entry_id} stayed loaded after unload")
-    reload_entry(api, entry_id)
+        raise AssertionError(f"Config entry {entry_id} stayed loaded after disable")
+    api.call_service(
+        "smart_shading_test_fixture",
+        "set_entry_enabled",
+        {"entry_id": entry_id, "enabled": True},
+    )
+    wait_for_entry_loaded(api, entry_id)
 
 
 def recorded_calls(api: HomeAssistantApi) -> list[dict[str, Any]]:
