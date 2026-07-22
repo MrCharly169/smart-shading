@@ -63,8 +63,8 @@ This avoids an unbounded Cartesian product while preserving the intended guarant
 
 - `ha-e2e.yml` runs the clean real-HA lifecycle for relevant pull requests and pushes to `develop`.
 - `ha-ui-e2e.yml` starts the same HA lab, signs into the disposable frontend, opens the actual Smart Shading dialog and mounts the real Card against real config-entry entities at desktop and mobile widths.
-- `ha-upgrade-e2e.yml` installs the newest published tag first and upgrades it to the candidate.
-- `ha-nightly.yml` checks the latest `develop` candidate on stable HA and the experimental HA beta image; a manual run may select another branch or tag.
+- `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published tag first and upgrades it to the candidate.
+- `ha-nightly.yml` runs relevant pull requests on stable HA and the experimental HA beta image. The schedule checks the latest `develop` candidate, while a manual run may select another branch or tag.
 - `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`.
 - `ha-hacs-e2e.yml` is called by the publishing workflow after every release and installs that exact tag through HACS in the isolated persistent lab. Keeping it in the same workflow avoids GitHub's suppression of workflows recursively triggered by the normal Actions token.
 

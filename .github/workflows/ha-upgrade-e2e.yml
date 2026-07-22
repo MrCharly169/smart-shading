@@ -14,6 +14,14 @@ on:
         description: Previous Smart Shading tag; empty selects the newest published tag
         required: false
         type: string
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-upgrade-e2e.yml'
+      - 'hacs.json'
 
 permissions:
   contents: read

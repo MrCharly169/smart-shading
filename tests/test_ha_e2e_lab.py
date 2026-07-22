@@ -279,6 +279,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('type: "custom:smart-shading-card"', browser)
         self.assertIn("home-assistant:beta", nightly)
         self.assertIn("continue-on-error", nightly)
+        self.assertIn("pull_request:", nightly)
+        self.assertIn("github.event.pull_request.head.sha", nightly)
         self.assertIn("[self-hosted, linux, smart-shading-lab]", persistent)
         self.assertIn("environment: ha-persistent-lab", persistent)
         self.assertNotIn("ssh ", persistent.lower())
@@ -322,6 +324,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("HA_E2E_UPGRADE_FROM_REF", workflow)
+        self.assertIn("pull_request:", workflow)
         self.assertIn("git archive", shell)
         self.assertIn("manifest-before-upgrade.json", shell)
         self.assertIn("manifest-after-upgrade.json", shell)

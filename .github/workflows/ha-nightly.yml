@@ -9,6 +9,14 @@ on:
         description: Branch or tag to test on stable and beta Home Assistant
         required: false
         default: develop
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-nightly.yml'
+      - 'hacs.json'
 
 permissions:
   contents: read
@@ -36,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.candidate_ref || 'develop' }}
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || 'develop' }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
