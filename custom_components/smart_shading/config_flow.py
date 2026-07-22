@@ -98,6 +98,7 @@ from .options_navigation import (
     build_room_routes,
     build_sector_routes,
     build_structure_routes,
+    night_is_configured,
     pause_modes_for_room,
 )
 

@@ -600,6 +600,13 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn("occupancy_source_required", source)
 
     def test_final_review_rejects_an_enabled_night_without_a_source(self):
+        navigation_imports = {
+            alias.name
+            for node in self.tree.body
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "options_navigation"
+            for alias in node.names
+        }
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
             next(
@@ -610,6 +617,7 @@ class WizardRouteContractTests(unittest.TestCase):
             ),
         ) or ""
 
+        self.assertIn("night_is_configured", navigation_imports)
         self.assertIn('room.get("night_enabled")', source)
         self.assertIn("and not night_is_configured(room)", source)
         self.assertIn("night function has no valid source", source)
