@@ -6,10 +6,15 @@ const PASSWORD =
 
 async function login(page) {
   await page.goto("/");
-  const username = page.locator('input[name="username"]');
-  if ((await username.count()) === 1) {
+  const username = page.getByRole("textbox", {
+    name: "Username",
+    exact: true,
+  });
+  if (await username.isVisible()) {
     await username.fill(USERNAME);
-    await page.locator('input[name="password"]').fill(PASSWORD);
+    await page
+      .getByRole("textbox", { name: "Password", exact: true })
+      .fill(PASSWORD);
     await page.getByRole("button", { name: "Log in" }).click();
   }
   await page.waitForFunction(() => {
