@@ -22,6 +22,8 @@
   validate Python, JavaScript, JSON, shell and workflow syntax repository-wide
 - require every new Boolean wizard field to declare an executable acceptance
   owner and verify persisted Night, schedule and maximum-opening transitions
+- attribute browser-console failures to Smart Shading sources so transient Home
+  Assistant frontend fetch errors cannot falsely block an otherwise valid release
 
 ### Fixed
 
