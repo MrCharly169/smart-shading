@@ -7,7 +7,9 @@ import unittest
 from unittest.mock import patch
 
 from scripts.ha_e2e.run_scenarios import (
+    ApiError,
     assert_entry_variant,
+    submit_options_expect_error,
     wait_for_home_assistant,
 )
 
@@ -18,6 +20,26 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_invalid_choice_can_be_rejected_by_home_assistant_schema(self):
+        class RejectingApi:
+            def post(self, path, data):
+                raise ApiError(
+                    "POST",
+                    path,
+                    400,
+                    '{"errors":{"direction":"value must be one of [south]"}}',
+                )
+
+        result = submit_options_expect_error(
+            RejectingApi(),
+            "flow-id",
+            "add_sector_flat",
+            {"direction": "custom"},
+            "option_not_available",
+            expected_schema_field="direction",
+        )
+        self.assertEqual(result["type"], "schema_error")
+
     def test_variant_contract_uses_public_layout_attribute(self):
         class StatesApi:
             def get(self, path):

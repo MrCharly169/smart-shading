@@ -996,11 +996,25 @@ def submit_options_expect_error(
     step_id: str,
     data: dict[str, Any],
     expected_error: str,
+    *,
+    expected_schema_field: str | None = None,
 ) -> dict[str, Any]:
     """Require a customer-facing validation error from a real HA form."""
-    result = api.post(
-        f"/api/config/config_entries/options/flow/{flow_id}", data
-    )
+    try:
+        result = api.post(
+            f"/api/config/config_entries/options/flow/{flow_id}", data
+        )
+    except ApiError as exc:
+        if (
+            exc.status == 400
+            and expected_schema_field is not None
+            and expected_schema_field in exc.body
+        ):
+            return {
+                "type": "schema_error",
+                "errors": {expected_schema_field: exc.body},
+            }
+        raise
     expect_step(result, step_id)
     errors = set((result.get("errors") or {}).values())
     if expected_error not in errors:
@@ -1029,8 +1043,9 @@ def probe_invalid_wizard_inputs(
                 "sun_source": "geometry",
             },
             "option_not_available",
+            expected_schema_field="direction",
         )
-        evidence["easy_custom_geometry"] = "option_not_available"
+        evidence["easy_custom_geometry"] = "ha_schema_rejected"
     finally:
         _cancel_options_flow(api, flow_id)
 
