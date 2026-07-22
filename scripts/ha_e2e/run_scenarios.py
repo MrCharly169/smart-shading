@@ -1900,7 +1900,8 @@ def run_interaction_matrix(
         entry_room_state(api, easy_entry_id)["entity_id"],
         lambda item: any(
             sector.get("confirmation_source") == "binary"
-            and sector.get("confirmation_state") is False
+            and sector.get("confirmation_state") is None
+            and sector.get("status") == "source_unavailable"
             and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
         ),
@@ -1908,7 +1909,8 @@ def run_interaction_matrix(
     sectors = room_state.get("attributes", {}).get("sector_statuses", [])
     if (
         not sectors
-        or sectors[0].get("confirmation_state") is not False
+        or sectors[0].get("confirmation_state") is not None
+        or sectors[0].get("status") != "source_unavailable"
         or sectors[0].get("effective_active") is not False
     ):
         raise AssertionError(f"Unavailable external source was not reported: {sectors}")

@@ -18,6 +18,11 @@ spec.loader.exec_module(const)
 
 
 class PackageTests(unittest.TestCase):
+    def test_card_reports_an_unavailable_selected_sun_source(self):
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        self.assertIn('unavailable: L.sourceUnavailable', card)
+        self.assertIn('confirmationState === "unavailable"', card)
+
     def test_config_flow_uppercase_globals_are_bound(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         tree = ast.parse(flow)
