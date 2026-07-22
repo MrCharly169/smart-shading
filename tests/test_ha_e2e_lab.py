@@ -262,6 +262,18 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('"set_entry_enabled"', setup)
         self.assertIn("async_set_disabled_by", setup)
 
+    def test_e2e_lab_owns_sun_state_through_the_fixture(self):
+        configuration = (LAB / "configuration.yaml").read_text(encoding="utf-8")
+        fixture = (FIXTURE / "__init__.py").read_text(encoding="utf-8")
+        runner = (ROOT / "scripts" / "ha_e2e" / "run_scenarios.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("\nsun:", configuration)
+        self.assertIn("smart_shading_test_fixture:", configuration)
+        self.assertIn('hass.states.async_set(entity_id, str(state), attributes)', fixture)
+        self.assertIn('set_fixture_state(api, "sun.sun"', runner)
+
     def test_runner_installs_release_and_never_exports_token(self):
         shell = (ROOT / "scripts" / "ha_e2e" / "run_lab.sh").read_text(
             encoding="utf-8"
@@ -308,7 +320,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('"set_entry_enabled"', runner)
         self.assertNotIn('/unload"', runner)
         self.assertIn('item.get("state") == "unavailable"', runner)
-        self.assertIn('sector.get("confirmation_state")', runner)
+        self.assertIn('"easy_confirmation_state"', runner)
+        self.assertIn('== "unavailable"', runner)
+        self.assertIn('== "blocked"', runner)
         self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertNotIn("check_registry.py", shell)

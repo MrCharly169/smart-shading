@@ -2298,12 +2298,17 @@ def run_interaction_matrix(
         lambda item: item.get("state") == "unavailable",
     )
     reload_entry(api, easy_entry_id)
+    # The lab owns sun.sun through its fixture. Reapply the scenario geometry
+    # after an entry reload so this assertion never inherits a prior wizard or
+    # lifecycle transition.
+    set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
     room_state = wait_for_state(
         api,
         entry_room_state(api, easy_entry_id)["entity_id"],
-        lambda item: any(
+        lambda item: item.get("attributes", {}).get(
+            "easy_confirmation_state"
+        ) == "unavailable" and any(
             sector.get("confirmation_source") == "binary"
-            and sector.get("confirmation_state") is None
             and sector.get("status") == "source_unavailable"
             and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
@@ -2312,7 +2317,9 @@ def run_interaction_matrix(
     sectors = room_state.get("attributes", {}).get("sector_statuses", [])
     if (
         not sectors
-        or sectors[0].get("confirmation_state") is not None
+        or room_state.get("attributes", {}).get("easy_confirmation_state")
+        != "unavailable"
+        or sectors[0].get("confirmation_source") != "binary"
         or sectors[0].get("status") != "source_unavailable"
         or sectors[0].get("effective_active") is not False
     ):
@@ -2358,21 +2365,43 @@ def run_interaction_matrix(
         {"state": "off", "available": True},
     )
 
-    # An unavailable selected lux sensor also blocks instead of using geometry.
+    # A false external source must remain visible through Easy mode's compact
+    # public contract instead of falling back to sun geometry.
+    # Reapply the fixture geometry before checking the compact Easy-mode
+    # aggregate. The compact public contract intentionally omits per-sector
+    # confirmation_state, so the aggregate exposes the customer-facing result.
+    set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
     set_fixture_state(
         api,
         scenario["setup"]["sun_confirmation_entity"],
         {"state": "off", "available": True},
     )
-    wait_for_state(
+    room_state = wait_for_state(
         api,
         entry_room_state(api, easy_entry_id)["entity_id"],
-        lambda item: any(
+        lambda item: item.get("attributes", {}).get(
+            "easy_confirmation_state"
+        ) == "blocked" and any(
             sector.get("confirmation_source") == "binary"
-            and sector.get("confirmation_state") is False
+            and sector.get("status") == "sun_not_confirmed"
+            and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
         ),
     )
+    sectors = room_state.get("attributes", {}).get("sector_statuses", [])
+    if (
+        not sectors
+        or room_state.get("attributes", {}).get("easy_confirmation_state")
+        != "blocked"
+        or sectors[0].get("confirmation_source") != "binary"
+        or sectors[0].get("status") != "sun_not_confirmed"
+        or sectors[0].get("effective_active") is not False
+    ):
+        raise AssertionError(
+            f"External source off was not reported in the Easy contract: {sectors}"
+        )
+
+    # An unavailable selected lux sensor also blocks instead of using geometry.
     api.call_service("smart_shading_test_fixture", "reset_calls", {})
     set_fixture_state(
         api,

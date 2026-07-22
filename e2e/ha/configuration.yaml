@@ -10,7 +10,6 @@ homeassistant:
 api:
 frontend:
 http:
-sun:
 
 lovelace:
   resources:
