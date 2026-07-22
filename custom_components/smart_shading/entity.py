@@ -46,7 +46,6 @@ class SmartShadingEntity(Entity):
             name=f"Smart Shading · {self.entry.title}",
             manufacturer="Smart Shading",
             model="House controller",
-            configuration_url="/config/integrations/integration/smart_shading",
         )
 
     @property

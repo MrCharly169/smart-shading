@@ -114,6 +114,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("sun.sun", setup)
         self.assertIn('"set_cover_position",', cover)
         self.assertIn('"calls": list(self._store.calls)', recorder)
+        self.assertIn("LIGHT_LUX", recorder)
+        self.assertNotIn("UnitOfIlluminance", recorder)
 
     def test_runner_installs_release_and_never_exports_token(self):
         shell = (ROOT / "scripts" / "ha_e2e" / "run_lab.sh").read_text(

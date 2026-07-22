@@ -85,6 +85,17 @@ def _vol_schema_names(node: ast.AST) -> set[str]:
 
 
 class FlowContractTests(unittest.TestCase):
+    def test_config_flow_delegates_initial_function_target_helpers(self):
+        tree = ast.parse(FLOW_PATH.read_text(encoding="utf-8"))
+        config_flow = _class(tree, "SmartShadingConfigFlow")
+        method_names = {
+            node.name
+            for node in config_flow.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        self.assertIn("_layers_with_function_targets", method_names)
+        self.assertIn("_async_step_initial_function_targets", method_names)
+
     def test_standard_layer_profile_submit_initializes_custom_rerender_flag(self):
         tree = ast.parse(FLOW_PATH.read_text(encoding="utf-8"))
         options_flow = _class(tree, "SmartShadingOptionsFlow")

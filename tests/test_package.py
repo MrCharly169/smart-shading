@@ -18,6 +18,10 @@ spec.loader.exec_module(const)
 
 
 class PackageTests(unittest.TestCase):
+    def test_device_info_does_not_publish_relative_configuration_url(self):
+        entity = (COMP / "entity.py").read_text(encoding="utf-8")
+        self.assertNotIn('configuration_url="/config/', entity)
+
     def test_python_sources_parse(self):
         for path in COMP.glob("*.py"):
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

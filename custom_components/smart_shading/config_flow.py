@@ -1083,6 +1083,14 @@ class SmartShadingConfigFlow(
     async def async_step_manage_night(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_night(self, user_input)
 
+    def _layers_with_function_targets(self, prefix):
+        return SmartShadingOptionsFlow._layers_with_function_targets(self, prefix)
+
+    async def _async_step_initial_function_targets(self, **kwargs):
+        return await SmartShadingOptionsFlow._async_step_initial_function_targets(
+            self, **kwargs
+        )
+
     async def async_step_initial_night_targets(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_initial_night_targets(
             self, user_input

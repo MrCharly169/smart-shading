@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import UnitOfIlluminance, UnitOfTemperature
+from homeassistant.const import LIGHT_LUX, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -26,7 +26,7 @@ async def async_setup_platform(
                 "easy_lux",
                 0,
                 SensorDeviceClass.ILLUMINANCE,
-                UnitOfIlluminance.LUX,
+                LIGHT_LUX,
             ),
             FixtureNumberSensor(
                 store,
@@ -34,7 +34,7 @@ async def async_setup_platform(
                 "advanced_lux",
                 0,
                 SensorDeviceClass.ILLUMINANCE,
-                UnitOfIlluminance.LUX,
+                LIGHT_LUX,
             ),
             FixtureNumberSensor(
                 store,
