@@ -163,6 +163,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
         self.assertIn("run_interaction_matrix", runner)
+        self.assertIn('item.get("state") == "unavailable"', runner)
+        self.assertIn('sector.get("confirmation_state")', runner)
+        self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertIn("check_registry.py", shell)
 

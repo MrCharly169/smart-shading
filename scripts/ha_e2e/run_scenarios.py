@@ -1889,17 +1889,28 @@ def run_interaction_matrix(
         scenario["setup"]["sun_confirmation_entity"],
         {"state": "on", "available": False},
     )
+    wait_for_state(
+        api,
+        scenario["setup"]["sun_confirmation_entity"],
+        lambda item: item.get("state") == "unavailable",
+    )
     reload_entry(api, easy_entry_id)
     room_state = wait_for_state(
         api,
         entry_room_state(api, easy_entry_id)["entity_id"],
         lambda item: any(
-            sector.get("source_valid") is False
+            sector.get("confirmation_source") == "binary"
+            and sector.get("confirmation_state") is False
+            and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
         ),
     )
     sectors = room_state.get("attributes", {}).get("sector_statuses", [])
-    if not sectors or sectors[0].get("source_valid") is not False:
+    if (
+        not sectors
+        or sectors[0].get("confirmation_state") is not False
+        or sectors[0].get("effective_active") is not False
+    ):
         raise AssertionError(f"Unavailable external source was not reported: {sectors}")
     if recorded_calls(api):
         raise AssertionError("Unavailable external source issued a cover command")
@@ -1954,9 +1965,19 @@ def run_interaction_matrix(
         scenario["advanced_setup"]["lux_entity"],
         {"state": 0, "available": False},
     )
+    wait_for_state(
+        api,
+        scenario["advanced_setup"]["lux_entity"],
+        lambda item: item.get("state") == "unavailable",
+    )
     room_state = evaluate_entry(api, advanced_entry_id)
     sectors = room_state.get("attributes", {}).get("sector_statuses", [])
-    if not sectors or sectors[0].get("source_valid") is not False:
+    if (
+        not sectors
+        or sectors[0].get("confirmation_source") != "lux"
+        or sectors[0].get("confirmation_state") is not None
+        or sectors[0].get("effective_active") is not False
+    ):
         raise AssertionError(f"Unavailable lux source was not reported: {sectors}")
     if recorded_calls(api):
         raise AssertionError("Unavailable lux source issued a cover command")
