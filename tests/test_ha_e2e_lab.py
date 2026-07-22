@@ -215,6 +215,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('getByRole("textbox", {', browser)
         self.assertIn('name: "Username"', browser)
         self.assertIn('name: "Password"', browser)
+        self.assertIn('username.waitFor({ state: "visible" })', browser)
+        self.assertNotIn("username.isVisible()", browser)
         self.assertNotIn('input[name="username"]', browser)
         self.assertIn('type: "lovelace/config/save"', browser)
         self.assertIn('type: "custom:smart-shading-card"', browser)

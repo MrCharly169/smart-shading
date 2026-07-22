@@ -10,13 +10,12 @@ async function login(page) {
     name: "Username",
     exact: true,
   });
-  if (await username.isVisible()) {
-    await username.fill(USERNAME);
-    await page
-      .getByRole("textbox", { name: "Password", exact: true })
-      .fill(PASSWORD);
-    await page.getByRole("button", { name: "Log in" }).click();
-  }
+  await username.waitFor({ state: "visible" });
+  await username.fill(USERNAME);
+  await page
+    .getByRole("textbox", { name: "Password", exact: true })
+    .fill(PASSWORD);
+  await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForFunction(() => {
     const root = document.querySelector("home-assistant");
     return Boolean(root && root.hass && root.hass.states);
