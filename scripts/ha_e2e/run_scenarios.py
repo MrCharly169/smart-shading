@@ -2256,6 +2256,7 @@ def run_upgrade_bootstrap(
                 "entry_id": entry_id,
                 "advanced_entry_id": advanced_entry_id,
                 "entity_ids": entity_ids,
+                "upgrade_baseline": True,
             }
         ),
         encoding="utf-8",
@@ -2297,7 +2298,14 @@ def run_restart(
     calls = trigger_and_assert_cover_call(api, scenario, entry_id)
     entity_ids = assert_unique_entities(api)
     expected_entity_ids = list(saved_state.get("entity_ids", []))
-    if expected_entity_ids and entity_ids != expected_entity_ids:
+    if saved_state.get("upgrade_baseline"):
+        missing_entity_ids = sorted(set(expected_entity_ids) - set(entity_ids))
+        if missing_entity_ids:
+            raise AssertionError(
+                "Smart Shading entity IDs disappeared during upgrade: "
+                f"missing={missing_entity_ids}, after={entity_ids}"
+            )
+    elif expected_entity_ids and entity_ids != expected_entity_ids:
         raise AssertionError(
             "Smart Shading entity IDs changed across restart: "
             f"before={expected_entity_ids}, after={entity_ids}"

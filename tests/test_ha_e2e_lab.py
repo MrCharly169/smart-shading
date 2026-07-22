@@ -234,6 +234,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("create_advanced_entry", runner)
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("legacy_compatible=True", runner)
+        self.assertIn('saved_state.get("upgrade_baseline")', runner)
+        self.assertIn("entity IDs disappeared during upgrade", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)
         self.assertIn("wait_for_config_entries.py", shell)
         self.assertIn("run_interaction_matrix", runner)
