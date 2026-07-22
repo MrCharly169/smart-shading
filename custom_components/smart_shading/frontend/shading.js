@@ -660,7 +660,7 @@ class SmartShadingV4Card extends HTMLElement {
       belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
       automatic: "Automatik", manualOverride: "Manuelle Sperre", sunInSector: "Sonne im Sektor", sunOutsideSector: "Sonne außerhalb", nightSchedule: "Nachtzeitplan bearbeiten",
       sourceGeometry: "Sonnenposition", sourceBinary: "Sonnensensor", sourceLux: "Luxsensor", sourceWeather: "Wetter", sourceMixed: "Verschiedene Quellen",
-      confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", temperatureBlocked: "Temperatur zu niedrig",
+      confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", sourceUnavailable: "Gewählte Sonnenquelle nicht verfügbar", temperatureBlocked: "Temperatur zu niedrig",
       sunUnavailable: "Sonnenstatus nicht verfügbar",
       roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
     } : {
@@ -674,7 +674,7 @@ class SmartShadingV4Card extends HTMLElement {
       belowHorizon: "Night", outsideSector: "Outside", waitingLux: "Waiting for sun", waiting: "Waiting", active: "Active", detected: "Sun detected",
       automatic: "Automatic", manualOverride: "Manual Override", sunInSector: "Sun in sector", sunOutsideSector: "Sun outside sector", nightSchedule: "Edit night schedule",
       sourceGeometry: "Sun position", sourceBinary: "Sun sensor", sourceLux: "Lux sensor", sourceWeather: "Weather", sourceMixed: "Mixed sources",
-      confirmed: "Sun confirmed", confirmationBlocked: "Sun not confirmed", geometryFallback: "Sun position only", inactiveSignal: "Inactive", temperatureBlocked: "Temperature too low",
+      confirmed: "Sun confirmed", confirmationBlocked: "Sun not confirmed", geometryFallback: "Sun position only", inactiveSignal: "Inactive", sourceUnavailable: "Selected sun source unavailable", temperatureBlocked: "Temperature too low",
       sunUnavailable: "Sun status unavailable",
       roomContext: "Room", scheduleContext: "Schedule", overrideContext: "Override",
     };
@@ -840,6 +840,7 @@ class SmartShadingV4Card extends HTMLElement {
       geometry_fallback: effectiveActive ? L.sunInSector : L.geometryFallback,
       mixed: effectiveActive ? L.sunInSector : L.confirmationBlocked,
       inactive: L.inactiveSignal,
+      unavailable: L.sourceUnavailable,
     })[value] || (effectiveActive ? L.sunInSector : L.sunOutsideSector);
   }
 
@@ -1031,7 +1032,7 @@ class SmartShadingV4Card extends HTMLElement {
       : temperatureBlocked
       ? L.temperatureBlocked
       : this._confirmationText(confirmationState, easySunActive, sunAboveHorizon, L);
-    const easySunIcon = !sunAvailable ? "mdi:help-circle-outline" : !sunAboveHorizon ? "mdi:weather-night" : easySunActive ? "mdi:white-balance-sunny" : "mdi:weather-sunset";
+    const easySunIcon = !sunAvailable || confirmationState === "unavailable" ? "mdi:help-circle-outline" : !sunAboveHorizon ? "mdi:weather-night" : easySunActive ? "mdi:white-balance-sunny" : "mdi:weather-sunset";
 
     const pauseButton = this._control(controls, "pause_default");
     const resumeButton = this._control(controls, "resume");

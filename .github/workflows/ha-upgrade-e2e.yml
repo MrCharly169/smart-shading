@@ -1,0 +1,73 @@
+name: Home Assistant Upgrade E2E
+
+on:
+  workflow_call:
+    inputs:
+      upgrade_from_ref:
+        description: Previous Smart Shading tag; empty selects the newest published tag
+        required: false
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      upgrade_from_ref:
+        description: Previous Smart Shading tag; empty selects the newest published tag
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-upgrade-e2e.yml'
+      - 'hacs.json'
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade-e2e:
+    name: Previous release to candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Select previous published version
+        id: previous
+        shell: bash
+        env:
+          REQUESTED_REF: ${{ inputs.upgrade_from_ref }}
+        run: |
+          REF="${REQUESTED_REF}"
+          if [[ -z "${REF}" ]]; then
+            REF="$(git tag --sort=-v:refname --list 'v*' | head -n 1)"
+          fi
+          if [[ -z "${REF}" ]]; then
+            echo "::error::No previous Smart Shading release tag exists"
+            exit 1
+          fi
+          git rev-parse --verify "${REF}^{commit}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+      - name: Run real Home Assistant upgrade laboratory
+        env:
+          HA_E2E_UPGRADE_FROM_REF: ${{ steps.previous.outputs.ref }}
+          HA_E2E_PORT: '18126'
+          HA_E2E_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-upgrade-e2e
+        run: scripts/ha_e2e/run_lab.sh
+      - name: Publish upgrade summary
+        if: always()
+        run: python scripts/ha_e2e/write_summary.py artifacts/ha-upgrade-e2e
+      - name: Upload upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-upgrade-e2e-${{ github.sha }}
+          path: artifacts/ha-upgrade-e2e
+          if-no-files-found: warn
+          retention-days: 21

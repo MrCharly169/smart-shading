@@ -2108,14 +2108,14 @@ class SmartShadingEngine:
                 return True, "binary", binary_entity
             if value == STATE_OFF:
                 return False, "binary", binary_entity
-            return False, "binary", binary_entity or None
+            return None, "binary", binary_entity or None
 
         if source == "lux":
             lux_entity = str(sector.get("lux_sensor", "") or "")
             runtime = self.sun_runtime[sector["id"]]
             if lux_entity and runtime.current_lux is not None:
                 return runtime.is_on, "lux", lux_entity
-            return False, "lux", lux_entity or None
+            return None, "lux", lux_entity or None
         return None, "geometry", None
 
     def _outdoor_temperature_condition(
@@ -2687,6 +2687,7 @@ class SmartShadingEngine:
             return
 
         active_sectors: list[dict[str, Any]] = []
+        unavailable_source_sectors: set[str] = set()
         for sector in room.get("sectors", []):
             sector_runtime = self.sun_runtime[sector["id"]]
             if not bool(self.sector_value(sector["id"], "enabled", True)):
@@ -2739,6 +2740,12 @@ class SmartShadingEngine:
             elif not geometry:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun outside this sector"
+            elif confirmation_source != "geometry" and confirmation_state is None:
+                unavailable_source_sectors.add(str(sector["id"]))
+                sector_runtime.status = "source_unavailable"
+                sector_runtime.status_reason = (
+                    "Selected sun source is unavailable; cover position held"
+                )
             elif confirmation_source != "geometry" and not sun_pass:
                 sector_runtime.status = "waiting_for_lux"
                 sector_runtime.status_reason = (
@@ -2842,8 +2849,16 @@ class SmartShadingEngine:
         highest_mode = MODE_OPEN
         reasons: list[str] = []
         morning_transition_waiting = False
+        unavailable_source_waiting = False
         for sector in room.get("sectors", []):
-            if sector in active_sectors:
+            source_unavailable = (
+                str(sector["id"]) in unavailable_source_sectors
+            )
+            if source_unavailable:
+                mode = MODE_IDLE
+                unavailable_source_waiting = True
+                reason = "Selected sun source is unavailable; cover position held"
+            elif sector in active_sectors:
                 if venetian_only:
                     if weather_pass and outdoor_ok and comfort_allowed and (glare or runtime.shading_active):
                         mode = MODE_SOLAR
@@ -2911,7 +2926,11 @@ class SmartShadingEngine:
             sector_runtime.shading_active = mode in {MODE_COMFORT, MODE_SOLAR, MODE_HEAT, MODE_SAFETY}
             if mode in {MODE_COMFORT, MODE_SOLAR}:
                 sector_runtime.status = "shading_active"
-            elif mode == MODE_IDLE and sector_runtime.geometry_active:
+            elif (
+                mode == MODE_IDLE
+                and sector_runtime.geometry_active
+                and not source_unavailable
+            ):
                 sector_runtime.status = (
                     "night_transition_hold" if morning_hold else "waiting_conditions"
                 )
@@ -2925,7 +2944,10 @@ class SmartShadingEngine:
             runtime.night_morning_hold_until = None
         runtime.mode = (
             MODE_IDLE
-            if morning_transition_waiting and highest_mode == MODE_OPEN
+            if (
+                (morning_transition_waiting or unavailable_source_waiting)
+                and highest_mode == MODE_OPEN
+            )
             else highest_mode if room.get("sectors") else MODE_IDLE
         )
         runtime.reason = " · ".join(reasons) if reasons else "No sectors configured"
@@ -3050,6 +3072,7 @@ class SmartShadingEngine:
         sun_up = sun_state.state == "above_horizon"
         active_count = 0
         geometry_count = 0
+        unavailable_count = 0
         confirmations: list[bool | None] = []
         source_labels: set[str] = set()
         source_label_map = {
@@ -3082,7 +3105,10 @@ class SmartShadingEngine:
             confirmation, source, source_entity = self._easy_sector_confirmation(
                 sector
             )
-            confirmed = confirmation is not False
+            source_unavailable = (
+                geometry and source != "geometry" and confirmation is None
+            )
+            confirmed = source == "geometry" or confirmation is True
             active = bool(geometry and confirmed and temperature_pass)
 
             sector_runtime.geometry_active = geometry
@@ -3103,6 +3129,12 @@ class SmartShadingEngine:
             elif not geometry:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun is outside this facade sector"
+            elif source_unavailable:
+                unavailable_count += 1
+                sector_runtime.status = "source_unavailable"
+                sector_runtime.status_reason = (
+                    f"{source_label_map[source]} is unavailable; cover position held"
+                )
             elif confirmation is False:
                 sector_runtime.status = "sun_not_confirmed"
                 sector_runtime.status_reason = (
@@ -3138,15 +3170,22 @@ class SmartShadingEngine:
             if active:
                 active_count += 1
                 runtime.active_sectors.append(sector.get("name", ""))
-            await self._apply_sector_mode(
-                room, sector, runtime,
-                MODE_SOLAR if active else MODE_OPEN,
-                elevation,
-                sector_runtime.status_reason,
-            )
+            if not source_unavailable:
+                await self._apply_sector_mode(
+                    room, sector, runtime,
+                    MODE_SOLAR if active else MODE_OPEN,
+                    elevation,
+                    sector_runtime.status_reason,
+                )
 
         if not geometry_count:
             runtime.easy_confirmation_state = "inactive"
+        elif unavailable_count:
+            runtime.easy_confirmation_state = (
+                "unavailable"
+                if unavailable_count == geometry_count
+                else "mixed"
+            )
         elif confirmations and all(value is None for value in confirmations):
             runtime.easy_confirmation_state = "geometry_fallback"
         elif confirmations and all(value is True for value in confirmations):
@@ -3160,10 +3199,16 @@ class SmartShadingEngine:
             if len(source_labels) == 1
             else "Mixed" if source_labels else "Sun geometry"
         )
-        runtime.mode = MODE_SOLAR if active_count else MODE_OPEN
+        runtime.mode = (
+            MODE_SOLAR
+            if active_count
+            else MODE_IDLE if unavailable_count else MODE_OPEN
+        )
         runtime.shading_active = bool(active_count)
         if active_count:
             runtime.reason = "Sun is active in a configured facade sector"
+        elif unavailable_count:
+            runtime.reason = "Selected sun source is unavailable; cover positions held"
         elif geometry_count and not temperature_pass:
             runtime.reason = "Outdoor temperature condition blocks shading"
         elif geometry_count:

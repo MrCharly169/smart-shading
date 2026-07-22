@@ -123,7 +123,7 @@ Releases use two deliberate maintainer gates:
 2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
 3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
 
-The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. The workflows reject invalid channel or version combinations, duplicate tags, missing release sections, and failed tests.
+The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published Smart Shading tag. A protected isolated runner qualifies the published tag through HACS afterwards. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md).
 
 For automatic draft pull-request creation, repository administrators must enable **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Only pull-request creation is automated; approval and merging remain manual.
 
@@ -136,10 +136,12 @@ HACS downloads the source belonging to the selected GitHub release tag. The atta
 ```text
 custom_components/smart_shading/   Integration and frontend
 tests/                             Regression and runtime tests
+e2e/                               Real HA fixture, scenarios and Playwright suite
 docs/                              Development and repository notes
 scripts/build_release.py           Package and metadata validation
 scripts/check_pr_changelog.py      PR documentation policy
 scripts/release_changelog.py       Release preparation and note extraction
+scripts/ha_e2e/                    HA lifecycle, coverage and registry runners
 .github/workflows/validate.yml     Continuous validation
 .github/workflows/prepare-release.yml  Reviewable release preparation
 .github/workflows/release.yml      Manual beta/stable release automation

@@ -585,12 +585,18 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
 
+        self.hass.services.calls.clear()
         await engine.async_evaluate_all("advanced_external_unavailable")
         runtime = engine.sun_runtime["south"]
         self.assertEqual(runtime.confirmation_source, "binary")
         self.assertEqual(runtime.confirmation_entity, "binary_sensor.facade_sun")
         self.assertIsNone(runtime.confirmation_state)
         self.assertFalse(runtime.effective_active)
+        self.assertEqual(runtime.status, "source_unavailable")
+        self.assertEqual(engine.rooms["room"].mode, "idle")
+        self.assertFalse(
+            any(call[0] == "cover" for call in self.hass.services.calls)
+        )
 
     async def test_easy_selected_external_confirmation_ignores_lux(self):
         config = base_config()
@@ -644,12 +650,17 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
 
+        self.hass.services.calls.clear()
         await engine.async_evaluate_all("easy_external_unavailable")
         runtime = engine.sun_runtime["south"]
         self.assertEqual(runtime.confirmation_source, "binary")
-        self.assertFalse(runtime.confirmation_state)
+        self.assertIsNone(runtime.confirmation_state)
         self.assertFalse(runtime.effective_active)
-        self.assertEqual(engine.rooms["room"].mode, "open")
+        self.assertEqual(runtime.status, "source_unavailable")
+        self.assertEqual(engine.rooms["room"].mode, "idle")
+        self.assertFalse(
+            any(call[0] == "cover" for call in self.hass.services.calls)
+        )
 
     async def test_easy_geometry_source_ignores_house_weather(self):
         config = base_config()

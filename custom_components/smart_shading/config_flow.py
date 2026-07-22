@@ -37,6 +37,7 @@ from .const import (
     DEFAULT_SUNSET_OFFSET_MINUTES,
     DEFAULT_TILT_TOLERANCE,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
+    DIAGNOSTIC_OFF,
     DIAGNOSTIC_OPTIONS,
     DEVICE_BINARY,
     DEVICE_TYPES,
@@ -98,6 +99,7 @@ from .options_navigation import (
     build_room_routes,
     build_sector_routes,
     build_structure_routes,
+    night_is_configured,
     pause_modes_for_room,
 )
 
@@ -928,6 +930,8 @@ class SmartShadingConfigFlow(
                 self._special_return_step = None
                 self._initial_special_cover_index = 0
                 self._initial_function_layer_index = 0
+                self._night_just_enabled = False
+                self._night_targets_next_step = "manage_pause"
                 self._pending_sector = None
                 self._pending_layer = None
                 self._initial_setup = True
@@ -1082,6 +1086,14 @@ class SmartShadingConfigFlow(
 
     async def async_step_manage_night(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_night(self, user_input)
+
+    def _layers_with_function_targets(self, prefix):
+        return SmartShadingOptionsFlow._layers_with_function_targets(self, prefix)
+
+    async def _async_step_initial_function_targets(self, **kwargs):
+        return await SmartShadingOptionsFlow._async_step_initial_function_targets(
+            self, **kwargs
+        )
 
     async def async_step_initial_night_targets(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_initial_night_targets(
@@ -1519,6 +1531,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._special_return_step = None
             self._initial_special_cover_index = 0
             self._initial_function_layer_index = 0
+            self._night_just_enabled = False
+            self._night_targets_next_step = "manage_pause"
             self._pending_sector = None
             self._pending_layer = None
             self._option_routes = {}
@@ -1920,6 +1934,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         room[key] = values[key]
                 room["night_enabled"] = True
                 room["night_source"] = source
+                self._night_just_enabled = True
                 return await self.async_step_manage_night()
             elif enabled and source != current_source:
                 for key in (
@@ -1939,10 +1954,17 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 room.update(values)
                 if not enabled and room.get("default_pause_mode") == PAUSE_NEXT_NIGHT_END:
                     room["default_pause_mode"] = PAUSE_NEXT_SUNRISE
+                if enabled and getattr(self, "_night_just_enabled", False):
+                    self._night_just_enabled = False
+                    self._initial_function_layer_index = 0
+                    self._night_targets_next_step = (
+                        "manage_pause"
+                        if getattr(self, "_initial_setup", False)
+                        else "room_hub"
+                    )
+                    return await self.async_step_initial_night_targets()
+                self._night_just_enabled = False
                 if getattr(self, "_initial_setup", False):
-                    if enabled:
-                        self._initial_function_layer_index = 0
-                        return await self.async_step_initial_night_targets()
                     return await self.async_step_manage_pause()
                 return await self.async_step_room_hub()
         night: dict[Any, Any] = {
@@ -2018,6 +2040,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         index = int(getattr(self, "_initial_function_layer_index", 0))
         if index >= len(layers):
             self._initial_function_layer_index = 0
+            if prefix == "night_":
+                self._night_targets_next_step = "manage_pause"
             return await getattr(self, f"async_step_{next_step}")()
         sector, layer, keys = layers[index]
         self._sector_id = str(sector["id"])
@@ -2056,7 +2080,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         return await self._async_step_initial_function_targets(
             prefix="night_",
             step_id="initial_night_targets",
-            next_step="manage_pause",
+            next_step=getattr(
+                self, "_night_targets_next_step", "manage_pause"
+            ),
             user_input=user_input,
         )
 

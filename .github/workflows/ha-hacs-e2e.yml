@@ -1,0 +1,66 @@
+name: Published Release HACS Qualification
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Published Smart Shading tag to install through HACS
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published Smart Shading tag to install through HACS
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smart-shading-hacs-lab
+  cancel-in-progress: false
+
+jobs:
+  hacs-install-update:
+    runs-on: [self-hosted, linux, smart-shading-lab]
+    environment: ha-persistent-lab
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      HA_PERSISTENT_SCOPE: dedicated-test-only
+      HA_PERSISTENT_URL: ${{ secrets.HA_URL }}
+      HA_PERSISTENT_TOKEN: ${{ secrets.HA_TOKEN }}
+      HA_PERSISTENT_INSTANCE_NAME: ${{ secrets.HA_INSTANCE_NAME }}
+      HA_PERSISTENT_HACS_UPDATE_ENTITY: ${{ secrets.HA_HACS_UPDATE_ENTITY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Read expected integration version
+        id: version
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/smart_shading/manifest.json"))["version"])')"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Install or update the published tag through isolated HACS
+        run: /opt/smart-shading-lab/bin/hacs-install-release "$RELEASE_TAG"
+      - name: Restart the isolated Home Assistant lab
+        run: /opt/smart-shading-lab/bin/restart-home-assistant
+      - name: Verify HACS version and integration lifecycle
+        env:
+          HA_PERSISTENT_EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          python scripts/ha_e2e/run_persistent_lab.py
+          --phase after-restart
+          --output artifacts/ha-hacs/qualification.json
+      - name: Upload HACS qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-hacs-${{ env.RELEASE_TAG }}
+          path: artifacts/ha-hacs
+          if-no-files-found: warn
+          retention-days: 30

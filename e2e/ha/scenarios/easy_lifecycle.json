@@ -1,0 +1,88 @@
+{
+  "id": "easy_config_flow_runtime_restart",
+  "description": "Create an Easy house through the real config flow, trigger shading, and verify restart persistence.",
+  "setup": {
+    "variant": "easy",
+    "house_name": "E2E House",
+    "room_name": "Easy Room",
+    "cover_entity": "cover.easy_roller_shutter",
+    "sun_confirmation_entity": "binary_sensor.external_sun_presence"
+  },
+  "advanced_setup": {
+    "variant": "advanced",
+    "house_name": "E2E Advanced House",
+    "room_name": "Advanced Room",
+    "cover_entity": "cover.easy_venetian",
+    "lux_entity": "sensor.advanced_lux",
+    "indoor_temperature_entity": "sensor.indoor_temperature",
+    "outdoor_temperature_entity": "sensor.outdoor_temperature",
+    "safety_entity": "binary_sensor.safety_alarm",
+    "window_entity": "binary_sensor.window_contact"
+  },
+  "options_room": {
+    "room_name": "Easy Added Room",
+    "cover_entity": "cover.binary_cover"
+  },
+  "initial": {
+    "sun.sun": {
+      "state": "above_horizon",
+      "attributes": {
+        "azimuth": 180,
+        "elevation": 35,
+        "next_rising": "2030-01-01T06:00:00+00:00",
+        "next_setting": "2030-01-01T18:00:00+00:00"
+      }
+    },
+    "sensor.easy_lux": {
+      "state": 0,
+      "available": true
+    },
+    "sensor.advanced_lux": {
+      "state": 0,
+      "available": true
+    },
+    "sensor.indoor_temperature": {
+      "state": 24,
+      "available": true
+    },
+    "sensor.outdoor_temperature": {
+      "state": 20,
+      "available": true
+    },
+    "binary_sensor.safety_alarm": {
+      "state": "off",
+      "available": true
+    },
+    "binary_sensor.window_contact": {
+      "state": "off",
+      "available": true
+    },
+    "binary_sensor.external_sun_presence": {
+      "state": "off",
+      "available": true
+    },
+    "cover.easy_roller_shutter": {
+      "state": "open",
+      "available": true,
+      "attributes": {
+        "current_position": 100
+      }
+    }
+  },
+  "action": {
+    "entity_id": "binary_sensor.external_sun_presence",
+    "state": "on"
+  },
+  "expect": {
+    "entry_title": "E2E House",
+    "minimum_cover_calls": 1,
+    "cover_services": [
+      "set_cover_position"
+    ]
+  },
+  "restart_check": {
+    "entry_must_persist": true,
+    "entities_must_remain_unique": true,
+    "runtime_must_issue_cover_call": true
+  }
+}

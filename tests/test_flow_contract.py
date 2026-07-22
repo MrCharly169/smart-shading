@@ -85,6 +85,17 @@ def _vol_schema_names(node: ast.AST) -> set[str]:
 
 
 class FlowContractTests(unittest.TestCase):
+    def test_config_flow_delegates_initial_function_target_helpers(self):
+        tree = ast.parse(FLOW_PATH.read_text(encoding="utf-8"))
+        config_flow = _class(tree, "SmartShadingConfigFlow")
+        method_names = {
+            node.name
+            for node in config_flow.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        self.assertIn("_layers_with_function_targets", method_names)
+        self.assertIn("_async_step_initial_function_targets", method_names)
+
     def test_standard_layer_profile_submit_initializes_custom_rerender_flag(self):
         tree = ast.parse(FLOW_PATH.read_text(encoding="utf-8"))
         options_flow = _class(tree, "SmartShadingOptionsFlow")
@@ -518,6 +529,8 @@ class WizardRouteContractTests(unittest.TestCase):
             _method(self.options_flow, "async_step_manage_conditions"),
         ) or ""
         self.assertIn("async_step_initial_night_targets", night_source)
+        self.assertIn('else "room_hub"', night_source)
+        self.assertIn('_night_just_enabled', night_source)
         self.assertIn("async_step_initial_safety_targets", conditions_source)
 
     def test_schedule_form_hides_fields_until_they_can_take_effect(self):
@@ -589,6 +602,13 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn("occupancy_source_required", source)
 
     def test_final_review_rejects_an_enabled_night_without_a_source(self):
+        navigation_imports = {
+            alias.name
+            for node in self.tree.body
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "options_navigation"
+            for alias in node.names
+        }
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
             next(
@@ -599,6 +619,7 @@ class WizardRouteContractTests(unittest.TestCase):
             ),
         ) or ""
 
+        self.assertIn("night_is_configured", navigation_imports)
         self.assertIn('room.get("night_enabled")', source)
         self.assertIn("and not night_is_configured(room)", source)
         self.assertIn("night function has no valid source", source)

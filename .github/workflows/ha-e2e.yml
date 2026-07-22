@@ -1,0 +1,69 @@
+name: Home Assistant E2E
+
+on:
+  workflow_call:
+    inputs:
+      home_assistant_image:
+        description: Home Assistant container image
+        required: false
+        type: string
+        default: ghcr.io/home-assistant/home-assistant:stable
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-e2e.yml'
+      - 'hacs.json'
+  push:
+    branches: [develop]
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-e2e.yml'
+      - 'hacs.json'
+  workflow_dispatch:
+    inputs:
+      home_assistant_image:
+        description: Home Assistant container image
+        required: false
+        default: ghcr.io/home-assistant/home-assistant:stable
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ha-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ha-e2e:
+    name: Real Home Assistant lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HA_E2E_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-e2e
+      HA_E2E_IMAGE: ${{ inputs.home_assistant_image || 'ghcr.io/home-assistant/home-assistant:stable' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify wizard E2E ownership
+        run: python scripts/ha_e2e/check_wizard_coverage.py
+      - name: Run ephemeral Home Assistant laboratory
+        run: scripts/ha_e2e/run_lab.sh
+      - name: Publish scenario summary
+        if: always()
+        run: python scripts/ha_e2e/write_summary.py "$HA_E2E_ARTIFACT_DIR"
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-e2e-${{ github.sha }}
+          path: artifacts/ha-e2e
+          if-no-files-found: warn
+          retention-days: 14

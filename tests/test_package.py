@@ -18,6 +18,51 @@ spec.loader.exec_module(const)
 
 
 class PackageTests(unittest.TestCase):
+    def test_card_reports_an_unavailable_selected_sun_source(self):
+        card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        self.assertIn('unavailable: L.sourceUnavailable', card)
+        self.assertIn('confirmationState === "unavailable"', card)
+
+    def test_config_flow_uppercase_globals_are_bound(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        tree = ast.parse(flow)
+        bound: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                bound.add(node.name)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                bound.update(
+                    alias.asname or alias.name.split(".")[0]
+                    for alias in node.names
+                )
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                bound.update(
+                    target.id for target in targets if isinstance(target, ast.Name)
+                )
+        loaded_constants = {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id.upper() == node.id
+            and not node.id.startswith("_")
+        }
+        self.assertEqual(loaded_constants - bound, set())
+
+    def test_device_info_does_not_publish_relative_configuration_url(self):
+        entity = (COMP / "entity.py").read_text(encoding="utf-8")
+        self.assertNotIn('configuration_url="/config/', entity)
+
+    def test_config_entry_removal_clears_owned_registry_records(self):
+        setup = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn("er.async_entries_for_config_entry", setup)
+        self.assertIn("entity_registry.async_remove", setup)
+        self.assertIn("dr.async_entries_for_config_entry", setup)
+        self.assertIn("identifier_prefix", setup)
+        self.assertIn("device_registry.devices.values()", setup)
+        self.assertIn("device_registry.async_remove_device", setup)
+
     def test_python_sources_parse(self):
         for path in COMP.glob("*.py"):
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -1188,6 +1233,28 @@ class PackageTests(unittest.TestCase):
         self.assertIn("body_path: dist/release-notes.md", workflow)
         self.assertNotIn("generate_release_notes:", workflow)
         self.assertNotIn("push:\n    tags:", workflow)
+
+    def test_every_release_path_uses_the_repository_wide_syntax_gate(self):
+        for relative in (
+            ".github/workflows/validate.yml",
+            ".github/workflows/prepare-release.yml",
+            ".github/workflows/release.yml",
+        ):
+            with self.subTest(workflow=relative):
+                workflow = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("python scripts/check_source_syntax.py", workflow)
+
+        checker = (ROOT / "scripts" / "check_source_syntax.py").read_text(
+            encoding="utf-8"
+        )
+        for expected in (
+            "py_compile.compile",
+            '"node", "--check"',
+            '"bash", "-n"',
+            'require "yaml"',
+            "json.load",
+        ):
+            self.assertIn(expected, checker)
 
     def test_prepare_release_workflow_creates_only_a_reviewable_draft_pr(self):
         workflow = (

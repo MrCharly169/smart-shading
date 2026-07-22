@@ -27,12 +27,10 @@ jobs:
         run: python scripts/check_pr_changelog.py "origin/${{ github.base_ref }}"
       - name: Python tests
         run: python -m unittest discover -s tests -v
-      - name: Compile integration
-        run: python -m compileall custom_components/smart_shading
-      - name: Validate canonical frontend syntax
-        run: node --check custom_components/smart_shading/frontend/shading.js
-      - name: Validate legacy frontend loader
-        run: node --check custom_components/smart_shading/frontend/smart-shading-card.js
+      - name: Verify wizard E2E ownership
+        run: python scripts/ha_e2e/check_wizard_coverage.py
+      - name: Validate all source and workflow syntax
+        run: python scripts/check_source_syntax.py
       - name: Frontend runtime regression test
         run: node tests/test_card_runtime.js
       - name: Validate release structure
