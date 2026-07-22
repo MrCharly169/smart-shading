@@ -2687,6 +2687,7 @@ class SmartShadingEngine:
             return
 
         active_sectors: list[dict[str, Any]] = []
+        unavailable_source_sectors: set[str] = set()
         for sector in room.get("sectors", []):
             sector_runtime = self.sun_runtime[sector["id"]]
             if not bool(self.sector_value(sector["id"], "enabled", True)):
@@ -2739,6 +2740,12 @@ class SmartShadingEngine:
             elif not geometry:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun outside this sector"
+            elif confirmation_source != "geometry" and confirmation_state is None:
+                unavailable_source_sectors.add(str(sector["id"]))
+                sector_runtime.status = "source_unavailable"
+                sector_runtime.status_reason = (
+                    "Selected sun source is unavailable; cover position held"
+                )
             elif confirmation_source != "geometry" and not sun_pass:
                 sector_runtime.status = "waiting_for_lux"
                 sector_runtime.status_reason = (
@@ -2842,8 +2849,16 @@ class SmartShadingEngine:
         highest_mode = MODE_OPEN
         reasons: list[str] = []
         morning_transition_waiting = False
+        unavailable_source_waiting = False
         for sector in room.get("sectors", []):
-            if sector in active_sectors:
+            source_unavailable = (
+                str(sector["id"]) in unavailable_source_sectors
+            )
+            if source_unavailable:
+                mode = MODE_IDLE
+                unavailable_source_waiting = True
+                reason = "Selected sun source is unavailable; cover position held"
+            elif sector in active_sectors:
                 if venetian_only:
                     if weather_pass and outdoor_ok and comfort_allowed and (glare or runtime.shading_active):
                         mode = MODE_SOLAR
@@ -2911,7 +2926,11 @@ class SmartShadingEngine:
             sector_runtime.shading_active = mode in {MODE_COMFORT, MODE_SOLAR, MODE_HEAT, MODE_SAFETY}
             if mode in {MODE_COMFORT, MODE_SOLAR}:
                 sector_runtime.status = "shading_active"
-            elif mode == MODE_IDLE and sector_runtime.geometry_active:
+            elif (
+                mode == MODE_IDLE
+                and sector_runtime.geometry_active
+                and not source_unavailable
+            ):
                 sector_runtime.status = (
                     "night_transition_hold" if morning_hold else "waiting_conditions"
                 )
@@ -2925,7 +2944,10 @@ class SmartShadingEngine:
             runtime.night_morning_hold_until = None
         runtime.mode = (
             MODE_IDLE
-            if morning_transition_waiting and highest_mode == MODE_OPEN
+            if (
+                (morning_transition_waiting or unavailable_source_waiting)
+                and highest_mode == MODE_OPEN
+            )
             else highest_mode if room.get("sectors") else MODE_IDLE
         )
         runtime.reason = " · ".join(reasons) if reasons else "No sectors configured"
