@@ -482,6 +482,7 @@ class CommandPlannerTests(unittest.TestCase):
         released = self.planner.release_ownership("cover.study", "external_numeric_movement")
         self.assertEqual(released.status, CommandResult.CANCELLED)
         self.assertFalse(released.ledger.owned_by_smart_shading)
+        self.assertEqual(released.ledger.owner, "external")
         self.assertEqual(released.ledger.failure_reason, "external_numeric_movement")
         self.assertEqual(len(released.cancelled_steps), len(replacement.steps))
 
@@ -519,6 +520,29 @@ class CommandPlannerTests(unittest.TestCase):
             "automatic_reverse_not_allowed",
         )
 
+    def test_startup_noop_does_not_imply_external_ownership(self):
+        """A cover already at its initial target may still be automated later."""
+        no_op = self.planner.plan(
+            self.request(
+                position=100,
+                current_position=100,
+                allow_automatic_reverse=False,
+            )
+        )
+        self.assertEqual(no_op.status, CommandResult.SUPPRESSED)
+        self.assertEqual(no_op.ledger.owner, "none")
+
+        movement = self.planner.plan(
+            self.request(
+                position=0,
+                current_position=100,
+                allow_automatic_reverse=False,
+            )
+        )
+
+        self.assertEqual(movement.status, CommandResult.PLANNED)
+        self.assertEqual([step.axis for step in movement.steps], ["position"])
+
     def test_unowned_active_target_is_cancelled_before_normal_reverse_is_blocked(self):
         original = self.planner.plan(
             self.request(
@@ -528,9 +552,10 @@ class CommandPlannerTests(unittest.TestCase):
                 allow_automatic_reverse=False,
             )
         )
-        # This represents persisted/manual ownership observed between planning
-        # and dispatch. The old sequence must not survive the new block.
+        # This represents persisted external ownership observed between
+        # planning and dispatch. The old sequence must not survive the block.
         original.ledger.owned_by_smart_shading = False
+        original.ledger.owner = "external"
 
         blocked = self.planner.plan(
             self.request(

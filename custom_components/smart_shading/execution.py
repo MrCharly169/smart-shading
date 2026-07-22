@@ -674,11 +674,13 @@ class CommandPlanner:
             not request.safety
             and not request.allow_automatic_reverse
             and existing is not None
-            and not existing.owned_by_smart_shading
+            and existing.owner == "external"
         ):
             # ``release_ownership`` records an externally/manual-controlled
-            # cover as not owned by Smart Shading.  A later normal target must
-            # not reclaim that position when automatic reversal is disabled.
+            # cover explicitly. A normal no-op has no Smart Shading ownership
+            # either, but must never be mistaken for a user takeover. A later
+            # normal target must not reclaim a truly external position when
+            # automatic reversal is disabled.
             # Safety is deliberately exempt: a safety target is an explicit
             # higher-priority intervention, not a normal automation reversal.
             entry = self._new_entry(
@@ -959,6 +961,7 @@ class CommandPlanner:
         result = self.cancel_cover(cover_id, reason_code, now=now)
         if result and result.ledger:
             result.ledger.owned_by_smart_shading = False
+            result.ledger.owner = "external"
         return result
 
     def _new_entry(
