@@ -2324,17 +2324,51 @@ def run_restart(
     assert_entry_variant(api, reinstalled_entry_id, True)
     entity_ids = assert_unique_entities(api)
     entries = smart_shading_entries(api)
+    lifecycle = {
+        "removed_entry_id": advanced_entry_id,
+        "reinstalled_entry_id": reinstalled_entry_id,
+    }
     (output_dir / "lifecycle-final.json").write_text(
-        json.dumps(
-            {
-                "removed_entry_id": advanced_entry_id,
-                "reinstalled_entry_id": reinstalled_entry_id,
-            },
-            indent=2,
-            sort_keys=True,
-        ),
+        json.dumps(lifecycle, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+    registry_response = api.post(
+        "/api/services/smart_shading_test_fixture/registry_snapshot?return_response",
+        {},
+    )
+    registry_snapshot = dict(registry_response.get("service_response") or {})
+    registry_entities = list(registry_snapshot.get("entities") or [])
+    registry_devices = list(registry_snapshot.get("devices") or [])
+    registry_result = {
+        **lifecycle,
+        "stale_entities": sorted(
+            entity["entity_id"]
+            for entity in registry_entities
+            if entity.get("config_entry_id") == advanced_entry_id
+        ),
+        "stale_devices": sorted(
+            device["id"]
+            for device in registry_devices
+            if advanced_entry_id in (device.get("config_entries") or [])
+        ),
+        "current_entities": sorted(
+            entity["entity_id"]
+            for entity in registry_entities
+            if entity.get("config_entry_id") == reinstalled_entry_id
+        ),
+    }
+    (output_dir / "registry-summary.json").write_text(
+        json.dumps(registry_result, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    if registry_result["stale_entities"] or registry_result["stale_devices"]:
+        raise AssertionError(
+            f"Removed config entry remains in live HA registries: {registry_result}"
+        )
+    if not registry_result["current_entities"]:
+        raise AssertionError(
+            "Reinstalled config entry has no live HA entity registry entries"
+        )
     write_snapshot(
         output_dir, "restart", entries, entity_ids, calls, api.get("/api/config")
     )
