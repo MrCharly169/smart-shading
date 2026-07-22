@@ -72,6 +72,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         )
         self.assertIn("scripts/build_release.py", shell)
         self.assertIn("docker restart", shell)
+        self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
         self.assertNotIn('cp "${STATE_FILE}"', shell)
         self.assertIn("/api/config/config_entries/flow", runner)
         self.assertIn('"setup_type": "simple"', runner)

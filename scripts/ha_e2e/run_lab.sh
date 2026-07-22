@@ -79,7 +79,7 @@ NETWORK_CREATED=1
 docker run -d \
   --name "${CONTAINER_NAME}" \
   --network "${NETWORK_NAME}" \
-  --tmpfs /run \
+  --tmpfs /run:rw,exec,nosuid,size=64m \
   --tmpfs /tmp \
   -p "127.0.0.1:${HA_PORT}:8123" \
   -v "${CONFIG_DIR}:/config" \
