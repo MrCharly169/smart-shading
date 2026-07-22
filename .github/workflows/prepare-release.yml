@@ -159,7 +159,9 @@ jobs:
       - name: Validate all source and workflow syntax
         run: python scripts/check_source_syntax.py
       - name: Run frontend regression tests
-        run: node tests/test_card_runtime.js
+        run: |
+          node tests/test_card_runtime.js
+          node tests/test_browser_error_attribution.js
       - name: Build installation archive
         run: >-
           python scripts/build_release.py
