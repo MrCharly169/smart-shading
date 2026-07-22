@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from scripts.ha_e2e.run_scenarios import (
     ApiError,
+    advanced_execution_settings_payload,
+    advanced_execution_settings_section,
     assert_entry_variant,
     submit_options_expect_error,
     wait_for_home_assistant,
@@ -25,6 +27,63 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_advanced_execution_settings_payload_is_complete(self):
+        self.assertEqual(
+            advanced_execution_settings_payload(),
+            {
+                "command_stagger_seconds": 0.0,
+                "stagger_scope": "room",
+                "safety_bypasses_stagger": True,
+                "target_verification_enabled": False,
+                "verification_retries": 1,
+                "movement_seconds": 45.0,
+                "settling_seconds": 5.0,
+                "source_stale_seconds": 0.0,
+            },
+        )
+
+    def test_legacy_advanced_automation_omits_candidate_only_section(self):
+        expected = {
+            "execution_settings": advanced_execution_settings_payload()
+        }
+        self.assertEqual(advanced_execution_settings_section(), expected)
+        self.assertEqual(
+            advanced_execution_settings_section(legacy_compatible=True), {}
+        )
+
+    def test_advanced_automation_submissions_include_execution_settings(self):
+        runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
+        tree = ast.parse(runner.read_text(encoding="utf-8"))
+        submission_sections: list[bool] = []
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in {"submit_flow", "submit_options_flow"}
+                and len(node.args) >= 4
+                and isinstance(node.args[2], ast.Constant)
+                and node.args[2].value == "manage_automation"
+            ):
+                continue
+            self.assertIsInstance(node.args[3], ast.Dict)
+            payload = node.args[3]
+            has_explicit_section = any(
+                isinstance(key, ast.Constant) and key.value == "execution_settings"
+                for key in payload.keys
+            )
+            has_legacy_aware_section = any(
+                key is None
+                and isinstance(value, ast.Name)
+                and value.id == "execution_settings_section"
+                for key, value in zip(payload.keys, payload.values, strict=True)
+            )
+            submission_sections.append(
+                has_explicit_section or has_legacy_aware_section
+            )
+
+        self.assertEqual(len(submission_sections), 10)
+        self.assertTrue(all(submission_sections))
+
     def test_upgrade_checkpoint_reads_only_persisted_smart_shading_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = Path(temp_dir) / "core.config_entries"
@@ -203,6 +262,18 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('"set_entry_enabled"', setup)
         self.assertIn("async_set_disabled_by", setup)
 
+    def test_e2e_lab_owns_sun_state_through_the_fixture(self):
+        configuration = (LAB / "configuration.yaml").read_text(encoding="utf-8")
+        fixture = (FIXTURE / "__init__.py").read_text(encoding="utf-8")
+        runner = (ROOT / "scripts" / "ha_e2e" / "run_scenarios.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("\nsun:", configuration)
+        self.assertIn("smart_shading_test_fixture:", configuration)
+        self.assertIn('hass.states.async_set(entity_id, str(state), attributes)', fixture)
+        self.assertIn('set_fixture_state(api, "sun.sun"', runner)
+
     def test_runner_installs_release_and_never_exports_token(self):
         shell = (ROOT / "scripts" / "ha_e2e" / "run_lab.sh").read_text(
             encoding="utf-8"
@@ -237,6 +308,8 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("LIVE_WIZARD_TRANSITIONS", runner)
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
+        self.assertIn("advanced_execution_settings_payload", runner)
+        self.assertIn('"execution_settings": execution_settings', runner)
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("legacy_compatible=True", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)
@@ -247,7 +320,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn('"set_entry_enabled"', runner)
         self.assertNotIn('/unload"', runner)
         self.assertIn('item.get("state") == "unavailable"', runner)
-        self.assertIn('sector.get("confirmation_state")', runner)
+        self.assertIn('"easy_confirmation_state"', runner)
+        self.assertIn('== "unavailable"', runner)
+        self.assertIn('== "blocked"', runner)
         self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertNotIn("check_registry.py", shell)
@@ -341,6 +416,14 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ha-hacs-e2e.yml", release)
         self.assertIn("needs: release", release)
 
+    def test_release_preparation_does_not_auto_close_delivery_issues(self):
+        workflow = (
+            ROOT / ".github" / "workflows" / "prepare-release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("Implements #19", workflow)
+        self.assertIn("does not automatically close a delivery issue", workflow)
+        self.assertIn("passes HACS qualification", workflow)
+
     def test_hacs_qualification_is_hosted_and_runs_the_public_tag_in_real_ha(self):
         workflow = (
             ROOT / ".github" / "workflows" / "ha-hacs-e2e.yml"
@@ -366,6 +449,42 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             coverage["boolean_field_contract"]["night_enabled"],
             "real-ha-transition",
         )
+        self.assertTrue(
+            {
+                "protected_zones_hub",
+                "add_protected_zone",
+                "manage_protected_zone",
+                "delete_protected_zone",
+            }.issubset(coverage["all_surfaces"])
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["confirm_delete_protected_zone"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["target_verification_enabled"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["allow_automatic_reverse"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["safety_bypasses_stagger"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["feedback_quality"]),
+            {"trusted", "intermediate", "end_positions", "none"},
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["stagger_scope"]),
+            {"room", "house"},
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["opening_order"]),
+            {"height_then_tilt", "tilt_then_height"},
+        )
         self.assertEqual(
             set(coverage["choice_contract"]["profile"]),
             {
@@ -385,11 +504,18 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         workflow = (
             ROOT / ".github" / "workflows" / "ha-upgrade-e2e.yml"
         ).read_text(encoding="utf-8")
+        selector = (
+            ROOT / "scripts" / "ha_e2e" / "select_upgrade_baseline.py"
+        ).read_text(encoding="utf-8")
         shell = (ROOT / "scripts" / "ha_e2e" / "run_lab.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn("HA_E2E_UPGRADE_FROM_REF", workflow)
         self.assertIn("pull_request:", workflow)
+        self.assertIn("select_upgrade_baseline.py", workflow)
+        self.assertIn("newest stable release tag", workflow)
+        self.assertIn("STABLE_TAG", selector)
+        self.assertIn("excluding all prereleases", selector)
         self.assertIn("git archive", shell)
         self.assertIn("manifest-before-upgrade.json", shell)
         self.assertIn("manifest-after-upgrade.json", shell)

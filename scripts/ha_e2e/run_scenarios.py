@@ -290,7 +290,7 @@ def submit_options_flow(
 
 
 def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
-    """Create an Easy entry through the current schema-15 guided flow."""
+    """Create an Easy entry through the current schema-16 guided flow."""
     setup = scenario["setup"]
     result = api.post(
         "/api/config/config_entries/flow",
@@ -391,6 +391,34 @@ def _created_entry_id(
     if len(matching) != 1:
         raise AssertionError(f"Cannot identify created config entry: {result}")
     return str(matching[0]["entry_id"])
+
+
+def advanced_execution_settings_payload() -> dict[str, Any]:
+    """Return the complete required Advanced automation section.
+
+    Home Assistant validates the outer section schema before the integration
+    can flatten it.  Keep every real-HA exercise on the same explicit
+    execution defaults as a newly created Advanced room.
+    """
+    return {
+        "command_stagger_seconds": 0.0,
+        "stagger_scope": "room",
+        "safety_bypasses_stagger": True,
+        "target_verification_enabled": False,
+        "verification_retries": 1,
+        "movement_seconds": 45.0,
+        "settling_seconds": 5.0,
+        "source_stale_seconds": 0.0,
+    }
+
+
+def advanced_execution_settings_section(
+    *, legacy_compatible: bool = False
+) -> dict[str, dict[str, Any]]:
+    """Return the required candidate section, absent from the old baseline."""
+    if legacy_compatible:
+        return {}
+    return {"execution_settings": advanced_execution_settings_payload()}
 
 
 def create_advanced_entry(
@@ -551,6 +579,9 @@ def create_advanced_entry(
         "normal_shading_temperature": 23.5,
         "reopen_temperature": 22,
     }
+    execution_settings_section = advanced_execution_settings_section(
+        legacy_compatible=legacy_compatible
+    )
     result = submit_flow(
         api,
         flow_id,
@@ -558,6 +589,7 @@ def create_advanced_entry(
         {
             "schedule_settings": {"schedule_enabled": True},
             "temperature_settings": temperature_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_automation")
@@ -572,6 +604,7 @@ def create_advanced_entry(
                 "day_window": "fixed_time",
             },
             "temperature_settings": temperature_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_automation")
@@ -592,6 +625,7 @@ def create_advanced_entry(
                 "heat_outside_schedule": True,
             },
             "temperature_settings": temperature_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_night")
@@ -1030,6 +1064,7 @@ def assert_existing_room_schedule_transition(
         "normal_shading_temperature": 23.5,
         "reopen_temperature": 22,
     }
+    execution_settings = advanced_execution_settings_payload()
     flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
     result = submit_options_flow(
         api,
@@ -1038,6 +1073,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": False},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -1048,6 +1084,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": False},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     save_options_from_room_hub(api, flow_id, result)
@@ -1070,6 +1107,7 @@ def assert_existing_room_schedule_transition(
         {
             "schedule_settings": {"schedule_enabled": True},
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     expect_step(result, "manage_automation")
@@ -1090,6 +1128,7 @@ def assert_existing_room_schedule_transition(
                 "heat_outside_schedule": True,
             },
             "temperature_settings": temperatures,
+            "execution_settings": execution_settings,
         },
     )
     save_options_from_room_hub(api, flow_id, result)
@@ -1678,6 +1717,7 @@ def probe_choice_matrix(
         "comfort_temperature": 23.5,
         "solar_temperature": 25.5,
     }
+    execution_settings = advanced_execution_settings_payload()
     for profile in ("year_round", "summer", "custom"):
         flow_id, _ = replay_options_path(
             api, advanced_entry_id, "manage_automation"
@@ -1700,6 +1740,7 @@ def probe_choice_matrix(
                         "heat_outside_schedule": True,
                     },
                     "temperature_settings": temperature,
+                    "execution_settings": execution_settings,
                 },
             )
             expect_step(result, "manage_automation")
@@ -1726,6 +1767,7 @@ def probe_choice_matrix(
                 {
                     "schedule_settings": schedule_settings,
                     "temperature_settings": temperature,
+                    "execution_settings": execution_settings,
                 },
             )
             expect_step(result, "room_hub")
@@ -1760,6 +1802,7 @@ def probe_choice_matrix(
                     "heat_outside_schedule": True,
                 },
                 "temperature_settings": temperature,
+                "execution_settings": execution_settings,
             },
         )
         expect_step(result, "room_hub")
@@ -2255,12 +2298,17 @@ def run_interaction_matrix(
         lambda item: item.get("state") == "unavailable",
     )
     reload_entry(api, easy_entry_id)
+    # The lab owns sun.sun through its fixture. Reapply the scenario geometry
+    # after an entry reload so this assertion never inherits a prior wizard or
+    # lifecycle transition.
+    set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
     room_state = wait_for_state(
         api,
         entry_room_state(api, easy_entry_id)["entity_id"],
-        lambda item: any(
+        lambda item: item.get("attributes", {}).get(
+            "easy_confirmation_state"
+        ) == "unavailable" and any(
             sector.get("confirmation_source") == "binary"
-            and sector.get("confirmation_state") is None
             and sector.get("status") == "source_unavailable"
             and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
@@ -2269,7 +2317,9 @@ def run_interaction_matrix(
     sectors = room_state.get("attributes", {}).get("sector_statuses", [])
     if (
         not sectors
-        or sectors[0].get("confirmation_state") is not None
+        or room_state.get("attributes", {}).get("easy_confirmation_state")
+        != "unavailable"
+        or sectors[0].get("confirmation_source") != "binary"
         or sectors[0].get("status") != "source_unavailable"
         or sectors[0].get("effective_active") is not False
     ):
@@ -2315,21 +2365,43 @@ def run_interaction_matrix(
         {"state": "off", "available": True},
     )
 
-    # An unavailable selected lux sensor also blocks instead of using geometry.
+    # A false external source must remain visible through Easy mode's compact
+    # public contract instead of falling back to sun geometry.
+    # Reapply the fixture geometry before checking the compact Easy-mode
+    # aggregate. The compact public contract intentionally omits per-sector
+    # confirmation_state, so the aggregate exposes the customer-facing result.
+    set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
     set_fixture_state(
         api,
         scenario["setup"]["sun_confirmation_entity"],
         {"state": "off", "available": True},
     )
-    wait_for_state(
+    room_state = wait_for_state(
         api,
         entry_room_state(api, easy_entry_id)["entity_id"],
-        lambda item: any(
+        lambda item: item.get("attributes", {}).get(
+            "easy_confirmation_state"
+        ) == "blocked" and any(
             sector.get("confirmation_source") == "binary"
-            and sector.get("confirmation_state") is False
+            and sector.get("status") == "sun_not_confirmed"
+            and sector.get("effective_active") is False
             for sector in item.get("attributes", {}).get("sector_statuses", [])
         ),
     )
+    sectors = room_state.get("attributes", {}).get("sector_statuses", [])
+    if (
+        not sectors
+        or room_state.get("attributes", {}).get("easy_confirmation_state")
+        != "blocked"
+        or sectors[0].get("confirmation_source") != "binary"
+        or sectors[0].get("status") != "sun_not_confirmed"
+        or sectors[0].get("effective_active") is not False
+    ):
+        raise AssertionError(
+            f"External source off was not reported in the Easy contract: {sectors}"
+        )
+
+    # An unavailable selected lux sensor also blocks instead of using geometry.
     api.call_service("smart_shading_test_fixture", "reset_calls", {})
     set_fixture_state(
         api,

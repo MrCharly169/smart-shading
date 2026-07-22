@@ -404,6 +404,7 @@ class WizardRouteContractTests(unittest.TestCase):
         shared_methods = {
             "async_step_room_hub",
             "async_step_sector_hub",
+            "async_step_protected_zones_hub",
             "async_step_group_hub",
             "async_step_cover_hub",
             "async_step_choose_sector_for_group",
@@ -441,6 +442,134 @@ class WizardRouteContractTests(unittest.TestCase):
             "_async_step_room_setup",
             _attribute_calls(first_room_handler),
         )
+
+    def test_protected_zone_wizard_is_advanced_and_pipeline_compatible(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        mixin_methods = {
+            node.name
+            for node in self.mixin.body
+            if isinstance(node, ast.AsyncFunctionDef)
+        }
+        self.assertIn("async_step_protected_zones_hub", mixin_methods)
+
+        options_methods = {
+            node.name
+            for node in self.options_flow.body
+            if isinstance(node, ast.AsyncFunctionDef)
+        }
+        for method_name in (
+            "async_step_add_protected_zone",
+            "async_step_manage_protected_zone",
+            "async_step_delete_protected_zone",
+        ):
+            with self.subTest(method=method_name):
+                self.assertIn(method_name, options_methods)
+                self.assertIn(
+                    ("SmartShadingOptionsFlow", method_name),
+                    _qualified_attribute_calls(
+                        _method(self.config_flow, method_name)
+                    ),
+                )
+                method_source = ast.get_source_segment(
+                    source, _method(self.options_flow, method_name)
+                ) or ""
+                self.assertIn("if not self.advanced_mode", method_source)
+                self.assertIn("async_step_sector_hub", method_source)
+
+        zones_source = ast.get_source_segment(
+            source,
+            next(
+                node
+                for node in self.mixin.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "protected_zones"
+            ),
+        ) or ""
+        self.assertIn("_new_id", zones_source)
+        self.assertIn('zone["sector_id"]', zones_source)
+
+        selector_source = ast.get_source_segment(
+            source,
+            next(
+                node
+                for node in self.mixin.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_protected_zone_group_selector"
+            ),
+        ) or ""
+        self.assertIn("multiple=True", selector_source)
+
+        payload_source = ast.get_source_segment(
+            source,
+            next(
+                node
+                for node in self.mixin.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_validated_protected_zone_values"
+            ),
+        ) or ""
+        for field in (
+            "sector_id",
+            "group_ids",
+            "distance_m",
+            "lower_height_m",
+            "upper_height_m",
+            "lateral_min_m",
+            "lateral_max_m",
+            "target_position",
+            "target_tilt",
+        ):
+            self.assertIn(f'"{field}"', payload_source)
+        self.assertNotIn("distance_from_facade", payload_source)
+        self.assertNotIn("protection_strength", payload_source)
+
+        add_source = ast.get_source_segment(
+            source, _method(self.options_flow, "async_step_add_protected_zone")
+        ) or ""
+        delete_source = ast.get_source_segment(
+            source, _method(self.options_flow, "async_step_delete_protected_zone")
+        ) or ""
+        self.assertIn('zone_values["id"] = _new_id', add_source)
+        self.assertIn("confirm_delete_protected_zone", delete_source)
+
+    def test_advanced_execution_controls_stay_in_room_and_cover_forms(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        automation = ast.get_source_segment(
+            source, _method(self.options_flow, "async_step_manage_automation")
+        ) or ""
+        cover = ast.get_source_segment(
+            source, _method(self.options_flow, "async_step_manage_cover")
+        ) or ""
+        layer_profile = ast.get_source_segment(
+            source, _method(self.options_flow, "async_step_manage_layer_profile")
+        ) or ""
+
+        self.assertIn("if not self.advanced_mode", automation)
+        for field, default in (
+            ("command_stagger_seconds", "DEFAULT_STAGGER_SECONDS"),
+            ("stagger_scope", "DEFAULT_STAGGER_SCOPE"),
+            ("safety_bypasses_stagger", "DEFAULT_SAFETY_BYPASSES_STAGGER"),
+            ("target_verification_enabled", "False"),
+            ("verification_retries", "DEFAULT_VERIFICATION_RETRIES"),
+            ("movement_seconds", "DEFAULT_MOVEMENT_SECONDS"),
+            ("settling_seconds", "DEFAULT_SETTLING_SECONDS"),
+            ("source_stale_seconds", "DEFAULT_SOURCE_STALE_SECONDS"),
+        ):
+            with self.subTest(room_field=field):
+                self.assertIn(f'"{field}"', automation)
+                self.assertIn(default, automation)
+        self.assertIn('_number(0, 86400, 30, "s", mode="box")', automation)
+
+        self.assertIn("if self.advanced_mode:", cover)
+        self.assertIn("FEEDBACK_QUALITY_OPTIONS", cover)
+        self.assertIn('"feedback_quality"', cover)
+        self.assertIn('"verify_target"', cover)
+        self.assertIn('"allow_automatic_reverse"', cover)
+        self.assertIn("DEFAULT_ALLOW_AUTOMATIC_REVERSE", cover)
+
+        self.assertIn("self.advanced_mode and has_tilt", layer_profile)
+        self.assertIn('"opening_order"', layer_profile)
+        self.assertIn("OPENING_ORDER_OPTIONS", layer_profile)
 
     def test_object_creation_is_atomic_and_hierarchically_scoped(self):
         add_sector = _method(

@@ -17,19 +17,43 @@ def _install_ha_stubs() -> None:
     ha = types.ModuleType("homeassistant")
     components_mod = types.ModuleType("homeassistant.components")
     cover_mod = types.ModuleType("homeassistant.components.cover")
+    http_mod = types.ModuleType("homeassistant.components.http")
 
     class CoverEntityFeature(IntFlag):
         SET_POSITION = 4
         SET_TILT_POSITION = 128
 
     cover_mod.CoverEntityFeature = CoverEntityFeature
+
+    class StaticPathConfig:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    http_mod.StaticPathConfig = StaticPathConfig
+    config_entries_mod = types.ModuleType("homeassistant.config_entries")
+
+    class ConfigEntry:
+        @classmethod
+        def __class_getitem__(cls, item):
+            return cls
+
+    config_entries_mod.ConfigEntry = ConfigEntry
     const_mod = types.ModuleType("homeassistant.const")
     const_mod.STATE_ON = "on"
     const_mod.STATE_OFF = "off"
     core_mod = types.ModuleType("homeassistant.core")
     core_mod.HomeAssistant = object
+    exceptions_mod = types.ModuleType("homeassistant.exceptions")
+
+    class ServiceValidationError(ValueError):
+        pass
+
+    exceptions_mod.ServiceValidationError = ServiceValidationError
 
     helpers = types.ModuleType("homeassistant.helpers")
+    dr_mod = types.ModuleType("homeassistant.helpers.device_registry")
+    dr_mod.async_get = lambda hass: types.SimpleNamespace()
+    dr_mod.async_entries_for_config_entry = lambda registry, entry_id: []
     er_mod = types.ModuleType("homeassistant.helpers.entity_registry")
     er_mod.async_get = lambda hass: types.SimpleNamespace(async_get_entity_id=lambda *args: None)
     event_mod = types.ModuleType("homeassistant.helpers.event")
@@ -66,9 +90,13 @@ def _install_ha_stubs() -> None:
             "homeassistant": ha,
             "homeassistant.components": components_mod,
             "homeassistant.components.cover": cover_mod,
+            "homeassistant.components.http": http_mod,
+            "homeassistant.config_entries": config_entries_mod,
             "homeassistant.const": const_mod,
             "homeassistant.core": core_mod,
+            "homeassistant.exceptions": exceptions_mod,
             "homeassistant.helpers": helpers,
+            "homeassistant.helpers.device_registry": dr_mod,
             "homeassistant.helpers.entity_registry": er_mod,
             "homeassistant.helpers.event": event_mod,
             "homeassistant.helpers.storage": storage_mod,
@@ -94,16 +122,32 @@ smart_pkg = types.ModuleType("custom_components.smart_shading")
 smart_pkg.__path__ = [str(COMP)]
 sys.modules["custom_components"] = custom_pkg
 sys.modules["custom_components.smart_shading"] = smart_pkg
-for name in ("const", "logic", "models", "storage"):
+for name in ("const", "logic", "models", "storage", "decision", "execution"):
     _load(f"custom_components.smart_shading.{name}", COMP / f"{name}.py")
 engine_mod = _load("custom_components.smart_shading.engine", COMP / "engine.py")
+# Entry migration needs the integration's controller only for type wiring and
+# setup hooks.  Keep this isolated from the engine-runtime regression fixture:
+# the production controller is loaded by the dedicated manual-detection tests.
+controller_stub = types.ModuleType("custom_components.smart_shading.controller")
+controller_stub.SmartShadingEngine = engine_mod.SmartShadingEngine
+sys.modules[controller_stub.__name__] = controller_stub
+migration_mod = _load("custom_components.smart_shading", COMP / "__init__.py")
 models_mod = sys.modules["custom_components.smart_shading.models"]
 
 
 class FakeState:
-    def __init__(self, state: str, **attrs):
+    def __init__(
+        self,
+        state: str,
+        *,
+        last_updated: datetime | None = None,
+        last_changed: datetime | None = None,
+        **attrs,
+    ):
         self.state = state
         self.attributes = attrs
+        self.last_updated = last_updated
+        self.last_changed = last_changed or last_updated
 
 
 class FakeStates:
@@ -158,6 +202,32 @@ class FakeEntry:
         self.data = data
         self.options = {}
         self.title = "Test"
+
+
+class FakeMigrationEntry:
+    """Small ConfigEntry stand-in that exposes the schema-15 snapshots."""
+
+    def __init__(self, data, options, *, version=15):
+        self.data = data
+        self.options = options
+        self.version = version
+
+
+class FakeMigrationConfigEntries:
+    """Record Home Assistant's atomic migration update for assertions."""
+
+    def __init__(self):
+        self.updates = []
+
+    def async_update_entry(self, entry, **values):
+        self.updates.append(dict(values))
+        for key, value in values.items():
+            setattr(entry, key, value)
+
+
+class FakeMigrationHass:
+    def __init__(self):
+        self.config_entries = FakeMigrationConfigEntries()
 
 
 class FakeEvent:
@@ -227,6 +297,217 @@ def base_config():
             }
         ],
     }
+
+
+class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    """Exercise the real entry migration with the lightweight HA fixture."""
+
+    @staticmethod
+    def _schema_15_payload(*, advanced: bool) -> dict:
+        mode = "advanced" if advanced else "easy"
+        return {
+            "house_name": "v4.6.2 fixture",
+            "sun_entity": "sun.sun",
+            "advanced_mode": advanced,
+            "evaluation_interval": 1200,
+            "rooms": [
+                {
+                    "id": f"{mode}-room",
+                    "name": f"{mode.title()} room",
+                    "sectors": [
+                        {
+                            "id": f"{mode}-sector",
+                            "name": f"{mode.title()} sector",
+                            "sun_source": "geometry",
+                            "layers": [
+                                {
+                                    "id": f"{mode}-layer",
+                                    "name": f"{mode.title()} layer",
+                                    "profile": "venetian",
+                                    "covers": [
+                                        {
+                                            "id": f"{mode}-cover",
+                                            "entity": f"cover.{mode}",
+                                            "name": f"{mode.title()} cover",
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def _assert_hierarchy(self, config: dict, *, mode: str) -> None:
+        room = config["rooms"][0]
+        sector = room["sectors"][0]
+        layer = sector["layers"][0]
+        cover = layer["covers"][0]
+        self.assertEqual(room["id"], f"{mode}-room")
+        self.assertEqual(sector["id"], f"{mode}-sector")
+        self.assertEqual(layer["id"], f"{mode}-layer")
+        self.assertEqual(cover["id"], f"{mode}-cover")
+        self.assertEqual(cover["entity"], f"cover.{mode}")
+
+    async def test_schema_16_re_normalizes_v4_6_2_advanced_and_easy_entries(self):
+        """Schema 15 stable snapshots gain or lose the Issue #79 surface."""
+        advanced_data = self._schema_15_payload(advanced=True)
+        advanced_room_seed = advanced_data["rooms"][0]
+        advanced_room_seed.update(
+            {
+                "stagger_scope": "crafted-invalid-scope",
+                "safety_bypasses_stagger": "not-a-boolean",
+            }
+        )
+        advanced_layer_seed = advanced_room_seed["sectors"][0]["layers"][0]
+        advanced_layer_seed["opening_order"] = "crafted-invalid-order"
+        advanced_layer_seed["covers"][0]["allow_automatic_reverse"] = "yes"
+        advanced_options = deepcopy(advanced_data)
+        advanced_options["migration_option_marker"] = "advanced-options"
+        advanced_options["rooms"][0]["name"] = "Advanced option room"
+        advanced_entry = FakeMigrationEntry(advanced_data, advanced_options)
+        advanced_hass = FakeMigrationHass()
+
+        self.assertTrue(
+            await migration_mod.async_migrate_entry(advanced_hass, advanced_entry)
+        )
+        self.assertEqual(advanced_entry.version, 16)
+        self.assertEqual(len(advanced_hass.config_entries.updates), 1)
+        self._assert_hierarchy(advanced_entry.data, mode="advanced")
+        self._assert_hierarchy(advanced_entry.options, mode="advanced")
+        self.assertEqual(
+            advanced_entry.options["migration_option_marker"], "advanced-options"
+        )
+        self.assertEqual(
+            advanced_entry.options["rooms"][0]["name"], "Advanced option room"
+        )
+        self.assertNotIn("advanced_mode", advanced_entry.options)
+        advanced_room = advanced_entry.data["rooms"][0]
+        for key, expected in migration_mod.ADVANCED_EXECUTION_ROOM_DEFAULTS.items():
+            with self.subTest(mode="advanced", field=key):
+                self.assertEqual(advanced_room[key], expected)
+        advanced_layer = advanced_room["sectors"][0]["layers"][0]
+        self.assertEqual(
+            advanced_layer["movement_seconds"], advanced_room["movement_seconds"]
+        )
+        self.assertEqual(
+            advanced_layer["settling_seconds"], advanced_room["settling_seconds"]
+        )
+        self.assertEqual(
+            advanced_layer["opening_order"],
+            migration_mod.DEFAULT_OPENING_ORDER,
+        )
+        advanced_cover = advanced_layer["covers"][0]
+        self.assertEqual(advanced_cover["feedback_quality"], "trusted")
+        self.assertFalse(advanced_cover["verify_target"])
+        self.assertFalse(advanced_cover["allow_automatic_reverse"])
+
+        easy_data = self._schema_15_payload(advanced=False)
+        easy_room = easy_data["rooms"][0]
+        easy_room.update(
+            {
+                "command_stagger_seconds": 17,
+                "stagger_scope": "house",
+                "safety_bypasses_stagger": False,
+                "target_verification_enabled": True,
+                "verification_retries": 9,
+                "movement_seconds": 41,
+                "settling_seconds": 12,
+                "source_stale_seconds": 1800,
+            }
+        )
+        easy_sector = easy_room["sectors"][0]
+        easy_sector["protected_zones"] = [
+            {
+                "id": "beta-zone",
+                "name": "Crafted Advanced value",
+                "group_ids": ["easy-layer"],
+            }
+        ]
+        easy_layer = easy_sector["layers"][0]
+        easy_layer.update(
+            {
+                "movement_seconds": 41,
+                "settling_seconds": 12,
+                "opening_order": "tilt_then_height",
+            }
+        )
+        easy_layer["covers"][0].update(
+            {
+                "feedback_quality": "none",
+                "verify_target": True,
+                "allow_automatic_reverse": True,
+            }
+        )
+        easy_options = deepcopy(easy_data)
+        # A stale full options snapshot must not be able to turn an Easy entry
+        # into Advanced mode during migration.
+        easy_options["advanced_mode"] = True
+        easy_options["migration_option_marker"] = "easy-options"
+        easy_options["rooms"][0]["name"] = "Easy option room"
+        easy_entry = FakeMigrationEntry(easy_data, easy_options)
+        easy_hass = FakeMigrationHass()
+
+        self.assertTrue(
+            await migration_mod.async_migrate_entry(easy_hass, easy_entry)
+        )
+        self.assertEqual(easy_entry.version, 16)
+        self.assertEqual(len(easy_hass.config_entries.updates), 1)
+        self._assert_hierarchy(easy_entry.data, mode="easy")
+        self._assert_hierarchy(easy_entry.options, mode="easy")
+        self.assertEqual(
+            easy_entry.options["migration_option_marker"], "easy-options"
+        )
+        self.assertEqual(easy_entry.options["rooms"][0]["name"], "Easy option room")
+        self.assertNotIn("advanced_mode", easy_entry.options)
+        for snapshot_name, snapshot in (
+            ("data", easy_entry.data),
+            ("options", easy_entry.options),
+        ):
+            room = snapshot["rooms"][0]
+            sector = room["sectors"][0]
+            layer = sector["layers"][0]
+            cover = layer["covers"][0]
+            for key in migration_mod.ADVANCED_EXECUTION_ROOM_DEFAULTS:
+                with self.subTest(
+                    mode="easy", snapshot=snapshot_name, field=key
+                ):
+                    self.assertNotIn(key, room)
+            self.assertNotIn("protected_zones", sector)
+            self.assertNotIn("movement_seconds", layer)
+            self.assertNotIn("settling_seconds", layer)
+            self.assertNotIn("opening_order", layer)
+            self.assertNotIn("feedback_quality", cover)
+            self.assertNotIn("verify_target", cover)
+            self.assertNotIn("allow_automatic_reverse", cover)
+
+    async def test_preview_service_routes_only_to_a_loaded_matching_room(self):
+        """The Card-facing preview service is narrow, async, and non-actuating."""
+        received: list[tuple[str, object]] = []
+
+        class PreviewEngine:
+            rooms = {"room": object()}
+
+            async def async_preview_room_day(self, room_id, *, date=None):
+                received.append((room_id, date))
+
+        engine = PreviewEngine()
+        hass = types.SimpleNamespace(
+            data={migration_mod._ENGINE_REGISTRY: {"entry": engine}}
+        )
+        call = types.SimpleNamespace(
+            data={"entry_id": "entry", "room_id": "room", "date": "2031-06-21"}
+        )
+        await migration_mod._async_preview_day_service(hass, call)
+        self.assertEqual(received, [("room", "2031-06-21")])
+        with self.assertRaises(migration_mod.ServiceValidationError):
+            await migration_mod._async_preview_day_service(
+                hass,
+                types.SimpleNamespace(
+                    data={"entry_id": "entry", "room_id": "missing"}
+                ),
+            )
 
 
 class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -778,6 +1059,46 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await engine.async_evaluate_all(f"advanced_{unit}_above_heat")
                 self.assertEqual(engine.rooms["room"].mode, "heat")
 
+    async def test_decision_snapshot_temperatures_are_celsius_with_source_units(self):
+        """Pure/virtual decisions must share live temperature semantics."""
+        for unit, indoor_raw, outdoor_raw, expected_indoor, expected_outdoor in (
+            ("°F", "80", "68", 26.6667, 20.0),
+            ("K", "300", "293.15", 26.85, 20.0),
+        ):
+            with self.subTest(unit=unit):
+                config = base_config()
+                room = config["rooms"][0]
+                room.update(
+                    {
+                        "indoor_temperature": "sensor.indoor",
+                        "outdoor_temperature": "sensor.outdoor",
+                    }
+                )
+                self.hass.states.values["sensor.indoor"] = FakeState(
+                    indoor_raw, unit_of_measurement=unit
+                )
+                self.hass.states.values["sensor.outdoor"] = FakeState(
+                    outdoor_raw, unit_of_measurement=unit
+                )
+                engine = engine_mod.SmartShadingEngine(
+                    self.hass, FakeEntry(config)
+                )
+                await engine.async_initialize()
+
+                snapshot = engine._advanced_input_snapshot(
+                    engine.room_config("room"), datetime.now(timezone.utc)
+                )
+                indoor = snapshot.get("indoor_temperature")
+                outdoor = snapshot.get("outdoor_temperature")
+                self.assertAlmostEqual(indoor.value, expected_indoor, places=3)
+                self.assertAlmostEqual(outdoor.value, expected_outdoor, places=3)
+                self.assertEqual(indoor.raw_value, indoor_raw)
+                self.assertEqual(outdoor.raw_value, outdoor_raw)
+                self.assertEqual(indoor.unit, "°C")
+                self.assertEqual(outdoor.unit, "°C")
+                self.assertEqual(indoor.details["source_unit"], unit)
+                self.assertEqual(outdoor.details["normalized_unit"], "°C")
+
     async def test_easy_without_outdoor_sensor_ignores_weather_temperature(self):
         config = base_config()
         config.update({"advanced_mode": False, "weather_entity": "weather.home"})
@@ -867,7 +1188,11 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
             engine.async_evaluate_all = fake_evaluate
             engine_mod.dt_util.now = lambda: start + timedelta(minutes=1, seconds=1)
-            await callbacks[-1](None)
+            # The external-movement path now performs an immediate normal
+            # re-evaluation as well, which may schedule later lifecycle
+            # timers.  The first callback is the local-pause expiry we are
+            # exercising here.
+            await callbacks[0](None)
             self.assertTrue(engine.sun_runtime["south"].is_on)
             self.assertEqual(evaluations, ["sun_presence_timer:south"])
         finally:
@@ -906,7 +1231,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "cover_runtime": {"cover_one": {"active": True}},
         }
         await store.async_load()
-        self.assertEqual(store.data["runtime_schema"], 4)
+        self.assertEqual(store.data["runtime_schema"], 5)
         self.assertEqual(store.data["room_runtime"]["room"]["suppressed_commands"], 0)
         self.assertEqual(store.data["room_runtime"]["room"]["sent_commands"], 5)
         self.assertTrue(store.data["cover_runtime"]["cover_one"]["active"])
@@ -927,7 +1252,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         }
         await store.async_load()
         layer = store.data["overrides"]["layer"]["layer"]
-        self.assertEqual(store.data["runtime_schema"], 4)
+        self.assertEqual(store.data["runtime_schema"], 5)
         self.assertEqual(layer["tilt_value_1"], 90.0)
         self.assertEqual(layer["heat_tilt"], 100.0)
         self.assertEqual(layer["open_position"], 100)
@@ -952,7 +1277,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         await store.async_load()
 
-        self.assertEqual(store.data["runtime_schema"], 4)
+        self.assertEqual(store.data["runtime_schema"], 5)
         self.assertEqual(
             store.data["overrides"]["room"]["room"][
                 "pause_duration_hours"
@@ -991,6 +1316,29 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(
             "pause_hours", engine.store.room_runtime("room")
         )
+
+    async def test_runtime_store_migrates_schema_four_ledger_queue_and_heat_phase(self):
+        store = self.engine.store
+        store._store.value = {
+            "runtime_schema": 4,
+            "command_ledger": {"cover_one": {"schema": 1, "marker": "keep"}},
+            "queued_commands": {"first": {"cover_id": "cover_one", "axis": "tilt"}},
+            "decision_traces": {"room": {"marker": "keep"}},
+            "room_runtime": {"room": {"heat_active": True}},
+        }
+
+        await store.async_load()
+
+        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(
+            store.data["command_ledger"]["cover_one"]["marker"], "keep"
+        )
+        self.assertEqual(
+            store.queued_commands(),
+            [{"cover_id": "cover_one", "axis": "tilt"}],
+        )
+        self.assertEqual(store.data["decision_traces"]["room"]["marker"], "keep")
+        self.assertEqual(store.data["room_runtime"]["room"]["heat_phase"], "active")
 
     async def test_runtime_store_can_clear_folded_configuration_overrides(self):
         store = self.engine.store
@@ -1157,6 +1505,453 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.rooms["room"].mode, "solar")
         cover_calls = [call for call in self.hass.services.calls if call[0] == "cover"]
         self.assertTrue(any(call[1] == "set_cover_position" and call[2].get("position") == 0 for call in cover_calls))
+
+    async def test_advanced_evaluation_persists_a_complete_live_decision_trace(self):
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        await self.engine._evaluate_room(
+            self.engine.room_config("room"),
+            datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc),
+        )
+
+        trace = self.engine.rooms["room"].decision_trace
+        self.assertEqual(trace["mode"], self.engine.rooms["room"].mode)
+        self.assertEqual(trace["winner"]["mode"], self.engine.rooms["room"].mode)
+        self.assertTrue(trace["entries"])
+        self.assertIn("sun_azimuth", trace["input_snapshot"]["inputs"])
+        self.assertTrue(trace["target_decisions"])
+
+    async def test_protected_zone_changes_only_the_scoped_solar_layer_target(self):
+        room = self.engine.room_config("room")
+        sector = self.engine.sector_config("south")
+        sector["protected_zones"] = [
+            {
+                "id": "desk",
+                "name": "Desk",
+                "group_ids": ["layer"],
+                "enabled": True,
+                "distance_m": 1.5,
+                "lower_height_m": 0.2,
+                "upper_height_m": 0.8,
+                "target_position": 15,
+                "target_tilt": 95,
+            }
+        ]
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        await self.engine._evaluate_room(
+            room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        )
+
+        target = self.engine.rooms["room"].targets[0]
+        # Venetian Solar already uses the maximally protective height. The
+        # zone still narrows the slat target and remains fully traceable.
+        self.assertEqual(target["position"], 0.0)
+        self.assertEqual(target["tilt"], 95.0)
+        zone = self.engine.rooms["room"].decision_trace["target_decisions"][0]["decision"]["trace"]["protected_zones"][0]
+        self.assertEqual(zone["zone_id"], "desk")
+        self.assertEqual(zone["status"], "hit")
+
+    async def test_quality_hold_prevents_new_solar_cover_service(self):
+        room = self.engine.room_config("room")
+        room["source_stale_seconds"] = 1
+        self.hass.states.values["sensor.lux"] = FakeState(
+            "26398.72",
+            unit_of_measurement="lx",
+            last_updated=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.hass.services.calls.clear()
+
+        await self.engine._evaluate_room(room, datetime.now(timezone.utc))
+
+        self.assertEqual(self.engine.rooms["room"].mode, "idle")
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+        trace = self.engine.rooms["room"].decision_trace["target_decisions"][0]
+        self.assertTrue(trace["held"])
+        self.assertEqual(trace["decision"]["mode"], "idle")
+
+    async def test_safety_trace_keeps_real_solar_candidate_as_rejected(self):
+        """Safety wins actions without hiding simultaneous Solar conditions."""
+        room = self.engine.room_config("room")
+        room["safety_blockers"] = ["binary_sensor.wind"]
+        self.engine.sector_config("south")["sun_source"] = "geometry"
+        self.hass.states.values["binary_sensor.wind"] = FakeState("on")
+
+        await self.engine._evaluate_room(room, datetime.now(timezone.utc))
+
+        trace = self.engine.rooms["room"].decision_trace
+        self.assertEqual(trace["winner"]["rule"], "safety")
+        solar = next(
+            candidate for candidate in trace["rejected"] if candidate["rule"] == "solar"
+        )
+        self.assertTrue(solar["matched"])
+        self.assertEqual(solar["reason_code"], "solar_conditions_met")
+        facts = trace["decision"]["trace"]["context_details"]["decision_facts"]
+        self.assertTrue(facts["safety_active"])
+        self.assertTrue(facts["solar_active"])
+
+    async def test_simulation_and_preview_never_call_cover_services(self):
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.hass.services.calls.clear()
+
+        simulation = await self.engine.async_simulate_room(
+            "room", {"sun_elevation": "unavailable"}
+        )
+        now = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        preview = await self.engine.async_preview_room_day(
+            "room",
+            [
+                {"at": now, "mode": "open", "label": "open"},
+                {
+                    "at": now + timedelta(hours=1),
+                    "mode": "solar",
+                    "label": "solar",
+                },
+            ],
+        )
+
+        self.assertTrue(simulation["available"])
+        self.assertTrue(self.engine.rooms["room"].simulation_active)
+        self.assertTrue(preview["available"])
+        self.assertTrue(preview["day_preview"]["samples"])
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+
+    async def test_virtual_inputs_recompute_simulation_and_preview_facts(self):
+        """Virtual sun/Lux values must not reuse the live sector mode."""
+        self.engine.sun_runtime["south"].is_on = False
+        self.engine.sun_runtime["south"].current_lux = 0.0
+        at = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+
+        dark = await self.engine.async_simulate_room(
+            "room",
+            {"at": at, "sun_state": "below_horizon"},
+        )
+        bright = await self.engine.async_simulate_room(
+            "room",
+            {"at": at, "lux": 30000},
+        )
+        self.assertEqual(dark["result"]["mode"], "open")
+        self.assertEqual(bright["result"]["mode"], "solar")
+
+        preview = await self.engine.async_preview_room_day(
+            "room",
+            [
+                {
+                    "at": at,
+                    "label": "dark",
+                    "overrides": {"sun_state": "below_horizon"},
+                },
+                {
+                    "at": at + timedelta(hours=1),
+                    "label": "bright",
+                    "overrides": {"lux": 30000},
+                },
+            ],
+        )
+        modes = {
+            sample["label"]: sample["result"]["mode"]
+            for sample in preview["preview"]["samples"]
+        }
+        self.assertEqual(modes, {"dark": "open", "bright": "solar"})
+
+    async def test_simulation_projects_virtual_per_cover_constraints(self):
+        """A virtual unsafe window/lock/pause blocks only the simulated cover."""
+        cover = self.engine.config["rooms"][0]["sectors"][0]["layers"][0][
+            "covers"
+        ][0]
+        cover.update(
+            {
+                "window": "binary_sensor.window",
+                "window_safe_state": "on",
+                "window_policy": "block_all",
+            }
+        )
+        self.hass.states.values["binary_sensor.window"] = FakeState("on")
+        at = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        self.hass.services.calls.clear()
+
+        unsafe_window = await self.engine.async_simulate_room(
+            "room",
+            {
+                "at": at,
+                "lux": 30000,
+                "cover:cover_one:window_state": "off",
+            },
+        )
+        window_target = unsafe_window["results"][0]["cover_targets"][0]
+        self.assertEqual(window_target["command_result"], "blocked")
+        self.assertIn("unsafe_window", window_target["constraints"])
+        self.assertEqual(window_target["command_position"], 0.0)
+
+        locked = await self.engine.async_simulate_room(
+            "room",
+            {"at": at, "lux": 30000, "cover:cover_one:lock_active": True},
+        )
+        lock_target = locked["results"][0]["cover_targets"][0]
+        self.assertEqual(lock_target["command_result"], "blocked")
+        self.assertIn("automation_lock", lock_target["constraints"])
+
+        paused = await self.engine.async_simulate_room(
+            "room",
+            {"at": at, "lux": 30000, "cover:cover_one:pause_active": True},
+        )
+        pause_target = paused["results"][0]["cover_targets"][0]
+        self.assertEqual(pause_target["command_result"], "blocked")
+        self.assertIn("cover_paused_until_morning", pause_target["constraints"])
+
+        # Binary covers have no numeric position attribute in many HA
+        # integrations.  The projection must mirror the real adapter and use
+        # open/closed state so an already-open virtual target is not reported
+        # as an unnecessary simulated command.
+        layer = self.engine.config["rooms"][0]["sectors"][0]["layers"][0]
+        layer["profile"] = "binary_cover"
+        cover.pop("window", None)
+        cover.pop("window_policy", None)
+        self.hass.states.values[cover["entity"]] = FakeState("open")
+        binary_open = await self.engine.async_simulate_room(
+            "room", {"at": at, "sun_state": "below_horizon"}
+        )
+        binary_target = binary_open["results"][0]["cover_targets"][0]
+        self.assertEqual(binary_target["current_position"], 100.0)
+        self.assertEqual(binary_target["command_result"], "suppressed")
+        self.assertEqual(binary_target["reason_code"], "target_within_tolerance")
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+
+    async def test_selected_day_preview_uses_virtual_solar_geometry_and_boundaries(self):
+        """A chosen date must not replay the current ``sun.sun`` coordinates."""
+        previous_modules = {
+            name: sys.modules.get(name) for name in ("astral", "astral.sun")
+        }
+        astral_mod = types.ModuleType("astral")
+        sun_mod = types.ModuleType("astral.sun")
+
+        class Observer:
+            def __init__(self, *, latitude, longitude):
+                self.latitude = latitude
+                self.longitude = longitude
+
+        def azimuth(_observer, at):
+            return ((at.hour + at.minute / 60) * 15.0) % 360.0
+
+        def elevation(_observer, at):
+            hour = at.hour + at.minute / 60
+            return 60.0 - abs(hour - 12.0) * 10.0
+
+        def solar_events(_observer, *, date, tzinfo=None):
+            return {
+                "sunrise": datetime(
+                    date.year, date.month, date.day, 6, 0, tzinfo=tzinfo
+                ),
+                "sunset": datetime(
+                    date.year, date.month, date.day, 18, 0, tzinfo=tzinfo
+                ),
+            }
+
+        astral_mod.Observer = Observer
+        sun_mod.azimuth = azimuth
+        sun_mod.elevation = elevation
+        sun_mod.sun = solar_events
+        sys.modules["astral"] = astral_mod
+        sys.modules["astral.sun"] = sun_mod
+
+        def restore_astral_modules():
+            for name, module in previous_modules.items():
+                if module is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = module
+
+        self.addCleanup(restore_astral_modules)
+        self.hass.config.latitude = 49.61
+        self.hass.config.longitude = 6.13
+        room = self.engine.room_config("room")
+        room.update({"night_enabled": True, "night_source": "sun"})
+        self.engine.sector_config("south")["sun_source"] = "geometry"
+        self.hass.services.calls.clear()
+
+        preview = await self.engine.async_preview_room_day(
+            "room", {"date": "2031-06-21"}
+        )
+
+        data = preview["preview"]
+        samples = data["samples"]
+        self.assertEqual(preview["date"], "2031-06-21")
+        self.assertEqual(data["assumptions"]["solar_source"], "astral")
+        self.assertGreater(len(samples), 280)
+        self.assertTrue(
+            all(
+                "scope" in sample and "sun" in sample and "reason_code" in sample
+                for sample in samples
+            )
+        )
+        self.assertTrue(any(sample["sun"]["elevation"] < 0 for sample in samples))
+        self.assertTrue(any(sample["sun"]["elevation"] >= 60 for sample in samples))
+        self.assertTrue(data["sector_periods"])
+        period = data["sector_periods"][0]
+        self.assertTrue(period["started_at"].startswith("2031-06-21T08:"))
+        self.assertTrue(period["ended_at"].startswith("2031-06-21T16:"))
+        solar_targets = {
+            sample["result"]["target"]["tilt"]
+            for sample in samples
+            if sample["result"]["mode"] == "solar"
+            and sample["result"].get("target")
+        }
+        self.assertGreaterEqual(len(solar_targets), 3)
+        self.assertTrue(
+            any(
+                transition["scope"]["sector_id"] == "south"
+                for transition in data["transitions"]
+            )
+        )
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+
+        # Legacy preview callers can still pass a mode field, but it no longer
+        # fakes candidates ahead of the production resolver.
+        noon = await self.engine.async_preview_room_day(
+            "room",
+            [
+                {
+                    "at": datetime(2031, 6, 21, 12, 0, tzinfo=timezone.utc),
+                    "mode": "open",
+                }
+            ],
+        )
+        self.assertEqual(noon["preview"]["samples"][0]["result"]["mode"], "solar")
+        self.assertTrue(noon["ignored_mode_hints"])
+
+    async def test_geometry_boundary_timer_schedules_sector_entry_exactly(self):
+        """Facade entry is an exact event, not a watchdog-only evaluation."""
+        room = self.engine.room_config("room")
+        now = datetime(2031, 6, 21, 8, 0, tzinfo=timezone.utc)
+        scheduled = []
+        queued = []
+        original_geometry = self.engine._virtual_solar_geometry
+        original_call_later = engine_mod.async_call_later
+        original_now = engine_mod.dt_util.now
+        original_queue = self.engine._queue_evaluation
+
+        def geometry(at, *, trajectory=None):
+            elapsed_minutes = (at - now).total_seconds() / 60.0
+            return (
+                {
+                    "sun_state": "above_horizon",
+                    "sun_azimuth": 100.0 + elapsed_minutes,
+                    "sun_elevation": 35.0,
+                },
+                "astral",
+            )
+
+        def call_later(_hass, seconds, callback):
+            scheduled.append((seconds, callback))
+            return lambda: None
+
+        async def queue(trigger, *, immediate=False):
+            queued.append((trigger, immediate))
+
+        self.engine._virtual_solar_geometry = geometry
+        self.engine._queue_evaluation = queue
+        engine_mod.async_call_later = call_later
+        engine_mod.dt_util.now = lambda: now
+
+        def restore_timer_dependencies():
+            self.engine._virtual_solar_geometry = original_geometry
+            self.engine._queue_evaluation = original_queue
+            engine_mod.async_call_later = original_call_later
+            engine_mod.dt_util.now = original_now
+
+        self.addCleanup(restore_timer_dependencies)
+        self.engine._schedule_geometry_boundary_timer(room, now)
+
+        self.assertEqual(len(scheduled), 1)
+        seconds, callback = scheduled[0]
+        self.assertAlmostEqual(seconds, 20 * 60 + 0.1, delta=1.1)
+        await callback(None)
+        self.assertEqual(queued, [("geometry_boundary:room", True)])
+
+    async def test_disabled_sector_never_plans_open_fallback(self):
+        sector = self.engine.sector_config("south")
+        sector["enabled"] = False
+        self.hass.services.calls.clear()
+
+        await self.engine.async_evaluate_all("disabled_sector")
+
+        self.assertEqual(self.engine.sun_runtime["south"].mode, "disabled")
+        self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
+
+    async def test_verification_outcome_persists_trace_without_a_due_retry(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "target_verification_enabled": True,
+                "verification_retries": 0,
+                "movement_seconds": 0,
+                "settling_seconds": 0,
+            }
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        start = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        original_now = engine_mod.dt_util.now
+        notifications: list[bool] = []
+        remove = self.engine.async_add_listener(lambda: notifications.append(True))
+        engine_mod.dt_util.now = lambda: start
+        try:
+            await self.engine.async_evaluate_all("verification_setup")
+            entry = self.engine.command_planner.ledger_entry("cover_one")
+            self.assertIsNotNone(entry)
+            assert entry is not None
+            self.assertEqual(entry.result.value, "sent")
+            engine_mod.dt_util.now = lambda: start + timedelta(minutes=2)
+            before_notifications = len(notifications)
+            await self.engine._verify_due_command_lifecycles()
+        finally:
+            engine_mod.dt_util.now = original_now
+            remove()
+
+        target = self.engine.rooms["room"].targets[0]
+        self.assertEqual(target["command_result"], "target_not_reached")
+        self.assertEqual(
+            self.engine.rooms["room"].decision_trace["command_results"][0]["status"],
+            "target_not_reached",
+        )
+        nested = self.engine.rooms["room"].decision_trace["target_decisions"][0]["covers"][0]["command"]
+        self.assertEqual(nested["trace"]["command_result"]["status"], "target_not_reached")
+        self.assertEqual(
+            self.engine.store.data["decision_traces"]["room"]["command_results"][0]["status"],
+            "target_not_reached",
+        )
+        self.assertGreater(len(notifications), before_notifications)
+
+    async def test_trusted_feedback_persists_target_reached_trace(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "target_verification_enabled": True,
+                "movement_seconds": 0,
+                "settling_seconds": 0,
+            }
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 26398.72
+        start = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        original_now = engine_mod.dt_util.now
+        engine_mod.dt_util.now = lambda: start
+        try:
+            await self.engine.async_evaluate_all("feedback_setup")
+            await self.engine._record_command_feedback(
+                "cover.one",
+                FakeState("closed", current_position=0, current_tilt_position=65),
+            )
+        finally:
+            engine_mod.dt_util.now = original_now
+
+        target = self.engine.rooms["room"].targets[0]
+        self.assertEqual(target["command_result"], "target_reached")
+        nested = self.engine.rooms["room"].decision_trace["target_decisions"][0]["covers"][0]["command"]
+        self.assertEqual(nested["trace"]["command_result"]["status"], "target_reached")
 
     async def test_sun_presence_on_still_respects_sector_geometry(self):
         self.engine.sun_runtime["south"].is_on = True
@@ -1409,7 +2204,11 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             async def fake_evaluate(trigger):
                 calls.append(trigger)
             self.engine.async_evaluate_all = fake_evaluate
-            await callbacks[-1](None)
+            # The external-movement path performs an immediate normal
+            # evaluation too, which may append a Lux/schedule timer.  The
+            # first scheduled callback remains the local-pause expiry under
+            # test here.
+            await callbacks[0](None)
             self.assertEqual(self.hass.states.get("switch.cover_lock").state, "off")
             self.assertFalse(self.engine.cover_pauses["cover_one"].active)
             self.assertEqual(len(calls), 1)
@@ -1444,6 +2243,20 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine._async_state_changed(FakeEvent("cover.one", old, new))
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(calls, ["safety_manual_cover:cover.one"])
+
+    async def test_manual_cover_move_re_evaluates_normal_trace_immediately(self):
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        self.engine.async_evaluate_all = fake_evaluate
+        old = FakeState("open", current_position=100, current_tilt_position=100)
+        new = FakeState("closing", current_position=70, current_tilt_position=100)
+        await self.engine._async_state_changed(FakeEvent("cover.one", old, new))
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(calls, ["external_manual_cover:cover.one"])
 
     async def test_normal_temperature_change_is_deferred_but_window_is_immediate(self):
         config = base_config()
@@ -1685,7 +2498,15 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(engine.rooms["room"].mode, "night")
         commands = [call for call in self.hass.services.calls if call[0] == "cover"]
         self.assertTrue(any(call[2].get("position") == 0 for call in commands))
-        self.assertTrue(any(call[2].get("tilt_position") == 100 for call in commands))
+        # Venetian profiles deliberately sequence height before slat tilt. The
+        # second step is persisted for the configured settling boundary rather
+        # than being dispatched in the same service turn.
+        self.assertTrue(
+            any(
+                step.axis == "tilt" and step.target == 100
+                for step in engine.command_planner.pending_steps
+            )
+        )
 
     async def test_basic_mode_ignores_stored_night_configuration(self):
         config = base_config()

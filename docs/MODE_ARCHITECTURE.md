@@ -15,6 +15,25 @@ Smart Shading separates runtime decisions from configuration presentation.
 
 Safety has higher priority than ordinary shading, room pauses, and local cover pauses.
 
+Advanced resolves normal decisions through the fixed order Safety → Manual /
+Pause → Night → Heat Protection → input-quality hold → Solar → Comfort → Open.
+Every candidate, including rejected candidates, is retained with normalized
+input quality and a stable reason code. Physical command planning is a separate
+stage: it persists ownership per cover, sequences height before slats where
+required, and may perform one bounded feedback verification without introducing
+a polling loop.
+
+Advanced execution controls remain deliberately small and grouped with their
+physical behavior: normal automatic reversal after an external takeover is
+opt-in, stagger queues can be room-local or house-wide (with an explicit Safety
+bypass), and slatted profiles can opt into a safe slats-before-height opening
+order. Easy stores none of these controls.
+
+Protected zones are not another mode. They are Advanced-only Solar target
+adjustments scoped to a sector and optionally to cover groups. Each zone keeps
+its geometry result in the trace; simultaneous valid intersections choose the
+most protective valid target.
+
 ## Setup variants
 
 The customer chooses one variant when creating the config entry. Both variants
@@ -38,6 +57,15 @@ The physical cover profile is the capability source for both variants. It
 defines movement semantics, defaults, editable targets, per-cover settings,
 entities and card presentation. A profile change resets incompatible values
 while retaining the assigned covers.
+
+## Simulation and preview
+
+Advanced simulation evaluates the same normalized input snapshot and decision
+resolver as normal automation, but never passes a result to the command
+executor. The Details dialog can request a day preview for a selected local
+date; the narrow `smart_shading.preview_day` service accepts only a room ID,
+optional configuration-entry ID, and date. It cannot issue physical cover
+commands or override rule priorities.
 
 ## Wizard navigation
 

@@ -56,8 +56,10 @@ created. It has no separate Easy/Advanced switch.
   an explicit automation turns it off.
 - **Advanced Mode** adds configurable geometry, Lux or external sun
   confirmation, temperatures, schedules, Safety, Pause, Heat Protection,
-  Night Mode, diagnostics, per-cover Manual Override entities, and optional
-  external-movement detection.
+  Night Mode, diagnostics, per-cover Manual Override entities, optional
+  external-movement detection, explainable decision traces, bounded target
+  verification, staggered commands, simulation, day preview, and protected
+  glare zones.
 
 The setup variant is fixed for the config entry. To use the other variant,
 create a new Smart Shading entry and configure it from the beginning. New
@@ -71,6 +73,31 @@ separate alternative where `on` means direct sun. Sources are never combined
 and there is no hidden weather fallback. If an explicitly selected source is
 unavailable, normal shading waits instead of guessing. Without an outdoor
 temperature sensor, outdoor temperature is ignored entirely.
+
+### Advanced decision, execution, and glare protection
+
+Advanced evaluates source changes event-by-event and combines related updates
+into one short debounced decision. The configured evaluation interval is only a
+recovery watchdog; it does not repeatedly resend an unchanged target.
+
+The room-status Card and diagnostic export show the selected rule, rejected
+rules, input quality, resulting cover targets, and command lifecycle. A target
+can be verified once after its expected movement time and retried only within
+the configured bound. Venetian and vertical-blind height movement is always
+completed before a delayed slat correction. A newer higher-priority target,
+especially Safety, cancels obsolete delayed work.
+
+In **Sun sector → Glare protection**, Advanced users can add protected zones
+with a measured distance, protected height range, optional lateral range,
+affected cover groups, and stricter position/slat targets. Zones participate
+only in Solar shading. A valid direct-sun intersection chooses the most
+protective applicable target; incomplete geometry is shown in the trace and
+leaves ordinary Solar shading safe and unchanged. Easy Mode has neither the
+configuration nor the runtime controls for this feature.
+
+Simulation and day preview reuse the production decision path but never call a
+cover service. They are intended for testing a virtual input change or a
+sequence of day-boundary snapshots before changing physical covers.
 
 The cover type is a functional profile, not only a label. Exterior venetian
 blinds and vertical blinds receive position plus slat guidance; roller
@@ -123,7 +150,7 @@ Releases use two deliberate maintainer gates:
 2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
 3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
 
-The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published Smart Shading tag. Afterwards, a hosted job uses the official HACS backend to resolve the published tag, downloads the same public source archive HACS sees, and runs that artifact in a fresh Home Assistant instance. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md).
+The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published stable Smart Shading tag. Afterwards, a hosted job uses the official HACS backend to resolve the published tag, downloads the same public source archive HACS sees, and runs that artifact in a fresh Home Assistant instance. The HACS job is the final post-publication acceptance gate; a parent delivery issue is closed only after it succeeds. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md) and [the Issue #79 major-release acceptance record](docs/ISSUE_79_RELEASE_ACCEPTANCE.md).
 
 For automatic draft pull-request creation, repository administrators must enable **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Only pull-request creation is automated; approval and merging remain manual.
 

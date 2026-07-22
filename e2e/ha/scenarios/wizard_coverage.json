@@ -27,6 +27,10 @@
     "configure_sector_source",
     "configure_lux_profile",
     "manage_sector_geometry",
+    "protected_zones_hub",
+    "add_protected_zone",
+    "manage_protected_zone",
+    "delete_protected_zone",
     "add_sector_flat",
     "choose_sector_for_group",
     "choose_group_for_covers",
@@ -88,6 +92,13 @@
     "heat_ignores_weather": "real-ha-flow",
     "heat_requires_sun": "real-ha-flow",
     "delete_sector": "validation-unit",
+    "enabled": "validation-unit",
+    "delete_protected_zone": "validation-unit",
+    "confirm_delete_protected_zone": "validation-unit",
+    "target_verification_enabled": "validation-unit",
+    "verify_target": "validation-unit",
+    "allow_automatic_reverse": "validation-unit",
+    "safety_bypasses_stagger": "validation-unit",
     "delete_layer": "validation-unit",
     "remove_cover": "validation-unit",
     "enforce_max_open_position": "real-ha-transition"
@@ -105,6 +116,11 @@
     "sun_source": ["geometry", "lux", "external"],
     "sun_preset_easy": ["low", "medium", "high"],
     "sun_preset_advanced": ["low", "medium", "high", "custom"],
+    "feedback_quality": [
+      "trusted", "intermediate", "end_positions", "none"
+    ],
+    "stagger_scope": ["room", "house"],
+    "opening_order": ["height_then_tilt", "tilt_then_height"],
     "profile": [
       "venetian",
       "roller_shutter",

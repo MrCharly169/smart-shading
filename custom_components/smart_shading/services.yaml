@@ -1,0 +1,14 @@
+preview_day:
+  fields:
+    room_id:
+      required: true
+      selector:
+        text:
+    date:
+      required: false
+      selector:
+        date:
+    entry_id:
+      required: false
+      selector:
+        text:

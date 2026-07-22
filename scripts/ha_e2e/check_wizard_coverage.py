@@ -21,6 +21,7 @@ DYNAMIC_SURFACES = {
     "add_room",
     "structure_hub",
     "sector_hub",
+    "protected_zones_hub",
     "group_hub",
     "initial_night_targets",
     "initial_safety_targets",
@@ -204,6 +205,9 @@ def main() -> int:
         "outside_schedule_behavior": set(symbols["OUTSIDE_OPTIONS"]),
         "pause_mode": set(symbols["PAUSE_OPTIONS"]) - {"auto"},
         "window_policy": set(symbols["WINDOW_POLICIES"]),
+        "feedback_quality": set(symbols["FEEDBACK_QUALITY_OPTIONS"]),
+        "stagger_scope": set(symbols["STAGGER_SCOPE_OPTIONS"]),
+        "opening_order": set(symbols["OPENING_ORDER_OPTIONS"]),
     }
     literal_contracts = {
         "sun_source": "sun_source",

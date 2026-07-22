@@ -25,13 +25,30 @@ def _state_snapshot(hass, entity_id: str) -> dict | None:
 async def async_get_config_entry_diagnostics(hass, entry):
     engine = entry.runtime_data
     configured_entities = sorted(engine.referenced_entities())
+    advanced = bool(engine.advanced_mode)
+    planner = getattr(engine, "command_planner", None)
+    command_ledger = (
+        planner.export_ledger() if planner is not None else {}
+    )
+    queued_commands = (
+        planner.export_pending_steps() if planner is not None else []
+    )
     return {
         "configuration": async_redact_data(engine.config, []),
         "diagnostic_level": engine.diagnostic_level,
         "diagnostic_journal": engine.recent_diagnostics(limit=500),
-        "schema_version": 5,
+        "schema_version": 6,
         "integration_version": VERSION,
         "evaluation_interval_seconds": engine.config.get("evaluation_interval", 1200),
+        "evaluation_debounce_seconds": engine.config.get(
+            "evaluation_debounce_seconds", 0.35
+        ),
+        "decision_runtime": {
+            "event_driven": True,
+            "watchdog_interval_seconds": engine.config.get("evaluation_interval", 1200),
+            "command_ledger": command_ledger if advanced else {},
+            "queued_commands": queued_commands if advanced else [],
+        },
         "input_states": {
             entity_id: _state_snapshot(hass, entity_id)
             for entity_id in configured_entities
@@ -48,6 +65,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "sent_commands": runtime.sent_commands,
                 "suppressed_commands": runtime.suppressed_commands,
                 "heat_active": runtime.heat_active,
+                "heat_phase": getattr(runtime, "heat_phase", "inactive"),
                 "shading_active": runtime.shading_active,
                 "finished_today": runtime.finished_today,
                 "pause_mode": runtime.pause_mode,
@@ -72,6 +90,18 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "easy_confirmation_state": runtime.easy_confirmation_state,
                 "easy_source_summary": runtime.easy_source_summary,
+                "decision_trace": (
+                    getattr(runtime, "decision_trace", {}) if advanced else {}
+                ),
+                "simulation_active": bool(
+                    advanced and getattr(runtime, "simulation_active", False)
+                ),
+                "simulation_trace": (
+                    getattr(runtime, "simulation_trace", {}) if advanced else {}
+                ),
+                "day_preview": (
+                    getattr(runtime, "day_preview", {}) if advanced else {}
+                ),
                 "outdoor_temperature_condition": {
                     "enabled": runtime.outdoor_temperature_condition_enabled,
                     "source_entity": runtime.outdoor_temperature_source,

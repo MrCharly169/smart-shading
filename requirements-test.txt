@@ -1,0 +1,2 @@
+# Dependencies required by the isolated Python test runners in CI.
+voluptuous==0.15.2

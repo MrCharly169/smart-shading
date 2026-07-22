@@ -2,15 +2,89 @@ const htmlEscape = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => 
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
 }[char]));
 const asArray = (value) => Array.isArray(value) ? value : [];
+const asRecord = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 const asNumber = (value, fallback = null) => {
   if (value === null || value === undefined || value === "") return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const localDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+};
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
+const humanizeToken = (value, fallback = "–") => {
+  const token = String(value ?? "").trim();
+  if (!token) return fallback;
+  return token
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+// ``DecisionResult.as_dict`` contains a nested ``trace`` while the room
+// sensor stores a live ``DecisionTrace`` directly.  Live Issue-79 payloads
+// additionally wrap it as ``{decision: result}`` or, for simulations, as
+// ``{results: [{result}]}``.  Accept every persisted shape so an in-flight
+// integration update never turns an explanation into a blank card.
+const tracePayload = (value) => {
+  const record = asRecord(value);
+  const results = asArray(record.results);
+  const latest = asRecord(results[results.length - 1]);
+  const candidates = [
+    record,
+    asRecord(record.decision),
+    asRecord(record.result),
+    asRecord(record.decision_result),
+    latest,
+    asRecord(latest.decision),
+    asRecord(latest.result),
+  ];
+  for (const candidate of candidates) {
+    const nested = asRecord(candidate.trace);
+    if (Object.keys(nested).length) return nested;
+    if (candidate.winner || candidate.entries || candidate.command_result) return candidate;
+  }
+  return {};
+};
+// A simulation normally contains one result per sector/layer pair.  Do not
+// flatten this to the last result: different layers can legitimately choose
+// different winners and targets in the same virtual evaluation.  Keep the
+// legacy single-result shape as a fallback for already persisted beta data.
+const simulationResultPayloads = (value) => {
+  const record = asRecord(value);
+  const rows = asArray(record.results);
+  if (rows.length) {
+    return rows.map((raw) => {
+      const scope = asRecord(raw);
+      const result = asRecord(scope.result);
+      const trace = tracePayload(result);
+      return {
+        scope,
+        result,
+        trace: Object.keys(trace).length ? trace : tracePayload(scope),
+      };
+    });
+  }
+  const trace = tracePayload(record);
+  return Object.keys(trace).length ? [{ scope: record, result: asRecord(record.result), trace }] : [];
+};
+const targetTracePayloads = (value) => asArray(asRecord(value).target_decisions)
+  .map((scope) => ({ scope: asRecord(scope), trace: tracePayload(scope) }))
+  .filter(({ trace }) => Object.keys(trace).length);
+const protectedZonePayloads = (value) => [
+  ...asArray(tracePayload(value).protected_zones),
+  ...targetTracePayloads(value).flatMap(({ scope, trace }) => asArray(trace.protected_zones)
+    .map((zone) => ({ ...asRecord(zone), layer_name: scope.layer_name || scope.layer_id || "" }))),
+];
+const previewPayload = (value) => {
+  const record = asRecord(value);
+  const nested = asRecord(record.preview);
+  return Object.keys(nested).length ? nested : record;
+};
 const profileIcon = (profile, closed = false) => ({
   venetian: closed ? "mdi:blinds-horizontal-closed" : "mdi:blinds-horizontal",
   roller_shutter: closed ? "mdi:window-shutter" : "mdi:window-shutter-open",
@@ -102,6 +176,7 @@ class SmartShadingV4Dialog extends HTMLElement {
     this._renderCount = 0;
     this._contentWriteCount = 0;
     this._mainHtml = "";
+    this._selectedPreviewDate = "";
     this._opener = null;
     this._keyHandler = (event) => {
       if (event.key === "Escape") {
@@ -111,7 +186,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       }
       if (event.key !== "Tab") return;
       const focusable = asArray(Array.from(this.shadowRoot?.querySelectorAll?.(
-        'button:not([disabled]),[href],[tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[href],[tabindex]:not([tabindex="-1"])',
       ) || [])).filter((element) => !element.hidden && element.getAttribute?.("aria-hidden") !== "true");
       if (!focusable.length) return;
       const first = focusable[0];
@@ -133,6 +208,7 @@ class SmartShadingV4Dialog extends HTMLElement {
     this._controls = controls || [];
     this._owner = owner || null;
     this._opener = opener || this._opener || null;
+    this._selectedPreviewDate = previewPayload(roomState?.attributes?.day_preview).day || localDateKey();
     if (!this.isConnected && document.body?.appendChild) document.body.appendChild(this);
     document.addEventListener?.("keydown", this._keyHandler);
     this._render();
@@ -213,6 +289,29 @@ class SmartShadingV4Dialog extends HTMLElement {
       openSchedule: "Zeitplan öffnen",
       openSource: "Quelle öffnen",
       blocked: "blockiert",
+      decision: "Entscheidungs-Trace",
+      winner: "Gewinner",
+      rejected: "Verworfene Kandidaten",
+      noRejected: "Keine weiteren Kandidaten verworfen.",
+      command: "Befehlsausgang",
+      inputQuality: "Datenqualität",
+      protectedZones: "Geschützte Zonen",
+      noTrace: "Noch keine Entscheidungsdaten vorhanden.",
+      noProtectedZones: "Keine geschützten Zonen ausgewertet.",
+      simulation: "Simulation",
+      runSimulation: "Simulation ausführen",
+      simulationActive: "Simulation aktiv",
+      noSimulation: "Noch keine Simulation ausgeführt.",
+      dayPreview: "Tagvorschau",
+      previewDay: "Tagvorschau berechnen",
+      previewDate: "Datum für Tagvorschau",
+      noPreview: "Noch keine Tagvorschau berechnet.",
+      samples: "Auswertungen",
+      transitions: "Übergänge",
+      result: "Ergebnis",
+      rule: "Regel",
+      quality: "Qualität",
+      status: "Status",
     } : {
       title: "Smart Shading · Details",
       close: "Close",
@@ -257,6 +356,29 @@ class SmartShadingV4Dialog extends HTMLElement {
       openSchedule: "Open schedule",
       openSource: "Open source",
       blocked: "blocked",
+      decision: "Decision trace",
+      winner: "Winner",
+      rejected: "Rejected candidates",
+      noRejected: "No other candidates were rejected.",
+      command: "Command outcome",
+      inputQuality: "Input quality",
+      protectedZones: "Protected zones",
+      noTrace: "No decision data is available yet.",
+      noProtectedZones: "No protected zones were evaluated.",
+      simulation: "Simulation",
+      runSimulation: "Run simulation",
+      simulationActive: "Simulation active",
+      noSimulation: "No simulation has been run yet.",
+      dayPreview: "Day preview",
+      previewDay: "Calculate day preview",
+      previewDate: "Date for day preview",
+      noPreview: "No day preview has been calculated yet.",
+      samples: "Evaluations",
+      transitions: "Transitions",
+      result: "Result",
+      rule: "Rule",
+      quality: "Quality",
+      status: "Status",
     };
   }
 
@@ -285,14 +407,14 @@ class SmartShadingV4Dialog extends HTMLElement {
       not_evaluated: "Noch nicht ausgewertet", outside_sun_sector: "Sonne außerhalb des Sektors",
       waiting_for_lux: "Wartet auf Sun Presence", sun_detected: "Sonne erkannt",
       shading_active: "Beschattung aktiv", waiting_conditions: "Wartet auf Bedingungen",
-      sun_below_horizon: "Sonne unter Horizont", schedule_blocked: "Zeitplan blockiert",
+      sun_below_horizon: "Sonne unter Horizont", schedule_blocked: "Zeitplan blockiert", source_unavailable: "Quelle nicht verfügbar",
       paused: "Pausiert", heat: "Heat Protection", safety: "Safety", disabled: "Deaktiviert",
       night: "Nacht", night_blocked: "Nachtquelle blockiert", night_transition_hold: "Nachtübergang hält",
     } : {
       not_evaluated: "Not evaluated", outside_sun_sector: "Sun outside sector",
       waiting_for_lux: "Waiting for Sun Presence", sun_detected: "Sun detected",
       shading_active: "Shading active", waiting_conditions: "Waiting for conditions",
-      sun_below_horizon: "Sun below horizon", schedule_blocked: "Schedule blocked",
+      sun_below_horizon: "Sun below horizon", schedule_blocked: "Schedule blocked", source_unavailable: "Source unavailable",
       paused: "Paused", heat: "Heat protection", safety: "Safety", disabled: "Disabled",
       night: "Night", night_blocked: "Night source blocked", night_transition_hold: "Night transition hold",
     };
@@ -316,7 +438,361 @@ class SmartShadingV4Dialog extends HTMLElement {
       position_command_cooldown: "Position command cooldown", tilt_command_cooldown: "Tilt command cooldown",
       position_feedback_unknown: "Position feedback missing", tilt_feedback_unknown: "Tilt feedback missing",
     };
-    return values[reason] || String(reason || "");
+    return values[reason] || this._traceText(reason);
+  }
+
+  _traceText(value) {
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const labels = de ? {
+      safety: "Safety", manual_master_override: "Manuelle Sperre", room_pause: "Raumpause",
+      local_cover_pause: "Lokale Behangpause", night_source_hold: "Nachtquelle hält", schedule_hold: "Zeitplan hält", night: "Nachtfunktion", heat_protection: "Heat Protection",
+      input_quality_hold: "Halten wegen Eingabequalität", solar: "Sonnenschutz", comfort: "Komfort", open: "Öffnen", idle: "Halten",
+      planned: "Geplant", queued: "Warteschlange", sent: "Gesendet", suppressed: "Unterdrückt", blocked: "Blockiert",
+      target_reached: "Ziel erreicht", target_not_reached: "Ziel nicht erreicht", failed: "Fehlgeschlagen", cancelled: "Abgebrochen",
+      not_planned: "Noch nicht geplant", simulated: "Simuliert", valid: "Gültig", stale: "Veraltet",
+      unavailable: "Nicht verfügbar", invalid_value: "Ungültiger Wert", not_configured: "Nicht eingerichtet",
+      pending: "Ausstehend", contradictory: "Widersprüchlich", hit: "Getroffen", miss: "Verfehlt", inactive: "Inaktiv", invalid: "Ungültig",
+      winner: "Gewinner", rejected: "Verworfen",
+      highest_matching_priority: "Höchste passende Priorität", rule_not_matched: "Regel nicht zutreffend",
+      same_priority_tiebreaker_rule_order: "Gleiche Priorität: feste Regelreihenfolge",
+      same_priority_tiebreaker_stable_order: "Gleiche Priorität: stabile Reihenfolge",
+      no_decision_rule_matched: "Keine Entscheidungsregel zutreffend", rule_mode_mismatch: "Regelmodus passt nicht",
+      safety_active: "Safety aktiv", safety_inactive: "Safety nicht aktiv",
+      manual_master_override_active: "Manuelle Sperre aktiv", manual_master_override_inactive: "Manuelle Sperre nicht aktiv",
+      room_pause_active: "Raumpause aktiv", room_pause_inactive: "Raumpause nicht aktiv",
+      local_cover_pause_active: "Lokale Behangpause aktiv", local_cover_pause_inactive: "Lokale Behangpause nicht aktiv",
+      night_source_unavailable_hold: "Nachtquelle nicht verfügbar – Position wird gehalten", night_source_available: "Nachtquelle verfügbar",
+      night_active: "Nachtfunktion aktiv", night_inactive: "Nachtfunktion nicht aktiv",
+      heat_protection_active: "Heat Protection aktiv", heat_protection_inactive: "Heat Protection nicht aktiv",
+      schedule_outside_hold: "Außerhalb des Zeitplans – Position wird gehalten", schedule_active: "Zeitplan aktiv",
+      normal_input_quality_invalid_hold: "Normale Eingaben ungültig – Position wird gehalten", normal_input_quality_valid: "Normale Eingaben gültig",
+      solar_glare_target_adjusted: "Sonnenschutzziel durch Blendschutz angepasst", solar_conditions_met: "Sonnenschutzbedingungen erfüllt",
+      solar_blocked_by_input_quality: "Sonnenschutz durch Eingabequalität blockiert", solar_inactive: "Sonnenschutz nicht aktiv",
+      comfort_blocked_by_input_quality: "Komfort durch Eingabequalität blockiert", comfort_active: "Komfortbedingungen erfüllt", comfort_inactive: "Komfortbedingungen nicht aktiv",
+      open_blocked_by_input_quality: "Öffnen durch Eingabequalität blockiert", open_fallback: "Öffnungsziel gewählt", open_inactive: "Öffnungsregel nicht aktiv",
+      idle_hold_active: "Haltebedingung aktiv", idle_inactive: "Haltebedingung nicht aktiv",
+      input_not_configured: "Eingabe nicht eingerichtet", input_unavailable: "Eingabe nicht verfügbar", input_invalid_value: "Eingabewert ungültig",
+      input_stale: "Eingabe veraltet", input_valid: "Eingabe gültig",
+      pure_decision_requires_command_planner: "Entscheidung wartet auf den Befehlsplaner",
+      simulation_never_executes_services: "Simulation löst keine Dienste aus",
+      simulation_advanced_mode_required: "Simulation benötigt die detaillierte Einrichtung",
+      preview_advanced_mode_required: "Tagvorschau benötigt die detaillierte Einrichtung",
+      preview_never_executes_services: "Tagvorschau löst keine Dienste aus",
+      decision_changed: "Entscheidung geändert", decision_selected: "Entscheidung ausgewählt", command_dispatched: "Befehl ausgelöst", command_not_planned: "Kein Befehl geplant",
+      command_adapter_result: "Befehlsausführung abgeschlossen", command_lifecycle_updated: "Befehlslebenszyklus aktualisiert", cover_command_sent: "Behangbefehl gesendet",
+      cover_command_queued: "Behangbefehl eingereiht", cover_command_cancelled: "Behangbefehl abgebrochen", cover_command_suppressed: "Behangbefehl unterdrückt",
+      cover_target_verification: "Behangziel wird geprüft", target_confirmed_by_trusted_feedback: "Ziel durch verlässliche Rückmeldung bestätigt",
+      cover_removed_before_execution: "Behang vor Ausführung entfernt", cover_entity_missing: "Behang-Entität fehlt", cover_service_failed: "Behang-Service fehlgeschlagen",
+      command_ownership_released: "Automatisierungsbesitz freigegeben", position_control_unsupported: "Positionssteuerung nicht unterstützt", tilt_control_unsupported: "Lamellensteuerung nicht unterstützt",
+      target_already_active: "Ziel ist bereits aktiv", higher_priority_lifecycle_active: "Höherprioritärer Ablauf aktiv",
+      replaced_by_newer_target: "Durch neueres Ziel ersetzt", target_within_tolerance: "Ziel innerhalb der Toleranz",
+      automatic_reverse_not_allowed: "Automatische Rückfahrt nicht erlaubt", target_planned: "Ziel geplant", safety_replacement: "Safety ersetzt laufendes Ziel",
+      target_confirmed_at_deadline: "Ziel zum Prüftermin bestätigt", feedback_not_at_target_after_retry_limit: "Ziel nach Wiederholungsgrenze nicht erreicht",
+      target_confirmed_before_retry: "Ziel vor Wiederholung bestätigt", verification_retry_planned: "Prüfwiederholung geplant",
+      no_cover_target: "Kein Behangziel", room_or_cover_pause_active: "Raum- oder Behangpause aktiv", night_mode_active: "Nachtfunktion aktiv",
+      solar_conditions_matched: "Sonnenschutzbedingungen erfüllt", comfort_conditions_matched: "Komfortbedingungen erfüllt", open_target_selected: "Öffnungsziel ausgewählt",
+      conditions_waiting: "Wartet auf Bedingungen", selected_sun_source_unavailable: "Gewählte Sonnenquelle nicht verfügbar",
+      sun_position_unavailable: "Sonnenposition nicht verfügbar", room_automation_paused: "Raumautomatik pausiert", room_automation_disabled: "Raumautomatik deaktiviert",
+      night_source_unavailable: "Nachtquelle nicht verfügbar", evening_night_handoff_hold: "Abendübergabe an Nachtfunktion hält",
+      night_transition_hold: "Nachtübergang hält",
+      cover_paused_until_morning: "Pausiert bis zum nächsten Morgen", automation_lock: "Manuell gesperrt", unsafe_window: "Fenster nicht sicher",
+      unsafe_window_closing_blocked: "Schließen durch Fensterkontakt blockiert", window_state_unavailable: "Fensterzustand nicht verfügbar",
+      position_already_correct: "Position bereits korrekt", tilt_already_correct: "Lamelle bereits korrekt",
+      position_command_cooldown: "Positionsbefehl im Cooldown", tilt_command_cooldown: "Lamellenbefehl im Cooldown",
+      position_feedback_unknown: "Positionsrückmeldung fehlt", tilt_feedback_unknown: "Lamellenrückmeldung fehlt",
+      protected_zone_direct_sun_hit: "Direkte Sonne trifft die Zone",
+      protected_zone_lateral_miss: "Seitlich außerhalb der Zone",
+      protected_zone_vertical_miss: "Vertikal außerhalb der Zone",
+      protected_zone_sun_behind_facade: "Sonne hinter der Fassade",
+      protected_zone_direct_sun_inactive: "Direkte Sonne nicht aktiv",
+      protected_zone_disabled: "Zone deaktiviert",
+      protected_zone_invalid: "Zonengeometrie ungültig",
+      protected_zone_valid: "Zonengeometrie gültig", protected_zone_sector_context_required: "Sonnensektor-Kontext fehlt",
+      protected_zone_other_sector: "Andere Sonnensektoren-Zuordnung", protected_zone_group_context_required: "Behanggruppen-Kontext fehlt",
+      protected_zone_other_group: "Andere Behanggruppen-Zuordnung", protected_zone_sun_below_horizon: "Sonne unter dem Horizont",
+      protected_zone_lateral_geometry_required: "Seitliche Zonengeometrie fehlt",
+      no_protected_zone_hit: "Keine Zone getroffen",
+      protected_zone_target_adjusted: "Ziel durch Schutzzone angepasst",
+      protected_zone_hit_no_stricter_target: "Schutzzone ohne strengeres Ziel",
+    } : {
+      safety: "Safety", manual_master_override: "Manual Override", room_pause: "Room pause",
+      local_cover_pause: "Local cover pause", night_source_hold: "Night source hold", schedule_hold: "Schedule hold", night: "Night Mode", heat_protection: "Heat protection",
+      input_quality_hold: "Hold for input quality", solar: "Solar shading", comfort: "Comfort", open: "Open", idle: "Hold",
+      planned: "Planned", queued: "Queued", sent: "Sent", suppressed: "Suppressed", blocked: "Blocked",
+      target_reached: "Target reached", target_not_reached: "Target not reached", failed: "Failed", cancelled: "Cancelled",
+      not_planned: "Not planned", simulated: "Simulated", valid: "Valid", stale: "Stale",
+      unavailable: "Unavailable", invalid_value: "Invalid value", not_configured: "Not configured",
+      pending: "Pending", contradictory: "Contradictory", hit: "Hit", miss: "Miss", inactive: "Inactive", invalid: "Invalid",
+      winner: "Winner", rejected: "Rejected",
+      highest_matching_priority: "Highest matching priority", rule_not_matched: "Rule did not match",
+      same_priority_tiebreaker_rule_order: "Same priority: fixed rule order",
+      same_priority_tiebreaker_stable_order: "Same priority: stable order",
+      no_decision_rule_matched: "No decision rule matched", rule_mode_mismatch: "Rule mode does not match",
+      safety_active: "Safety active", safety_inactive: "Safety inactive",
+      manual_master_override_active: "Manual override active", manual_master_override_inactive: "Manual override inactive",
+      room_pause_active: "Room pause active", room_pause_inactive: "Room pause inactive",
+      local_cover_pause_active: "Local cover pause active", local_cover_pause_inactive: "Local cover pause inactive",
+      night_source_unavailable_hold: "Night source unavailable – target held", night_source_available: "Night source available",
+      night_active: "Night mode active", night_inactive: "Night mode inactive",
+      heat_protection_active: "Heat protection active", heat_protection_inactive: "Heat protection inactive",
+      schedule_outside_hold: "Outside schedule – target held", schedule_active: "Schedule active",
+      normal_input_quality_invalid_hold: "Normal inputs invalid – target held", normal_input_quality_valid: "Normal inputs valid",
+      solar_glare_target_adjusted: "Solar target adjusted for glare", solar_conditions_met: "Solar conditions met",
+      solar_blocked_by_input_quality: "Solar shading blocked by input quality", solar_inactive: "Solar shading inactive",
+      comfort_blocked_by_input_quality: "Comfort blocked by input quality", comfort_active: "Comfort conditions met", comfort_inactive: "Comfort conditions inactive",
+      open_blocked_by_input_quality: "Opening blocked by input quality", open_fallback: "Open target selected", open_inactive: "Open rule inactive",
+      idle_hold_active: "Hold condition active", idle_inactive: "Hold condition inactive",
+      input_not_configured: "Input not configured", input_unavailable: "Input unavailable", input_invalid_value: "Input value invalid",
+      input_stale: "Input stale", input_valid: "Input valid",
+      pure_decision_requires_command_planner: "Decision awaits the command planner",
+      simulation_never_executes_services: "Simulation never executes services",
+      simulation_advanced_mode_required: "Simulation requires detailed setup",
+      preview_advanced_mode_required: "Day preview requires detailed setup",
+      preview_never_executes_services: "Day preview never executes services",
+      decision_changed: "Decision changed", decision_selected: "Decision selected", command_dispatched: "Command dispatched", command_not_planned: "No command planned",
+      command_adapter_result: "Command execution completed", command_lifecycle_updated: "Command lifecycle updated", cover_command_sent: "Cover command sent",
+      cover_command_queued: "Cover command queued", cover_command_cancelled: "Cover command cancelled", cover_command_suppressed: "Cover command suppressed",
+      cover_target_verification: "Cover target verification", target_confirmed_by_trusted_feedback: "Target confirmed by trusted feedback",
+      cover_removed_before_execution: "Cover removed before execution", cover_entity_missing: "Cover entity is missing", cover_service_failed: "Cover service failed",
+      command_ownership_released: "Automation ownership released", position_control_unsupported: "Position control is unsupported", tilt_control_unsupported: "Tilt control is unsupported",
+      target_already_active: "Target is already active", higher_priority_lifecycle_active: "Higher-priority lifecycle active",
+      replaced_by_newer_target: "Replaced by newer target", target_within_tolerance: "Target within tolerance",
+      automatic_reverse_not_allowed: "Automatic reverse is not allowed", target_planned: "Target planned", safety_replacement: "Safety replaced active target",
+      target_confirmed_at_deadline: "Target confirmed at deadline", feedback_not_at_target_after_retry_limit: "Target not reached after retry limit",
+      target_confirmed_before_retry: "Target confirmed before retry", verification_retry_planned: "Verification retry planned",
+      no_cover_target: "No cover target", room_or_cover_pause_active: "Room or cover pause active", night_mode_active: "Night mode active",
+      solar_conditions_matched: "Solar conditions matched", comfort_conditions_matched: "Comfort conditions matched", open_target_selected: "Open target selected",
+      conditions_waiting: "Waiting for conditions", selected_sun_source_unavailable: "Selected sun source is unavailable",
+      sun_position_unavailable: "Sun position is unavailable", room_automation_paused: "Room automation is paused", room_automation_disabled: "Room automation is disabled",
+      night_source_unavailable: "Night source is unavailable", evening_night_handoff_hold: "Evening Night handoff holds",
+      night_transition_hold: "Night transition holds",
+      cover_paused_until_morning: "Paused until next morning", automation_lock: "Manually locked", unsafe_window: "Window not safe",
+      unsafe_window_closing_blocked: "Closing blocked by window contact", window_state_unavailable: "Window state unavailable",
+      position_already_correct: "Position already correct", tilt_already_correct: "Tilt already correct",
+      position_command_cooldown: "Position command cooldown", tilt_command_cooldown: "Tilt command cooldown",
+      position_feedback_unknown: "Position feedback missing", tilt_feedback_unknown: "Tilt feedback missing",
+      protected_zone_direct_sun_hit: "Direct sun hits the zone",
+      protected_zone_lateral_miss: "Outside the lateral zone range",
+      protected_zone_vertical_miss: "Outside the vertical zone range",
+      protected_zone_sun_behind_facade: "Sun is behind the facade",
+      protected_zone_direct_sun_inactive: "Direct sun is inactive",
+      protected_zone_disabled: "Zone disabled",
+      protected_zone_invalid: "Zone geometry is invalid",
+      protected_zone_valid: "Zone geometry is valid", protected_zone_sector_context_required: "Sun-sector context is required",
+      protected_zone_other_sector: "Assigned to another sun sector", protected_zone_group_context_required: "Cover-group context is required",
+      protected_zone_other_group: "Assigned to another cover group", protected_zone_sun_below_horizon: "Sun is below the horizon",
+      protected_zone_lateral_geometry_required: "Lateral zone geometry is required",
+      no_protected_zone_hit: "No zone hit",
+      protected_zone_target_adjusted: "Target adjusted by protected zone",
+      protected_zone_hit_no_stricter_target: "Protected zone had no stricter target",
+    };
+    const key = String(value || "").trim();
+    if (key.startsWith("lower_priority_than_")) {
+      const winner = this._traceText(key.slice("lower_priority_than_".length));
+      return de ? `Niedrigere Priorität als ${winner}` : `Lower priority than ${winner}`;
+    }
+    return labels[key] || humanizeToken(key);
+  }
+
+  _traceTarget(target, L) {
+    const value = asRecord(target);
+    const position = asNumber(value.position, null);
+    const tilt = asNumber(value.tilt, null);
+    const parts = [];
+    if (position != null) parts.push(`${L.position}: ${Math.round(position)}%`);
+    if (tilt != null) parts.push(`${L.tilt}: ${Math.round(tilt)}%`);
+    return parts.join(" · ") || "–";
+  }
+
+  _decisionTraceHtml(attrs, L) {
+    // The details dialog is only ever opened from the Advanced card, but keep
+    // the guard here too: status attributes can outlive a mode switch briefly.
+    if (attrs.smart_shading_layout !== "detailed") return "";
+    const trace = tracePayload(attrs.decision_trace);
+    const winner = asRecord(trace.winner);
+    const traceEntries = asArray(trace.entries);
+    const winnerEntry = traceEntries.find((raw) => asRecord(raw).outcome === "winner");
+    const rejected = traceEntries.length
+      ? traceEntries
+        .filter((raw) => asRecord(raw).outcome !== "winner")
+        .map((raw) => {
+          const entry = asRecord(raw);
+          return {
+            ...asRecord(entry.candidate),
+            resolution_reason_code: entry.resolution_reason_code,
+          };
+        })
+      : asArray(trace.rejected);
+    const command = asRecord(trace.command_result);
+    const commandRows = asArray(asRecord(attrs.decision_trace).command_results);
+    const firstCommandRow = asRecord(commandRows[0]);
+    const commandStatus = command.status && command.status !== "not_planned"
+      ? command.status
+      : firstCommandRow.status || command.status;
+    const commandReason = command.reason_code && command.status !== "not_planned"
+      ? command.reason_code
+      : firstCommandRow.reason_code || command.reason_code;
+    const targetTraces = targetTracePayloads(attrs.decision_trace);
+    const scopedRejected = targetTraces.flatMap(({ scope, trace: targetTrace }) => {
+      const entries = asArray(targetTrace.entries);
+      const candidates = entries.length
+        ? entries
+          .filter((raw) => asRecord(raw).outcome !== "winner")
+          .map((raw) => {
+            const entry = asRecord(raw);
+            return {
+              ...asRecord(entry.candidate),
+              resolution_reason_code: entry.resolution_reason_code,
+            };
+          })
+        : asArray(targetTrace.rejected).map(asRecord);
+      return candidates.map((candidate) => ({
+        ...candidate,
+        layer_name: scope.layer_name || scope.layer_id || "",
+      }));
+    });
+    const snapshot = asRecord(trace.input_snapshot);
+    const inputs = Object.entries(asRecord(snapshot.inputs));
+    const zones = protectedZonePayloads(attrs.decision_trace);
+    const simulate = this._control("simulate");
+    const previewButton = this._control("preview_day");
+    const simulationResults = simulationResultPayloads(attrs.simulation_trace).map(({ scope, result, trace: resultTrace }, index) => {
+      const winner = asRecord(resultTrace.winner);
+      const command = asRecord(resultTrace.command_result);
+      const winnerTarget = asRecord(winner.target);
+      const resultTarget = asRecord(result.target);
+      const commandTarget = asRecord(command.target);
+      const sector = String(scope.sector_name || result.sector_name || "").trim()
+        || humanizeToken(scope.sector_id || result.sector_id, "");
+      const layer = String(scope.layer_name || result.layer_name || "").trim()
+        || humanizeToken(scope.layer_id || result.layer_id, "");
+      const covers = asArray(scope.cover_targets).map((raw, coverIndex) => {
+        const cover = asRecord(raw);
+        const name = cleanDisplayName(cover.name, humanizeToken(cover.cover_id, `${L.cover} ${coverIndex + 1}`));
+        const constraints = asArray(cover.constraints).map((reason) => this._suppressionText(reason));
+        const target = {
+          position: cover.command_position ?? cover.position,
+          tilt: cover.command_tilt ?? cover.tilt,
+        };
+        return {
+          name,
+          status: cover.command_result || "simulated",
+          reason: cover.reason_code || "simulation_never_executes_services",
+          target,
+          constraints,
+        };
+      });
+      return {
+        scope: [sector, layer].filter(Boolean).join(" · ") || `${L.result} ${index + 1}`,
+        winner: winner.rule || result.rule || winner.mode || result.mode || scope.mode,
+        mode: winner.mode || result.mode || scope.mode,
+        target: Object.keys(winnerTarget).length
+          ? winnerTarget
+          : Object.keys(resultTarget).length
+            ? resultTarget
+            : commandTarget,
+        reason: winner.reason_code || result.reason_code || command.reason_code || scope.reason_code,
+        status: command.status || result.status || scope.status || "simulated",
+        covers,
+      };
+    });
+    const preview = previewPayload(attrs.day_preview);
+    const transitions = asArray(preview.transitions);
+    const samples = asArray(preview.samples);
+    const previewDate = this._selectedPreviewDate || preview.day || localDateKey();
+    const roomId = String(attrs.smart_shading_room_id || "");
+    const entryId = String(attrs.smart_shading_entry_id || "");
+    const traceAvailable = Object.keys(trace).length > 0;
+    const inputHtml = inputs.length ? inputs.map(([key, raw]) => {
+      const input = asRecord(raw);
+      const quality = String(input.quality || "not_configured");
+      const measured = input.value ?? input.raw_value;
+      const unit = input.unit ? ` ${input.unit}` : "";
+      return `<div class="trace-item">
+        <strong>${htmlEscape(humanizeToken(key))}</strong>
+        <span class="trace-status ${quality === "valid" ? "ok" : "warn"}">${htmlEscape(this._traceText(quality))}</span>
+        <small>${htmlEscape(measured == null ? "–" : `${measured}${unit}`)} · ${htmlEscape(this._traceText(input.reason_code))}</small>
+      </div>`;
+    }).join("") : `<div class="empty">${htmlEscape(L.noTrace)}</div>`;
+    const allRejected = [...rejected, ...scopedRejected];
+    const rejectedHtml = allRejected.length ? allRejected.map((raw) => {
+      const candidate = asRecord(raw);
+      const resolution = candidate.resolution_reason_code
+        ? ` · ${this._traceText(candidate.resolution_reason_code)}`
+        : "";
+      return `<div class="trace-item">
+        <strong>${htmlEscape(`${this._traceText(candidate.rule)}${candidate.layer_name ? ` · ${candidate.layer_name}` : ""}`)}</strong>
+        <span class="trace-status">${htmlEscape(this._modeText(candidate.mode))}</span>
+        <small>${htmlEscape(`${this._traceText(candidate.reason_code)}${resolution}`)}</small>
+      </div>`;
+    }).join("") : `<div class="empty">${htmlEscape(L.noRejected)}</div>`;
+    const zoneHtml = zones.length ? zones.map((raw) => {
+      const zone = asRecord(raw);
+      const status = String(zone.status || "inactive");
+      return `<div class="trace-item">
+        <strong>${htmlEscape(`${cleanDisplayName(zone.name, humanizeToken(zone.zone_id, L.protectedZones))}${zone.layer_name ? ` · ${zone.layer_name}` : ""}`)}</strong>
+        <span class="trace-status ${status === "hit" ? "ok" : "warn"}">${htmlEscape(this._traceText(status))}</span>
+        <small>${htmlEscape(this._traceText(zone.reason_code))}${zone.target ? ` · ${htmlEscape(this._traceTarget(zone.target, L))}` : ""}</small>
+      </div>`;
+    }).join("") : `<div class="empty">${htmlEscape(L.noProtectedZones)}</div>`;
+    const simulationHtml = simulationResults.length ? `<div class="trace-list" data-simulation-results>${simulationResults.map((simulated) => `<div class="trace-item" data-simulation-result>
+        <strong>${htmlEscape(simulated.scope)}</strong>
+        <span class="trace-status">${htmlEscape(this._traceText(simulated.status))}</span>
+        <small>${htmlEscape(`${L.winner}: ${this._traceText(simulated.winner)} · ${L.mode}: ${this._modeText(simulated.mode)} · ${L.target}: ${this._traceTarget(simulated.target, L)} · ${L.reason}: ${this._traceText(simulated.reason)}`)}</small>
+        ${simulated.covers.length ? `<small data-simulation-cover-targets>${simulated.covers.map((cover) => htmlEscape(`${cover.name}: ${this._traceText(cover.status)} · ${this._traceTarget(cover.target, L)} · ${this._traceText(cover.reason)}${cover.constraints.length ? ` · ${cover.constraints.join(", ")}` : ""}`)).join("<br>")}</small>` : ""}
+      </div>`).join("")}</div>`
+      : `<div class="empty">${htmlEscape(L.noSimulation)}</div>`;
+    const transitionHtml = transitions.length ? transitions.slice(0, 12).map((raw) => {
+      const transition = asRecord(raw);
+      return `<div class="trace-item">
+        <strong>${htmlEscape(this._formatDate(transition.at))}</strong>
+        <span class="trace-status">${htmlEscape(this._modeText(transition.previous_mode))} → ${htmlEscape(this._modeText(transition.mode))}</span>
+        <small>${htmlEscape(this._traceTarget(transition.target, L))} · ${htmlEscape(this._traceText(transition.reason_code))}</small>
+      </div>`;
+    }).join("") : `<div class="empty">${htmlEscape(L.noPreview)}</div>`;
+    const commandHtml = commandRows.length ? commandRows.map((raw) => {
+      const row = asRecord(raw);
+      return `<div class="trace-item">
+        <strong>${htmlEscape(humanizeToken(row.cover_id, L.command))}</strong>
+        <span class="trace-status">${htmlEscape(this._traceText(row.status))}</span>
+        <small>${htmlEscape(this._traceText(row.reason_code))}</small>
+      </div>`;
+    }).join("") : `<div class="trace-item">
+      <strong>${htmlEscape(L.command)}</strong>
+      <span class="trace-status">${htmlEscape(this._traceText(command.status))}</span>
+      <small>${htmlEscape(this._traceText(command.reason_code))}</small>
+    </div>`;
+    return `
+      <section data-decision-trace><h3>${htmlEscape(L.decision)}</h3>
+        ${traceAvailable ? `<div class="summary trace-summary">
+          <div><small>${htmlEscape(L.winner)}</small><strong>${htmlEscape(this._traceText(winner.rule || winner.mode))}</strong></div>
+          <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(winner.mode))}</strong></div>
+          <div><small>${htmlEscape(L.target)}</small><strong>${htmlEscape(this._traceTarget(winner.target, L))}</strong></div>
+          <div><small>${htmlEscape(L.command)}</small><strong>${htmlEscape(this._traceText(commandStatus))}</strong></div>
+        </div>
+        <div class="muted">${htmlEscape(`${this._traceText(winner.reason_code || commandReason)}${winnerEntry ? ` · ${this._traceText(asRecord(winnerEntry).resolution_reason_code)}` : ""}`)}</div>` : `<div class="empty">${htmlEscape(L.noTrace)}</div>`}
+      </section>
+      <section data-input-quality><h3>${htmlEscape(L.inputQuality)}</h3><div class="trace-list">${inputHtml}</div></section>
+      <section data-command-results><h3>${htmlEscape(L.command)}</h3><div class="trace-list">${commandHtml}</div></section>
+      <section data-rejected-candidates><h3>${htmlEscape(L.rejected)}</h3><div class="trace-list">${rejectedHtml}</div></section>
+      <section data-protected-zones><h3>${htmlEscape(L.protectedZones)}</h3><div class="trace-list">${zoneHtml}</div></section>
+      <section data-simulation><h3>${htmlEscape(L.simulation)}</h3>
+        ${attrs.simulation_active ? `<div class="warning">${htmlEscape(L.simulationActive)}</div>` : ""}
+        ${simulationHtml}
+        ${simulate?.entity_id ? `<div class="actions"><button data-press="${htmlEscape(simulate.entity_id)}">${iconBox("mdi:flask-outline", "action-icon")}${htmlEscape(L.runSimulation)}</button></div>` : ""}
+      </section>
+      <section data-day-preview><h3>${htmlEscape(L.dayPreview)}</h3>
+        ${Object.keys(preview).length ? `<div class="summary trace-summary">
+          <div><small>${htmlEscape(L.samples)}</small><strong>${htmlEscape(samples.length)}</strong></div>
+          <div><small>${htmlEscape(L.transitions)}</small><strong>${htmlEscape(transitions.length)}</strong></div>
+          <div><small>${htmlEscape(L.dayPreview)}</small><strong>${htmlEscape(preview.day || "–")}</strong></div>
+        </div>` : ""}
+        <div class="trace-list">${transitionHtml}</div>
+        ${previewButton?.entity_id ? `<div class="actions preview-actions">
+          <label class="preview-date"><span>${htmlEscape(L.previewDate)}</span><input type="date" data-preview-date value="${htmlEscape(previewDate)}"></label>
+          <button data-preview-day data-preview-room="${htmlEscape(roomId)}" data-preview-entry="${htmlEscape(entryId)}" data-preview-fallback="${htmlEscape(previewButton.entity_id)}">${iconBox("mdi:calendar-search-outline", "action-icon")}${htmlEscape(L.previewDay)}</button>
+        </div>` : ""}
+      </section>`;
   }
 
   _control(key) {
@@ -328,6 +804,22 @@ class SmartShadingV4Dialog extends HTMLElement {
     const domain = entityId.split(".")[0];
     const service = domain === "button" ? "press" : domain === "switch" ? "toggle" : null;
     if (service) this._hass.callService(domain, service, { entity_id: entityId });
+  }
+
+  _previewDay(roomId, entryId, date, fallbackEntity) {
+    const selected = /^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))
+      ? String(date)
+      : localDateKey();
+    if (!this._hass?.callService || !roomId) {
+      this._callEntity(fallbackEntity);
+      return;
+    }
+    const request = { room_id: roomId, date: selected };
+    if (entryId) request.entry_id = entryId;
+    const pending = this._hass.callService("smart_shading", "preview_day", request);
+    // The button remains a conservative today-only fallback for a partially
+    // upgraded installation whose backend service has not registered yet.
+    if (pending?.catch) pending.catch(() => this._callEntity(fallbackEntity));
   }
 
   _more(entityId) {
@@ -448,6 +940,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         .join(" · ");
       return `<div class="event"><time>${htmlEscape(this._formatDate(time))}</time><strong>${htmlEscape(event.event || event.type || "event")}</strong><span>${htmlEscape(data)}</span></div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noEvents)}</div>`;
+    const decisionHtml = this._decisionTraceHtml(attrs, L);
 
     const mainHtml = `
       <section><h3>${htmlEscape(L.overview)}</h3><div class="summary">
@@ -458,6 +951,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.sent)}</small><strong>${htmlEscape(attrs.sent_commands ?? 0)}</strong></div>
         <div><small>${htmlEscape(L.suppressed)}</small><strong>${htmlEscape(attrs.suppressed_commands ?? 0)}</strong></div>
       </div></section>
+      ${decisionHtml}
       ${nightHtml}
       <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
         ${attrs.pause_mode && attrs.pause_mode !== "auto"
@@ -487,8 +981,9 @@ class SmartShadingV4Dialog extends HTMLElement {
         .data-card{min-width:0;padding:12px;border-radius:15px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.055)}
         .data-title{display:flex;gap:10px;justify-content:space-between;align-items:center;font-size:12px}.data-title span{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.data-title strong{font-size:10px;opacity:.7;text-transform:uppercase;white-space:nowrap}
         .muted,.empty{font-size:11px;opacity:.62;line-height:1.35;margin-top:5px}.facts{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;opacity:.78;margin-top:7px}.warning{font-size:10px;color:var(--warning-color,#ffbf69);margin-top:7px;overflow-wrap:anywhere}.details{display:grid;gap:3px;font-size:10px;opacity:.55;margin-top:8px}.pause-card{border-color:rgba(255,90,72,.35)}
+        .trace-summary{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}.trace-list{display:grid;gap:5px}.trace-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:8px 9px;border-radius:10px;background:rgba(255,255,255,.04);font-size:11px}.trace-item strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trace-item small{grid-column:1/-1;opacity:.58;overflow-wrap:anywhere}.trace-status{font-size:9px;line-height:1.25;opacity:.72;text-align:right;white-space:nowrap}.trace-status.ok{color:var(--success-color,#8be29a);opacity:1}.trace-status.warn{color:var(--warning-color,#ffbf69);opacity:1}
         .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.summary div{padding:11px;border-radius:14px;background:rgba(255,255,255,.055)}.summary small{display:block;opacity:.55;margin-bottom:4px}.summary strong{font-size:12px;overflow-wrap:anywhere}
-        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;line-height:1}
+        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;line-height:1}.preview-date{display:inline-flex;align-items:center;gap:6px;font-size:10px;opacity:.82}.preview-date input{min-height:34px;max-width:145px;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:0 8px;background:rgba(255,255,255,.06);color:inherit;font:inherit}
         .event{display:grid;grid-template-columns:95px minmax(100px,170px) 1fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:10px;align-items:start}.event time{opacity:.55}.event strong{font-size:10px}.event span{opacity:.66;overflow-wrap:anywhere}
         @media(max-width:560px){header,main{padding-left:14px;padding-right:14px}.event{grid-template-columns:1fr}.dialog{border-radius:18px}.summary{grid-template-columns:1fr 1fr}.actions{width:100%}.actions button{flex:1 1 auto}.facts{align-items:flex-start}}
       </style>
@@ -505,7 +1000,9 @@ class SmartShadingV4Dialog extends HTMLElement {
     const main = this.shadowRoot.querySelector?.("main");
     const activeElement = this.shadowRoot.activeElement;
     const focusToken = activeElement && activeElement !== main
-      ? ["press", "more", "nightSource"].find((key) => activeElement.dataset?.[key])
+      ? ["press", "more", "nightSource", "previewDate", "previewDay"].find((key) =>
+        Object.prototype.hasOwnProperty.call(activeElement.dataset || {}, key)
+      )
       : null;
     const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     const contentChanged = !existingDialog || this._mainHtml !== mainHtml;
@@ -520,10 +1017,39 @@ class SmartShadingV4Dialog extends HTMLElement {
       main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
       main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
       main?.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", () => this._openNightSource(element.dataset.nightSource)));
-      if (focusToken && focusValue) {
-        const attribute = focusToken === "nightSource" ? "data-night-source" : `data-${focusToken}`;
-        const replacement = asArray(Array.from(main?.querySelectorAll?.(`[${attribute}]`) || []))
-          .find((element) => element.dataset?.[focusToken] === focusValue);
+      const syncPreviewDate = (element) => {
+        const selected = element.value || localDateKey();
+        this._selectedPreviewDate = selected;
+        // Changing an input property does not change ``innerHTML``. Keep the
+        // cached markup aligned so an otherwise unchanged HA update preserves
+        // the chosen date, focus, scroll position, and dialog DOM.
+        this._mainHtml = this._mainHtml.replace(
+          /(data-preview-date value=")[^"]*(")/,
+          `$1${htmlEscape(selected)}$2`,
+        );
+      };
+      main?.querySelectorAll?.("[data-preview-date]").forEach((element) => {
+        element.addEventListener("input", () => syncPreviewDate(element));
+        element.addEventListener("change", () => syncPreviewDate(element));
+      });
+      main?.querySelectorAll?.("[data-preview-day]").forEach((element) => element.addEventListener("click", () => {
+        const selected = main?.querySelector?.("[data-preview-date]")?.value || this._selectedPreviewDate;
+        this._previewDay(
+          element.dataset.previewRoom,
+          element.dataset.previewEntry,
+          selected,
+          element.dataset.previewFallback,
+        );
+      }));
+      if (focusToken) {
+        const attribute = {
+          nightSource: "data-night-source",
+          previewDate: "data-preview-date",
+          previewDay: "data-preview-day",
+        }[focusToken] || `data-${focusToken}`;
+        const candidates = asArray(Array.from(main?.querySelectorAll?.(`[${attribute}]`) || []));
+        const replacement = candidates.find((element) => element.dataset?.[focusToken] === focusValue)
+          || candidates[0];
         replacement?.focus?.({ preventScroll: true });
       }
     }
@@ -663,6 +1189,8 @@ class SmartShadingV4Card extends HTMLElement {
       confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", sourceUnavailable: "Gewählte Sonnenquelle nicht verfügbar", temperatureBlocked: "Temperatur zu niedrig",
       sunUnavailable: "Sonnenstatus nicht verfügbar",
       roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
+      decision: "Entscheidung", winner: "Gewinner", command: "Befehl", quality: "Datenqualität", protectedZones: "Schutzzonen",
+      simulation: "Simulation", runSimulation: "Simulation ausführen", previewDay: "Tagvorschau berechnen", simulationActive: "Simulation aktiv",
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
@@ -677,6 +1205,8 @@ class SmartShadingV4Card extends HTMLElement {
       confirmed: "Sun confirmed", confirmationBlocked: "Sun not confirmed", geometryFallback: "Sun position only", inactiveSignal: "Inactive", sourceUnavailable: "Selected sun source unavailable", temperatureBlocked: "Temperature too low",
       sunUnavailable: "Sun status unavailable",
       roomContext: "Room", scheduleContext: "Schedule", overrideContext: "Override",
+      decision: "Decision", winner: "Winner", command: "Command", quality: "Input quality", protectedZones: "Protected zones",
+      simulation: "Simulation", runSimulation: "Run simulation", previewDay: "Calculate day preview", simulationActive: "Simulation active",
     };
   }
 
@@ -908,6 +1438,27 @@ class SmartShadingV4Card extends HTMLElement {
     const targets = asArray(attrs.targets);
     const targetByEntity = new Map(targets.map((target) => [target.entity_id, target]));
     const coverPauseByEntity = new Map(asArray(attrs.cover_pauses).map((item) => [item.entity_id, item]));
+    const decisionTrace = tracePayload(attrs.decision_trace);
+    const traceWinner = asRecord(decisionTrace.winner);
+    const traceCommand = asRecord(decisionTrace.command_result);
+    const traceCommandRows = asArray(asRecord(attrs.decision_trace).command_results);
+    const traceCommandStatus = traceCommand.status && traceCommand.status !== "not_planned"
+      ? traceCommand.status
+      : asRecord(traceCommandRows[0]).status || traceCommand.status;
+    const traceInputs = Object.values(asRecord(asRecord(decisionTrace.input_snapshot).inputs));
+    const traceInputProblems = traceInputs.filter((raw) => String(asRecord(raw).quality || "valid") !== "valid").length;
+    const traceZones = protectedZonePayloads(attrs.decision_trace);
+    const traceHits = traceZones.filter((raw) => String(asRecord(raw).status || "") === "hit").length;
+    const preview = previewPayload(attrs.day_preview);
+    const previewTransitions = asArray(preview.transitions);
+    const decisionSummary = advancedMode && Object.keys(decisionTrace).length ? `<div class="decision-summary" data-decision-trace>
+      <span><small>${htmlEscape(L.winner)}</small><strong>${htmlEscape(traceWinner.rule ? humanizeToken(traceWinner.rule) : traceWinner.mode ? this._modeInfo(traceWinner.mode, L)[1] : "–")}</strong></span>
+      <span><small>${htmlEscape(L.command)}</small><strong>${htmlEscape(humanizeToken(traceCommandStatus))}</strong></span>
+      <span><small>${htmlEscape(L.quality)}</small><strong>${htmlEscape(traceInputs.length ? `${traceInputs.length - traceInputProblems}/${traceInputs.length}` : "–")}</strong></span>
+      ${traceZones.length ? `<span><small>${htmlEscape(L.protectedZones)}</small><strong>${htmlEscape(`${traceHits}/${traceZones.length}`)}</strong></span>` : ""}
+      ${attrs.simulation_active ? `<span class="decision-running"><small>${htmlEscape(L.simulation)}</small><strong>${htmlEscape(L.simulationActive)}</strong></span>` : ""}
+      ${Object.keys(preview).length ? `<span><small>${htmlEscape(L.previewDay)}</small><strong>${htmlEscape(`${previewTransitions.length}`)}</strong></span>` : ""}
+    </div>` : "";
 
     const coverChips = covers.map((cover, index) => {
       const locked = cover.lock && this._state(cover.lock)?.state === "on";
@@ -1037,6 +1588,8 @@ class SmartShadingV4Card extends HTMLElement {
     const pauseButton = this._control(controls, "pause_default");
     const resumeButton = this._control(controls, "resume");
     const evaluateButton = this._control(controls, "evaluate");
+    const simulateButton = this._control(controls, "simulate");
+    const previewButton = this._control(controls, "preview_day");
     const masterButton = this._control(controls, "manual_master");
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
     const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
@@ -1055,6 +1608,7 @@ class SmartShadingV4Card extends HTMLElement {
         .header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.heading{flex:1;overflow:hidden}.title{font-size:18px;font-weight:850;line-height:1.08}.room-name{font-size:11px;opacity:.56;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.important{font-size:11px;opacity:.72;margin-top:4px;line-height:1.3;overflow-wrap:anywhere}
         .mode{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap;line-height:1}.danger .mode .mode-icon,.heat .mode .mode-icon,.paused .mode .mode-icon,.disabled .mode .mode-icon,.manual .mode .mode-icon,.active-master .icon-box,.sector-card.active .sector-icon,.cover-row.warning .cover-icon,.easy-cover-row.manual .easy-cover-icon,.calm-pulse{--pulse-transform:translateZ(0);animation:calmPulse 4.2s ease-in-out infinite;transform-origin:center}.sun-dot.calm-pulse{--pulse-transform:translate(-50%,-50%)}@keyframes calmPulse{0%,100%{opacity:.76;transform:var(--pulse-transform) scale(.98)}50%{opacity:1;transform:var(--pulse-transform) scale(1.045)}}
         .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;line-height:1;cursor:pointer}.chip.icon-only{width:26px;padding:0}.parts{display:inline-flex;align-items:center;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;line-height:1;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
+        .decision-summary{display:flex;flex-wrap:wrap;gap:5px;padding:7px 8px;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(255,255,255,.035)}.decision-summary span{display:grid;gap:1px;min-width:74px;flex:1 1 80px}.decision-summary small{font-size:8px;letter-spacing:.03em;opacity:.55;text-transform:uppercase}.decision-summary strong{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.decision-summary .decision-running strong{color:var(--warning-color,#ffbf69)}
         .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.35)}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
         .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}
         .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar.unknown:after{content:"";display:block;width:100%;height:100%;background:rgba(255,255,255,.04)}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
@@ -1081,18 +1635,21 @@ class SmartShadingV4Card extends HTMLElement {
             ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
           </div>
+          ${decisionSummary}
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</span><span>${sunAvailable ? `Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°` : htmlEscape(L.sunUnavailable)}</span></div><div class="track">${sectorBars}${sunAvailable ? `<span class="sun-dot ${effectiveSunActive ? "calm-pulse" : ""}"></span>` : ""}</div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
           ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}
           ${this._config.show_covers !== false ? `<div class="covers">${coverRows || `<div class="message">${htmlEscape(L.noCovers)}</div>`}</div>` : ""}
-          ${this._config.show_actions !== false ? `<div class="footer"><div class="actions">
-            ${paused
+          <div class="footer"><div class="actions">
+            ${this._config.show_actions !== false ? `${paused
               ? (resumeButton?.entity_id ? `<button class="round" data-press="${htmlEscape(resumeButton.entity_id)}" title="${htmlEscape(L.resume)}">${iconBox("mdi:play", "action-icon")}</button>` : "")
               : (pauseButton?.entity_id ? `<button class="round" data-press="${htmlEscape(pauseButton.entity_id)}" title="${htmlEscape(L.pause)}">${iconBox("mdi:pause", "action-icon")}</button>` : "")}
             ${evaluateButton?.entity_id ? `<button class="round" data-press="${htmlEscape(evaluateButton.entity_id)}" title="${htmlEscape(L.evaluate)}">${iconBox("mdi:refresh", "action-icon")}</button>` : ""}
+            ${simulateButton?.entity_id ? `<button class="round" data-press="${htmlEscape(simulateButton.entity_id)}" title="${htmlEscape(L.runSimulation)}">${iconBox("mdi:flask-outline", "action-icon")}</button>` : ""}
+            ${previewButton?.entity_id ? `<button class="round" data-press="${htmlEscape(previewButton.entity_id)}" title="${htmlEscape(L.previewDay)}">${iconBox("mdi:calendar-search-outline", "action-icon")}</button>` : ""}
             ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}">${iconBox("mdi:hand-back-right", "action-icon")}</button>` : ""}
-            ${attrs.night_enabled && attrs.night_source === "entity" && attrs.night_entity && this._state(attrs.night_entity) ? `<button class="round" data-night-source="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.nightSchedule)}">${iconBox("mdi:calendar-clock", "action-icon")}</button>` : ""}
+            ${attrs.night_enabled && attrs.night_source === "entity" && attrs.night_entity && this._state(attrs.night_entity) ? `<button class="round" data-night-source="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.nightSchedule)}">${iconBox("mdi:calendar-clock", "action-icon")}</button>` : ""}` : ""}
             <button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}">${iconBox("mdi:tune-variant", "advanced-icon")}<span>${htmlEscape(L.advanced)}</span></button>
-          </div></div>` : ""}
+          </div></div>
         </div>
       </ha-card>` : `<ha-card data-card-mode="easy" class="easy-card ${cardClass}">
         <div class="easy-wrap" data-easy-layout>

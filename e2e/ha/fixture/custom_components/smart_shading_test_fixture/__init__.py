@@ -27,9 +27,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             entity.async_write_ha_state()
             return
 
-        # sun.sun is deliberately overridden for deterministic geometry. The
-        # real Sun integration remains loaded and Smart Shading still consumes
-        # a normal Home Assistant state object.
+        # sun.sun is fixture-owned in the E2E lab so solar geometry remains
+        # deterministic. Smart Shading still consumes a normal Home Assistant
+        # state object, exactly as it does with the real Sun integration.
         if available:
             hass.states.async_set(entity_id, str(state), attributes)
         else:

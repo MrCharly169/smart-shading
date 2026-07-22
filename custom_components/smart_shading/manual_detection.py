@@ -667,8 +667,12 @@ class ManualOverrideDetectionMixin:
         await self._activate_cover_pause(
             room, cover, "external_or_physical_control"
         )
-        if self._room_safety_active(room):
-            await self.async_evaluate_all(f"safety_manual_cover:{entity_id}")
+        trigger = (
+            f"safety_manual_cover:{entity_id}"
+            if self._room_safety_active(room)
+            else f"external_manual_cover:{entity_id}"
+        )
+        await self.async_evaluate_all(trigger)
 
     def _external_movement_detection_enabled(self, room: dict[str, Any]) -> bool:
         return bool(self.advanced_mode) and bool(
@@ -1075,6 +1079,13 @@ class ManualOverrideDetectionMixin:
             return
 
         room, cover = cover_match
+        # Feed trusted numeric feedback into the command ledger before manual
+        # classification.  Own feedback can complete verification, while a
+        # confirmed external movement below transfers ownership through the
+        # existing pause path.
+        await self._record_command_feedback(
+            str(entity_id or ""), event.data.get("new_state")
+        )
         decision = self._classify_confirmed_cover_change(
             room,
             entity_id,
@@ -1111,8 +1122,12 @@ class ManualOverrideDetectionMixin:
             await self._activate_cover_pause(
                 room, cover, "external_or_physical_control"
             )
-            if self._room_safety_active(room):
-                await self.async_evaluate_all(f"safety_manual_cover:{entity_id}")
+            trigger = (
+                f"safety_manual_cover:{entity_id}"
+                if self._room_safety_active(room)
+                else f"external_manual_cover:{entity_id}"
+            )
+            await self.async_evaluate_all(trigger)
             return
 
         if decision.changed or decision.reason == "state_only_change_ignored":

@@ -354,6 +354,30 @@
               "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
               "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
             }
+          },
+          "execution_settings": {
+            "name": "Command execution",
+            "description": "Detailed timing and target-verification settings for this room.",
+            "data": {
+              "command_stagger_seconds": "Delay between cover commands",
+              "stagger_scope": "Command staggering scope",
+              "safety_bypasses_stagger": "Safety bypasses command delay",
+              "target_verification_enabled": "Verify cover targets by default",
+              "verification_retries": "Verification retries",
+              "movement_seconds": "Expected movement duration",
+              "settling_seconds": "Settling time",
+              "source_stale_seconds": "Source freshness limit"
+            },
+            "data_description": {
+              "command_stagger_seconds": "Wait this long between normal commands to covers in this room. Safety commands keep priority.",
+              "stagger_scope": "Choose whether normal cover commands are queued independently per room or together across the whole house.",
+              "safety_bypasses_stagger": "When enabled, a safety movement is sent immediately instead of waiting behind normal queued commands.",
+              "target_verification_enabled": "Use target verification for covers unless an individual cover overrides it.",
+              "verification_retries": "Maximum retry attempts after a verified target is not reached.",
+              "movement_seconds": "Expected travel time before target verification starts.",
+              "settling_seconds": "Extra time after movement before reading the final cover state.",
+              "source_stale_seconds": "Set to 0 to disable freshness expiry. A positive age reports an unchanged source as stale instead of silently treating it as current."
+            }
           }
         }
       },
@@ -568,6 +592,124 @@
           "elevation_min": "Ignore sun below this elevation."
         }
       },
+      "protected_zones_hub": {
+        "title": "{sector_name} · Glare protection",
+        "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
+        "menu_options": {}
+      },
+      "add_protected_zone": {
+        "title": "{sector_name} · Add protected zone",
+        "description": "Available only in the complete setup. Saving creates a stable zone identity that remains limited to this sun sector.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zone identity and groups",
+            "data": {
+              "name": "Zone name",
+              "enabled": "Enable this zone",
+              "group_ids": "Affected cover groups"
+            },
+            "data_description": {
+              "name": "A stable internal ID is generated when the zone is saved.",
+              "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Protected-area geometry",
+            "data": {
+              "distance_m": "Distance from facade",
+              "lower_height_m": "Lower protected height",
+              "upper_height_m": "Upper protected height",
+              "lateral_min_m": "Lateral range start (optional)",
+              "lateral_max_m": "Lateral range end (optional)"
+            },
+            "data_description": {
+              "distance_m": "Distance from the facade plane to the protected viewing area.",
+              "lower_height_m": "Lower edge of the protected vertical range.",
+              "upper_height_m": "Upper edge of the protected vertical range; it must be higher than the lower edge.",
+              "lateral_min_m": "Optional lateral boundary. Enter both lateral values or leave both empty.",
+              "lateral_max_m": "Optional lateral boundary. It must be greater than the start value."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Protection targets",
+            "data": {
+              "target_position": "Target cover position",
+              "target_tilt": "Target slat position (optional)"
+            },
+            "data_description": {
+              "target_position": "Requested cover position while this zone protects against glare.",
+              "target_tilt": "Optional requested slat position for covers that support tilt."
+            }
+          }
+        }
+      },
+      "manage_protected_zone": {
+        "title": "{sector_name} · Protected zone",
+        "description": "Available only in the complete setup. The zone keeps its stable identity while its geometry, affected groups and targets are edited.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zone identity and groups",
+            "data": {
+              "name": "Zone name",
+              "enabled": "Enable this zone",
+              "group_ids": "Affected cover groups"
+            },
+            "data_description": {
+              "name": "The internal zone ID remains stable when the name changes.",
+              "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Protected-area geometry",
+            "data": {
+              "distance_m": "Distance from facade",
+              "lower_height_m": "Lower protected height",
+              "upper_height_m": "Upper protected height",
+              "lateral_min_m": "Lateral range start (optional)",
+              "lateral_max_m": "Lateral range end (optional)"
+            },
+            "data_description": {
+              "distance_m": "Distance from the facade plane to the protected viewing area.",
+              "lower_height_m": "Lower edge of the protected vertical range.",
+              "upper_height_m": "Upper edge of the protected vertical range; it must be higher than the lower edge.",
+              "lateral_min_m": "Optional lateral boundary. Enter both lateral values or leave both empty.",
+              "lateral_max_m": "Optional lateral boundary. It must be greater than the start value."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Protection targets",
+            "data": {
+              "target_position": "Target cover position",
+              "target_tilt": "Target slat position (optional)"
+            },
+            "data_description": {
+              "target_position": "Requested cover position while this zone protects against glare.",
+              "target_tilt": "Optional requested slat position for covers that support tilt."
+            }
+          },
+          "protected_zone_maintenance": {
+            "name": "Remove protected zone",
+            "data": {
+              "delete_protected_zone": "Remove this protected zone"
+            },
+            "data_description": {
+              "delete_protected_zone": "Opens a separate confirmation before the stable zone is removed."
+            }
+          }
+        }
+      },
+      "delete_protected_zone": {
+        "title": "{sector_name} · Remove protected zone",
+        "description": "This deletes the protected zone and its locally stored geometry and target settings from this sector.",
+        "data": {
+          "confirm_delete_protected_zone": "Confirm removal"
+        },
+        "data_description": {
+          "confirm_delete_protected_zone": "Only confirm when this protected zone should be permanently removed."
+        }
+      },
       "add_sector_group": {
         "title": "{sector_name} · Create first cover group",
         "description": "Every new sun sector requires a cover group. Select its physical profile now.",
@@ -708,11 +850,13 @@
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
+              "opening_order": "Opening sequence",
               "tilt_tolerance": "Slat position tolerance"
             },
             "data_description": {
               "position_tolerance": "No new height command is sent while feedback remains within this deviation.",
               "tilt_preset": "Glare protection closes slats further; Daylight keeps them more open. Custom exposes four stages.",
+              "opening_order": "Height first is the safe default: raise or lower the cover before moving slats. Choose slats first only when the physical installation requires it.",
               "tilt_tolerance": "No new slat command is sent while feedback remains within this deviation."
             }
           },
@@ -808,7 +952,10 @@
               "window_returns_to_automation": "Return to automation after closing",
               "max_open_position": "Maximum normal open position",
               "invert_position": "Invert cover position",
-              "invert_tilt": "Invert slat position"
+              "invert_tilt": "Invert slat position",
+              "feedback_quality": "Position feedback quality",
+              "verify_target": "Verify this cover target",
+              "allow_automatic_reverse": "Allow automatic reversal after manual control"
             },
             "data_description": {
               "lock": "If several covers in this room use the same entity, they pause and resume together.",
@@ -818,7 +965,10 @@
               "window_returns_to_automation": "Window-triggered safety and return movements do not create a manual pause.",
               "max_open_position": "Limits normal opening, while an unsafe-window target may still open further.",
               "invert_position": "Use only when this entity exposes the opposite Home Assistant height scale.",
-              "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed."
+              "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed.",
+              "feedback_quality": "Choose how reliably this cover reports intermediate or final positions.",
+              "verify_target": "Overrides the room default and checks whether this cover reaches requested targets.",
+              "allow_automatic_reverse": "Disabled by default. After a confirmed external movement, normal automation keeps the chosen position; Safety movement can still intervene."
             }
           },
           "cover_maintenance": {
@@ -872,7 +1022,14 @@
       "incomplete_configuration": "Resolve the open items shown in the summary before starting.",
       "confirm_start_required": "Confirm that you want to start Smart Shading.",
       "sun_source_required": "Select the entity required by this sun source.",
-      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
+      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement.",
+      "protected_zone_name_required": "Enter a name for the protected zone.",
+      "protected_zone_groups_required": "Select at least one affected cover group.",
+      "protected_zone_group_invalid": "Every selected cover group must belong to this sun sector.",
+      "protected_zone_distance_range": "The facade distance must be between 0.1 m and 30 m.",
+      "protected_zone_height_range": "The lower protected height must be below the upper height, within 0 m to 10 m.",
+      "protected_zone_lateral_range": "Enter both lateral values and make sure the start is below the end.",
+      "protected_zone_target_range": "Target positions must be between 0% and 100%."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -1200,11 +1357,13 @@
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
+              "opening_order": "Opening sequence",
               "tilt_tolerance": "Slat position tolerance"
             },
             "data_description": {
               "position_tolerance": "No new height command is sent while feedback remains within this deviation.",
               "tilt_preset": "Glare protection closes slats further; Daylight keeps them more open. Custom exposes four stages.",
+              "opening_order": "Height first is the safe default: raise or lower the cover before moving slats. Choose slats first only when the physical installation requires it.",
               "tilt_tolerance": "No new slat command is sent while feedback remains within this deviation."
             }
           },
@@ -1288,7 +1447,10 @@
               "window_returns_to_automation": "Return to automation after closing",
               "max_open_position": "Maximum normal open position",
               "invert_position": "Invert cover position",
-              "invert_tilt": "Invert slat position"
+              "invert_tilt": "Invert slat position",
+              "feedback_quality": "Position feedback quality",
+              "verify_target": "Verify this cover target",
+              "allow_automatic_reverse": "Allow automatic reversal after manual control"
             },
             "data_description": {
               "lock": "If several covers in this room use the same entity, they pause and resume together.",
@@ -1298,7 +1460,10 @@
               "window_returns_to_automation": "Window-triggered safety and return movements do not create a manual pause.",
               "max_open_position": "Limits normal opening, while an unsafe-window target may still open further.",
               "invert_position": "Use only when this entity exposes the opposite Home Assistant height scale.",
-              "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed."
+              "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed.",
+              "feedback_quality": "Choose how reliably this cover reports intermediate or final positions.",
+              "verify_target": "Overrides the room default and checks whether this cover reaches requested targets.",
+              "allow_automatic_reverse": "Disabled by default. After a confirmed external movement, normal automation keeps the chosen position; Safety movement can still intervene."
             }
           },
           "cover_maintenance": {
@@ -1423,6 +1588,30 @@
               "evening_release_time": "Active heat protection ends no later than this time.",
               "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
               "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
+            }
+          },
+          "execution_settings": {
+            "name": "Command execution",
+            "description": "Detailed timing and target-verification settings for this room.",
+            "data": {
+              "command_stagger_seconds": "Delay between cover commands",
+              "stagger_scope": "Command staggering scope",
+              "safety_bypasses_stagger": "Safety bypasses command delay",
+              "target_verification_enabled": "Verify cover targets by default",
+              "verification_retries": "Verification retries",
+              "movement_seconds": "Expected movement duration",
+              "settling_seconds": "Settling time",
+              "source_stale_seconds": "Source freshness limit"
+            },
+            "data_description": {
+              "command_stagger_seconds": "Wait this long between normal commands to covers in this room. Safety commands keep priority.",
+              "stagger_scope": "Choose whether normal cover commands are queued independently per room or together across the whole house.",
+              "safety_bypasses_stagger": "When enabled, a safety movement is sent immediately instead of waiting behind normal queued commands.",
+              "target_verification_enabled": "Use target verification for covers unless an individual cover overrides it.",
+              "verification_retries": "Maximum retry attempts after a verified target is not reached.",
+              "movement_seconds": "Expected travel time before target verification starts.",
+              "settling_seconds": "Extra time after movement before reading the final cover state.",
+              "source_stale_seconds": "Set to 0 to disable freshness expiry. A positive age reports an unchanged source as stale instead of silently treating it as current."
             }
           }
         }
@@ -1681,6 +1870,124 @@
           "elevation_min": "Ignore sun below this elevation."
         }
       },
+      "protected_zones_hub": {
+        "title": "{sector_name} · Glare protection",
+        "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
+        "menu_options": {}
+      },
+      "add_protected_zone": {
+        "title": "{sector_name} · Add protected zone",
+        "description": "Available only in the complete setup. Saving creates a stable zone identity that remains limited to this sun sector.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zone identity and groups",
+            "data": {
+              "name": "Zone name",
+              "enabled": "Enable this zone",
+              "group_ids": "Affected cover groups"
+            },
+            "data_description": {
+              "name": "A stable internal ID is generated when the zone is saved.",
+              "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Protected-area geometry",
+            "data": {
+              "distance_m": "Distance from facade",
+              "lower_height_m": "Lower protected height",
+              "upper_height_m": "Upper protected height",
+              "lateral_min_m": "Lateral range start (optional)",
+              "lateral_max_m": "Lateral range end (optional)"
+            },
+            "data_description": {
+              "distance_m": "Distance from the facade plane to the protected viewing area.",
+              "lower_height_m": "Lower edge of the protected vertical range.",
+              "upper_height_m": "Upper edge of the protected vertical range; it must be higher than the lower edge.",
+              "lateral_min_m": "Optional lateral boundary. Enter both lateral values or leave both empty.",
+              "lateral_max_m": "Optional lateral boundary. It must be greater than the start value."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Protection targets",
+            "data": {
+              "target_position": "Target cover position",
+              "target_tilt": "Target slat position (optional)"
+            },
+            "data_description": {
+              "target_position": "Requested cover position while this zone protects against glare.",
+              "target_tilt": "Optional requested slat position for covers that support tilt."
+            }
+          }
+        }
+      },
+      "manage_protected_zone": {
+        "title": "{sector_name} · Protected zone",
+        "description": "Available only in the complete setup. The zone keeps its stable identity while its geometry, affected groups and targets are edited.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zone identity and groups",
+            "data": {
+              "name": "Zone name",
+              "enabled": "Enable this zone",
+              "group_ids": "Affected cover groups"
+            },
+            "data_description": {
+              "name": "The internal zone ID remains stable when the name changes.",
+              "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Protected-area geometry",
+            "data": {
+              "distance_m": "Distance from facade",
+              "lower_height_m": "Lower protected height",
+              "upper_height_m": "Upper protected height",
+              "lateral_min_m": "Lateral range start (optional)",
+              "lateral_max_m": "Lateral range end (optional)"
+            },
+            "data_description": {
+              "distance_m": "Distance from the facade plane to the protected viewing area.",
+              "lower_height_m": "Lower edge of the protected vertical range.",
+              "upper_height_m": "Upper edge of the protected vertical range; it must be higher than the lower edge.",
+              "lateral_min_m": "Optional lateral boundary. Enter both lateral values or leave both empty.",
+              "lateral_max_m": "Optional lateral boundary. It must be greater than the start value."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Protection targets",
+            "data": {
+              "target_position": "Target cover position",
+              "target_tilt": "Target slat position (optional)"
+            },
+            "data_description": {
+              "target_position": "Requested cover position while this zone protects against glare.",
+              "target_tilt": "Optional requested slat position for covers that support tilt."
+            }
+          },
+          "protected_zone_maintenance": {
+            "name": "Remove protected zone",
+            "data": {
+              "delete_protected_zone": "Remove this protected zone"
+            },
+            "data_description": {
+              "delete_protected_zone": "Opens a separate confirmation before the stable zone is removed."
+            }
+          }
+        }
+      },
+      "delete_protected_zone": {
+        "title": "{sector_name} · Remove protected zone",
+        "description": "This deletes the protected zone and its locally stored geometry and target settings from this sector.",
+        "data": {
+          "confirm_delete_protected_zone": "Confirm removal"
+        },
+        "data_description": {
+          "confirm_delete_protected_zone": "Only confirm when this protected zone should be permanently removed."
+        }
+      },
       "add_sector_group": {
         "title": "{sector_name} · Create first cover group",
         "description": "Every new sun sector requires a cover group. Select its physical profile now.",
@@ -1730,7 +2037,14 @@
       "option_not_available": "This function is not available in this setup.",
       "incomplete_configuration": "Resolve the open items shown in the summary before saving changes.",
       "sun_source_required": "Select the entity required by this sun source.",
-      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement."
+      "occupancy_source_required": "Select an occupancy sensor or turn off the occupancy requirement.",
+      "protected_zone_name_required": "Enter a name for the protected zone.",
+      "protected_zone_groups_required": "Select at least one affected cover group.",
+      "protected_zone_group_invalid": "Every selected cover group must belong to this sun sector.",
+      "protected_zone_distance_range": "The facade distance must be between 0.1 m and 30 m.",
+      "protected_zone_height_range": "The lower protected height must be below the upper height, within 0 m to 10 m.",
+      "protected_zone_lateral_range": "Enter both lateral values and make sure the start is below the end.",
+      "protected_zone_target_range": "Target positions must be between 0% and 100%."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."
@@ -1780,6 +2094,12 @@
         "balanced": "Balanced",
         "daylight": "More daylight",
         "custom": "Custom"
+      }
+    },
+    "opening_order": {
+      "options": {
+        "height_then_tilt": "Height first, then slats",
+        "tilt_then_height": "Slats first, then height"
       }
     },
     "device_type": {
@@ -1845,6 +2165,14 @@
         "skip": "Do not send without feedback"
       }
     },
+    "feedback_quality": {
+      "options": {
+        "trusted": "Trusted position feedback",
+        "intermediate": "Intermediate position feedback",
+        "end_positions": "End-position feedback only",
+        "none": "No usable position feedback"
+      }
+    },
     "weather_logic": {
       "options": {
         "all": "All conditions must pass",
@@ -1870,6 +2198,12 @@
         "ignore": "Ignore window contact"
       }
     },
+    "stagger_scope": {
+      "options": {
+        "room": "This room",
+        "house": "Whole house"
+      }
+    },
     "pause_mode": {
       "options": {
         "next_sunrise": "Until next morning",
@@ -1889,6 +2223,26 @@
       "options": {
         "simple": "Easy",
         "complete": "Advanced"
+      }
+    }
+  },
+  "services": {
+    "preview_day": {
+      "name": "Preview a shading day",
+      "description": "Creates a non-actuating shading preview for a selected local date. It evaluates the production decision pipeline but never calls a cover service or command executor.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "Stable Smart Shading room ID from the room status entity."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Local calendar date in YYYY-MM-DD format. Defaults to today."
+        },
+        "entry_id": {
+          "name": "Configuration entry ID",
+          "description": "Optional Smart Shading configuration entry identifier."
+        }
       }
     }
   }

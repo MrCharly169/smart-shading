@@ -28,9 +28,43 @@ CONF_SUN_PRESENCE_ENTITY = "sun_presence_entity"
 CONF_ROOMS = "rooms"
 
 DEFAULT_EVALUATION_INTERVAL = 1200
+# The interval above deliberately remains a slow recovery watchdog.  Normal
+# decisions are triggered from entity events and coalesced by this short delay.
+DEFAULT_EVALUATION_DEBOUNCE_SECONDS = 0.35
 DEFAULT_POSITION_TOLERANCE = 5.0
 DEFAULT_TILT_TOLERANCE = 5.0
 DEFAULT_COMMAND_COOLDOWN = 90
+DEFAULT_MOVEMENT_SECONDS = 45.0
+DEFAULT_SETTLING_SECONDS = 5.0
+DEFAULT_VERIFICATION_RETRIES = 1
+DEFAULT_STAGGER_SECONDS = 0.0
+# Normal cover commands are isolated per room unless an Advanced customer
+# deliberately chooses a house-wide queue.  Safety remains independently
+# configurable because an emergency movement can reasonably need to bypass a
+# normal-command queue.
+STAGGER_SCOPE_ROOM = "room"
+STAGGER_SCOPE_HOUSE = "house"
+STAGGER_SCOPE_OPTIONS = [STAGGER_SCOPE_ROOM, STAGGER_SCOPE_HOUSE]
+DEFAULT_STAGGER_SCOPE = STAGGER_SCOPE_ROOM
+DEFAULT_SAFETY_BYPASSES_STAGGER = True
+# Once Home Assistant has confirmed an external/manual movement, retaining the
+# person's chosen position is the safe default.  A customer can explicitly
+# opt back into normal automation reclaiming the cover in Advanced Mode.
+DEFAULT_ALLOW_AUTOMATIC_REVERSE = False
+# Slatted covers normally move their height before opening the slats.  The
+# alternate order remains an opt-in for a physical installation that requires
+# it and is deliberately not exposed for Easy or non-slat profiles.
+OPENING_ORDER_HEIGHT_THEN_TILT = "height_then_tilt"
+OPENING_ORDER_TILT_THEN_HEIGHT = "tilt_then_height"
+OPENING_ORDER_OPTIONS = [
+    OPENING_ORDER_HEIGHT_THEN_TILT,
+    OPENING_ORDER_TILT_THEN_HEIGHT,
+]
+DEFAULT_OPENING_ORDER = OPENING_ORDER_HEIGHT_THEN_TILT
+# Freshness expiry is opt-in.  Stable Home Assistant states such as a closed
+# window contact can legitimately remain unchanged for days, so treating the
+# timestamp itself as a failed source must never be the default.
+DEFAULT_SOURCE_STALE_SECONDS = 0.0
 DEFAULT_EXTERNAL_MOVEMENT_DETECTION = False
 DEFAULT_EVENING_RELEASE_TIME = "18:00:00"
 DEFAULT_SUNSET_OFFSET_MINUTES = -15
@@ -388,6 +422,21 @@ OUTSIDE_OPEN = "open"
 OUTSIDE_HOLD = "hold"
 OUTSIDE_OPTIONS = [OUTSIDE_OPEN, OUTSIDE_HOLD]
 
+ADVANCED_EXECUTION_ROOM_DEFAULTS = {
+    # These controls intentionally belong only to Advanced Mode.  Keeping
+    # them outside ``ROOM_DEFAULTS`` prevents new Easy entries from carrying
+    # hidden Advanced execution state in their persisted configuration.
+    "command_stagger_seconds": DEFAULT_STAGGER_SECONDS,
+    "stagger_scope": DEFAULT_STAGGER_SCOPE,
+    "safety_bypasses_stagger": DEFAULT_SAFETY_BYPASSES_STAGGER,
+    "target_verification_enabled": False,
+    "verification_retries": DEFAULT_VERIFICATION_RETRIES,
+    "movement_seconds": DEFAULT_MOVEMENT_SECONDS,
+    "settling_seconds": DEFAULT_SETTLING_SECONDS,
+    "source_stale_seconds": DEFAULT_SOURCE_STALE_SECONDS,
+}
+
+
 ROOM_DEFAULTS = {
     "enabled": True,
     "default_pause_mode": PAUSE_NEXT_SUNRISE,
@@ -435,6 +484,17 @@ ROOM_DEFAULTS = {
     "heat_outside_schedule": True,
     "sectors": [],
 }
+
+FEEDBACK_TRUSTED = "trusted"
+FEEDBACK_INTERMEDIATE = "intermediate"
+FEEDBACK_END_POSITIONS = "end_positions"
+FEEDBACK_NONE = "none"
+FEEDBACK_QUALITY_OPTIONS = [
+    FEEDBACK_TRUSTED,
+    FEEDBACK_INTERMEDIATE,
+    FEEDBACK_END_POSITIONS,
+    FEEDBACK_NONE,
+]
 
 WINDOW_POLICY_BLOCK_ALL = "block_all"
 WINDOW_POLICY_BLOCK_CLOSING = "block_closing"

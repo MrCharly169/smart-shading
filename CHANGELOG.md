@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Decision and execution foundation
+
+- add a deterministic, traceable Advanced decision pipeline with normalized
+  source quality, immutable rule precedence, safe simulation, and day preview
+- persist per-cover command ownership, delayed sequence work, bounded target
+  verification, and cancelable stagger queues across Home Assistant restarts
+- make ordinary Advanced evaluation event-driven with debouncing, exact
+  schedule/Sun boundaries, and a watchdog-only interval
+- add Advanced-only protected Solar glare zones with sector/group scope,
+  geometric validation, and most-protective target selection
+- expose decision traces, heat lifecycle state, simulation results, and command
+  lifecycle diagnostics without adding Advanced controls to Easy Mode
+- add exact one-shot geometry boundary wakeups for sector entry/exit and
+  adaptive-slat target changes, plus a selected-date virtual day preview
+  backed by Astral or an explicit deterministic trajectory
+- add Advanced-only ownership and execution controls: opt-in automatic
+  reversal after an external takeover, room/house stagger scope with an
+  optional Safety bypass, and a hardware-specific slat-before-height opening
+  order
+- make a confirmed external cover movement immediately refresh the affected
+  decision trace, and allow the Card to request a selected-date preview
+  without ever invoking the physical executor
+
+### Release qualification
+
+- make release-preparation pull requests neutral with respect to issue closure;
+  a parent delivery issue is closed only after the published tag passes the
+  HACS qualification gate
+- select the newest stable release tag, rather than a prerelease, as the
+  default Home Assistant upgrade baseline
+- document the complete Issue #79 major-release acceptance, migration, and
+  post-publication HACS procedure
+
 ### Release laboratory
 
 - moved published-tag HACS qualification to an automatic GitHub-hosted job that

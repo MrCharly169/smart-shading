@@ -339,6 +339,30 @@
               "sunset_offset_minutes": "Negative Werte geben vor Sonnenuntergang frei, positive Werte danach.",
               "reopen_temperature": "Gilt nur, wenn alle Behanggruppen Außenjalousien sind; unter diesem Wert darf die normale Beschattung wieder öffnen."
             }
+          },
+          "execution_settings": {
+            "name": "Befehlsausführung",
+            "description": "Erweiterte Zeit- und Zielprüfungs-Einstellungen für diesen Raum.",
+            "data": {
+              "command_stagger_seconds": "Abstand zwischen Behangbefehlen",
+              "stagger_scope": "Geltungsbereich der Befehlsstaffelung",
+              "safety_bypasses_stagger": "Sicherheitsfahrten ohne Befehlsabstand",
+              "target_verification_enabled": "Behangziele standardmäßig prüfen",
+              "verification_retries": "Wiederholungen der Zielprüfung",
+              "movement_seconds": "Erwartete Fahrtdauer",
+              "settling_seconds": "Beruhigungszeit",
+              "source_stale_seconds": "Grenze für Quellenaktualität"
+            },
+            "data_description": {
+              "command_stagger_seconds": "So lange wartet Smart Shading zwischen normalen Befehlen an Behänge dieses Raums. Sicherheitsfahrten behalten Vorrang.",
+              "stagger_scope": "Wählen Sie, ob normale Behangbefehle je Raum getrennt oder gemeinsam im ganzen Haus eingereiht werden.",
+              "safety_bypasses_stagger": "Wenn aktiv, fährt ein Sicherheitsbefehl sofort und wartet nicht hinter normalen Befehlen in der Warteschlange.",
+              "target_verification_enabled": "Ziele werden geprüft, sofern ein einzelner Behang dies nicht anders festlegt.",
+              "verification_retries": "Maximale Wiederholungen, wenn ein geprüftes Ziel nicht erreicht wurde.",
+              "movement_seconds": "Erwartete Fahrtdauer, bevor die Zielprüfung beginnt.",
+              "settling_seconds": "Zusätzliche Wartezeit nach der Fahrt vor dem Lesen des Endzustands.",
+              "source_stale_seconds": "Mit 0 ist die Ablaufprüfung deaktiviert. Ein positiver Wert meldet eine unveränderte Quelle nach diesem Alter als veraltet statt stillschweigend als aktuell."
+            }
           }
         }
       },
@@ -607,11 +631,13 @@
             "data": {
               "position_tolerance": "Toleranz für Behangposition",
               "tilt_preset": "Lamellenprofil",
+              "opening_order": "Reihenfolge beim Öffnen",
               "tilt_tolerance": "Toleranz für Lamellenposition"
             },
             "data_description": {
               "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Höhenbefehl gesendet.",
               "tilt_preset": "Blendschutz schließt stärker; Tageslicht hält die Lamellen offener. Benutzerdefiniert zeigt vier Stufen.",
+              "opening_order": "Höhe zuerst ist der sichere Standard: Zuerst fährt der Behang, danach bewegen sich die Lamellen. Lamellen zuerst nur wählen, wenn die physische Montage es verlangt.",
               "tilt_tolerance": "Innerhalb dieser Abweichung wird kein neuer Lamellenbefehl gesendet."
             }
           },
@@ -707,7 +733,10 @@
               "window_returns_to_automation": "Nach Schließen zur Automatik zurückkehren",
               "max_open_position": "Maximale normale Öffnungsposition",
               "invert_position": "Behangposition invertieren",
-              "invert_tilt": "Lamellenposition invertieren"
+              "invert_tilt": "Lamellenposition invertieren",
+              "feedback_quality": "Qualität der Positionsrückmeldung",
+              "verify_target": "Ziel dieses Behangs prüfen",
+              "allow_automatic_reverse": "Automatische Rückfahrt nach manueller Bedienung erlauben"
             },
             "data_description": {
               "lock": "Nutzen mehrere Behänge dieses Raums dieselbe Entität, pausieren und starten sie gemeinsam.",
@@ -717,7 +746,10 @@
               "window_returns_to_automation": "Fensterbedingte Sicherheits- und Rückfahrten erzeugen keine manuelle Pause.",
               "max_open_position": "Begrenzt normales Öffnen; ein Fenster-Sicherheitsziel darf weiter öffnen.",
               "invert_position": "Nur verwenden, wenn die Home-Assistant-Höhenskala umgekehrt ist.",
-              "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet."
+              "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet.",
+              "feedback_quality": "Wählen Sie, wie zuverlässig dieser Behang Zwischen- oder Endpositionen meldet.",
+              "verify_target": "Überschreibt die Raumvorgabe und prüft, ob dieser Behang das angeforderte Ziel erreicht.",
+              "allow_automatic_reverse": "Standardmäßig aus. Nach bestätigter externer Bewegung bleibt die gewählte Position erhalten; eine Sicherheitsfahrt darf weiterhin eingreifen."
             }
           },
           "cover_maintenance": {
@@ -820,6 +852,124 @@
           "elevation_min": "Sonne unterhalb dieser Höhe ignorieren."
         }
       },
+      "protected_zones_hub": {
+        "title": "{sector_name} · Blendschutz",
+        "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
+        "menu_options": {}
+      },
+      "add_protected_zone": {
+        "title": "{sector_name} · Schutzzone hinzufügen",
+        "description": "Nur in der vollständigen Konfiguration. Beim Speichern entsteht eine stabile Zonen-ID, die auf diesen Sonnensektor begrenzt bleibt.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zonenidentität und Gruppen",
+            "data": {
+              "name": "Zonenname",
+              "enabled": "Diese Zone aktivieren",
+              "group_ids": "Betroffene Behanggruppen"
+            },
+            "data_description": {
+              "name": "Beim Speichern wird eine stabile interne ID erzeugt.",
+              "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
+              "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Geometrie des Schutzbereichs",
+            "data": {
+              "distance_m": "Abstand von der Fassade",
+              "lower_height_m": "Untere Schutzhöhe",
+              "upper_height_m": "Obere Schutzhöhe",
+              "lateral_min_m": "Seitlicher Bereich Anfang (optional)",
+              "lateral_max_m": "Seitlicher Bereich Ende (optional)"
+            },
+            "data_description": {
+              "distance_m": "Abstand zwischen Fassadenebene und geschütztem Sichtbereich.",
+              "lower_height_m": "Untere Kante des geschützten vertikalen Bereichs.",
+              "upper_height_m": "Obere Kante des geschützten vertikalen Bereichs; sie muss über der unteren Kante liegen.",
+              "lateral_min_m": "Optionale seitliche Grenze. Geben Sie beide seitlichen Werte ein oder lassen Sie beide leer.",
+              "lateral_max_m": "Optionale seitliche Grenze. Sie muss größer als der Anfangswert sein."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Schutzziele",
+            "data": {
+              "target_position": "Zielposition des Behangs",
+              "target_tilt": "Zielposition der Lamellen (optional)"
+            },
+            "data_description": {
+              "target_position": "Angeforderte Behangposition, während diese Zone gegen Blendung schützt.",
+              "target_tilt": "Optionale angeforderte Lamellenposition für Behänge mit Lamellensteuerung."
+            }
+          }
+        }
+      },
+      "manage_protected_zone": {
+        "title": "{sector_name} · Schutzzone",
+        "description": "Nur in der vollständigen Konfiguration. Die Zone behält ihre stabile Identität, während Geometrie, betroffene Gruppen und Ziele geändert werden.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zonenidentität und Gruppen",
+            "data": {
+              "name": "Zonenname",
+              "enabled": "Diese Zone aktivieren",
+              "group_ids": "Betroffene Behanggruppen"
+            },
+            "data_description": {
+              "name": "Die interne Zonen-ID bleibt auch bei einer Namensänderung stabil.",
+              "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
+              "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Geometrie des Schutzbereichs",
+            "data": {
+              "distance_m": "Abstand von der Fassade",
+              "lower_height_m": "Untere Schutzhöhe",
+              "upper_height_m": "Obere Schutzhöhe",
+              "lateral_min_m": "Seitlicher Bereich Anfang (optional)",
+              "lateral_max_m": "Seitlicher Bereich Ende (optional)"
+            },
+            "data_description": {
+              "distance_m": "Abstand zwischen Fassadenebene und geschütztem Sichtbereich.",
+              "lower_height_m": "Untere Kante des geschützten vertikalen Bereichs.",
+              "upper_height_m": "Obere Kante des geschützten vertikalen Bereichs; sie muss über der unteren Kante liegen.",
+              "lateral_min_m": "Optionale seitliche Grenze. Geben Sie beide seitlichen Werte ein oder lassen Sie beide leer.",
+              "lateral_max_m": "Optionale seitliche Grenze. Sie muss größer als der Anfangswert sein."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Schutzziele",
+            "data": {
+              "target_position": "Zielposition des Behangs",
+              "target_tilt": "Zielposition der Lamellen (optional)"
+            },
+            "data_description": {
+              "target_position": "Angeforderte Behangposition, während diese Zone gegen Blendung schützt.",
+              "target_tilt": "Optionale angeforderte Lamellenposition für Behänge mit Lamellensteuerung."
+            }
+          },
+          "protected_zone_maintenance": {
+            "name": "Schutzzone entfernen",
+            "data": {
+              "delete_protected_zone": "Diese Schutzzone entfernen"
+            },
+            "data_description": {
+              "delete_protected_zone": "Öffnet eine separate Bestätigung, bevor die stabile Zone entfernt wird."
+            }
+          }
+        }
+      },
+      "delete_protected_zone": {
+        "title": "{sector_name} · Schutzzone entfernen",
+        "description": "Dadurch werden diese Schutzzone sowie ihre lokale Geometrie und Zielwerte aus diesem Sektor entfernt.",
+        "data": {
+          "confirm_delete_protected_zone": "Entfernen bestätigen"
+        },
+        "data_description": {
+          "confirm_delete_protected_zone": "Nur bestätigen, wenn diese Schutzzone dauerhaft entfernt werden soll."
+        }
+      },
       "add_sector_group": {
         "title": "{sector_name} · Erste Behanggruppe anlegen",
         "description": "Jeder neue Sonnensektor benötigt eine Behanggruppe. Wählen Sie jetzt das physische Profil.",
@@ -872,7 +1022,14 @@
       "incomplete_configuration": "Beheben Sie vor dem Start die in der Zusammenfassung genannten offenen Punkte.",
       "confirm_start_required": "Bestätigen Sie, dass Sie Smart Shading starten möchten.",
       "sun_source_required": "Wählen Sie die benötigte Entität für diese Sonnenquelle.",
-      "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus."
+      "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus.",
+      "protected_zone_name_required": "Geben Sie einen Namen für die Schutzzone ein.",
+      "protected_zone_groups_required": "Wählen Sie mindestens eine betroffene Behanggruppe.",
+      "protected_zone_group_invalid": "Alle ausgewählten Behanggruppen müssen zu diesem Sonnensektor gehören.",
+      "protected_zone_distance_range": "Der Fassadenabstand muss zwischen 0,1 m und 30 m liegen.",
+      "protected_zone_height_range": "Die untere Schutzhöhe muss unter der oberen liegen und beide müssen zwischen 0 m und 10 m liegen.",
+      "protected_zone_lateral_range": "Geben Sie beide seitlichen Werte ein; der Anfang muss vor dem Ende liegen.",
+      "protected_zone_target_range": "Zielpositionen müssen zwischen 0 % und 100 % liegen."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -1185,11 +1342,13 @@
             "data": {
               "position_tolerance": "Toleranz für Behangposition",
               "tilt_preset": "Lamellenprofil",
+              "opening_order": "Reihenfolge beim Öffnen",
               "tilt_tolerance": "Toleranz für Lamellenposition"
             },
             "data_description": {
               "position_tolerance": "Innerhalb dieser Abweichung wird kein neuer Höhenbefehl gesendet.",
               "tilt_preset": "Blendschutz schließt stärker; Tageslicht hält die Lamellen offener. Benutzerdefiniert zeigt vier Stufen.",
+              "opening_order": "Höhe zuerst ist der sichere Standard: Zuerst fährt der Behang, danach bewegen sich die Lamellen. Lamellen zuerst nur wählen, wenn die physische Montage es verlangt.",
               "tilt_tolerance": "Innerhalb dieser Abweichung wird kein neuer Lamellenbefehl gesendet."
             }
           },
@@ -1273,7 +1432,10 @@
               "window_returns_to_automation": "Nach Schließen zur Automatik zurückkehren",
               "max_open_position": "Maximale normale Öffnungsposition",
               "invert_position": "Behangposition invertieren",
-              "invert_tilt": "Lamellenposition invertieren"
+              "invert_tilt": "Lamellenposition invertieren",
+              "feedback_quality": "Qualität der Positionsrückmeldung",
+              "verify_target": "Ziel dieses Behangs prüfen",
+              "allow_automatic_reverse": "Automatische Rückfahrt nach manueller Bedienung erlauben"
             },
             "data_description": {
               "lock": "Nutzen mehrere Behänge dieses Raums dieselbe Entität, pausieren und starten sie gemeinsam.",
@@ -1283,7 +1445,10 @@
               "window_returns_to_automation": "Fensterbedingte Sicherheits- und Rückfahrten erzeugen keine manuelle Pause.",
               "max_open_position": "Begrenzt normales Öffnen; ein Fenster-Sicherheitsziel darf weiter öffnen.",
               "invert_position": "Nur verwenden, wenn die Home-Assistant-Höhenskala umgekehrt ist.",
-              "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet."
+              "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet.",
+              "feedback_quality": "Wählen Sie, wie zuverlässig dieser Behang Zwischen- oder Endpositionen meldet.",
+              "verify_target": "Überschreibt die Raumvorgabe und prüft, ob dieser Behang das angeforderte Ziel erreicht.",
+              "allow_automatic_reverse": "Standardmäßig aus. Nach bestätigter externer Bewegung bleibt die gewählte Position erhalten; eine Sicherheitsfahrt darf weiterhin eingreifen."
             }
           },
           "cover_maintenance": {
@@ -1408,6 +1573,30 @@
               "evening_release_time": "Spätestens zu dieser Uhrzeit endet ein aktiver Hitzeschutz.",
               "sunset_offset_minutes": "Negative Werte geben vor Sonnenuntergang frei, positive Werte danach.",
               "reopen_temperature": "Gilt nur, wenn alle Behanggruppen Außenjalousien sind; unter diesem Wert darf die normale Beschattung wieder öffnen."
+            }
+          },
+          "execution_settings": {
+            "name": "Befehlsausführung",
+            "description": "Erweiterte Zeit- und Zielprüfungs-Einstellungen für diesen Raum.",
+            "data": {
+              "command_stagger_seconds": "Abstand zwischen Behangbefehlen",
+              "stagger_scope": "Geltungsbereich der Befehlsstaffelung",
+              "safety_bypasses_stagger": "Sicherheitsfahrten ohne Befehlsabstand",
+              "target_verification_enabled": "Behangziele standardmäßig prüfen",
+              "verification_retries": "Wiederholungen der Zielprüfung",
+              "movement_seconds": "Erwartete Fahrtdauer",
+              "settling_seconds": "Beruhigungszeit",
+              "source_stale_seconds": "Grenze für Quellenaktualität"
+            },
+            "data_description": {
+              "command_stagger_seconds": "So lange wartet Smart Shading zwischen normalen Befehlen an Behänge dieses Raums. Sicherheitsfahrten behalten Vorrang.",
+              "stagger_scope": "Wählen Sie, ob normale Behangbefehle je Raum getrennt oder gemeinsam im ganzen Haus eingereiht werden.",
+              "safety_bypasses_stagger": "Wenn aktiv, fährt ein Sicherheitsbefehl sofort und wartet nicht hinter normalen Befehlen in der Warteschlange.",
+              "target_verification_enabled": "Ziele werden geprüft, sofern ein einzelner Behang dies nicht anders festlegt.",
+              "verification_retries": "Maximale Wiederholungen, wenn ein geprüftes Ziel nicht erreicht wurde.",
+              "movement_seconds": "Erwartete Fahrtdauer, bevor die Zielprüfung beginnt.",
+              "settling_seconds": "Zusätzliche Wartezeit nach der Fahrt vor dem Lesen des Endzustands.",
+              "source_stale_seconds": "Mit 0 ist die Ablaufprüfung deaktiviert. Ein positiver Wert meldet eine unveränderte Quelle nach diesem Alter als veraltet statt stillschweigend als aktuell."
             }
           }
         }
@@ -1681,6 +1870,124 @@
           "elevation_min": "Sonne unterhalb dieser Höhe ignorieren."
         }
       },
+      "protected_zones_hub": {
+        "title": "{sector_name} · Blendschutz",
+        "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
+        "menu_options": {}
+      },
+      "add_protected_zone": {
+        "title": "{sector_name} · Schutzzone hinzufügen",
+        "description": "Nur in der vollständigen Konfiguration. Beim Speichern entsteht eine stabile Zonen-ID, die auf diesen Sonnensektor begrenzt bleibt.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zonenidentität und Gruppen",
+            "data": {
+              "name": "Zonenname",
+              "enabled": "Diese Zone aktivieren",
+              "group_ids": "Betroffene Behanggruppen"
+            },
+            "data_description": {
+              "name": "Beim Speichern wird eine stabile interne ID erzeugt.",
+              "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
+              "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Geometrie des Schutzbereichs",
+            "data": {
+              "distance_m": "Abstand von der Fassade",
+              "lower_height_m": "Untere Schutzhöhe",
+              "upper_height_m": "Obere Schutzhöhe",
+              "lateral_min_m": "Seitlicher Bereich Anfang (optional)",
+              "lateral_max_m": "Seitlicher Bereich Ende (optional)"
+            },
+            "data_description": {
+              "distance_m": "Abstand zwischen Fassadenebene und geschütztem Sichtbereich.",
+              "lower_height_m": "Untere Kante des geschützten vertikalen Bereichs.",
+              "upper_height_m": "Obere Kante des geschützten vertikalen Bereichs; sie muss über der unteren Kante liegen.",
+              "lateral_min_m": "Optionale seitliche Grenze. Geben Sie beide seitlichen Werte ein oder lassen Sie beide leer.",
+              "lateral_max_m": "Optionale seitliche Grenze. Sie muss größer als der Anfangswert sein."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Schutzziele",
+            "data": {
+              "target_position": "Zielposition des Behangs",
+              "target_tilt": "Zielposition der Lamellen (optional)"
+            },
+            "data_description": {
+              "target_position": "Angeforderte Behangposition, während diese Zone gegen Blendung schützt.",
+              "target_tilt": "Optionale angeforderte Lamellenposition für Behänge mit Lamellensteuerung."
+            }
+          }
+        }
+      },
+      "manage_protected_zone": {
+        "title": "{sector_name} · Schutzzone",
+        "description": "Nur in der vollständigen Konfiguration. Die Zone behält ihre stabile Identität, während Geometrie, betroffene Gruppen und Ziele geändert werden.",
+        "sections": {
+          "protected_zone_identity": {
+            "name": "Zonenidentität und Gruppen",
+            "data": {
+              "name": "Zonenname",
+              "enabled": "Diese Zone aktivieren",
+              "group_ids": "Betroffene Behanggruppen"
+            },
+            "data_description": {
+              "name": "Die interne Zonen-ID bleibt auch bei einer Namensänderung stabil.",
+              "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
+              "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf."
+            }
+          },
+          "protected_zone_geometry": {
+            "name": "Geometrie des Schutzbereichs",
+            "data": {
+              "distance_m": "Abstand von der Fassade",
+              "lower_height_m": "Untere Schutzhöhe",
+              "upper_height_m": "Obere Schutzhöhe",
+              "lateral_min_m": "Seitlicher Bereich Anfang (optional)",
+              "lateral_max_m": "Seitlicher Bereich Ende (optional)"
+            },
+            "data_description": {
+              "distance_m": "Abstand zwischen Fassadenebene und geschütztem Sichtbereich.",
+              "lower_height_m": "Untere Kante des geschützten vertikalen Bereichs.",
+              "upper_height_m": "Obere Kante des geschützten vertikalen Bereichs; sie muss über der unteren Kante liegen.",
+              "lateral_min_m": "Optionale seitliche Grenze. Geben Sie beide seitlichen Werte ein oder lassen Sie beide leer.",
+              "lateral_max_m": "Optionale seitliche Grenze. Sie muss größer als der Anfangswert sein."
+            }
+          },
+          "protected_zone_target": {
+            "name": "Schutzziele",
+            "data": {
+              "target_position": "Zielposition des Behangs",
+              "target_tilt": "Zielposition der Lamellen (optional)"
+            },
+            "data_description": {
+              "target_position": "Angeforderte Behangposition, während diese Zone gegen Blendung schützt.",
+              "target_tilt": "Optionale angeforderte Lamellenposition für Behänge mit Lamellensteuerung."
+            }
+          },
+          "protected_zone_maintenance": {
+            "name": "Schutzzone entfernen",
+            "data": {
+              "delete_protected_zone": "Diese Schutzzone entfernen"
+            },
+            "data_description": {
+              "delete_protected_zone": "Öffnet eine separate Bestätigung, bevor die stabile Zone entfernt wird."
+            }
+          }
+        }
+      },
+      "delete_protected_zone": {
+        "title": "{sector_name} · Schutzzone entfernen",
+        "description": "Dadurch werden diese Schutzzone sowie ihre lokale Geometrie und Zielwerte aus diesem Sektor entfernt.",
+        "data": {
+          "confirm_delete_protected_zone": "Entfernen bestätigen"
+        },
+        "data_description": {
+          "confirm_delete_protected_zone": "Nur bestätigen, wenn diese Schutzzone dauerhaft entfernt werden soll."
+        }
+      },
       "add_sector_group": {
         "title": "{sector_name} · Erste Behanggruppe anlegen",
         "description": "Jeder neue Sonnensektor benötigt eine Behanggruppe. Wählen Sie jetzt das physische Profil.",
@@ -1730,7 +2037,14 @@
       "option_not_available": "Diese Funktion ist in dieser Einrichtung nicht verfügbar.",
       "incomplete_configuration": "Beheben Sie vor dem Speichern die in der Zusammenfassung genannten offenen Punkte.",
       "sun_source_required": "Wählen Sie die benötigte Entität für diese Sonnenquelle.",
-      "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus."
+      "occupancy_source_required": "Wählen Sie einen Anwesenheitssensor oder schalten Sie die Anwesenheitsbedingung aus.",
+      "protected_zone_name_required": "Geben Sie einen Namen für die Schutzzone ein.",
+      "protected_zone_groups_required": "Wählen Sie mindestens eine betroffene Behanggruppe.",
+      "protected_zone_group_invalid": "Alle ausgewählten Behanggruppen müssen zu diesem Sonnensektor gehören.",
+      "protected_zone_distance_range": "Der Fassadenabstand muss zwischen 0,1 m und 30 m liegen.",
+      "protected_zone_height_range": "Die untere Schutzhöhe muss unter der oberen liegen und beide müssen zwischen 0 m und 10 m liegen.",
+      "protected_zone_lateral_range": "Geben Sie beide seitlichen Werte ein; der Anfang muss vor dem Ende liegen.",
+      "protected_zone_target_range": "Zielpositionen müssen zwischen 0 % und 100 % liegen."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden."
@@ -1780,6 +2094,12 @@
         "balanced": "Ausgewogen",
         "daylight": "Mehr Tageslicht",
         "custom": "Benutzerdefiniert"
+      }
+    },
+    "opening_order": {
+      "options": {
+        "height_then_tilt": "Zuerst Höhe, dann Lamellen",
+        "tilt_then_height": "Zuerst Lamellen, dann Höhe"
       }
     },
     "device_type": {
@@ -1845,6 +2165,14 @@
         "skip": "Ohne Rückmeldung nicht senden"
       }
     },
+    "feedback_quality": {
+      "options": {
+        "trusted": "Vertrauenswürdige Positionsrückmeldung",
+        "intermediate": "Zwischenpositions-Rückmeldung",
+        "end_positions": "Nur Endpositions-Rückmeldung",
+        "none": "Keine nutzbare Positionsrückmeldung"
+      }
+    },
     "weather_logic": {
       "options": {
         "all": "Alle Bedingungen müssen erfüllt sein",
@@ -1870,6 +2198,12 @@
         "ignore": "Fensterkontakt ignorieren"
       }
     },
+    "stagger_scope": {
+      "options": {
+        "room": "Dieser Raum",
+        "house": "Ganzes Haus"
+      }
+    },
     "pause_mode": {
       "options": {
         "next_sunrise": "Bis zum nächsten Morgen",
@@ -1889,6 +2223,26 @@
       "options": {
         "simple": "Easy",
         "complete": "Advanced"
+      }
+    }
+  },
+  "services": {
+    "preview_day": {
+      "name": "Tagvorschau erstellen",
+      "description": "Erstellt für ein gewähltes lokales Datum eine nicht ausführende Beschattungsvorschau. Sie wertet die produktive Entscheidungslogik aus, ruft jedoch niemals einen Behang-Service oder Befehlsausführer auf.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "Stabile Smart-Shading-Raum-ID aus der Raumstatus-Entität."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Lokales Kalenderdatum im Format JJJJ-MM-TT. Standard ist heute."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionale Kennung des Smart-Shading-Konfigurationseintrags."
+        }
       }
     }
   }
