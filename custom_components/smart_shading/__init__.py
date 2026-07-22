@@ -294,13 +294,31 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             {"notification_id": notification_id},
             blocking=False,
         )
+    device_registry = dr.async_get(hass)
+    owned_devices = {
+        device.id: device
+        for device in dr.async_entries_for_config_entry(
+            device_registry, entry.entry_id
+        )
+    }
+    # HA removes the ConfigEntry itself before calling this hook. Depending on
+    # cleanup timing, the device may already have lost its registry ownership;
+    # our stable identifier still proves that it belongs to this entry.
+    identifier_prefix = f"{entry.entry_id}_"
+    for device in device_registry.devices.values():
+        if any(
+            domain == DOMAIN
+            and (
+                identifier == entry.entry_id
+                or identifier.startswith(identifier_prefix)
+            )
+            for domain, identifier in device.identifiers
+        ):
+            owned_devices[device.id] = device
     entity_registry = er.async_get(hass)
     for entity in er.async_entries_for_config_entry(
         entity_registry, entry.entry_id
     ):
         entity_registry.async_remove(entity.entity_id)
-    device_registry = dr.async_get(hass)
-    for device in dr.async_entries_for_config_entry(
-        device_registry, entry.entry_id
-    ):
+    for device in owned_devices.values():
         device_registry.async_remove_device(device.id)

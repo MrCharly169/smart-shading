@@ -59,6 +59,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn("er.async_entries_for_config_entry", setup)
         self.assertIn("entity_registry.async_remove", setup)
         self.assertIn("dr.async_entries_for_config_entry", setup)
+        self.assertIn("identifier_prefix", setup)
+        self.assertIn("device_registry.devices.values()", setup)
         self.assertIn("device_registry.async_remove_device", setup)
 
     def test_python_sources_parse(self):
