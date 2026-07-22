@@ -18,6 +18,33 @@ spec.loader.exec_module(const)
 
 
 class PackageTests(unittest.TestCase):
+    def test_config_flow_uppercase_globals_are_bound(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        tree = ast.parse(flow)
+        bound: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                bound.add(node.name)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                bound.update(
+                    alias.asname or alias.name.split(".")[0]
+                    for alias in node.names
+                )
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                bound.update(
+                    target.id for target in targets if isinstance(target, ast.Name)
+                )
+        loaded_constants = {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id.upper() == node.id
+            and not node.id.startswith("_")
+        }
+        self.assertEqual(loaded_constants - bound, set())
+
     def test_device_info_does_not_publish_relative_configuration_url(self):
         entity = (COMP / "entity.py").read_text(encoding="utf-8")
         self.assertNotIn('configuration_url="/config/', entity)
