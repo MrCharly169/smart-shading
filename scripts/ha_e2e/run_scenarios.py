@@ -1956,12 +1956,21 @@ def run_interaction_matrix(
     )
 
     # An unavailable selected lux sensor also blocks instead of using geometry.
-    api.call_service("smart_shading_test_fixture", "reset_calls", {})
     set_fixture_state(
         api,
         scenario["setup"]["sun_confirmation_entity"],
         {"state": "off", "available": True},
     )
+    wait_for_state(
+        api,
+        entry_room_state(api, easy_entry_id)["entity_id"],
+        lambda item: any(
+            sector.get("confirmation_source") == "binary"
+            and sector.get("confirmation_state") is False
+            for sector in item.get("attributes", {}).get("sector_statuses", [])
+        ),
+    )
+    api.call_service("smart_shading_test_fixture", "reset_calls", {})
     set_fixture_state(
         api,
         scenario["advanced_setup"]["lux_entity"],
