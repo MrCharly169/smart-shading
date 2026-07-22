@@ -392,8 +392,13 @@ def _created_entry_id(
     return str(matching[0]["entry_id"])
 
 
-def create_advanced_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
-    """Exercise the complete current Advanced branch and optional features."""
+def create_advanced_entry(
+    api: HomeAssistantApi,
+    scenario: dict[str, Any],
+    *,
+    legacy_compatible: bool = False,
+) -> str:
+    """Exercise Advanced setup, optionally avoiding broken legacy optionals."""
     setup = scenario["advanced_setup"]
     result = api.post(
         "/api/config/config_entries/flow",
@@ -589,6 +594,38 @@ def create_advanced_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> st
         },
     )
     expect_step(result, "manage_night")
+    if legacy_compatible:
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_night",
+            {"night_enabled": False},
+        )
+        expect_step(result, "manage_pause")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_pause",
+            {
+                "default_pause_mode": "next_sunrise",
+                "pause_sun_offset_minutes": -60,
+                "pause_duration_hours": 2,
+                "external_movement_detection": True,
+                "heat_during_pause": True,
+            },
+        )
+        expect_step(result, "manage_conditions")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_conditions",
+            {"heat_requires_sun": True},
+        )
+        expect_step(result, "init")
+        result = submit_flow(api, flow_id, "init", {"next_step_id": "finish"})
+        expect_step(result, "finish")
+        result = submit_flow(api, flow_id, "finish", {"confirm_start": True})
+        return _created_entry_id(api, result, setup["house_name"])
     result = submit_flow(
         api,
         flow_id,
@@ -2188,6 +2225,53 @@ def run_bootstrap(
     )
 
 
+def run_upgrade_bootstrap(
+    api: HomeAssistantApi,
+    scenario: dict[str, Any],
+    state_file: Path,
+    output_dir: Path,
+) -> None:
+    """Create representative state with the published pre-upgrade version."""
+    token = onboard(api)
+    state_file.write_text(json.dumps({"token": token}), encoding="utf-8")
+    os.chmod(state_file, 0o600)
+    wait_for_state(api, scenario["setup"]["cover_entity"], lambda _item: True)
+    apply_initial_state(api, scenario)
+    entry_id = create_easy_entry(api, scenario)
+    wait_for_entry_loaded(api, entry_id)
+    wait_for_smart_shading_entities(api, entry_id)
+    assert_entry_variant(api, entry_id, False)
+    advanced_entry_id = create_advanced_entry(
+        api, scenario, legacy_compatible=True
+    )
+    wait_for_entry_loaded(api, advanced_entry_id)
+    wait_for_smart_shading_entities(api, advanced_entry_id)
+    assert_entry_variant(api, advanced_entry_id, True)
+    entries = smart_shading_entries(api)
+    entity_ids = assert_unique_entities(api)
+    state_file.write_text(
+        json.dumps(
+            {
+                "token": token,
+                "entry_id": entry_id,
+                "advanced_entry_id": advanced_entry_id,
+                "entity_ids": entity_ids,
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(state_file, 0o600)
+    write_snapshot(
+        output_dir,
+        "bootstrap",
+        entries,
+        entity_ids,
+        [],
+        api.get("/api/config"),
+        {"upgrade_baseline": "legacy-compatible"},
+    )
+
+
 def run_restart(
     api: HomeAssistantApi,
     scenario: dict[str, Any],
@@ -2255,6 +2339,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scenario", type=Path, required=True)
     parser.add_argument("--state-file", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--bootstrap-mode", choices=("full", "upgrade"), default="full"
+    )
     return parser.parse_args()
 
 
@@ -2271,7 +2358,12 @@ def main() -> int:
     error: str | None = None
     try:
         if args.phase == "bootstrap":
-            run_bootstrap(api, scenario, args.state_file, args.output_dir)
+            bootstrap = (
+                run_upgrade_bootstrap
+                if args.bootstrap_mode == "upgrade"
+                else run_bootstrap
+            )
+            bootstrap(api, scenario, args.state_file, args.output_dir)
         else:
             run_restart(api, scenario, saved_state, args.output_dir)
     except Exception as exc:

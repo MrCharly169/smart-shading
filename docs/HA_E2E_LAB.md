@@ -39,7 +39,7 @@ HA_E2E_ARTIFACT_DIR=/tmp/smart-shading-e2e \
 scripts/ha_e2e/run_lab.sh
 ```
 
-Set `HA_E2E_UPGRADE_FROM_REF=v4.6.2-beta.9` to install that tag first, create entries, replace it with the working candidate and repeat restart/registry checks. Set `HA_E2E_RUN_UI=1` after installing the Playwright dependencies to run the real HA browser suite inside the same laboratory lifetime.
+Set `HA_E2E_UPGRADE_FROM_REF=v4.6.2-beta.9` to install that tag first, create representative Easy and Advanced entries through a legacy-compatible path, replace it with the working candidate and repeat migration, restart, runtime, reinstall and registry checks. The clean-install jobs own the exhaustive current-wizard matrix, so a known defect in an old optional wizard branch cannot prevent upgrade validation from reaching the candidate. Set `HA_E2E_RUN_UI=1` after installing the Playwright dependencies to run the real HA browser suite inside the same laboratory lifetime.
 
 The laboratory uses an explicit container name, a dedicated Docker network, a temporary configuration directory, loopback-only port publishing and a cleanup trap scoped to that laboratory.
 

@@ -16,6 +16,7 @@ STATE_FILE="${LAB_DIR}/runner-state.json"
 CONTAINER_NAME="smart-shading-e2e-${GITHUB_RUN_ID:-local}-$$"
 NETWORK_NAME="${CONTAINER_NAME}-network"
 BASE_URL="http://127.0.0.1:${HA_PORT}"
+BOOTSTRAP_MODE="full"
 CONTAINER_STARTED=0
 CONTAINER_RUNNING=0
 NETWORK_CREATED=0
@@ -78,6 +79,7 @@ if [[ -n "${UPGRADE_FROM_REF}" ]]; then
     --output "${LAB_DIR}/smart_shading-old.zip"
   python3 -m zipfile -e "${LAB_DIR}/smart_shading-old.zip" "${OLD_PACKAGE_DIR}"
   INSTALL_PACKAGE_DIR="${OLD_PACKAGE_DIR}"
+  BOOTSTRAP_MODE="upgrade"
 fi
 cp -R "${INSTALL_PACKAGE_DIR}/custom_components/smart_shading" \
   "${CONFIG_DIR}/custom_components/smart_shading"
@@ -101,6 +103,7 @@ CONTAINER_RUNNING=1
 python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --base-url "${BASE_URL}" \
   --phase bootstrap \
+  --bootstrap-mode "${BOOTSTRAP_MODE}" \
   --scenario "${SCENARIO}" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
@@ -131,13 +134,12 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
 
-# Home Assistant persists registry changes asynchronously. Poll its storage
-# while it runs, then stop it cleanly once the final lifecycle state is durable.
+# A clean stop flushes Home Assistant's delayed registry writes. Auditing the
+# files while HA is still running is racy, especially under parallel CI load.
+docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
+CONTAINER_RUNNING=0
+
 python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \
   --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
-  --output "${ARTIFACT_DIR}/registry-summary.json" \
-  --wait-seconds 60
-
-docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
-CONTAINER_RUNNING=0
+  --output "${ARTIFACT_DIR}/registry-summary.json"

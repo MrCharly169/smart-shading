@@ -187,10 +187,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("scripts/build_release.py", shell)
         self.assertIn("docker restart", shell)
         self.assertIn('docker stop --time 30 "${CONTAINER_NAME}"', shell)
-        self.assertLess(
-            shell.index("check_registry.py"), shell.index("docker stop --time 30")
-        )
-        self.assertIn("--wait-seconds 60", shell)
+        self.assertNotIn("--wait-seconds 60", shell)
         self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
         self.assertIn('chown -R "${HOST_UID}:${HOST_GID}" /config', shell)
         self.assertIn("docker run --rm --entrypoint chown", shell)
@@ -209,6 +206,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("assert_live_wizard_coverage", runner)
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
+        self.assertIn("run_upgrade_bootstrap", runner)
+        self.assertIn("legacy_compatible=True", runner)
+        self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)
         self.assertIn("run_interaction_matrix", runner)
         self.assertIn('"set_entry_enabled"', runner)
         self.assertNotIn('/unload"', runner)
@@ -217,6 +217,12 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertIn("check_registry.py", shell)
+        self.assertLess(
+            shell.index("docker stop --time 30"),
+            shell.index(
+                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"'
+            ),
+        )
 
     def test_workflow_is_separate_filtered_and_collects_evidence(self):
         workflow = (ROOT / ".github" / "workflows" / "ha-e2e.yml").read_text(
