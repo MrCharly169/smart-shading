@@ -154,6 +154,15 @@ DEVICE_TYPES = [
     DEVICE_BINARY,
 ]
 
+SUN_SOURCE_GEOMETRY = "geometry"
+SUN_SOURCE_LUX = "lux"
+SUN_SOURCE_EXTERNAL = "external"
+SUN_SOURCE_OPTIONS = [
+    SUN_SOURCE_GEOMETRY,
+    SUN_SOURCE_LUX,
+    SUN_SOURCE_EXTERNAL,
+]
+
 # Home Assistant cover semantics are used throughout: 0 = closed, 100 = open.
 # The KNX integration handles KNX-side inversion.
 PROFILE_DEFAULTS = {
@@ -247,6 +256,17 @@ PROFILE_DEFAULTS = {
         "heat_position": 0.0,
         "safety_position": 100.0,
     },
+}
+
+# One source of truth for wizard, runtime and Card capabilities. A profile may
+# support percentage position, tilt, both, or only binary open/close services.
+PROFILE_CAPABILITIES = {
+    profile: {
+        "supports_position": bool(defaults["supports_position"]),
+        "supports_tilt": bool(defaults["supports_tilt"]),
+        "binary": profile == DEVICE_BINARY,
+    }
+    for profile, defaults in PROFILE_DEFAULTS.items()
 }
 
 SCHEDULE_YEAR_ROUND = "year_round"

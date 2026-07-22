@@ -4,6 +4,8 @@ __pycache__/
 .coverage
 htmlcov/
 dist/
+artifacts/
+e2e/ui/node_modules/
 .DS_Store
 .vscode/
 .idea/

@@ -54,6 +54,7 @@ class SectorSunPresenceBinarySensor(SmartShadingEntity, BinarySensorEntity):
                 "lux_raw_state": lux_state.state if lux_state else None,
                 "lux_unit": lux_state.attributes.get("unit_of_measurement") if lux_state else None,
                 "current_lux": self.runtime.current_lux,
+                "source_valid": self.runtime.source_valid,
                 "sun_preset": self.engine.sector_value(self.sector_id, "sun_preset", "medium"),
                 "sun_on_lux": settings["sun_on_lux"],
                 "sun_off_lux": settings["sun_off_lux"],

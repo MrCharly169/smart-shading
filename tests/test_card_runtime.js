@@ -56,6 +56,8 @@ const editor = new Editor();
 editor.setConfig({ entity: "sensor.room_status", advanced_mode: true });
 editor.hass = { language: "de", states: {} };
 if (editor.shadowRoot.innerHTML.includes("undefined")) throw new Error("Editor rendered undefined");
+if (editor.shadowRoot.innerHTML.includes('data-toggle="advanced_mode"')) throw new Error("Editor exposed an independent Advanced switch");
+if (Object.prototype.hasOwnProperty.call(editor._config, "advanced_mode")) throw new Error("Editor retained the legacy Advanced override");
 
 const roomStatus = {
   entity_id: "sensor.room_status",
@@ -64,6 +66,7 @@ const roomStatus = {
     name: "Raum A",
     smart_shading_entry_id: "entry",
     smart_shading_room_id: "room",
+    smart_shading_advanced_mode: true,
     active_sectors: ["Süd links"],
     reason: "Normal adaptive solar shading",
     targets: [{ entity_id: "cover.internal_identifier", mode: "solar", position: 0, tilt: 65, suppressed: [] }],
@@ -108,6 +111,7 @@ const hass = {
 
 const card = new Card();
 card.setConfig({ entity: "sensor.room_status", advanced_mode: true });
+if (Object.prototype.hasOwnProperty.call(card._config, "advanced_mode")) throw new Error("Card retained the legacy Advanced override");
 card.hass = hass;
 const html = card.shadowRoot.innerHTML;
 if (!html.includes("Raum A") || !html.includes("Fenstergruppe") || !html.includes("Süd links")) throw new Error("Card did not render configured display names");

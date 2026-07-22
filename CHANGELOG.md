@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Test Infrastructure
+
+- added an isolated real Home Assistant Core E2E laboratory for issue #73
+- the laboratory installs the built release archive, creates isolated Easy and Advanced entries through Home Assistant's API, controls deterministic virtual entities, records cover calls, and verifies reload, restart, deletion, and reinstallation
+- added executable Easy/Advanced and cover-capability wizard contracts, v9-to-v10 source migration coverage, authoritative unavailable-source checks, and Safety-priority coverage
+- added path-filtered real-HA and Playwright workflows, a nightly stable/beta matrix, and a protected self-hosted persistent-lab workflow contract
+- real-HA and browser tests are required release-publication gates and retain sanitized JSON/JUnit, logs, traces, screenshots, video, configuration, snapshots, and container metadata
+- documented local Docker execution, fixture controls, artifact handling, and security boundaries
+
+### Setup Wizard and Card
+
+- Easy now asks only for room name and optional outdoor temperature; Advanced adds indoor-temperature and Safety inputs without changing the automation itself
+- selecting an outdoor-temperature sensor opens its minimum-temperature condition, while no sensor cleanly disables that condition
+- every sector chooses exactly one authoritative sun source: geometry, recommended local Lux, or an external on/off entity
+- Easy hides custom direction, Lux, and slat values; Advanced custom direction opens an explicit geometry page
+- cover type capabilities control every subsequent tilt, percentage, and binary-only field
+- the Card follows the config-entry Easy/Advanced variant and no longer has an independent contradictory switch
+
 ### Release Process
 
 - added a manually triggered Prepare Release workflow that creates a dedicated, reviewable draft pull request instead of publishing directly

@@ -19,6 +19,7 @@ class SectorSunRuntime:
     sector_id: str
     is_on: bool = False
     current_lux: float | None = None
+    source_valid: bool = False
     pending_target: bool | None = None
     pending_since: datetime | None = None
     pending_until: datetime | None = None

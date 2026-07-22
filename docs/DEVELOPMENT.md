@@ -13,6 +13,18 @@ node tests/test_card_runtime.js
 python scripts/build_release.py --check
 ```
 
+The real Home Assistant lifecycle laboratory is the second, slower validation
+layer. With Docker available, run:
+
+```bash
+scripts/ha_e2e/run_lab.sh
+```
+
+See [HA_E2E_LAB.md](HA_E2E_LAB.md) for its fixture, scenario model, CI triggers,
+artifacts, and security boundaries. Issue #73 is split into fast contract/unit
+tests, an ephemeral real-HA lifecycle, Chromium UI tests, nightly stable/beta
+compatibility, and a protected self-hosted persistent-lab contract.
+
 ## Branches
 
 - `main`: reviewed releases

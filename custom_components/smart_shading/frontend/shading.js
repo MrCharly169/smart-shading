@@ -148,13 +148,13 @@ class SmartShadingV4Dialog extends HTMLElement {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
     const values = de ? {
       not_evaluated: "Noch nicht ausgewertet", outside_sun_sector: "Sonne außerhalb des Sektors",
-      waiting_for_lux: "Wartet auf Sun Presence", sun_detected: "Sonne erkannt",
+      waiting_for_confirmation: "Wartet auf Sonnenbestätigung", sun_detected: "Sonne erkannt",
       shading_active: "Beschattung aktiv", waiting_conditions: "Wartet auf Bedingungen",
       sun_below_horizon: "Sonne unter Horizont", schedule_blocked: "Zeitplan blockiert",
       paused: "Pausiert", heat: "Heat Protection", safety: "Safety", disabled: "Deaktiviert",
     } : {
       not_evaluated: "Not evaluated", outside_sun_sector: "Sun outside sector",
-      waiting_for_lux: "Waiting for Sun Presence", sun_detected: "Sun detected",
+      waiting_for_confirmation: "Waiting for sun confirmation", sun_detected: "Sun detected",
       shading_active: "Shading active", waiting_conditions: "Waiting for conditions",
       sun_below_horizon: "Sun below horizon", schedule_blocked: "Schedule blocked",
       paused: "Paused", heat: "Heat protection", safety: "Safety", disabled: "Disabled",
@@ -338,7 +338,7 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { advanced_mode: false, show_sun_track: true, show_covers: true, show_actions: true };
+    return { show_sun_track: true, show_covers: true, show_actions: true };
   }
 
   static async getConfigElement() {
@@ -347,12 +347,12 @@ class SmartShadingV4Card extends HTMLElement {
 
   setConfig(config = {}) {
     if (!config || typeof config !== "object") throw new Error("Invalid Smart Shading card configuration");
+    const { advanced_mode: _legacyAdvancedMode, ...supportedConfig } = config;
     this._config = {
-      advanced_mode: false,
       show_sun_track: true,
       show_covers: true,
       show_actions: true,
-      ...config,
+      ...supportedConfig,
     };
     this._render();
   }
@@ -377,19 +377,19 @@ class SmartShadingV4Card extends HTMLElement {
     return de ? {
       title: "Shading", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
-      safety: "Safety", heat: "Heat", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
+      safety: "Safety", heat: "Heat", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", closed: "Geschlossen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Erweiterte Ansicht",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
-      belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
+      belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingConfirmation: "Wartet auf Sonnenbestätigung", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
-      safety: "Safety", heat: "Heat", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
+      safety: "Safety", heat: "Heat", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", closed: "Closed", idle: "Ready", disabled: "Off", finished: "Done",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
       blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Advanced view",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
-      belowHorizon: "Night", outsideSector: "Outside", waitingLux: "Waiting for sun", waiting: "Waiting", active: "Active", detected: "Sun detected",
+      belowHorizon: "Night", outsideSector: "Outside", waitingConfirmation: "Waiting for sun confirmation", waiting: "Waiting", active: "Active", detected: "Sun detected",
     };
   }
 
@@ -502,7 +502,7 @@ class SmartShadingV4Card extends HTMLElement {
 
   _sectorStatusText(status, L) {
     return ({
-      shading_active: L.active, sun_detected: L.detected, waiting_for_lux: L.waitingLux,
+      shading_active: L.active, sun_detected: L.detected, waiting_for_confirmation: L.waitingConfirmation,
       waiting_conditions: L.waiting, outside_sun_sector: L.outsideSector, sun_below_horizon: L.belowHorizon,
       schedule_blocked: L.blocked, paused: L.paused, heat: L.heat, safety: L.safety, disabled: L.disabled,
     })[status] || L.waiting;
@@ -522,6 +522,7 @@ class SmartShadingV4Card extends HTMLElement {
     }
 
     const attrs = roomState.attributes || {};
+    const advancedMode = attrs.smart_shading_advanced_mode === true;
     const room = attrs.configuration || {};
     const controls = this._controls(roomState);
     const sectors = asArray(room.sectors);
@@ -604,6 +605,7 @@ class SmartShadingV4Card extends HTMLElement {
 
     const coverRows = covers.map((cover, index) => {
       const state = this._state(cover.entity);
+      const binaryCover = cover.layer?.profile === "binary_cover";
       const fallback = `${L.cover} ${index + 1}`;
       const name = this._displayName(cover.entity, cover.name, fallback);
       const position = clamp(asNumber(state?.attributes?.current_position, state?.state === "open" ? 100 : state?.state === "closed" ? 0 : 0), 0, 100);
@@ -617,14 +619,17 @@ class SmartShadingV4Card extends HTMLElement {
       const manualMaster = attrs.manual_master_active;
       const rowClass = locked || unsafe || roomPaused || locallyPaused || manualMaster ? "warning" : "";
       const leadingIcon = manualMaster ? "mdi:hand-back-right" : (roomPaused || locallyPaused) ? "mdi:pause-circle" : locked ? "mdi:lock" : unsafe ? "mdi:window-open-variant" : "mdi:autorenew";
+      const positionText = binaryCover
+        ? (state?.state === "open" ? L.open : state?.state === "closed" ? L.closed : L.waiting)
+        : `${Math.round(position)}%${tilt == null ? "" : ` · ${L.tilt} ${Math.round(tilt)}%`}`;
       return `<div class="cover-row ${rowClass}">
         <button class="cover-head" data-more="${htmlEscape(cover.entity)}" title="${htmlEscape(locallyPaused ? `${L.pauseUntil} ${this._formatDate(localPause.until)}` : name)}">
           <span class="cover-name"><ha-icon icon="${leadingIcon}"></ha-icon><strong>${htmlEscape(name)}</strong></span>
-          <span class="values">${manualMaster ? `${L.master} · ` : (roomPaused || locallyPaused) ? `${L.paused} · ` : locked ? `${L.manual} · ` : ""}${Math.round(position)}%${tilt == null ? "" : ` · ${L.tilt} ${Math.round(tilt)}%`}</span>
+          <span class="values">${manualMaster ? `${L.master} · ` : (roomPaused || locallyPaused) ? `${L.paused} · ` : locked ? `${L.manual} · ` : ""}${htmlEscape(positionText)}</span>
         </button>
-        <div class="bar"><i style="width:${position}%"></i></div>
-        ${tilt == null ? "" : `<div class="bar tilt"><i style="width:${clamp(tilt, 0, 100)}%"></i></div>`}
-        ${this._config.advanced_mode && target.position != null ? `<div class="target-line">${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}</div>` : ""}
+        ${binaryCover ? "" : `<div class="bar"><i style="width:${position}%"></i></div>`}
+        ${binaryCover || tilt == null ? "" : `<div class="bar tilt"><i style="width:${clamp(tilt, 0, 100)}%"></i></div>`}
+        ${advancedMode && !binaryCover && target.position != null ? `<div class="target-line">${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}</div>` : ""}
       </div>`;
     }).join("");
 
@@ -681,7 +686,7 @@ class SmartShadingV4Card extends HTMLElement {
             <button class="round" data-press="${htmlEscape(paused ? resumeButton?.entity_id || "" : pauseButton?.entity_id || "")}" title="${htmlEscape(paused ? L.resume : L.pause)}"><ha-icon icon="${paused ? "mdi:play" : "mdi:pause"}"></ha-icon></button>
             <button class="round" data-press="${htmlEscape(evaluateButton?.entity_id || "")}" title="${htmlEscape(L.evaluate)}"><ha-icon icon="mdi:refresh"></ha-icon></button>
             ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}"><ha-icon icon="mdi:hand-back-right"></ha-icon></button>` : ""}
-            ${this._config.advanced_mode ? `<button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${htmlEscape(L.advanced)}</span></button>` : ""}
+            ${advancedMode ? `<button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}"><ha-icon icon="mdi:tune-variant"></ha-icon><span>${htmlEscape(L.advanced)}</span></button>` : ""}
           </div></div>` : ""}
         </div>
       </ha-card>`;
@@ -709,20 +714,23 @@ class SmartShadingV4CardEditor extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._hass = null;
-    this._config = { advanced_mode: false, show_sun_track: true, show_covers: true, show_actions: true };
+    this._config = { show_sun_track: true, show_covers: true, show_actions: true };
   }
 
   set hass(hass) { this._hass = hass; this._render(); }
-  setConfig(config = {}) { this._config = { ...this._config, ...(config && typeof config === "object" ? config : {}) }; this._render(); }
+  setConfig(config = {}) {
+    const values = config && typeof config === "object" ? config : {};
+    const { advanced_mode: _legacyAdvancedMode, ...supportedConfig } = values;
+    this._config = { ...this._config, ...supportedConfig };
+    this._render();
+  }
 
   _labels() {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
     return de ? {
-      entity: "Raumstatus-Entität", title: "Überschrift", advanced: "Erweiterte Ansicht als Dialog ermöglichen",
-      advancedHelp: "Öffnet Diagnose und Detailwerte in einem eigenen Overlay. Die kompakte Card bleibt unverändert.", sun: "Sonnenverlauf anzeigen", covers: "Behänge anzeigen", actions: "Aktionsbuttons anzeigen",
+      entity: "Raumstatus-Entität", title: "Überschrift", sun: "Sonnenverlauf anzeigen", covers: "Behänge anzeigen", actions: "Aktionsbuttons anzeigen",
     } : {
-      entity: "Room status entity", title: "Title", advanced: "Enable advanced dialog",
-      advancedHelp: "Opens diagnostics and details in a separate overlay. The compact card stays unchanged.", sun: "Show sun track", covers: "Show covers", actions: "Show action buttons",
+      entity: "Room status entity", title: "Title", sun: "Show sun track", covers: "Show covers", actions: "Show action buttons",
     };
   }
 
@@ -738,7 +746,6 @@ class SmartShadingV4CardEditor extends HTMLElement {
       <div class="editor">
         <label>${htmlEscape(L.entity)}<select data-entity><option value=""></option>${entities.map((state) => `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(cleanDisplayName(state.attributes?.name, state.attributes?.friendly_name || "Smart Shading"))}</option>`).join("")}</select></label>
         <label>${htmlEscape(L.title)}<input data-title value="${htmlEscape(this._config.title || "")}"></label>
-        <label class="toggle"><span>${htmlEscape(L.advanced)}<div class="help">${htmlEscape(L.advancedHelp)}</div></span><input type="checkbox" data-toggle="advanced_mode" ${this._config.advanced_mode ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.sun)}</span><input type="checkbox" data-toggle="show_sun_track" ${this._config.show_sun_track !== false ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.covers)}</span><input type="checkbox" data-toggle="show_covers" ${this._config.show_covers !== false ? "checked" : ""}></label>
         <label class="toggle"><span>${htmlEscape(L.actions)}</span><input type="checkbox" data-toggle="show_actions" ${this._config.show_actions !== false ? "checked" : ""}></label>

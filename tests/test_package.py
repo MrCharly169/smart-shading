@@ -25,9 +25,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_previous_v4_beta(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 9", flow)
-        self.assertIn("if entry.version >= 9", migration)
-        self.assertIn("version=9", migration)
+        self.assertIn("VERSION = 10", flow)
+        self.assertIn("if entry.version >= 10", migration)
+        self.assertIn("version=10", migration)
         self.assertIn('cover.setdefault("short", "")', migration)
         self.assertIn('room.setdefault("normal_shading_temperature"', migration)
 
@@ -140,10 +140,24 @@ class PackageTests(unittest.TestCase):
             "add_covers", "name_selected_cover", "after_room", "init", "room_actions",
             "sector_actions", "layer_actions", "edit_cover", "edit_room_pause",
             "room_advanced_setup", "edit_sector_customer",
+            "edit_room_outdoor_temperature", "edit_sector_lux",
+            "edit_sector_external",
         }
         self.assertFalse((COMP / "strings.json").exists())
         for language in ("de", "en"):
             data = json.loads((COMP / "translations" / f"{language}.json").read_text(encoding="utf-8"))
+            compact_steps = {
+                "compact_room", "compact_outdoor_temperature", "compact_schedule",
+                "compact_schedule_custom", "compact_sector",
+                "compact_sector_geometry", "compact_sector_lux",
+                "compact_sector_external", "compact_sun_custom",
+                "compact_layer", "compact_tilt_profile", "compact_tilt_custom",
+                "compact_cover_details",
+            }
+            self.assertTrue(
+                compact_steps.issubset(data["config"]["step"]),
+                f"{language}/config compact flow",
+            )
             for section in ("config", "options"):
                 steps = data[section]["step"]
                 self.assertTrue(required_steps.issubset(steps), f"{language}/{section}")
@@ -181,6 +195,8 @@ class PackageTests(unittest.TestCase):
         for token in (".chips", ".sunbox", ".sectors", ".cover-row", ".sector-bar", ".sun-dot"):
             self.assertIn(token, card)
         self.assertNotIn("position_already_correct</", card)
+        self.assertIn('cover.layer?.profile === "binary_cover"', card)
+        self.assertIn('binaryCover ? ""', card)
 
     def test_advanced_view_is_document_level_dialog_not_inline_details(self):
         card = (FRONTEND / "shading.js").read_text(encoding="utf-8")
@@ -218,7 +234,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("persistent_notification", engine)
         self.assertIn("smart_shading_card_", engine)
         self.assertIn("type: custom:smart-shading-card", engine)
-        self.assertIn("advanced_mode: false", engine)
+        self.assertNotIn("advanced_mode: false", engine)
 
     def test_canonical_domain_and_card_names(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
@@ -235,7 +251,8 @@ class PackageTests(unittest.TestCase):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         self.assertIn("finalize_sector_identity", flow)
         self.assertIn("id_factory=_new_id", flow)
-        self.assertIn("needs_custom_sun_settings", flow)
+        self.assertIn("_allowed_sun_presets", flow)
+        self.assertIn("_apply_sector_sun_source", flow)
         self.assertNotIn('if preset and self._pending_sector.get("lux_sensor")', flow)
 
     def test_safety_precedes_pause_and_disable(self):

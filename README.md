@@ -41,8 +41,10 @@ Restart Home Assistant and register the same stable dashboard resource once.
 ```yaml
 type: custom:smart-shading-card
 entity: sensor.YOUR_ROOM_STATUS
-advanced_mode: true
 ```
+
+The card automatically follows the Easy or Advanced variant of the selected
+Smart Shading config entry.
 
 ## Updating
 

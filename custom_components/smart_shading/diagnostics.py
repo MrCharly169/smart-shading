@@ -74,6 +74,10 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "sun_presence": {
             sector_id: {
                 "is_on": runtime.is_on,
+                "source": engine._configured_sun_source(
+                    engine.sector_config(sector_id)
+                ),
+                "source_valid": runtime.source_valid,
                 "current_lux": runtime.current_lux,
                 "effective_settings": engine._sun_settings(sector_id),
                 "pending_target": runtime.pending_target,
@@ -88,6 +92,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "mode": runtime.mode,
                 "lux_state": _state_snapshot(
                     hass, engine.sector_config(sector_id).get("lux_sensor", "")
+                ),
+                "external_state": _state_snapshot(
+                    hass,
+                    engine.sector_config(sector_id).get(
+                        "sun_presence_entity", ""
+                    ),
                 ),
             }
             for sector_id, runtime in engine.sun_runtime.items()

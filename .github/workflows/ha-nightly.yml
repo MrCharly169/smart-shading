@@ -1,0 +1,48 @@
+name: Home Assistant Nightly Matrix
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ha-matrix:
+    name: ${{ matrix.channel }} Home Assistant
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: stable
+            image: ghcr.io/home-assistant/home-assistant:stable
+            experimental: false
+          - channel: beta
+            image: ghcr.io/home-assistant/home-assistant:beta
+            experimental: true
+    env:
+      HA_E2E_IMAGE: ${{ matrix.image }}
+      HA_E2E_PORT: ${{ matrix.channel == 'stable' && '18123' || '18124' }}
+      HA_E2E_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-nightly/${{ matrix.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run complete lifecycle and interaction matrix
+        run: scripts/ha_e2e/run_lab.sh
+      - name: Publish matrix summary
+        if: always()
+        run: python scripts/ha_e2e/write_summary.py "$HA_E2E_ARTIFACT_DIR"
+      - name: Upload nightly evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-nightly-${{ matrix.channel }}-${{ github.run_id }}
+          path: artifacts/ha-nightly/${{ matrix.channel }}
+          if-no-files-found: warn
+          retention-days: 21

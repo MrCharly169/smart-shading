@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Smart Shading card E2E</title></head>
+  <body>
+    <smart-shading-card id="card"></smart-shading-card>
+    <smart-shading-card-editor id="editor"></smart-shading-card-editor>
+    <script src="/custom_components/smart_shading/frontend/shading.js"></script>
+    <script>
+      const room = {
+        entity_id: "sensor.test_room_status",
+        state: "solar",
+        attributes: {
+          name: "Test Room",
+          smart_shading_entry_id: "test-entry",
+          smart_shading_room_id: "test-room",
+          smart_shading_advanced_mode: false,
+          reason: "Normal shading",
+          schedule_active: true,
+          pause_mode: "auto",
+          manual_master_active: false,
+          sector_statuses: [{id:"south",name:"South",short:"S",status:"sun_detected",sun_presence:true,source_valid:true}],
+          configuration: {name:"Test Room",sectors:[{id:"south",name:"South",short:"S",azimuth_start:120,azimuth_end:240,layers:[{name:"Rollers",covers:[{entity:"cover.test",name:"Window",short:"W1"}]}]}]},
+          targets: [{entity_id:"cover.test",position:25}],
+          cover_pauses: []
+        }
+      };
+      const hass = {
+        language: "en",
+        states: {
+          "sensor.test_room_status": room,
+          "sun.sun": {entity_id:"sun.sun",state:"above_horizon",attributes:{azimuth:180,elevation:35}},
+          "cover.test": {entity_id:"cover.test",state:"open",attributes:{current_position:100}}
+        },
+        callService: async () => {}
+      };
+      const card = document.querySelector("#card");
+      card.setConfig({entity:"sensor.test_room_status", advanced_mode:true});
+      card.hass = hass;
+      const editor = document.querySelector("#editor");
+      editor.setConfig({entity:"sensor.test_room_status", advanced_mode:true});
+      editor.hass = hass;
+      window.fixture = {card, editor, hass, room};
+    </script>
+  </body>
+</html>

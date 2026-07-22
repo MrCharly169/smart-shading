@@ -49,21 +49,34 @@ from .const import (
     PRESET_CUSTOM,
     PRESET_MEDIUM,
     PROFILE_DEFAULTS,
+    PROFILE_CAPABILITIES,
     ROOM_DEFAULTS,
     SCHEDULE_CUSTOM,
     SCHEDULE_OPTIONS,
     SCHEDULE_SUMMER,
+    SCHEDULE_YEAR_ROUND,
     SUN_PRESETS,
     SUN_PRESET_OPTIONS,
+    SUN_SOURCE_EXTERNAL,
+    SUN_SOURCE_GEOMETRY,
+    SUN_SOURCE_LUX,
+    SUN_SOURCE_OPTIONS,
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
     TILT_PRESET_CUSTOM,
     TILT_PRESET_OPTIONS,
     WINDOW_POLICIES,
 )
+from .wizard_contract import (
+    cover_fields as contract_cover_fields,
+    customer_options,
+    layer_has_advanced_settings,
+    room_fields as contract_room_fields,
+    schedule_fields as contract_schedule_fields,
+)
 
 
-from .logic import finalize_sector_identity, needs_custom_sun_settings
+from .logic import finalize_sector_identity
 
 
 def _slug(value: str) -> str:
@@ -165,6 +178,11 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "west": "West (W)", "northwest": "Nordwest (NW)", "custom": "Benutzerdefiniert",
     },
     "sun_preset": {"low": "Weniger empfindlich", "medium": "Ausgewogen", "high": "Empfindlich", "custom": "Benutzerdefiniert"},
+    "sun_source": {
+        "geometry": "Nur Sonnenstand verwenden",
+        "lux": "Lokaler Lux-Sensor (empfohlen)",
+        "external": "Externer Ein/Aus-Sonnensensor",
+    },
     "tilt_preset": {"glare": "Mehr Blendschutz", "balanced": "Ausgewogen", "daylight": "Mehr Tageslicht", "custom": "Benutzerdefiniert"},
     "device_type": {
         "venetian": "Außenjalousie mit Lamellen", "roller_shutter": "Rollladen",
@@ -188,6 +206,11 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
 SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "direction_preset": {"north": "North (N)", "northeast": "Northeast (NE)", "east": "East (E)", "southeast": "Southeast (SE)", "south": "South (S)", "southwest": "Southwest (SW)", "west": "West (W)", "northwest": "Northwest (NW)", "custom": "Custom"},
     "sun_preset": {"low": "Less sensitive", "medium": "Balanced", "high": "Sensitive", "custom": "Custom"},
+    "sun_source": {
+        "geometry": "Use sun geometry only",
+        "lux": "Local lux sensor (recommended)",
+        "external": "External on/off sun sensor",
+    },
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
     "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–September)", "custom": "Custom schedule"},
@@ -318,6 +341,19 @@ class _SmartShadingWizardMixin:
         "layer_tilt_custom": 8,
         "add_covers": 9,
         "name_selected_cover": 9,
+        "compact_room": 2,
+        "compact_outdoor_temperature": 3,
+        "compact_schedule": 4,
+        "compact_schedule_custom": 5,
+        "compact_sector": 6,
+        "compact_sector_geometry": 7,
+        "compact_sector_lux": 7,
+        "compact_sector_external": 7,
+        "compact_sun_custom": 7,
+        "compact_layer": 8,
+        "compact_tilt_profile": 8,
+        "compact_tilt_custom": 8,
+        "compact_cover_details": 9,
     }
 
     def async_show_form(self, *args: Any, **kwargs: Any) -> ConfigFlowResult:
@@ -420,6 +456,30 @@ class _SmartShadingWizardMixin:
         )
         return layer
 
+    def _allowed_directions(self) -> list[str]:
+        return customer_options(DIRECTION_OPTIONS, self.advanced_mode)
+
+    def _allowed_sun_presets(self) -> list[str]:
+        return customer_options(SUN_PRESET_OPTIONS, self.advanced_mode)
+
+    @staticmethod
+    def _sector_sun_source(sector: dict[str, Any]) -> str:
+        if sector.get("sun_presence_entity"):
+            return SUN_SOURCE_EXTERNAL
+        if sector.get("lux_sensor"):
+            return SUN_SOURCE_LUX
+        return SUN_SOURCE_GEOMETRY
+
+    @staticmethod
+    def _apply_sector_sun_source(
+        sector: dict[str, Any], source: str
+    ) -> None:
+        sector["sun_source"] = source
+        if source != SUN_SOURCE_LUX:
+            sector["lux_sensor"] = ""
+        if source != SUN_SOURCE_EXTERNAL:
+            sector["sun_presence_entity"] = ""
+
     def _append_pending_sector(self) -> None:
         """Append a pending sector and always ensure a stable internal ID."""
         assert self._pending_sector is not None
@@ -449,7 +509,6 @@ class _SmartShadingWizardMixin:
             self._working.update(values)
             return await self.async_step_init()
         fields: dict[Any, Any] = {
-            vol.Required(CONF_ADVANCED_MODE): selector.BooleanSelector(),
             vol.Required(CONF_DIAGNOSTIC_LEVEL): self._choice(
                 DIAGNOSTIC_OPTIONS, "diagnostic_level"
             ),
@@ -482,38 +541,8 @@ class _SmartShadingWizardMixin:
     async def async_step_add_room(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        if user_input is not None:
-            room = deepcopy(ROOM_DEFAULTS)
-            room.update(user_input)
-            room["id"] = _new_id(room["name"])
-            room["sectors"] = []
-            room.setdefault("safety_blockers", [])
-            if room.get("indoor_temperature"):
-                room["indoor_temperature_name"] = self._friendly_name(
-                    room["indoor_temperature"],
-                    "Raumtemperatur" if self._is_german() else "Room temperature",
-                )
-            if room.get("outdoor_temperature"):
-                room["outdoor_temperature_name"] = self._friendly_name(
-                    room["outdoor_temperature"],
-                    "Außentemperatur" if self._is_german() else "Outdoor temperature",
-                )
-            self.rooms.append(room)
-            self._room_id = room["id"]
-            return await self.async_step_room_schedule()
-        return self.async_show_form(
-            step_id="add_room",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("name"): selector.TextSelector(),
-                    vol.Optional("indoor_temperature"): _temperature_entity(),
-                    vol.Optional("outdoor_temperature"): _temperature_entity(),
-                    vol.Optional("safety_blockers"): _entity(
-                        "binary_sensor", multiple=True
-                    ),
-                }
-            ),
-        )
+        """Use the same variant-aware contract for initial and later rooms."""
+        return await self.async_step_compact_room(user_input)
 
     async def _async_after_schedule(self) -> ConfigFlowResult:
         return await self.async_step_room_pause_setup()
@@ -535,15 +564,15 @@ class _SmartShadingWizardMixin:
             if mode == PAUSE_TIMED:
                 return await self.async_step_room_pause_duration_setup()
             return await self._async_after_pause_setup()
-        schema = vol.Schema(
-            {
-                vol.Required("default_pause_mode"): self._choice(
-                    [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
-                    "pause_mode",
-                ),
-                vol.Required("heat_during_pause"): selector.BooleanSelector(),
-            }
-        )
+        fields: dict[Any, Any] = {
+            vol.Required("default_pause_mode"): self._choice(
+                [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
+                "pause_mode",
+            )
+        }
+        if self.advanced_mode:
+            fields[vol.Required("heat_during_pause")] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="room_pause_setup",
             data_schema=self.add_suggested_values_to_schema(schema, room),
@@ -655,8 +684,7 @@ class _SmartShadingWizardMixin:
                 room["start_time"] = "00:00:00"
                 room["end_time"] = "23:59:59"
                 return await self._async_after_schedule()
-        schema = vol.Schema(
-            {
+        fields: dict[Any, Any] = {
                 vol.Required("active_months"): self._choice(
                     [str(value) for value in range(1, 13)],
                     "months",
@@ -673,9 +701,10 @@ class _SmartShadingWizardMixin:
                 vol.Required("outside_schedule_behavior"): self._choice(
                     OUTSIDE_OPTIONS, "outside_schedule_behavior"
                 ),
-                vol.Required("heat_outside_schedule"): selector.BooleanSelector(),
-            }
-        )
+        }
+        if self.advanced_mode:
+            fields[vol.Required("heat_outside_schedule")] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         suggested = {
             **room,
             "active_months": [str(v) for v in room.get("active_months", range(1, 13))],
@@ -710,7 +739,7 @@ class _SmartShadingWizardMixin:
     async def async_step_add_sector(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        return await self.async_step_sector_direction(user_input)
+        return await self.async_step_compact_sector(user_input)
 
     async def async_step_sector_direction(
         self, user_input: dict[str, Any] | None = None
@@ -843,32 +872,27 @@ class _SmartShadingWizardMixin:
     async def async_step_add_layer(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        if user_input is not None:
-            self._pending_layer = self._new_layer(
-                user_input["name"], user_input["profile"]
-            )
-            if user_input["profile"] in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
-                return await self.async_step_layer_tilt_profile()
-            self._append_pending_layer()
-            return await self.async_step_add_covers()
-        return self.async_show_form(
-            step_id="add_layer",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("name"): selector.TextSelector(),
-                    vol.Required("profile", default=DEVICE_VENETIAN): self._choice(
-                        DEVICE_TYPES, "device_type"
-                    ),
-                }
-            ),
-        )
+        return await self.async_step_compact_layer(user_input)
 
     async def async_step_layer_tilt_profile(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         assert self._pending_layer is not None
+        options = customer_options(TILT_PRESET_OPTIONS, self.advanced_mode)
         if user_input is not None:
             preset = user_input["tilt_preset"]
+            if preset not in options:
+                return self.async_show_form(
+                    step_id="layer_tilt_profile",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required(
+                                "tilt_preset", default=TILT_PRESET_BALANCED
+                            ): self._choice(options, "tilt_preset")
+                        }
+                    ),
+                    errors={"tilt_preset": "advanced_only"},
+                )
             self._pending_layer["tilt_preset"] = preset
             if preset == TILT_PRESET_CUSTOM:
                 return await self.async_step_layer_tilt_custom()
@@ -881,7 +905,7 @@ class _SmartShadingWizardMixin:
                 {
                     vol.Required(
                         "tilt_preset", default=TILT_PRESET_BALANCED
-                    ): self._choice(TILT_PRESET_OPTIONS, "tilt_preset")
+                    ): self._choice(options, "tilt_preset")
                 }
             ),
         )
@@ -943,7 +967,7 @@ class _SmartShadingWizardMixin:
             else:
                 self._pending_cover_entities = entities
                 self._pending_cover_index = 0
-                return await self.async_step_name_selected_cover()
+                return await self.async_step_compact_cover_details()
         return self.async_show_form(
             step_id="add_covers",
             data_schema=vol.Schema(
@@ -1023,7 +1047,7 @@ class _SmartShadingWizardMixin:
         return await self.async_step_add_layer()
 
     async def async_step_add_another_sector(self, user_input=None):
-        return await self.async_step_sector_direction()
+        return await self.async_step_compact_sector()
 
     async def async_step_add_another_room(self, user_input=None):
         return await self.async_step_add_room()
@@ -1054,18 +1078,19 @@ class _SmartShadingWizardMixin:
         )
 
     async def async_step_room_actions(self, user_input=None) -> ConfigFlowResult:
+        options = [
+            "edit_room_basic",
+            "edit_room_schedule",
+            "edit_room_pause",
+        ]
+        if self.advanced_mode:
+            options.append("room_advanced")
+        options.extend(
+            ["add_sector", "select_sector", "delete_room", "back_to_overview"]
+        )
         return self.async_show_menu(
             step_id="room_actions",
-            menu_options=self._menu([
-                "edit_room_basic",
-                "edit_room_schedule",
-                "edit_room_pause",
-                "room_advanced",
-                "add_sector",
-                "select_sector",
-                "delete_room",
-                "back_to_overview",
-            ]),
+            menu_options=self._menu(options),
         )
 
     async def async_step_edit_room_basic(
@@ -1083,19 +1108,60 @@ class _SmartShadingWizardMixin:
             ):
                 if key in user_input:
                     room[key] = user_input.get(key, [] if key == "safety_blockers" else "")
+            if room.get("outdoor_temperature"):
+                return await self.async_step_edit_room_outdoor_temperature()
             return await self.async_step_room_actions()
-        fields: dict[Any, Any] = {
-            vol.Required("name"): selector.TextSelector(),
-            vol.Optional("indoor_temperature"): _temperature_entity(),
-            vol.Optional("outdoor_temperature"): _temperature_entity(),
-            vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
+        available_fields: dict[str, tuple[Any, Any]] = {
+            "name": (vol.Required("name"), selector.TextSelector()),
+            "outdoor_temperature": (
+                vol.Optional("outdoor_temperature"),
+                _temperature_entity(),
+            ),
+            "indoor_temperature": (
+                vol.Optional("indoor_temperature"),
+                _temperature_entity(),
+            ),
+            "safety_blockers": (
+                vol.Optional("safety_blockers"),
+                _entity("binary_sensor", multiple=True),
+            ),
+            "indoor_temperature_name": (
+                vol.Optional("indoor_temperature_name"),
+                selector.TextSelector(),
+            ),
+            "outdoor_temperature_name": (
+                vol.Optional("outdoor_temperature_name"),
+                selector.TextSelector(),
+            ),
         }
-        if self.advanced_mode:
-            fields[vol.Optional("indoor_temperature_name")] = selector.TextSelector()
-            fields[vol.Optional("outdoor_temperature_name")] = selector.TextSelector()
+        fields = {
+            available_fields[name][0]: available_fields[name][1]
+            for name in contract_room_fields(self.advanced_mode, editing=True)
+        }
         return self.async_show_form(
             step_id="edit_room_basic",
             data_schema=self.add_suggested_values_to_schema(vol.Schema(fields), room),
+        )
+
+    async def async_step_edit_room_outdoor_temperature(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        room = self.room()
+        if not room.get("outdoor_temperature"):
+            return await self.async_step_room_actions()
+        if user_input is not None:
+            room["outdoor_minimum"] = float(user_input["outdoor_minimum"])
+            return await self.async_step_room_actions()
+        return self.async_show_form(
+            step_id="edit_room_outdoor_temperature",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "outdoor_minimum",
+                        default=float(room.get("outdoor_minimum", 18.0)),
+                    ): _number(-30, 50, 0.1, "°C")
+                }
+            ),
         )
 
     async def async_step_edit_room_schedule(
@@ -1140,8 +1206,7 @@ class _SmartShadingWizardMixin:
                 room["start_time"] = "00:00:00"
                 room["end_time"] = "23:59:59"
                 return await self.async_step_room_actions()
-        schema = vol.Schema(
-            {
+        fields: dict[Any, Any] = {
                 vol.Required("active_months"): self._choice(
                     [str(value) for value in range(1, 13)], "months", multiple=True
                 ),
@@ -1152,9 +1217,10 @@ class _SmartShadingWizardMixin:
                 vol.Required("outside_schedule_behavior"): self._choice(
                     OUTSIDE_OPTIONS, "outside_schedule_behavior"
                 ),
-                vol.Required("heat_outside_schedule"): selector.BooleanSelector(),
-            }
-        )
+        }
+        if self.advanced_mode:
+            fields[vol.Required("heat_outside_schedule")] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         suggested = {
             **room,
             "active_months": [str(v) for v in room.get("active_months", range(1, 13))],
@@ -1191,17 +1257,17 @@ class _SmartShadingWizardMixin:
         if user_input is not None:
             room.update(user_input)
             return await self.async_step_room_actions()
-        schema = vol.Schema(
-            {
+        fields: dict[Any, Any] = {
                 vol.Required("default_pause_mode"): self._choice(
                     [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
                     "pause_mode",
                 ),
                 vol.Required("pause_sun_offset_minutes"): _number(-120, 240, 5, "min"),
                 vol.Required("pause_duration_hours"): _number(0.5, 72, 0.5, "h"),
-                vol.Required("heat_during_pause"): selector.BooleanSelector(),
-            }
-        )
+        }
+        if self.advanced_mode:
+            fields[vol.Required("heat_during_pause")] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="edit_room_pause",
             data_schema=self.add_suggested_values_to_schema(schema, room),
@@ -1304,24 +1370,34 @@ class _SmartShadingWizardMixin:
         )
 
     async def async_step_sector_actions(self, user_input=None) -> ConfigFlowResult:
+        options = ["edit_sector_customer"]
+        if self.advanced_mode:
+            options.append("edit_sector_advanced")
+        options.extend(
+            ["add_layer", "select_layer", "delete_sector", "room_actions"]
+        )
         return self.async_show_menu(
             step_id="sector_actions",
-            menu_options=self._menu([
-                "edit_sector_customer",
-                "edit_sector_advanced",
-                "add_layer",
-                "select_layer",
-                "delete_sector",
-                "room_actions",
-            ]),
+            menu_options=self._menu(options),
         )
 
     async def async_step_edit_sector_customer(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         sector = self.sector()
+        values = {**sector, "sun_source": self._sector_sun_source(sector)}
+        if values.get("direction") not in self._allowed_directions():
+            values["direction"] = "south"
         if user_input is not None:
             direction = user_input["direction"]
+            if direction not in self._allowed_directions():
+                return self.async_show_form(
+                    step_id="edit_sector_customer",
+                    data_schema=self.add_suggested_values_to_schema(
+                        self._edit_sector_customer_schema(), values
+                    ),
+                    errors={"direction": "advanced_only"},
+                )
             if direction != sector.get("direction"):
                 defaults = self._direction_defaults(direction)
                 sector.update(
@@ -1334,26 +1410,87 @@ class _SmartShadingWizardMixin:
                 )
             sector["name"] = str(user_input["name"]).strip()
             sector["short"] = str(user_input["short"]).strip().upper()
-            sector["lux_sensor"] = user_input.get("lux_sensor", "")
-            preset = user_input.get("sun_preset", PRESET_MEDIUM)
-            sector["sun_preset"] = preset
-            if preset in SUN_PRESETS:
-                sector.update(SUN_PRESETS[preset])
-            if sector.get("lux_sensor") and preset == PRESET_CUSTOM:
-                return await self.async_step_edit_sector_lux_custom()
+            source = str(user_input.get("sun_source", SUN_SOURCE_GEOMETRY))
+            self._apply_sector_sun_source(sector, source)
+            if direction == DIRECTION_CUSTOM:
+                self._edit_sector_source_after_geometry = True
+                return await self.async_step_edit_sector_advanced()
+            if source == SUN_SOURCE_LUX:
+                return await self.async_step_edit_sector_lux()
+            if source == SUN_SOURCE_EXTERNAL:
+                return await self.async_step_edit_sector_external()
             return await self.async_step_sector_actions()
-        schema = vol.Schema(
-            {
-                vol.Required("direction"): self._choice(DIRECTION_OPTIONS, "direction_preset"),
-                vol.Required("name"): selector.TextSelector(),
-                vol.Required("short"): selector.TextSelector(),
-                vol.Optional("lux_sensor"): _entity("sensor"),
-                vol.Required("sun_preset"): self._choice(SUN_PRESET_OPTIONS, "sun_preset"),
-            }
-        )
         return self.async_show_form(
             step_id="edit_sector_customer",
-            data_schema=self.add_suggested_values_to_schema(schema, sector),
+            data_schema=self.add_suggested_values_to_schema(
+                self._edit_sector_customer_schema(), values
+            ),
+        )
+
+    def _edit_sector_customer_schema(self) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required("direction"): self._choice(
+                    self._allowed_directions(), "direction_preset"
+                ),
+                vol.Required("name"): selector.TextSelector(),
+                vol.Required("short"): selector.TextSelector(),
+                vol.Required("sun_source"): self._choice(
+                    SUN_SOURCE_OPTIONS, "sun_source"
+                ),
+            }
+        )
+
+    async def async_step_edit_sector_lux(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        sector = self.sector()
+        values = dict(sector)
+        if values.get("sun_preset") not in self._allowed_sun_presets():
+            values["sun_preset"] = PRESET_MEDIUM
+        if user_input is not None:
+            preset = str(user_input.get("sun_preset", PRESET_MEDIUM))
+            if preset not in self._allowed_sun_presets():
+                return self.async_show_form(
+                    step_id="edit_sector_lux",
+                    data_schema=self.add_suggested_values_to_schema(
+                        self._compact_sector_lux_schema(), values
+                    ),
+                    errors={"sun_preset": "advanced_only"},
+                )
+            sector.update(user_input)
+            sector["sun_source"] = SUN_SOURCE_LUX
+            if preset == PRESET_CUSTOM:
+                return await self.async_step_edit_sector_lux_custom()
+            sector.update(SUN_PRESETS[preset])
+            return await self.async_step_sector_actions()
+        return self.async_show_form(
+            step_id="edit_sector_lux",
+            data_schema=self.add_suggested_values_to_schema(
+                self._compact_sector_lux_schema(), values
+            ),
+        )
+
+    async def async_step_edit_sector_external(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        sector = self.sector()
+        if user_input is not None:
+            sector["sun_source"] = SUN_SOURCE_EXTERNAL
+            sector["sun_presence_entity"] = user_input["sun_presence_entity"]
+            return await self.async_step_sector_actions()
+        return self.async_show_form(
+            step_id="edit_sector_external",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required("sun_presence_entity"): _entity(
+                            ["binary_sensor", "input_boolean", "switch"]
+                        )
+                    }
+                ),
+                sector,
+            ),
         )
 
     async def async_step_edit_sector_lux_custom(
@@ -1387,6 +1524,13 @@ class _SmartShadingWizardMixin:
         sector = self.sector()
         if user_input is not None:
             sector.update(user_input)
+            if getattr(self, "_edit_sector_source_after_geometry", False):
+                self._edit_sector_source_after_geometry = False
+                source = self._sector_sun_source(sector)
+                if source == SUN_SOURCE_LUX:
+                    return await self.async_step_edit_sector_lux()
+                if source == SUN_SOURCE_EXTERNAL:
+                    return await self.async_step_edit_sector_external()
             return await self.async_step_sector_actions()
         schema = vol.Schema(
             {
@@ -1429,17 +1573,24 @@ class _SmartShadingWizardMixin:
         )
 
     async def async_step_layer_actions(self, user_input=None) -> ConfigFlowResult:
-        return self.async_show_menu(
-            step_id="layer_actions",
-            menu_options=self._menu([
-                "edit_layer_customer",
-                "edit_layer_advanced",
+        options = ["edit_layer_customer"]
+        capabilities = PROFILE_CAPABILITIES[
+            self.layer().get("profile", DEVICE_VENETIAN)
+        ]
+        if layer_has_advanced_settings(self.advanced_mode, capabilities):
+            options.append("edit_layer_advanced")
+        options.extend(
+            [
                 "add_covers",
                 "select_cover",
                 "remove_covers",
                 "delete_layer",
                 "sector_actions",
-            ]),
+            ]
+        )
+        return self.async_show_menu(
+            step_id="layer_actions",
+            menu_options=self._menu(options),
         )
 
     async def async_step_edit_layer_customer(
@@ -1484,8 +1635,22 @@ class _SmartShadingWizardMixin:
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         layer = self.layer()
+        options = customer_options(TILT_PRESET_OPTIONS, self.advanced_mode)
         if user_input is not None:
             preset = user_input["tilt_preset"]
+            if preset not in options:
+                return self.async_show_form(
+                    step_id="edit_layer_tilt_profile",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required(
+                                "tilt_preset",
+                                default=TILT_PRESET_BALANCED,
+                            ): self._choice(options, "tilt_preset")
+                        }
+                    ),
+                    errors={"tilt_preset": "advanced_only"},
+                )
             layer["tilt_preset"] = preset
             if preset == TILT_PRESET_CUSTOM:
                 return await self.async_step_edit_layer_tilt_custom()
@@ -1497,8 +1662,13 @@ class _SmartShadingWizardMixin:
                 {
                     vol.Required(
                         "tilt_preset",
-                        default=layer.get("tilt_preset", TILT_PRESET_BALANCED),
-                    ): self._choice(TILT_PRESET_OPTIONS, "tilt_preset")
+                        default=(
+                            layer.get("tilt_preset", TILT_PRESET_BALANCED)
+                            if layer.get("tilt_preset", TILT_PRESET_BALANCED)
+                            in options
+                            else TILT_PRESET_BALANCED
+                        ),
+                    ): self._choice(options, "tilt_preset")
                 }
             ),
         )
@@ -1542,19 +1712,26 @@ class _SmartShadingWizardMixin:
             layer.update(user_input)
             return await self.async_step_layer_actions()
         profile = layer.get("profile", DEVICE_VENETIAN)
+        capabilities = PROFILE_CAPABILITIES[profile]
         fields: dict[Any, Any] = {}
         # Only technically relevant values are exposed for the selected profile.
+        if capabilities["binary"]:
+            return await self.async_step_layer_actions()
         if profile == DEVICE_VENETIAN:
             fields = {
                 vol.Required("open_position"): _number(0, 100, 1, "%"),
                 vol.Required("safety_position"): _number(0, 100, 1, "%"),
+                vol.Required("open_tilt"): _number(0, 100, 1, "%"),
+                vol.Required("heat_tilt"): _number(0, 100, 1, "%"),
+                vol.Required("safety_tilt"): _number(0, 100, 1, "%"),
             }
         elif profile == DEVICE_VERTICAL:
             fields = {
                 vol.Required("open_position"): _number(0, 100, 1, "%"),
-                vol.Required("comfort_tilt"): _number(0, 100, 1, "%"),
-                vol.Required("heat_tilt"): _number(0, 100, 1, "%"),
                 vol.Required("safety_position"): _number(0, 100, 1, "%"),
+                vol.Required("open_tilt"): _number(0, 100, 1, "%"),
+                vol.Required("heat_tilt"): _number(0, 100, 1, "%"),
+                vol.Required("safety_tilt"): _number(0, 100, 1, "%"),
             }
         else:
             fields = {
@@ -1614,19 +1791,30 @@ class _SmartShadingWizardMixin:
             cover.update(user_input)
             cover["entity"] = entity
             return await self.async_step_layer_actions()
-        schema = vol.Schema(
-            {
-                vol.Required("name"): selector.TextSelector(),
-                vol.Required("short"): selector.TextSelector(),
-                vol.Optional("lock"): _entity(["switch", "input_boolean"]),
-                vol.Optional("window"): _entity("binary_sensor"),
-                vol.Required("window_safe_state"): self._choice(["on", "off"], "safe_state"),
-                vol.Required("window_policy"): self._choice(WINDOW_POLICIES, "window_policy"),
-                vol.Required("max_open_position"): _number(0, 100, 1, "%"),
-                vol.Required("invert_position"): selector.BooleanSelector(),
-                vol.Required("invert_tilt"): selector.BooleanSelector(),
-            }
-        )
+        capabilities = PROFILE_CAPABILITIES[
+            self.layer().get("profile", DEVICE_VENETIAN)
+        ]
+        fields: dict[Any, Any] = {
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("short"): selector.TextSelector(),
+            vol.Optional("lock"): _entity(["switch", "input_boolean"]),
+            vol.Optional("window"): _entity("binary_sensor"),
+            vol.Required("window_safe_state"): self._choice(["on", "off"], "safe_state"),
+            vol.Required("window_policy"): self._choice(WINDOW_POLICIES, "window_policy"),
+        }
+        if capabilities["supports_position"]:
+            fields.update(
+                {
+                    vol.Required("max_open_position"): _number(0, 100, 1, "%"),
+                    vol.Required("invert_position"): selector.BooleanSelector(),
+                }
+            )
+        if capabilities["supports_tilt"]:
+            fields[vol.Required("invert_tilt")] = selector.BooleanSelector()
+        assert {
+            str(marker.schema) for marker in fields
+        } == set(contract_cover_fields(capabilities))
+        schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="edit_cover",
             data_schema=self.add_suggested_values_to_schema(schema, cover),
@@ -1692,7 +1880,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 9
+    VERSION = 10
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -1752,19 +1940,13 @@ class SmartShadingConfigFlow(
     async def async_step_compact_room(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Customer setup: room, core sensors, schedule and pause in one page."""
-        errors: dict[str, str] = {}
+        """Collect only sensors applicable to the selected setup variant."""
         if user_input is not None:
             room = deepcopy(ROOM_DEFAULTS)
             room.update(user_input)
             room["id"] = _new_id(room["name"])
             room["sectors"] = []
             room.setdefault("safety_blockers", [])
-            profile = room.get("schedule_profile", "year_round")
-            if profile == SCHEDULE_SUMMER:
-                room["active_months"] = [5, 6, 7, 8, 9]
-            elif profile != SCHEDULE_CUSTOM:
-                room["active_months"] = list(range(1, 13))
             if room.get("indoor_temperature"):
                 room["indoor_temperature_name"] = self._friendly_name(
                     room["indoor_temperature"],
@@ -1777,27 +1959,98 @@ class SmartShadingConfigFlow(
                 )
             self.rooms.append(room)
             self._room_id = room["id"]
+            if room.get("outdoor_temperature"):
+                return await self.async_step_compact_outdoor_temperature()
+            return await self.async_step_compact_schedule()
+
+        available_fields: dict[str, tuple[Any, Any]] = {
+            "name": (vol.Required("name"), selector.TextSelector()),
+            "outdoor_temperature": (
+                vol.Optional("outdoor_temperature"),
+                _temperature_entity(),
+            ),
+            "indoor_temperature": (
+                vol.Optional("indoor_temperature"),
+                _temperature_entity(),
+            ),
+            "safety_blockers": (
+                vol.Optional("safety_blockers"),
+                _entity("binary_sensor", multiple=True),
+            ),
+        }
+        fields = {
+            available_fields[name][0]: available_fields[name][1]
+            for name in contract_room_fields(self.advanced_mode)
+        }
+        return self.async_show_form(
+            step_id="compact_room", data_schema=vol.Schema(fields)
+        )
+
+    async def async_step_compact_outdoor_temperature(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        room = self.room()
+        if not room.get("outdoor_temperature"):
+            return await self.async_step_compact_schedule()
+        if user_input is not None:
+            room["outdoor_minimum"] = float(user_input["outdoor_minimum"])
+            return await self.async_step_compact_schedule()
+        return self.async_show_form(
+            step_id="compact_outdoor_temperature",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "outdoor_minimum",
+                        default=float(room.get("outdoor_minimum", 18.0)),
+                    ): _number(-30, 50, 0.1, "°C")
+                }
+            ),
+        )
+
+    async def async_step_compact_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        room = self.room()
+        if user_input is not None:
+            room.update(user_input)
+            profile = str(user_input.get("schedule_profile", SCHEDULE_YEAR_ROUND))
+            if profile == SCHEDULE_SUMMER:
+                room["active_months"] = [5, 6, 7, 8, 9]
+            elif profile != SCHEDULE_CUSTOM:
+                room["active_months"] = list(range(1, 13))
             if profile == SCHEDULE_CUSTOM:
                 return await self.async_step_compact_schedule_custom()
             return await self.async_step_compact_sector()
-
-        schema = vol.Schema(
-            {
-                vol.Required("name"): selector.TextSelector(),
-                vol.Optional("indoor_temperature"): _temperature_entity(),
-                vol.Optional("outdoor_temperature"): _temperature_entity(),
-                vol.Optional("safety_blockers"): _entity("binary_sensor", multiple=True),
-                vol.Required("schedule_profile", default="summer"): self._choice(
-                    SCHEDULE_OPTIONS, "schedule_profile"
-                ),
-                vol.Required("default_pause_mode", default=PAUSE_NEXT_SUNRISE): self._choice(
-                    [PAUSE_NEXT_SUNRISE, PAUSE_NEXT_SUNSET, PAUSE_TIMED, PAUSE_MANUAL],
+        available_fields: dict[str, tuple[Any, Any]] = {
+            "schedule_profile": (
+                vol.Required("schedule_profile", default=SCHEDULE_YEAR_ROUND),
+                self._choice(SCHEDULE_OPTIONS, "schedule_profile"),
+            ),
+            "default_pause_mode": (
+                vol.Required("default_pause_mode", default=PAUSE_NEXT_SUNRISE),
+                self._choice(
+                    [
+                        PAUSE_NEXT_SUNRISE,
+                        PAUSE_NEXT_SUNSET,
+                        PAUSE_TIMED,
+                        PAUSE_MANUAL,
+                    ],
                     "pause_mode",
                 ),
-                vol.Required("heat_during_pause", default=False): selector.BooleanSelector(),
-            }
+            ),
+            "heat_during_pause": (
+                vol.Required("heat_during_pause", default=False),
+                selector.BooleanSelector(),
+            ),
+        }
+        fields = {
+            available_fields[name][0]: available_fields[name][1]
+            for name in contract_schedule_fields(self.advanced_mode)
+        }
+        return self.async_show_form(
+            step_id="compact_schedule",
+            data_schema=vol.Schema(fields),
         )
-        return self.async_show_form(step_id="compact_room", data_schema=schema)
 
     async def async_step_compact_schedule_custom(
         self, user_input: dict[str, Any] | None = None
@@ -1812,15 +2065,15 @@ class SmartShadingConfigFlow(
             else:
                 room.update(user_input)
                 return await self.async_step_compact_sector()
-        schema = vol.Schema(
-            {
+        fields: dict[Any, Any] = {
                 vol.Required("active_months"): self._choice([str(i) for i in range(1, 13)], "months", multiple=True),
                 vol.Required("active_weekdays"): self._choice([str(i) for i in range(7)], "weekdays", multiple=True),
                 vol.Required("day_window", default="sector_sun"): self._choice(DAY_WINDOW_OPTIONS, "day_window"),
                 vol.Required("outside_schedule_behavior", default=OUTSIDE_OPEN): self._choice(OUTSIDE_OPTIONS, "outside_schedule_behavior"),
-                vol.Required("heat_outside_schedule", default=True): selector.BooleanSelector(),
-            }
-        )
+        }
+        if self.advanced_mode:
+            fields[vol.Required("heat_outside_schedule", default=True)] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         values = {
             "active_months": [str(v) for v in room.get("active_months", range(1, 13))],
             "active_weekdays": [str(v) for v in room.get("active_weekdays", range(7))],
@@ -1837,6 +2090,12 @@ class SmartShadingConfigFlow(
     ) -> ConfigFlowResult:
         if user_input is not None:
             direction = user_input.get("direction", "south")
+            if direction not in self._allowed_directions():
+                return self.async_show_form(
+                    step_id="compact_sector",
+                    data_schema=self._compact_sector_schema(),
+                    errors={"direction": "advanced_only"},
+                )
             defaults = self._direction_defaults(direction)
             name = str(user_input.get("name") or defaults["name"]).strip()
             short = str(user_input.get("short") or defaults["short"]).strip().upper()
@@ -1846,26 +2105,119 @@ class SmartShadingConfigFlow(
                 short=short,
                 id_factory=_new_id,
             )
-            preset = str(self._pending_sector.get("sun_preset", PRESET_MEDIUM))
-            if needs_custom_sun_settings(
-                preset=preset, lux_sensor=self._pending_sector.get("lux_sensor")
-            ):
-                return await self.async_step_compact_sun_custom()
-            if preset in SUN_PRESETS:
-                self._pending_sector.update(SUN_PRESETS[preset])
-            self._append_pending_sector()
-            return await self.async_step_compact_layer()
-        name, short = _direction_name("south", getattr(self.hass.config, "language", "en") or "en")
+            source = str(user_input.get("sun_source", SUN_SOURCE_GEOMETRY))
+            self._apply_sector_sun_source(self._pending_sector, source)
+            if direction == DIRECTION_CUSTOM:
+                return await self.async_step_compact_sector_geometry()
+            return await self._async_after_compact_sector_geometry()
+        return self.async_show_form(
+            step_id="compact_sector", data_schema=self._compact_sector_schema()
+        )
+
+    def _compact_sector_schema(self) -> vol.Schema:
+        name, short = _direction_name(
+            "south", getattr(self.hass.config, "language", "en") or "en"
+        )
+
+    async def async_step_compact_sector_geometry(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Collect free facade angles only for Advanced Custom direction."""
+        assert self._pending_sector is not None
+        if not self.advanced_mode:
+            return await self.async_step_compact_sector()
+        if user_input is not None:
+            self._pending_sector.update(user_input)
+            return await self._async_after_compact_sector_geometry()
         schema = vol.Schema(
             {
-                vol.Required("direction", default="south"): self._choice(DIRECTION_OPTIONS, "direction_preset"),
-                vol.Optional("name", default=name): selector.TextSelector(),
-                vol.Optional("short", default=short): selector.TextSelector(),
-                vol.Optional("lux_sensor"): _entity("sensor"),
-                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(SUN_PRESET_OPTIONS, "sun_preset"),
+                vol.Required("azimuth_start"): _number(0, 359, 1, "°"),
+                vol.Required("azimuth_end"): _number(0, 359, 1, "°"),
+                vol.Required("elevation_min"): _number(-10, 90, 1, "°"),
             }
         )
-        return self.async_show_form(step_id="compact_sector", data_schema=schema)
+        return self.async_show_form(
+            step_id="compact_sector_geometry",
+            data_schema=self.add_suggested_values_to_schema(
+                schema, self._pending_sector
+            ),
+        )
+
+    async def _async_after_compact_sector_geometry(self) -> ConfigFlowResult:
+        assert self._pending_sector is not None
+        source = self._sector_sun_source(self._pending_sector)
+        if source == SUN_SOURCE_LUX:
+            return await self.async_step_compact_sector_lux()
+        if source == SUN_SOURCE_EXTERNAL:
+            return await self.async_step_compact_sector_external()
+        self._append_pending_sector()
+        return await self.async_step_compact_layer()
+        return vol.Schema(
+            {
+                vol.Required("direction", default="south"): self._choice(
+                    self._allowed_directions(), "direction_preset"
+                ),
+                vol.Optional("name", default=name): selector.TextSelector(),
+                vol.Optional("short", default=short): selector.TextSelector(),
+                vol.Required(
+                    "sun_source", default=SUN_SOURCE_LUX
+                ): self._choice(SUN_SOURCE_OPTIONS, "sun_source"),
+            }
+        )
+
+    async def async_step_compact_sector_lux(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        assert self._pending_sector is not None
+        if user_input is not None:
+            preset = str(user_input.get("sun_preset", PRESET_MEDIUM))
+            if preset not in self._allowed_sun_presets():
+                return self.async_show_form(
+                    step_id="compact_sector_lux",
+                    data_schema=self._compact_sector_lux_schema(),
+                    errors={"sun_preset": "advanced_only"},
+                )
+            self._pending_sector.update(user_input)
+            if preset == PRESET_CUSTOM:
+                return await self.async_step_compact_sun_custom()
+            self._pending_sector.update(SUN_PRESETS[preset])
+            self._append_pending_sector()
+            return await self.async_step_compact_layer()
+        return self.async_show_form(
+            step_id="compact_sector_lux",
+            data_schema=self._compact_sector_lux_schema(),
+        )
+
+    def _compact_sector_lux_schema(self) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required("lux_sensor"): _entity("sensor"),
+                vol.Required("sun_preset", default=PRESET_MEDIUM): self._choice(
+                    self._allowed_sun_presets(), "sun_preset"
+                ),
+            }
+        )
+
+    async def async_step_compact_sector_external(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        assert self._pending_sector is not None
+        if user_input is not None:
+            self._pending_sector["sun_presence_entity"] = user_input[
+                "sun_presence_entity"
+            ]
+            self._append_pending_sector()
+            return await self.async_step_compact_layer()
+        return self.async_show_form(
+            step_id="compact_sector_external",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("sun_presence_entity"): _entity(
+                        ["binary_sensor", "input_boolean", "switch"]
+                    )
+                }
+            ),
+        )
 
     async def async_step_compact_sun_custom(
         self, user_input: dict[str, Any] | None = None
@@ -1909,26 +2261,56 @@ class SmartShadingConfigFlow(
                 profile = user_input.get("profile", DEVICE_VENETIAN)
                 name = str(user_input.get("name") or ("Behanggruppe" if self._is_german() else "Cover group"))
                 self._pending_layer = self._new_layer(name, profile)
-                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL}:
-                    preset = user_input.get("tilt_preset", TILT_PRESET_BALANCED)
-                    self._pending_layer["tilt_preset"] = preset
-                    if preset == TILT_PRESET_CUSTOM:
-                        self._pending_cover_entities = entities
-                        return await self.async_step_compact_tilt_custom()
-                    self._pending_layer["tilt_curve"] = deepcopy(TILT_CURVE_PRESETS[preset])
-                self._append_pending_layer()
                 self._pending_cover_entities = entities
                 self._pending_cover_index = 0
+                if PROFILE_CAPABILITIES[profile]["supports_tilt"]:
+                    return await self.async_step_compact_tilt_profile()
+                self._append_pending_layer()
                 return await self.async_step_compact_cover_details()
         schema = vol.Schema(
             {
                 vol.Required("name", default="Behanggruppe" if self._is_german() else "Cover group"): selector.TextSelector(),
                 vol.Required("profile", default=DEVICE_VENETIAN): self._choice(DEVICE_TYPES, "device_type"),
-                vol.Required("tilt_preset", default=TILT_PRESET_BALANCED): self._choice(TILT_PRESET_OPTIONS, "tilt_preset"),
                 vol.Required("cover_entities"): _entity("cover", multiple=True),
             }
         )
         return self.async_show_form(step_id="compact_layer", data_schema=schema, errors=errors)
+
+    async def async_step_compact_tilt_profile(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        assert self._pending_layer is not None
+        options = customer_options(TILT_PRESET_OPTIONS, self.advanced_mode)
+        if user_input is not None:
+            preset = str(user_input["tilt_preset"])
+            if preset not in options:
+                return self.async_show_form(
+                    step_id="compact_tilt_profile",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required(
+                                "tilt_preset", default=TILT_PRESET_BALANCED
+                            ): self._choice(options, "tilt_preset")
+                        }
+                    ),
+                    errors={"tilt_preset": "advanced_only"},
+                )
+            self._pending_layer["tilt_preset"] = preset
+            if preset == TILT_PRESET_CUSTOM:
+                return await self.async_step_compact_tilt_custom()
+            self._pending_layer["tilt_curve"] = deepcopy(TILT_CURVE_PRESETS[preset])
+            self._append_pending_layer()
+            return await self.async_step_compact_cover_details()
+        return self.async_show_form(
+            step_id="compact_tilt_profile",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "tilt_preset", default=TILT_PRESET_BALANCED
+                    ): self._choice(options, "tilt_preset")
+                }
+            ),
+        )
 
     async def async_step_compact_tilt_custom(
         self, user_input: dict[str, Any] | None = None

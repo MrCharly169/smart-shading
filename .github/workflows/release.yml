@@ -23,8 +23,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ha-e2e:
+    name: Required real Home Assistant gate
+    uses: ./.github/workflows/ha-e2e.yml
+
+  ha-ui-e2e:
+    name: Required browser gate
+    uses: ./.github/workflows/ha-ui-e2e.yml
+
   release:
     name: Publish ${{ inputs.channel }} release
+    needs: [ha-e2e, ha-ui-e2e]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

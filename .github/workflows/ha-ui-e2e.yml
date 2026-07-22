@@ -1,0 +1,46 @@
+name: Home Assistant UI E2E
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/frontend/**'
+      - 'custom_components/smart_shading/config_flow.py'
+      - 'custom_components/smart_shading/wizard_contract.py'
+      - 'custom_components/smart_shading/translations/**'
+      - 'e2e/ui/**'
+      - '.github/workflows/ha-ui-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install browser test dependencies
+        working-directory: e2e/ui
+        run: npm install --ignore-scripts
+      - name: Install Chromium
+        working-directory: e2e/ui
+        run: npx playwright install --with-deps chromium
+      - name: Run card browser tests
+        working-directory: e2e/ui
+        run: npm test
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-ui-e2e-${{ github.sha }}
+          path: artifacts/ha-ui-e2e
+          if-no-files-found: warn
+          retention-days: 14

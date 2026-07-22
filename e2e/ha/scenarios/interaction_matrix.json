@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "description": "Required Issue #73 behavior and lifecycle matrix. Cases marked automated are executed in the ephemeral or browser lab; contract cases are executable in the fast engine suite.",
+  "cases": [
+    {"id": "easy_external_normal_shading", "area": "runtime", "automation": "ha-e2e", "priority": "normal"},
+    {"id": "advanced_lux_normal_shading", "area": "runtime", "automation": "engine", "priority": "normal"},
+    {"id": "geometry_only", "area": "sun-source", "automation": "engine"},
+    {"id": "lux_hysteresis_and_delay", "area": "sun-source", "automation": "engine"},
+    {"id": "external_on_off", "area": "sun-source", "automation": "ha-e2e"},
+    {"id": "external_unavailable_no_fallback", "area": "availability", "automation": "ha-e2e"},
+    {"id": "lux_unavailable_no_fallback", "area": "availability", "automation": "ha-e2e"},
+    {"id": "no_outdoor_sensor_ignores_minimum", "area": "temperature", "automation": "engine"},
+    {"id": "outdoor_sensor_applies_minimum", "area": "temperature", "automation": "engine"},
+    {"id": "position_cover_service", "area": "cover", "automation": "ha-e2e"},
+    {"id": "tilt_cover_service", "area": "cover", "automation": "engine"},
+    {"id": "binary_open_close_service", "area": "cover", "automation": "engine"},
+    {"id": "duplicate_command_suppression", "area": "commands", "automation": "engine"},
+    {"id": "manual_intervention_pause", "area": "manual", "automation": "engine"},
+    {"id": "manual_resume", "area": "manual", "automation": "engine"},
+    {"id": "safety_precedes_all_modes", "area": "priority", "automation": "ha-e2e", "priority": "safety"},
+    {"id": "heat_precedes_normal_shading", "area": "priority", "automation": "engine", "priority": "heat"},
+    {"id": "pause_blocks_normal_but_not_configured_heat", "area": "priority", "automation": "engine", "priority": "pause"},
+    {"id": "night_and_schedule_release", "area": "schedule", "automation": "engine"},
+    {"id": "window_policy_blocks_closing", "area": "window", "automation": "engine"},
+    {"id": "easy_advanced_entry_isolation", "area": "lifecycle", "automation": "ha-e2e"},
+    {"id": "reload_unload_restart", "area": "lifecycle", "automation": "ha-e2e"},
+    {"id": "delete_reinstall", "area": "lifecycle", "automation": "ha-e2e"},
+    {"id": "stable_entity_ids_across_restart", "area": "registry", "automation": "ha-e2e"},
+    {"id": "migration_v9_to_v10", "area": "migration", "automation": "fast"},
+    {"id": "easy_advanced_card_binding", "area": "frontend", "automation": "playwright"},
+    {"id": "responsive_desktop_mobile", "area": "frontend", "automation": "playwright"}
+  ]
+}

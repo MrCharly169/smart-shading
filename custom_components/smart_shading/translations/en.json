@@ -29,12 +29,10 @@
           "unknown_feedback_policy": "Behavior without position feedback",
           "evening_release_time": "Latest fixed evening release",
           "sunset_offset_minutes": "Sunset offset",
-          "advanced_mode": "Advanced mode",
           "diagnostic_level": "Diagnostic logging",
           "evaluation_interval_minutes": "Periodic evaluation"
         },
         "data_description": {
-          "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
           "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
         }
@@ -162,7 +160,7 @@
         "menu_options": {
           "add_room": "Add room",
           "select_room": "Manage room",
-          "global_settings": "Advanced house settings",
+          "global_settings": "General settings",
           "finish": "Save changes and reload"
         }
       },
@@ -199,6 +197,13 @@
           "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
           "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
           "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
+        }
+      },
+      "edit_room_outdoor_temperature": {
+        "title": "Outdoor-temperature condition",
+        "description": "Because an outdoor sensor is selected, normal shading is enabled only from this outdoor temperature. Without a selected sensor this condition is ignored.",
+        "data": {
+          "outdoor_minimum": "Minimum outdoor temperature"
         }
       },
       "edit_room_schedule": {
@@ -264,7 +269,7 @@
       "sector_actions": {
         "title": "Manage sun sector",
         "menu_options": {
-          "edit_sector_customer": "Direction and lux sensor",
+          "edit_sector_customer": "Direction and sun confirmation",
           "edit_sector_advanced": "Advanced sector geometry",
           "add_layer": "Add cover group",
           "select_layer": "Manage cover group",
@@ -273,13 +278,27 @@
         }
       },
       "edit_sector_customer": {
-        "title": "Direction and sunlight",
+        "title": "Direction and sun confirmation",
+        "description": "Choose exactly one way to confirm direct sun. Local lux is recommended. Geometry needs no additional sensor.",
         "data": {
           "direction": "Compass direction",
-          "lux_sensor": "Lux sensor (optional)",
-          "sun_preset": "Sun Presence sensitivity",
           "name": "Display name",
-          "short": "Short code"
+          "short": "Short code",
+          "sun_source": "Sun confirmation"
+        }
+      },
+      "edit_sector_lux": {
+        "title": "Local lux confirmation",
+        "data": {
+          "lux_sensor": "Lux sensor",
+          "sun_preset": "Sun Presence sensitivity"
+        }
+      },
+      "edit_sector_external": {
+        "title": "External sun confirmation",
+        "description": "The selected on/off entity is authoritative. If it is unavailable, shading waits instead of falling back to geometry.",
+        "data": {
+          "sun_presence_entity": "External on/off sun entity"
         }
       },
       "edit_sector_lux_custom": {
@@ -537,13 +556,26 @@
         }
       },
       "compact_room": {
-        "title": "Room, sensors and core behavior",
-        "description": "Configure the room on one page. Temperature, safety and outdoor sensors are optional. The schedule only grants permission; sun position, lux and temperature determine actual movement.",
+        "title": "Room",
+        "description": "Easy asks only for the room name and an optional outdoor-temperature sensor. Advanced additionally offers indoor-temperature and safety sensors.",
         "data": {
           "name": "Room name",
           "indoor_temperature": "Room temperature (optional)",
           "outdoor_temperature": "Outdoor temperature (optional)",
-          "safety_blockers": "Wind, frost or rain sensors (optional)",
+          "safety_blockers": "Wind, frost or rain sensors (optional)"
+        }
+      },
+      "compact_outdoor_temperature": {
+        "title": "Outdoor-temperature condition",
+        "description": "This page appears only because an outdoor sensor was selected. Without a sensor, the condition is ignored.",
+        "data": {
+          "outdoor_minimum": "Minimum outdoor temperature"
+        }
+      },
+      "compact_schedule": {
+        "title": "Schedule and pause behavior",
+        "description": "The schedule grants permission for normal shading. Safety remains active independently.",
+        "data": {
           "schedule_profile": "Active period",
           "default_pause_mode": "Default pause action",
           "heat_during_pause": "Allow heat protection during pause"
@@ -561,14 +593,37 @@
         }
       },
       "compact_sector": {
-        "title": "Sun sector and lux sensor",
-        "description": "Select the facade direction and optionally a lux sensor. Name and abbreviation are used in the card and entities. Sensitive means a lower lux threshold.",
+        "title": "Sun sector and confirmation source",
+        "description": "Select the facade direction and exactly one sun confirmation. Easy provides direction presets only; custom geometry remains an Advanced setting.",
         "data": {
           "direction": "Compass direction",
           "name": "Sector display name",
           "short": "Abbreviation",
-          "lux_sensor": "Lux sensor (optional)",
+          "sun_source": "Sun confirmation"
+        }
+      },
+      "compact_sector_lux": {
+        "title": "Local lux confirmation",
+        "description": "Select the local brightness sensor and a sensitivity preset.",
+        "data": {
+          "lux_sensor": "Lux sensor",
           "sun_preset": "Sun Presence sensitivity"
+        }
+      },
+      "compact_sector_geometry": {
+        "title": "Custom facade geometry",
+        "description": "Advanced only. Define the solar azimuth range and minimum elevation for this facade.",
+        "data": {
+          "azimuth_start": "Start azimuth",
+          "azimuth_end": "End azimuth",
+          "elevation_min": "Minimum solar elevation"
+        }
+      },
+      "compact_sector_external": {
+        "title": "External sun confirmation",
+        "description": "The selected on/off entity is authoritative. If unavailable, shading waits and does not fall back silently.",
+        "data": {
+          "sun_presence_entity": "External on/off sun entity"
         }
       },
       "compact_sun_custom": {
@@ -587,8 +642,14 @@
         "data": {
           "name": "Cover group name",
           "profile": "Cover type",
-          "tilt_preset": "Slat profile",
           "cover_entities": "Select covers"
+        }
+      },
+      "compact_tilt_profile": {
+        "title": "Slat profile",
+        "description": "This page appears only for cover types with tilt support. Custom curves are available in Advanced.",
+        "data": {
+          "tilt_preset": "Slat profile"
         }
       },
       "compact_tilt_custom": {
@@ -627,7 +688,8 @@
       "select_at_least_one": "Select at least one item.",
       "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
       "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
-      "normal_temperature_order": "Required order: reopen < normal shading < heat protection."
+      "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
+      "advanced_only": "This custom value is available only in Advanced."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -664,12 +726,10 @@
           "unknown_feedback_policy": "Behavior without position feedback",
           "evening_release_time": "Latest fixed evening release",
           "sunset_offset_minutes": "Sunset offset",
-          "advanced_mode": "Advanced mode",
           "diagnostic_level": "Diagnostic logging",
           "evaluation_interval_minutes": "Periodic evaluation"
         },
         "data_description": {
-          "advanced_mode": "Controls whether technical settings are offered in the menus. The card also has its own setting.",
           "diagnostic_level": "Off: errors only. Events: mode changes, commands, and blockers. Full: every evaluation with inputs and decision.",
           "evaluation_interval_minutes": "In addition to sensor changes, Smart Shading checks the logic at this interval. Default: 20 minutes."
         }
@@ -797,7 +857,7 @@
         "menu_options": {
           "add_room": "Add room",
           "select_room": "Manage room",
-          "global_settings": "Advanced house settings",
+          "global_settings": "General settings",
           "finish": "Save changes and reload"
         }
       },
@@ -834,6 +894,13 @@
           "safety_blockers": "Multiple selection is supported. Select only binary sensors where `on` means danger. Leave this empty when no such sensors exist.",
           "indoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed.",
           "outdoor_temperature_name": "Optional. Only shown in the advanced card; raw entity IDs are never displayed."
+        }
+      },
+      "edit_room_outdoor_temperature": {
+        "title": "Outdoor-temperature condition",
+        "description": "Because an outdoor sensor is selected, normal shading is enabled only from this outdoor temperature. Without a selected sensor this condition is ignored.",
+        "data": {
+          "outdoor_minimum": "Minimum outdoor temperature"
         }
       },
       "edit_room_schedule": {
@@ -899,7 +966,7 @@
       "sector_actions": {
         "title": "Manage sun sector",
         "menu_options": {
-          "edit_sector_customer": "Direction and lux sensor",
+          "edit_sector_customer": "Direction and sun confirmation",
           "edit_sector_advanced": "Advanced sector geometry",
           "add_layer": "Add cover group",
           "select_layer": "Manage cover group",
@@ -908,13 +975,27 @@
         }
       },
       "edit_sector_customer": {
-        "title": "Direction and sunlight",
+        "title": "Direction and sun confirmation",
+        "description": "Choose exactly one way to confirm direct sun. Local lux is recommended. Geometry needs no additional sensor.",
         "data": {
           "direction": "Compass direction",
-          "lux_sensor": "Lux sensor (optional)",
-          "sun_preset": "Sun Presence sensitivity",
           "name": "Display name",
-          "short": "Short code"
+          "short": "Short code",
+          "sun_source": "Sun confirmation"
+        }
+      },
+      "edit_sector_lux": {
+        "title": "Local lux confirmation",
+        "data": {
+          "lux_sensor": "Lux sensor",
+          "sun_preset": "Sun Presence sensitivity"
+        }
+      },
+      "edit_sector_external": {
+        "title": "External sun confirmation",
+        "description": "The selected on/off entity is authoritative. If it is unavailable, shading waits instead of falling back to geometry.",
+        "data": {
+          "sun_presence_entity": "External on/off sun entity"
         }
       },
       "edit_sector_lux_custom": {
@@ -1181,7 +1262,8 @@
       "select_at_least_one": "Select at least one item.",
       "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
       "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
-      "normal_temperature_order": "Required order: reopen < normal shading < heat protection."
+      "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
+      "advanced_only": "This custom value is available only in Advanced."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",

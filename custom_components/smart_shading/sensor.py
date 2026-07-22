@@ -4,7 +4,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
 
-from .const import CARD_RESOURCE
+from .const import CARD_RESOURCE, SUN_SOURCE_EXTERNAL
 from .entity import SmartShadingEntity, localized
 
 
@@ -62,7 +62,6 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
                     f"entity: {self.entity_id}\n"
-                    "advanced_mode: false\n"
                 ),
                 "card_resource": CARD_RESOURCE,
             }
@@ -125,6 +124,8 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                         "reason": self.engine.sun_runtime[sector["id"]].status_reason,
                         "geometry_active": self.engine.sun_runtime[sector["id"]].geometry_active,
                         "sun_presence": self.engine.sun_runtime[sector["id"]].is_on,
+                        "sun_source": self.engine._configured_sun_source(sector),
+                        "source_valid": self.engine.sun_runtime[sector["id"]].source_valid,
                         "lux": self.engine.sun_runtime[sector["id"]].current_lux,
                         "lux_raw_state": (
                             self.engine.hass.states.get(sector.get("lux_sensor", "")).state
@@ -141,8 +142,12 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                         "pending_until": self.engine.sun_runtime[sector["id"]].pending_until,
                         "last_transition": self.engine.sun_runtime[sector["id"]].last_transition,
                         "mode": self.engine.sun_runtime[sector["id"]].mode,
-                        "sun_presence_entity_id": er.async_get(self.engine.hass).async_get_entity_id(
-                            "binary_sensor", "smart_shading", f"{self.entry.entry_id}_{sector['id']}_sun_presence"
+                        "sun_presence_entity_id": (
+                            sector.get("sun_presence_entity")
+                            if self.engine._configured_sun_source(sector) == SUN_SOURCE_EXTERNAL
+                            else er.async_get(self.engine.hass).async_get_entity_id(
+                                "binary_sensor", "smart_shading", f"{self.entry.entry_id}_{sector['id']}_sun_presence"
+                            )
                         ),
                     }
                     for sector in room.get("sectors", [])
@@ -192,7 +197,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
                     f"entity: {self.entity_id}\n"
-                    "advanced_mode: false\n"
                 ),
             }
         )
@@ -222,7 +226,7 @@ class SectorStatusSensor(SmartShadingEntity, SensorEntity):
         return {
             "shading_active": "mdi:blinds-horizontal",
             "sun_detected": "mdi:white-balance-sunny",
-            "waiting_for_lux": "mdi:brightness-6",
+            "waiting_for_confirmation": "mdi:brightness-6",
             "waiting_conditions": "mdi:timer-sand",
             "outside_sun_sector": "mdi:sun-compass",
             "sun_below_horizon": "mdi:weather-night",
@@ -251,6 +255,9 @@ class SectorStatusSensor(SmartShadingEntity, SensorEntity):
                 "geometry_active": self.runtime.geometry_active,
                 "shading_active": self.runtime.shading_active,
                 "sun_presence": self.runtime.is_on,
+                "sun_source": self.engine._configured_sun_source(sector),
+                "source_valid": self.runtime.source_valid,
+                "sun_presence_entity": sector.get("sun_presence_entity", ""),
                 "lux": self.runtime.current_lux,
                 "azimuth_start": self.engine.sector_value(self.sector_id, "azimuth_start", sector.get("azimuth_start")),
                 "azimuth_end": self.engine.sector_value(self.sector_id, "azimuth_end", sector.get("azimuth_end")),

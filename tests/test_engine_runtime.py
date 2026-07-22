@@ -299,6 +299,33 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.sun_runtime["south"].status, "outside_sun_sector")
         self.assertTrue(self.engine.sun_runtime["south"].is_on)
 
+    async def test_external_sun_source_is_authoritative_and_has_no_fallback(self):
+        config = base_config()
+        sector = config["rooms"][0]["sectors"][0]
+        sector["lux_sensor"] = ""
+        sector["sun_source"] = "external"
+        sector["sun_presence_entity"] = "binary_sensor.external_sun"
+        self.hass.states.values["binary_sensor.external_sun"] = FakeState("on")
+        engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+
+        await engine.async_evaluate_all("test_external_on")
+        self.assertEqual(engine.rooms["room"].mode, "solar")
+        self.assertTrue(engine.sun_runtime["south"].source_valid)
+        self.assertTrue(engine.sun_runtime["south"].is_on)
+
+        self.hass.states.values["binary_sensor.external_sun"] = FakeState(
+            "unavailable"
+        )
+        await engine.async_evaluate_all("test_external_unavailable")
+        self.assertEqual(engine.rooms["room"].mode, "open")
+        self.assertFalse(engine.sun_runtime["south"].source_valid)
+        self.assertFalse(engine.sun_runtime["south"].is_on)
+        self.assertEqual(
+            engine.sun_runtime["south"].status,
+            "waiting_for_confirmation",
+        )
+
     async def test_safety_overrides_local_cover_pause_and_lock(self):
         config = base_config()
         config["rooms"][0]["safety_blockers"] = ["binary_sensor.wind"]
@@ -578,6 +605,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.hass.states.values["sensor.indoor"] = FakeState("28", unit_of_measurement="°C")
         engine = engine_mod.SmartShadingEngine(self.hass, FakeEntry(config))
         await engine.async_initialize()
+        # Heat behavior tests must not depend on the wall clock of the machine
+        # running the suite. The dedicated evening-release test overrides this.
+        engine._evening_release_reached = lambda _now: False
         return engine, room
 
     async def test_heat_requires_room_sun_presence(self):

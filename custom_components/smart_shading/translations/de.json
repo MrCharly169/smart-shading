@@ -29,7 +29,6 @@
           "unknown_feedback_policy": "Verhalten ohne Positionsrückmeldung",
           "evening_release_time": "Feste späteste Abendfreigabe",
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
-          "advanced_mode": "Erweiterter Modus",
           "diagnostic_level": "Diagnoseprotokoll",
           "evaluation_interval_minutes": "Regelmäßige Prüfung"
         },
@@ -39,7 +38,6 @@
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
-          "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
@@ -200,7 +198,7 @@
         "menu_options": {
           "add_room": "Raum hinzufügen",
           "select_room": "Raum verwalten",
-          "global_settings": "Erweiterte Hauseinstellungen",
+          "global_settings": "Allgemeine Einstellungen",
           "finish": "Änderungen speichern und neu laden"
         }
       },
@@ -238,6 +236,13 @@
           "safety_blockers": "Mehrfachauswahl möglich. Wählen Sie nur Binary-Sensoren, bei denen `on` Gefahr bedeutet. Ohne solche Sensoren bleibt das Feld leer.",
           "indoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt.",
           "outdoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt."
+        }
+      },
+      "edit_room_outdoor_temperature": {
+        "title": "Bedingung für die Außentemperatur",
+        "description": "Da ein Außensensor gewählt ist, wird normale Beschattung erst ab dieser Außentemperatur freigegeben. Ohne gewählten Sensor wird diese Bedingung ignoriert.",
+        "data": {
+          "outdoor_minimum": "Minimale Außentemperatur"
         }
       },
       "edit_room_schedule": {
@@ -303,7 +308,7 @@
       "sector_actions": {
         "title": "Sonnensektor verwalten",
         "menu_options": {
-          "edit_sector_customer": "Richtung und Lux-Sensor",
+          "edit_sector_customer": "Richtung und Sonnenbestätigung",
           "edit_sector_advanced": "Erweiterte Sektorgeometrie",
           "add_layer": "Behanggruppe hinzufügen",
           "select_layer": "Behanggruppe verwalten",
@@ -312,14 +317,27 @@
         }
       },
       "edit_sector_customer": {
-        "title": "Richtung und Sonne",
-        "description": "Eine neue Himmelsrichtung setzt wieder passende Standard-Azimutwerte. Benutzerdefinierte Lux-Werte werden auf der nächsten Seite geöffnet.",
+        "title": "Richtung und Sonnenbestätigung",
+        "description": "Wählen Sie genau eine Methode zur Bestätigung direkter Sonne. Lokales Lux wird empfohlen; Sonnenstand benötigt keinen weiteren Sensor.",
         "data": {
           "direction": "Himmelsrichtung",
-          "lux_sensor": "Lux-Sensor (optional)",
-          "sun_preset": "Sun-Presence-Empfindlichkeit",
           "name": "Anzeigename",
-          "short": "Kürzel"
+          "short": "Kürzel",
+          "sun_source": "Sonnenbestätigung"
+        }
+      },
+      "edit_sector_lux": {
+        "title": "Bestätigung durch lokalen Lux-Sensor",
+        "data": {
+          "lux_sensor": "Lux-Sensor",
+          "sun_preset": "Sun-Presence-Empfindlichkeit"
+        }
+      },
+      "edit_sector_external": {
+        "title": "Externe Sonnenbestätigung",
+        "description": "Die gewählte Ein/Aus-Entität ist verbindlich. Ist sie nicht verfügbar, wartet die Beschattung und fällt nicht auf Sonnenstand zurück.",
+        "data": {
+          "sun_presence_entity": "Externe Ein/Aus-Sonnenentität"
         }
       },
       "edit_sector_lux_custom": {
@@ -582,20 +600,29 @@
         }
       },
       "compact_room": {
-        "title": "Raum, Sensorik und Grundverhalten",
-        "description": "Richte den Raum in einem Schritt ein. Temperatursensoren, Safety-Sensoren und Außentemperatur sind optional. Der Zeitplan gibt nur die grundsätzliche Freigabe; Sonnenstand, Lux und Temperatur entscheiden über die tatsächliche Fahrt.",
+        "title": "Raum",
+        "description": "Easy fragt nur Raumname und optional Außentemperatur ab. Advanced bietet zusätzlich Raumtemperatur und Safety-Sensoren an.",
         "data": {
           "name": "Raumname",
           "indoor_temperature": "Raumtemperatur (optional)",
           "outdoor_temperature": "Außentemperatur (optional)",
-          "safety_blockers": "Wind-, Frost- oder Regensensoren (optional)",
+          "safety_blockers": "Wind-, Frost- oder Regensensoren (optional)"
+        }
+      },
+      "compact_outdoor_temperature": {
+        "title": "Bedingung für die Außentemperatur",
+        "description": "Diese Seite erscheint nur, weil ein Außensensor gewählt wurde. Ohne Sensor wird die Bedingung ignoriert.",
+        "data": {
+          "outdoor_minimum": "Minimale Außentemperatur"
+        }
+      },
+      "compact_schedule": {
+        "title": "Zeitplan und Pausenverhalten",
+        "description": "Der Zeitplan gibt normale Beschattung frei. Safety bleibt davon unabhängig aktiv.",
+        "data": {
           "schedule_profile": "Aktivitätszeitraum",
           "default_pause_mode": "Standardaktion beim Pausieren",
           "heat_during_pause": "Heat Protection trotz Pause erlauben"
-        },
-        "data_description": {
-          "safety_blockers": "Mehrfachauswahl möglich. ON bedeutet normalerweise Gefahr aktiv.",
-          "default_pause_mode": "Diese Regel wird erst verwendet, wenn später auf Pausieren gedrückt wird."
         }
       },
       "compact_schedule_custom": {
@@ -610,14 +637,37 @@
         }
       },
       "compact_sector": {
-        "title": "Sonnensektor und Lux-Sensor",
-        "description": "Wähle die Fassadenrichtung und optional einen Lux-Sensor. Der Name und das Kürzel erscheinen später in Card und Entitäten. Empfindlich bedeutet einen niedrigeren Lux-Schwellwert.",
+        "title": "Sonnensektor und Bestätigungsquelle",
+        "description": "Wählen Sie Fassadenrichtung und genau eine Sonnenbestätigung. Easy bietet nur Richtungsvorgaben; freie Geometrie bleibt Advanced vorbehalten.",
         "data": {
           "direction": "Himmelsrichtung",
           "name": "Anzeigename des Sektors",
           "short": "Kürzel",
-          "lux_sensor": "Lux-Sensor (optional)",
+          "sun_source": "Sonnenbestätigung"
+        }
+      },
+      "compact_sector_lux": {
+        "title": "Bestätigung durch lokalen Lux-Sensor",
+        "description": "Wählen Sie den lokalen Helligkeitssensor und eine Empfindlichkeit.",
+        "data": {
+          "lux_sensor": "Lux-Sensor",
           "sun_preset": "Sun-Presence-Empfindlichkeit"
+        }
+      },
+      "compact_sector_geometry": {
+        "title": "Freie Fassadengeometrie",
+        "description": "Nur Advanced. Legen Sie Azimutbereich und minimale Sonnenhöhe dieser Fassade fest.",
+        "data": {
+          "azimuth_start": "Start-Azimut",
+          "azimuth_end": "End-Azimut",
+          "elevation_min": "Minimale Sonnenhöhe"
+        }
+      },
+      "compact_sector_external": {
+        "title": "Externe Sonnenbestätigung",
+        "description": "Die gewählte Ein/Aus-Entität ist verbindlich. Bei Nichtverfügbarkeit wartet die Beschattung ohne stillen Rückfall.",
+        "data": {
+          "sun_presence_entity": "Externe Ein/Aus-Sonnenentität"
         }
       },
       "compact_sun_custom": {
@@ -636,8 +686,14 @@
         "data": {
           "name": "Name der Behanggruppe",
           "profile": "Behangtyp",
-          "tilt_preset": "Lamellenprofil",
           "cover_entities": "Covers auswählen"
+        }
+      },
+      "compact_tilt_profile": {
+        "title": "Lamellenprofil",
+        "description": "Diese Seite erscheint nur für Behangtypen mit Lamellensteuerung. Freie Kurven sind in Advanced verfügbar.",
+        "data": {
+          "tilt_preset": "Lamellenprofil"
         }
       },
       "compact_tilt_custom": {
@@ -680,7 +736,8 @@
       "select_at_least_one": "Wählen Sie mindestens einen Eintrag aus.",
       "sun_missing": "Die Entität `sun.sun` fehlt. Prüfen Sie unter Einstellungen → System → Allgemein den Standort und die Zeitzone und stellen Sie sicher, dass die Sonnenintegration geladen ist.",
       "sun_unavailable": "Die Entität `sun.sun` ist derzeit nicht verfügbar. Smart Shading benötigt einen gültigen Sonnenstand, bevor die Einrichtung fortgesetzt werden kann.",
-      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection."
+      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection.",
+      "advanced_only": "Dieser freie Wert ist nur in Advanced verfügbar."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -717,7 +774,6 @@
           "unknown_feedback_policy": "Verhalten ohne Positionsrückmeldung",
           "evening_release_time": "Feste späteste Abendfreigabe",
           "sunset_offset_minutes": "Verschiebung zu Sonnenuntergang",
-          "advanced_mode": "Erweiterter Modus",
           "diagnostic_level": "Diagnoseprotokoll",
           "evaluation_interval_minutes": "Regelmäßige Prüfung"
         },
@@ -727,7 +783,6 @@
           "command_cooldown": "Verhindert wiederholte identische Telegramme.",
           "evening_release_time": "Spätestens zu dieser Uhrzeit wird ein aktiver Hitzeschutz freigegeben.",
           "sunset_offset_minutes": "Negativ bedeutet vor Sonnenuntergang, positiv danach.",
-          "advanced_mode": "Steuert, ob technische Einstellungen in den Menüs angeboten werden. Die Card besitzt zusätzlich eine eigene Einstellung.",
           "diagnostic_level": "Aus: nur Fehler. Ereignisse: Moduswechsel, Fahrbefehle und Blockierungen. Vollständig: jede Auswertung mit Eingangswerten und Entscheidung.",
           "evaluation_interval_minutes": "Zusätzlich zu Sensoränderungen prüft Smart Shading die Logik in diesem Abstand. Standard: 20 Minuten."
         }
@@ -888,7 +943,7 @@
         "menu_options": {
           "add_room": "Raum hinzufügen",
           "select_room": "Raum verwalten",
-          "global_settings": "Erweiterte Hauseinstellungen",
+          "global_settings": "Allgemeine Einstellungen",
           "finish": "Änderungen speichern und neu laden"
         }
       },
@@ -926,6 +981,13 @@
           "safety_blockers": "Mehrfachauswahl möglich. Wählen Sie nur Binary-Sensoren, bei denen `on` Gefahr bedeutet. Ohne solche Sensoren bleibt das Feld leer.",
           "indoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt.",
           "outdoor_temperature_name": "Optional. Wird nur in der erweiterten Card angezeigt; rohe Entity-IDs werden niemals angezeigt."
+        }
+      },
+      "edit_room_outdoor_temperature": {
+        "title": "Bedingung für die Außentemperatur",
+        "description": "Da ein Außensensor gewählt ist, wird normale Beschattung erst ab dieser Außentemperatur freigegeben. Ohne gewählten Sensor wird diese Bedingung ignoriert.",
+        "data": {
+          "outdoor_minimum": "Minimale Außentemperatur"
         }
       },
       "edit_room_schedule": {
@@ -991,7 +1053,7 @@
       "sector_actions": {
         "title": "Sonnensektor verwalten",
         "menu_options": {
-          "edit_sector_customer": "Richtung und Lux-Sensor",
+          "edit_sector_customer": "Richtung und Sonnenbestätigung",
           "edit_sector_advanced": "Erweiterte Sektorgeometrie",
           "add_layer": "Behanggruppe hinzufügen",
           "select_layer": "Behanggruppe verwalten",
@@ -1000,14 +1062,27 @@
         }
       },
       "edit_sector_customer": {
-        "title": "Richtung und Sonne",
-        "description": "Eine neue Himmelsrichtung setzt wieder passende Standard-Azimutwerte. Benutzerdefinierte Lux-Werte werden auf der nächsten Seite geöffnet.",
+        "title": "Richtung und Sonnenbestätigung",
+        "description": "Wählen Sie genau eine Methode zur Bestätigung direkter Sonne. Lokales Lux wird empfohlen; Sonnenstand benötigt keinen weiteren Sensor.",
         "data": {
           "direction": "Himmelsrichtung",
-          "lux_sensor": "Lux-Sensor (optional)",
-          "sun_preset": "Sun-Presence-Empfindlichkeit",
           "name": "Anzeigename",
-          "short": "Kürzel"
+          "short": "Kürzel",
+          "sun_source": "Sonnenbestätigung"
+        }
+      },
+      "edit_sector_lux": {
+        "title": "Bestätigung durch lokalen Lux-Sensor",
+        "data": {
+          "lux_sensor": "Lux-Sensor",
+          "sun_preset": "Sun-Presence-Empfindlichkeit"
+        }
+      },
+      "edit_sector_external": {
+        "title": "Externe Sonnenbestätigung",
+        "description": "Die gewählte Ein/Aus-Entität ist verbindlich. Ist sie nicht verfügbar, wartet die Beschattung und fällt nicht auf Sonnenstand zurück.",
+        "data": {
+          "sun_presence_entity": "Externe Ein/Aus-Sonnenentität"
         }
       },
       "edit_sector_lux_custom": {
@@ -1279,7 +1354,8 @@
       "select_at_least_one": "Wählen Sie mindestens einen Eintrag aus.",
       "sun_missing": "Die Entität `sun.sun` fehlt. Prüfen Sie unter Einstellungen → System → Allgemein den Standort und die Zeitzone und stellen Sie sicher, dass die Sonnenintegration geladen ist.",
       "sun_unavailable": "Die Entität `sun.sun` ist derzeit nicht verfügbar. Smart Shading benötigt einen gültigen Sonnenstand, bevor die Einrichtung fortgesetzt werden kann.",
-      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection."
+      "normal_temperature_order": "Es muss gelten: Wieder öffnen < normale Beschattung < Heat Protection.",
+      "advanced_only": "Dieser freie Wert ist nur in Advanced verfügbar."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",

@@ -25,8 +25,10 @@ Card:
 ```yaml
 type: custom:smart-shading-card
 entity: sensor.DEIN_RAUMSTATUS
-advanced_mode: true
 ```
+
+Die Card übernimmt automatisch die Easy- oder Advanced-Variante des gewählten
+Smart-Shading-Konfigurationseintrags.
 
 ## Voraussetzungen
 
@@ -77,6 +79,23 @@ Wird die Automatiksperre vorher manuell ausgeschaltet, endet die lokale Pause so
 ### Raum-Pause
 
 Der Pause-Button pausiert die gesamte normale Raumautomatik nach der im Wizard gewählten Regel. Die Pause besitzt einen eigenen Ablauf-Timer und endet nicht erst bei der nächsten 20-Minuten-Prüfung.
+
+## FAQ
+
+### Die Raum-Pause im Advanced Mode funktioniert nicht oder wird sofort wieder beendet. Was muss ich in ETS prüfen?
+
+Prüfe in ETS die Flags der Gruppenadressen, die die Fahrbefehle **Öffnen** und **Schließen** an das Cover senden. Bei diesen reinen Befehls-Gruppenadressen darf das Flag **Lesen** (*Read*) nicht aktiv sein.
+
+Home Assistant kann Gruppenadressen abfragen. Antwortet eine Befehls-Gruppenadresse auf diese Abfrage, kann die Antwort fälschlicherweise wie eine manuelle Coverbewegung wirken. Smart Shading erkennt dann einen manuellen Eingriff und löst eine Pause aus beziehungsweise beendet den erwarteten Pausenablauf.
+
+Vorgehen in ETS:
+
+1. Die Kommunikationsobjekte beziehungsweise Gruppenadressen für die Befehle **Öffnen** und **Schließen** des betroffenen Covers suchen.
+2. Das Flag **Lesen** deaktivieren (falls es gesetzt ist).
+3. Die geänderte Applikation in das KNX-Gerät laden.
+4. Die Raum-Pause in Smart Shading erneut testen.
+
+Das Flag ist je nach Gerät und Applikation bereits deaktiviert. Deshalb lohnt sich die Kontrolle besonders dann, wenn die Pause bei einzelnen Covers nicht zuverlässig arbeitet. Status- und Rückmelde-Gruppenadressen sollten nur geändert werden, wenn es für das jeweilige Gerät ausdrücklich erforderlich ist.
 
 ### Manueller Master-Override
 

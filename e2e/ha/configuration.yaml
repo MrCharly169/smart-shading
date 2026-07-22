@@ -1,0 +1,30 @@
+homeassistant:
+  name: Smart Shading E2E
+  latitude: 49.6116
+  longitude: 6.1319
+  elevation: 300
+  unit_system: metric
+  time_zone: UTC
+  currency: EUR
+
+api:
+frontend:
+http:
+sun:
+
+smart_shading_test_fixture:
+
+cover:
+  - platform: smart_shading_test_fixture
+
+sensor:
+  - platform: smart_shading_test_fixture
+
+binary_sensor:
+  - platform: smart_shading_test_fixture
+
+logger:
+  default: info
+  logs:
+    custom_components.smart_shading: debug
+    custom_components.smart_shading_test_fixture: debug

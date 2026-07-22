@@ -24,6 +24,7 @@ from .const import (
     TILT_PRESET_BALANCED,
 )
 from .controller import SmartShadingEngine
+from .migration_contract import normalize_sector_sun_source
 from .storage import RuntimeStore
 
 
@@ -49,6 +50,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
 
         for sector in room.get("sectors", []):
             sector.setdefault("enabled", True)
+            normalize_sector_sun_source(sector)
             preset = str(sector.get("sun_preset", "medium"))
             if preset in SUN_PRESETS:
                 sector.update(deepcopy(SUN_PRESETS[preset]))
@@ -97,7 +99,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 9:
+    if entry.version >= 10:
         return True
     data = _normalize_config(dict(entry.data))
     options = _normalize_config(dict(entry.options)) if entry.options else {}
@@ -108,7 +110,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if options and int(options.get(CONF_EVALUATION_INTERVAL, 120)) == 120:
         options[CONF_EVALUATION_INTERVAL] = DEFAULT_EVALUATION_INTERVAL
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=9
+        entry, data=data, options=options, version=10
     )
     return True
 

@@ -59,6 +59,9 @@ from .const import (
     PRESET_MEDIUM,
     PROFILE_DEFAULTS,
     SUN_PRESETS,
+    SUN_SOURCE_EXTERNAL,
+    SUN_SOURCE_GEOMETRY,
+    SUN_SOURCE_LUX,
     VERSION,
     WINDOW_POLICY_BLOCK_ALL,
     WINDOW_POLICY_BLOCK_CLOSING,
@@ -222,6 +225,7 @@ class SmartShadingEngine:
                     sector_id=sector_id
                 )
                 sun.is_on = bool(saved_sun.get("is_on", False))
+                sun.source_valid = bool(saved_sun.get("source_valid", False))
                 sun.pending_target = saved_sun.get("pending_target")
                 sun.pending_since = _parse_datetime(saved_sun.get("pending_since"))
                 sun.pending_until = _parse_datetime(saved_sun.get("pending_until"))
@@ -366,7 +370,6 @@ class SmartShadingEngine:
             card_yaml = (
                 "type: custom:smart-shading-card\n"
                 f"entity: {entity_id}\n"
-                "advanced_mode: false\n"
             )
             if german:
                 title = f"Smart Shading – Dashboard-Karte für {room['name']}"
@@ -514,7 +517,7 @@ class SmartShadingEngine:
             await self.async_evaluate_all(f"critical_state:{entity_id}")
             return
 
-        sector = self._find_sector_by_lux(entity_id)
+        sector = self._find_sector_by_confirmation(entity_id)
         if sector:
             room = self._find_room_for_sector(sector["id"])
             room_sun_before = (
@@ -565,10 +568,13 @@ class SmartShadingEngine:
     def _find_cover_by_lock(self, entity_id: str):
         return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("lock") == entity_id), None)
 
-    def _find_sector_by_lux(self, entity_id: str):
+    def _find_sector_by_confirmation(self, entity_id: str):
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
-                if sector.get("lux_sensor") == entity_id:
+                if entity_id in {
+                    sector.get("lux_sensor"),
+                    sector.get("sun_presence_entity"),
+                }:
                     return sector
         return None
 
@@ -587,15 +593,21 @@ class SmartShadingEngine:
 
     def _room_heat_sun_present(self, room: dict[str, Any]) -> bool:
         """Return whether any enabled sector has valid active Sun Presence."""
+        sun_state = self.hass.states.get(
+            self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        )
+        if not sun_state or sun_state.state != "above_horizon":
+            return False
         for sector in room.get("sectors", []):
             if not bool(self.sector_value(sector["id"], "enabled", True)):
                 continue
             runtime = self.sun_runtime.get(sector["id"])
-            if (
-                runtime is not None
-                and runtime.is_on
-                and runtime.current_lux is not None
-            ):
+            source = str(
+                sector.get("sun_source") or self._configured_sun_source(sector)
+            )
+            if source == SUN_SOURCE_GEOMETRY and self._sector_geometry_active(sector):
+                return True
+            if runtime is not None and runtime.is_on and runtime.source_valid:
                 return True
         return False
 
@@ -815,6 +827,8 @@ class SmartShadingEngine:
             for sector in room.get("sectors", []):
                 if sector.get("lux_sensor"):
                     result.add(sector["lux_sensor"])
+                if sector.get("sun_presence_entity"):
+                    result.add(sector["sun_presence_entity"])
                 for layer in sector.get("layers", []):
                     for cover in layer.get("covers", []):
                         result.add(cover["entity"])
@@ -1282,8 +1296,49 @@ class SmartShadingEngine:
     async def _update_all_sun_presence(self, now: datetime) -> None:
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
-                if sector.get("lux_sensor"):
+                if self._configured_sun_source(sector) != SUN_SOURCE_GEOMETRY:
                     await self._update_sun_presence(sector, now)
+
+    @staticmethod
+    def _configured_sun_source(sector: dict[str, Any]) -> str:
+        if sector.get("sun_presence_entity"):
+            return SUN_SOURCE_EXTERNAL
+        if sector.get("lux_sensor"):
+            return SUN_SOURCE_LUX
+        return SUN_SOURCE_GEOMETRY
+
+    def _sector_geometry_active(self, sector: dict[str, Any]) -> bool:
+        sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        sun_state = self.hass.states.get(sun_entity)
+        if not sun_state or sun_state.state != "above_horizon":
+            return False
+        azimuth = parse_numeric_value(sun_state.attributes.get("azimuth"))
+        elevation = parse_numeric_value(sun_state.attributes.get("elevation"))
+        if azimuth is None or elevation is None:
+            return False
+        return azimuth_inside(
+            azimuth,
+            float(
+                self.sector_value(
+                    sector["id"],
+                    "azimuth_start",
+                    sector.get("azimuth_start", 0),
+                )
+            ),
+            float(
+                self.sector_value(
+                    sector["id"],
+                    "azimuth_end",
+                    sector.get("azimuth_end", 359),
+                )
+            ),
+        ) and elevation >= float(
+            self.sector_value(
+                sector["id"],
+                "elevation_min",
+                sector.get("elevation_min", 0),
+            )
+        )
 
     def _sun_settings(self, sector_id: str) -> dict[str, float]:
         """Return effective Sun Presence settings. Presets are authoritative."""
@@ -1302,10 +1357,49 @@ class SmartShadingEngine:
     ) -> None:
         sector_id = sector["id"]
         runtime = self.sun_runtime[sector_id]
+        source = self._configured_sun_source(sector)
+        if source == SUN_SOURCE_EXTERNAL:
+            entity_id = str(sector.get("sun_presence_entity", ""))
+            state = self.hass.states.get(entity_id) if entity_id else None
+            valid = bool(
+                state
+                and state.state
+                not in {"unknown", "unavailable", "none", ""}
+            )
+            previous = runtime.is_on
+            runtime.current_lux = None
+            runtime.source_valid = valid
+            runtime.is_on = bool(valid and state.state == STATE_ON)
+            runtime.pending_target = None
+            runtime.pending_since = None
+            runtime.pending_until = None
+            runtime.reason = (
+                "External sun source is ON"
+                if runtime.is_on
+                else "External sun source is OFF"
+                if valid
+                else "External sun source unavailable"
+            )
+            if previous != runtime.is_on:
+                runtime.last_transition = now
+                self._diag(
+                    "sun_presence_changed",
+                    sector_id=sector_id,
+                    sector=sector.get("name", ""),
+                    state="on" if runtime.is_on else "off",
+                    source=SUN_SOURCE_EXTERNAL,
+                    entity_id=entity_id,
+                    reason=runtime.reason,
+                )
+            self._cancel_sun_timer(sector_id)
+            await self._save_sun_runtime(runtime)
+            return
+
         lux_entity = sector.get("lux_sensor", "")
         lux_state = self.hass.states.get(lux_entity) if lux_entity else None
         lux = _state_number(self.hass, lux_entity)
         runtime.current_lux = lux
+        runtime.source_valid = lux is not None
         settings = self._sun_settings(sector_id)
         configured_on_lux = settings["sun_on_lux"]
         configured_off_lux = settings["sun_off_lux"]
@@ -1385,9 +1479,10 @@ class SmartShadingEngine:
             unsub()
 
     def _sector_sun_pass(self, sector: dict[str, Any]) -> bool:
-        if not sector.get("lux_sensor"):
+        if self._configured_sun_source(sector) == SUN_SOURCE_GEOMETRY:
             return True
-        return self.sun_runtime[sector["id"]].is_on
+        runtime = self.sun_runtime[sector["id"]]
+        return runtime.source_valid and runtime.is_on
 
     def _weather_pass(self, room: dict[str, Any]) -> tuple[bool, list[str]]:
         tests: list[tuple[str, bool]] = []
@@ -1717,15 +1812,29 @@ class SmartShadingEngine:
                 )
             )
             sector_runtime.geometry_active = geometry
+            source = self._configured_sun_source(sector)
+            if source == SUN_SOURCE_GEOMETRY:
+                sector_runtime.source_valid = bool(
+                    sun_state
+                    and azimuth_value is not None
+                    and elevation_value is not None
+                )
+                sector_runtime.is_on = geometry
+                sector_runtime.reason = (
+                    "Sun is inside configured geometry"
+                    if geometry
+                    else "Sun is outside configured geometry"
+                )
             sun_pass = self._sector_sun_pass(sector)
+            source_active = geometry and sun_pass
             if not sun_up:
                 sector_runtime.status = "sun_below_horizon"
                 sector_runtime.status_reason = "Sun below horizon"
             elif not geometry:
                 sector_runtime.status = "outside_sun_sector"
                 sector_runtime.status_reason = "Sun outside this sector"
-            elif sector.get("lux_sensor") and not sun_pass:
-                sector_runtime.status = "waiting_for_lux"
+            elif source != SUN_SOURCE_GEOMETRY and not sun_pass:
+                sector_runtime.status = "waiting_for_confirmation"
                 sector_runtime.status_reason = sector_runtime.reason
             else:
                 sector_runtime.status = "sun_detected"
@@ -1739,11 +1848,14 @@ class SmartShadingEngine:
                 enabled=bool(self.sector_value(sector["id"], "enabled", True)),
                 geometry_active=geometry,
                 lux=sector_runtime.current_lux,
+                sun_source=source,
+                source_valid=sector_runtime.source_valid,
                 sun_presence=sector_runtime.is_on,
                 sun_pass=sun_pass,
+                source_active=source_active,
                 status=sector_runtime.status,
             )
-            if geometry and sun_pass:
+            if source_active:
                 active_sectors.append(sector)
                 runtime.active_sectors.append(sector["name"])
 
@@ -1835,6 +1947,7 @@ class SmartShadingEngine:
                 elif (
                     comfort_allowed
                     and weather_pass
+                    and outdoor_ok
                     and (
                         glare
                         or not indoor_entity
@@ -2288,6 +2401,7 @@ class SmartShadingEngine:
             runtime.sector_id,
             {
                 "is_on": runtime.is_on,
+                "source_valid": runtime.source_valid,
                 "pending_target": runtime.pending_target,
                 "pending_since": _serialize_datetime(runtime.pending_since),
                 "pending_until": _serialize_datetime(runtime.pending_until),
