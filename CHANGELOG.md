@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Release laboratory
+
+- moved published-tag HACS qualification to an automatic GitHub-hosted job that
+  uses the official HACS backend, verifies public release selection and runs the
+  downloaded tag artifact through a fresh real Home Assistant lifecycle
 
 ## 4.6.2 - 2026-07-22
 
