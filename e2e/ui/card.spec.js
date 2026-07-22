@@ -101,6 +101,13 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
               type: "custom:smart-shading-card",
               entity: advanced.entity_id,
             },
+            {
+              type: "custom:smart-shading-card",
+              entity: advanced.entity_id,
+              // Hiding operational actions must not hide the read-only
+              // Advanced trace, simulation, and day-preview entry point.
+              show_actions: false,
+            },
           ],
         }],
       },
@@ -112,13 +119,17 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   await page.goto("/smart-shading-e2e/binding");
   await page.waitForFunction(() => customElements.get("smart-shading-card"));
   const cards = page.locator("smart-shading-card");
-  await expect(cards).toHaveCount(2);
+  await expect(cards).toHaveCount(3);
   const easyCard = cards.nth(0);
   const advancedCard = cards.nth(1);
+  const detailsOnlyCard = cards.nth(2);
   await expect(easyCard).toBeVisible();
   await expect(advancedCard).toBeVisible();
+  await expect(detailsOnlyCard).toBeVisible();
   await expect(easyCard.locator("[data-advanced]")).toHaveCount(0);
   await expect(advancedCard.locator("[data-advanced]")).toHaveCount(1);
+  await expect(detailsOnlyCard.locator("[data-advanced]")).toHaveCount(1);
+  await expect(detailsOnlyCard.locator("[data-press]")).toHaveCount(0);
   await expect(easyCard.locator('.target-line')).toHaveCount(0);
   await expect(advancedCard.locator('.target-line')).not.toHaveCount(0);
   const easyBox = await easyCard.boundingBox();
@@ -127,5 +138,44 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   expect(easyBox.x + easyBox.width).toBeLessThanOrEqual(
     page.viewportSize().width
   );
+  const advancedBox = await advancedCard.boundingBox();
+  expect(advancedBox).not.toBeNull();
+  expect(advancedBox.x).toBeGreaterThanOrEqual(0);
+  expect(advancedBox.x + advancedBox.width).toBeLessThanOrEqual(
+    page.viewportSize().width
+  );
+
+  await advancedCard.locator("[data-advanced]").click();
+  const dialog = page.locator("smart-shading-dialog");
+  await expect(dialog).toHaveCount(1);
+  await expect(dialog.locator("[data-decision-trace]")).toBeVisible();
+  const previewDate = dialog.locator("input[data-preview-date]");
+  const previewAction = dialog.locator("button[data-preview-day]");
+  await expect(previewDate).toBeVisible();
+  await expect(previewAction).toBeVisible();
+  const selectedDate = "2031-06-21";
+  await previewDate.fill(selectedDate);
+  await previewAction.click();
+  await expect.poll(async () => page.evaluate(({ entityId }) => {
+    const state = document.querySelector("home-assistant").hass.states[entityId];
+    const preview = state?.attributes?.day_preview || {};
+    return preview.preview?.day || preview.day || "";
+  }, { entityId: entities.advanced })).toBe(selectedDate);
+  await expect(dialog.locator("main")).not.toContainText("highest_matching_priority");
+  await expect(dialog.locator("main")).not.toContainText("rule_not_matched");
+  const dialogBox = await dialog.locator(".dialog").boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(
+    page.viewportSize().width
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await dialog.locator("[data-close]").last().click();
+  await expect(dialog).toHaveCount(0);
+
+  await detailsOnlyCard.locator("[data-advanced]").click();
+  await expect(dialog.locator("[data-decision-trace]")).toBeVisible();
+  await dialog.locator("[data-close]").last().click();
+  await expect(dialog).toHaveCount(0);
   expect(errors).toEqual([]);
 });

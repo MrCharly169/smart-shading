@@ -16,6 +16,7 @@ REQUIRED = (
     COMPONENT / "manifest.json",
     COMPONENT / "__init__.py",
     COMPONENT / "config_flow.py",
+    COMPONENT / "services.yaml",
     COMPONENT / "frontend" / "shading.js",
     LEGACY_RESOURCE,
     ROOT / "hacs.json",

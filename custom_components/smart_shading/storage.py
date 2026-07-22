@@ -27,9 +27,16 @@ class RuntimeStore:
             "room_runtime": {},
             "sun_runtime": {},
             "cover_runtime": {},
+            # The ownership ledger and last decision trace intentionally live
+            # beside legacy cover pause state.  They survive a Home Assistant
+            # restart and let diagnostics explain both why a cover was moved
+            # and whether that move is still owned by Smart Shading.
+            "command_ledger": {},
+            "decision_traces": {},
+            "queued_commands": [],
             "card_notification_ids": [],
             "day_key": None,
-            "runtime_schema": 4,
+            "runtime_schema": 5,
         }
 
     async def async_load(self) -> None:
@@ -82,8 +89,29 @@ class RuntimeStore:
                     current.setdefault("pause_duration_hours", duration)
                     runtime.pop("pause_hours", None)
                 changed = True
+            if schema < 5:
+                for key in ("command_ledger", "decision_traces"):
+                    if not isinstance(self.data.get(key), dict):
+                        self.data[key] = {}
+                queued = self.data.get("queued_commands", [])
+                if isinstance(queued, dict):
+                    queued = list(queued.values())
+                if not isinstance(queued, list):
+                    queued = []
+                self.data["queued_commands"] = queued
+                # Heat used to be persisted as a boolean.  Preserve its
+                # customer-visible behaviour while moving to the explicit
+                # lifecycle used by the decision trace.
+                for runtime in self.data.get("room_runtime", {}).values():
+                    if not isinstance(runtime, dict):
+                        continue
+                    runtime.setdefault(
+                        "heat_phase",
+                        "active" if runtime.get("heat_active") else "inactive",
+                    )
+                changed = True
             if changed:
-                self.data["runtime_schema"] = 4
+                self.data["runtime_schema"] = 5
                 await self.async_save()
 
     async def async_save(self) -> None:
@@ -157,6 +185,48 @@ class RuntimeStore:
         if cover_id in self.data.setdefault("cover_runtime", {}):
             self.data["cover_runtime"].pop(cover_id, None)
             await self.async_save()
+
+    def command_ledger(self, cover_id: str) -> dict[str, Any]:
+        return deepcopy(self.data.setdefault("command_ledger", {}).setdefault(cover_id, {}))
+
+    async def async_save_command_ledger(
+        self, cover_id: str, values: dict[str, Any]
+    ) -> None:
+        current = self.data.setdefault("command_ledger", {}).get(cover_id)
+        new_value = deepcopy(values)
+        if current == new_value:
+            return
+        self.data["command_ledger"][cover_id] = new_value
+        await self.async_save()
+
+    async def async_delete_command_ledger(self, cover_id: str) -> None:
+        if cover_id in self.data.setdefault("command_ledger", {}):
+            self.data["command_ledger"].pop(cover_id, None)
+            await self.async_save()
+
+    def decision_trace(self, room_id: str) -> dict[str, Any]:
+        return deepcopy(self.data.setdefault("decision_traces", {}).setdefault(room_id, {}))
+
+    async def async_save_decision_trace(
+        self, room_id: str, values: dict[str, Any]
+    ) -> None:
+        current = self.data.setdefault("decision_traces", {}).get(room_id)
+        new_value = deepcopy(values)
+        if current == new_value:
+            return
+        self.data["decision_traces"][room_id] = new_value
+        await self.async_save()
+
+    def queued_commands(self) -> list[dict[str, Any]]:
+        values = self.data.setdefault("queued_commands", [])
+        return deepcopy(values if isinstance(values, list) else [])
+
+    async def async_save_queued_commands(self, values: list[dict[str, Any]]) -> None:
+        new_value = deepcopy(values)
+        if self.data.get("queued_commands", []) == new_value:
+            return
+        self.data["queued_commands"] = new_value
+        await self.async_save()
 
     def card_notification_ids(self) -> list[str]:
         return list(self.data.get("card_notification_ids", []))

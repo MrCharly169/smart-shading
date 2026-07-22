@@ -74,7 +74,9 @@ The preparation workflow validates the version and channel, rejects existing
 tags or release branches, and runs the full test and package suite. Its release
 metadata commit changes only the manifest and changelog; a stable pull request
 also contains the tested `develop` promotion described above. It then opens a
-reviewable draft pull request and never merges or publishes.
+reviewable draft pull request and never merges or publishes. The generated PR
+does not automatically close a delivery issue; that happens only after the
+published release passes HACS qualification.
 
 ### Publish a reviewed release
 
@@ -86,10 +88,17 @@ After the preparation pull request is merged, run
 
 The publication workflow repeats validation and blocks on both Stable and Beta
 Home Assistant, the clean lifecycle, browser/Card, and previous-release upgrade
-labs before it creates the immutable tag. It then builds the recovery ZIP and
+labs before it creates the immutable tag. The default upgrade baseline is the
+newest stable release tag, not a prerelease. It then builds the recovery ZIP and
 publishes either a GitHub prerelease or the latest stable release. The release
-body comes directly from the matching changelog section.
+body comes directly from the matching changelog section. HACS qualification
+runs after publication and is a mandatory final acceptance gate; do not close
+the delivery issue until it succeeds.
 After a stable publication, synchronize `main` back into `develop` before the
 next development cycle.
+
+Issue #79 adds the major-version-specific acceptance, migration, evidence, and
+HACS sign-off checklist in
+[docs/ISSUE_79_RELEASE_ACCEPTANCE.md](ISSUE_79_RELEASE_ACCEPTANCE.md).
 
 HACS uses only published releases because `hide_default_branch` is enabled. Beta testers opt into prereleases; production installations stay on stable releases. The repository must remain publicly readable even while it is used only as a custom, non-catalogued HACS repository.

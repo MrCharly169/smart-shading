@@ -213,7 +213,7 @@ jobs:
             '' \
             'This pull request only prepares the release metadata. It does not merge or publish a release.' \
             '' \
-            'Implements #19' > "$PR_BODY"
+            'It does not automatically close a delivery issue. Close the parent issue only after the published tag passes HACS qualification.' > "$PR_BODY"
 
           gh pr create \
             --repo "$GITHUB_REPOSITORY" \

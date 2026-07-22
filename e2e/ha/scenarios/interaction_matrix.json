@@ -47,6 +47,8 @@
     {"id": "stable_beta_prepublication_gate", "area": "release", "automation": "workflow"},
     {"id": "real_ha_wizard_dialog", "area": "frontend", "automation": "playwright"},
     {"id": "easy_advanced_card_binding", "area": "frontend", "automation": "playwright"},
+    {"id": "advanced_selected_date_preview", "area": "frontend", "automation": "playwright"},
+    {"id": "advanced_details_without_actions", "area": "frontend", "automation": "playwright"},
     {"id": "responsive_desktop_mobile", "area": "frontend", "automation": "playwright"}
   ]
 }

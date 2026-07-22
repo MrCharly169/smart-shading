@@ -40,7 +40,7 @@ HA_E2E_ARTIFACT_DIR=/tmp/smart-shading-e2e \
 scripts/ha_e2e/run_lab.sh
 ```
 
-Set `HA_E2E_UPGRADE_FROM_REF=v4.6.2-beta.9` to install that tag first, create representative Easy and Advanced entries through a legacy-compatible path, replace it with the working candidate and repeat migration, restart, runtime, reinstall and registry checks. The clean-install jobs own the exhaustive current-wizard matrix, so a known defect in an old optional wizard branch cannot prevent upgrade validation from reaching the candidate. Set `HA_E2E_RUN_UI=1` after installing the Playwright dependencies to run the real HA browser suite inside the same laboratory lifetime.
+Set `HA_E2E_UPGRADE_FROM_REF=v4.6.2` to install that stable tag first, create representative Easy and Advanced entries through a legacy-compatible path, replace it with the working candidate and repeat migration, restart, runtime, reinstall and registry checks. The automatic release gate selects the newest stable tag by default and excludes prereleases; an explicit beta baseline is only an additional migration check. The clean-install jobs own the exhaustive current-wizard matrix, so a known defect in an old optional wizard branch cannot prevent upgrade validation from reaching the candidate. Set `HA_E2E_RUN_UI=1` after installing the Playwright dependencies to run the real HA browser suite inside the same laboratory lifetime.
 
 The laboratory uses an explicit container name, a dedicated Docker network, a temporary configuration directory, loopback-only port publishing and a cleanup trap scoped to that laboratory.
 
@@ -69,7 +69,7 @@ This avoids an unbounded Cartesian product while preserving the intended guarant
 
 - `ha-e2e.yml` runs the clean real-HA lifecycle for relevant pull requests and pushes to `develop`.
 - `ha-ui-e2e.yml` starts the same HA lab, signs into the disposable frontend, opens the actual Smart Shading dialog and mounts the real Card against real config-entry entities at desktop and mobile widths.
-- `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published tag first and upgrades it to the candidate.
+- `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published stable tag first and upgrades it to the candidate.
 - `ha-nightly.yml` runs relevant pull requests on stable and beta HA as equally required jobs. Scheduled and manual runs test the selected workflow commit unless a candidate branch or tag is supplied explicitly.
 - `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`.
 - `ha-hacs-e2e.yml` is called by the publishing workflow after every release. On a GitHub-hosted runner it verifies that the official HACS backend accepts the repository, checks that HACS selects the exact public stable or prerelease tag, downloads its public source archive, and runs that artifact through the complete fresh-Home-Assistant lifecycle.
@@ -78,6 +78,9 @@ The release workflow requires Stable and Beta HA, clean lifecycle, real browser
 and previous-release upgrade gates before publishing. HACS qualification
 necessarily runs after publication because HACS can only install a published
 GitHub tag.
+
+For the major-version acceptance criteria, migration baseline, and HACS
+sign-off procedure, see [Issue #79 release acceptance](ISSUE_79_RELEASE_ACCEPTANCE.md).
 
 Artifacts retain HA/container logs, generated configuration, sanitized config entries, entity/device registries, recorded calls, snapshots, scenario/coverage results, JUnit, screenshots, traces and videos. The disposable access token stays only in the temporary lab directory.
 

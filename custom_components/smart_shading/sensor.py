@@ -117,7 +117,29 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "sent_commands": self.runtime.sent_commands,
                 "suppressed_commands": self.runtime.suppressed_commands,
                 "heat_active": self.runtime.heat_active,
+                "heat_phase": self.runtime.heat_phase,
                 "shading_active": self.runtime.shading_active,
+                # Advanced-only decision data.  Easy receives no Advanced
+                # controls or settings; its compact status remains unchanged.
+                "decision_trace": (
+                    self.runtime.decision_trace
+                    if self.engine.advanced_mode
+                    else {}
+                ),
+                "simulation_active": bool(
+                    self.engine.advanced_mode
+                    and self.runtime.simulation_active
+                ),
+                "simulation_trace": (
+                    self.runtime.simulation_trace
+                    if self.engine.advanced_mode
+                    else {}
+                ),
+                "day_preview": (
+                    self.runtime.day_preview
+                    if self.engine.advanced_mode
+                    else {}
+                ),
                 "diagnostic_level": self.engine.diagnostic_level,
                 "diagnostic_events": self.engine.recent_diagnostics(self.room_id, 30),
                 "sector_statuses": [
@@ -260,6 +282,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
             for key in (
                 "targets",
                 "heat_active",
+                "heat_phase",
                 "finished_today",
                 "pause_mode",
                 "pause_hours",
@@ -284,8 +307,39 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "night_evening_transition_minutes",
                 "temperature_settings",
                 "cover_pauses",
+                # Decision traces, simulation results, command feedback and
+                # diagnostics are deliberately an Advanced Mode contract.
+                # Do not merely publish empty placeholders here: an Easy
+                # dashboard or template must not be able to discover the
+                # Advanced-only surface by inspecting attributes.
+                "decision_trace",
+                "simulation_active",
+                "simulation_trace",
+                "day_preview",
+                "diagnostic_events",
+                "diagnostic_level",
             ):
                 attrs.pop(key, None)
+            # Easy needs a small amount of sector state to render its compact
+            # sun indication.  Strip the remaining diagnostic/geometry detail
+            # rather than leaking the Advanced sector runtime object wholesale.
+            attrs["sector_statuses"] = [
+                {
+                    key: sector.get(key)
+                    for key in (
+                        "id",
+                        "name",
+                        "short",
+                        "status",
+                        "reason",
+                        "sun_presence",
+                        "confirmation_source",
+                        "effective_active",
+                    )
+                }
+                for sector in attrs.get("sector_statuses", [])
+                if isinstance(sector, dict)
+            ]
             attrs["configuration"] = {
                 "id": room.get("id"),
                 "name": room.get("name", ""),

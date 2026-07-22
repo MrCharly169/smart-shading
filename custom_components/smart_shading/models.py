@@ -63,6 +63,9 @@ class RoomRuntime:
     sent_commands: int = 0
     suppressed_commands: int = 0
     heat_active: bool = False
+    # Internal lifecycle; the user-facing mode remains ``heat``.  Keeping the
+    # phase explicit makes restart recovery and diagnostics deterministic.
+    heat_phase: str = "inactive"
     shading_active: bool = False
     finished_today: bool = False
     pause_mode: str = "auto"
@@ -88,6 +91,10 @@ class RoomRuntime:
     outdoor_temperature_value: float | None = None
     outdoor_temperature_minimum: float | None = None
     outdoor_temperature_passed: bool | None = None
+    decision_trace: dict[str, Any] = field(default_factory=dict)
+    simulation_active: bool = False
+    simulation_trace: dict[str, Any] = field(default_factory=dict)
+    day_preview: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

@@ -21,6 +21,8 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                 PauseRoomButton(engine, room_id),
                 ResumeRoomButton(engine, room_id),
                 EvaluateRoomButton(engine, room_id),
+                SimulateRoomButton(engine, room_id),
+                PreviewRoomDayButton(engine, room_id),
                 ResetFinishedButton(engine, room_id),
                 ExportRoomDiagnosticsButton(engine, room_id),
             ]
@@ -106,6 +108,67 @@ class EvaluateRoomButton(SmartShadingEntity, ButtonEntity):
 
     async def async_press(self):
         await self.engine.async_evaluate_all(f"manual_room:{self.room_id}")
+
+
+class SimulateRoomButton(SmartShadingEntity, ButtonEntity):
+    """Run the non-executing production decision simulation for one room."""
+
+    _attr_name = "Run decision simulation"
+    _attr_icon = "mdi:flask-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, engine, room_id: str) -> None:
+        super().__init__(engine, room_id=room_id)
+        self._attr_name = localized(
+            engine,
+            "Run decision simulation",
+            "Entscheidung simulieren",
+        )
+        self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_simulate"
+
+    @property
+    def extra_state_attributes(self):
+        attrs = super().extra_state_attributes
+        attrs["smart_shading_control_key"] = "simulate"
+        return attrs
+
+    async def async_press(self):
+        # Keep the button safe while a stored configuration is upgraded from a
+        # pre-Issue-79 runtime: a missing simulation adapter must never fall
+        # back to a live evaluation or cover service call.
+        simulate = getattr(self.engine, "async_simulate_room", None)
+        if callable(simulate):
+            await simulate(self.room_id)
+
+
+class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
+    """Calculate a non-executing day preview through the same pipeline."""
+
+    _attr_name = "Preview today"
+    _attr_icon = "mdi:calendar-search-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, engine, room_id: str) -> None:
+        super().__init__(engine, room_id=room_id)
+        self._attr_name = localized(
+            engine,
+            "Preview today",
+            "Tagvorschau berechnen",
+        )
+        self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_preview_day"
+
+    @property
+    def extra_state_attributes(self):
+        attrs = super().extra_state_attributes
+        attrs["smart_shading_control_key"] = "preview_day"
+        return attrs
+
+    async def async_press(self):
+        # As with simulation, preserve the non-actuating contract if an older
+        # runtime does not yet provide the preview adapter.
+        preview = getattr(self.engine, "async_preview_room_day", None)
+        if callable(preview):
+            await preview(self.room_id)
 
 
 class ResetFinishedButton(SmartShadingEntity, ButtonEntity):

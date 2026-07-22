@@ -4,15 +4,20 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    ADVANCED_EXECUTION_ROOM_DEFAULTS,
     CONF_ADVANCED_MODE,
     CONF_DIAGNOSTIC_LEVEL,
+    DEFAULT_EVALUATION_DEBOUNCE_SECONDS,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_SUN_PRESENCE_ENTITY,
@@ -21,14 +26,20 @@ from .const import (
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DAY_WINDOW_ALL_DAY,
     DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_ALLOW_AUTOMATIC_REVERSE,
     DEFAULT_EVENING_RELEASE_TIME,
+    DEFAULT_OPENING_ORDER,
+    DEFAULT_SAFETY_BYPASSES_STAGGER,
+    DEFAULT_STAGGER_SCOPE,
     DEFAULT_SUNSET_OFFSET_MINUTES,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DOMAIN,
     PLATFORMS,
+    OPENING_ORDER_OPTIONS,
     PROFILE_DEFAULTS,
     ROOM_DEFAULTS,
     SUN_PRESETS,
+    STAGGER_SCOPE_OPTIONS,
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
     profile_supports_position,
@@ -49,6 +60,37 @@ from .storage import RuntimeStore
 type SmartShadingConfigEntry = ConfigEntry[SmartShadingEngine]
 
 
+_ENGINE_REGISTRY = f"{DOMAIN}_engines"
+SERVICE_PREVIEW_DAY = "preview_day"
+
+
+async def _async_preview_day_service(hass: HomeAssistant, call) -> None:
+    """Run a selected-date preview without exposing the executor.
+
+    This is deliberately the single narrow card-facing service for Issue #79:
+    it accepts only a persisted room identity and a calendar date, then calls
+    the same non-actuating preview adapter as the diagnostic button.  No
+    target, mode, or physical-command override is accepted here.
+    """
+    room_id = str(call.data["room_id"])
+    entry_id = str(call.data.get("entry_id") or "")
+    engines = hass.data.get(_ENGINE_REGISTRY, {})
+    candidates = (
+        [engines.get(entry_id)] if entry_id else list(engines.values())
+    )
+    for engine in candidates:
+        if engine is None or room_id not in getattr(engine, "rooms", {}):
+            continue
+        preview = getattr(engine, "async_preview_room_day", None)
+        if not callable(preview):
+            break
+        await preview(room_id, date=call.data.get("date"))
+        return
+    raise ServiceValidationError(
+        f"No loaded Smart Shading room matches entry_id={entry_id!r}, room_id={room_id!r}"
+    )
+
+
 def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     """Add V4 defaults while preserving existing entity assignments."""
     result = deepcopy(config)
@@ -60,6 +102,10 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     )
     result.pop(CONF_TEST_MODE, None)
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
+    # The interval is a recovery watchdog only.  Runtime input changes use a
+    # small, persisted-as-config debounce to collapse one physical event burst
+    # into one deterministic evaluation.
+    result.setdefault("evaluation_debounce_seconds", DEFAULT_EVALUATION_DEBOUNCE_SECONDS)
     result.pop("weather_entity", None)
     legacy_evening_release = result.pop(
         "evening_release_time", DEFAULT_EVENING_RELEASE_TIME
@@ -76,6 +122,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
         result.pop(obsolete, None)
     # An obsolete pre-V4 curve after conversion to the KNX slat scale.
     old_curve = [(10.0, 10.0), (20.0, 50.0), (40.0, 85.0), (60.0, 90.0)]
+    advanced_mode = bool(result.get(CONF_ADVANCED_MODE, False))
 
     for room in result[CONF_ROOMS]:
         room.pop("easy_temperature_gate", None)
@@ -103,6 +150,29 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             room["sunset_offset_minutes"] = legacy_sunset_offset
         for key, value in ROOM_DEFAULTS.items():
             room.setdefault(key, deepcopy(value))
+        if advanced_mode:
+            for key, value in ADVANCED_EXECUTION_ROOM_DEFAULTS.items():
+                room.setdefault(key, deepcopy(value))
+            # Do not let a malformed persisted value create an accidental
+            # cross-room queue or silently change whether Safety bypasses it.
+            scope = str(room.get("stagger_scope") or "")
+            room["stagger_scope"] = (
+                scope if scope in STAGGER_SCOPE_OPTIONS else DEFAULT_STAGGER_SCOPE
+            )
+            bypasses_stagger = room.get(
+                "safety_bypasses_stagger", DEFAULT_SAFETY_BYPASSES_STAGGER
+            )
+            room["safety_bypasses_stagger"] = (
+                bypasses_stagger
+                if isinstance(bypasses_stagger, bool)
+                else DEFAULT_SAFETY_BYPASSES_STAGGER
+            )
+        else:
+            # Issue #79 execution controls are an Advanced-only contract.
+            # Remove crafted or beta-era values as well as avoiding new
+            # defaults, so an Easy entry has no hidden execution surface.
+            for key in ADVANCED_EXECUTION_ROOM_DEFAULTS:
+                room.pop(key, None)
         room.setdefault("normal_shading_temperature", room.get("comfort_temperature", 23.5))
         room.setdefault("sectors", [])
         room["active_months"] = [int(v) for v in room.get("active_months", range(1, 13))]
@@ -112,7 +182,7 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             sector.setdefault("enabled", True)
             sector.setdefault(CONF_SUN_PRESENCE_ENTITY, "")
             source = sun_source_for_sector(
-                sector, advanced=bool(result.get(CONF_ADVANCED_MODE, False))
+                sector, advanced=advanced_mode
             )
             sector["sun_source"] = source
             if source != "lux":
@@ -120,12 +190,24 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             if source != "external":
                 sector[CONF_SUN_PRESENCE_ENTITY] = ""
             preset = str(sector.get("sun_preset", "medium"))
-            if not result.get(CONF_ADVANCED_MODE, False) and preset == "custom":
+            if not advanced_mode and preset == "custom":
                 preset = "medium"
                 sector["sun_preset"] = preset
             if preset in SUN_PRESETS:
                 sector.update(deepcopy(SUN_PRESETS[preset]))
             sector.setdefault("layers", [])
+            # Protected zones are intentionally an Advanced-only capability.
+            # Strip beta-era or crafted values from Easy entries rather than
+            # retaining a hidden runtime surface outside the wizard contract.
+            if advanced_mode:
+                zones = sector.get("protected_zones", [])
+                sector["protected_zones"] = (
+                    [dict(zone) for zone in zones if isinstance(zone, dict)]
+                    if isinstance(zones, list)
+                    else []
+                )
+            else:
+                sector.pop("protected_zones", None)
             for layer in sector.get("layers", []):
                 profile = str(layer.get("profile", "venetian"))
                 if profile not in PROFILE_DEFAULTS:
@@ -161,6 +243,28 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                         "solar_position", defaults["solar_position"]
                     )
                 layer.setdefault("covers", [])
+                if advanced_mode:
+                    layer.setdefault(
+                        "movement_seconds", room["movement_seconds"]
+                    )
+                    layer.setdefault(
+                        "settling_seconds", room["settling_seconds"]
+                    )
+                else:
+                    layer.pop("movement_seconds", None)
+                    layer.pop("settling_seconds", None)
+                if advanced_mode and profile_supports_tilt(profile):
+                    opening_order = str(layer.get("opening_order") or "")
+                    layer["opening_order"] = (
+                        opening_order
+                        if opening_order in OPENING_ORDER_OPTIONS
+                        else DEFAULT_OPENING_ORDER
+                    )
+                else:
+                    # The command-order override makes sense only for
+                    # Advanced slatted profiles.  Never leave a hidden value
+                    # behind on Easy or height-only cover groups.
+                    layer.pop("opening_order", None)
                 curve = [
                     (float(point.get("elevation", 0)), float(point.get("tilt", 0)))
                     for point in layer.get("tilt_curve", [])
@@ -187,6 +291,22 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                     cover.setdefault("invert_tilt", False)
                     cover.setdefault("max_open_position", 100.0)
                     cover.setdefault("enforce_max_open_position", False)
+                    if advanced_mode:
+                        cover.setdefault("feedback_quality", "trusted")
+                        cover.setdefault("verify_target", False)
+                        automatic_reverse = cover.get(
+                            "allow_automatic_reverse",
+                            DEFAULT_ALLOW_AUTOMATIC_REVERSE,
+                        )
+                        cover["allow_automatic_reverse"] = (
+                            automatic_reverse
+                            if isinstance(automatic_reverse, bool)
+                            else DEFAULT_ALLOW_AUTOMATIC_REVERSE
+                        )
+                    else:
+                        cover.pop("feedback_quality", None)
+                        cover.pop("verify_target", None)
+                        cover.pop("allow_automatic_reverse", None)
                     if not profile_supports_tilt(profile):
                         cover["invert_tilt"] = False
                     if not profile_supports_position(profile):
@@ -210,12 +330,28 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             [StaticPathConfig("/smart_shading", str(frontend), False)]
         )
         hass.data[f"{DOMAIN}_frontend_registered"] = True
+    if not hass.services.has_service(DOMAIN, SERVICE_PREVIEW_DAY):
+        async def async_handle_preview_day(call) -> None:
+            await _async_preview_day_service(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_PREVIEW_DAY,
+            async_handle_preview_day,
+            schema=vol.Schema(
+                {
+                    vol.Required("room_id"): str,
+                    vol.Optional("date"): str,
+                    vol.Optional("entry_id"): str,
+                }
+            ),
+        )
     return True
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 15:
+    if entry.version >= 16:
         return True
     raw_data = dict(entry.data)
     raw_options = dict(entry.options)
@@ -231,13 +367,22 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # entries only receive the new Night Mode defaults.
         data_source = raw_data
         option_source = raw_options
+    # Normalize both snapshots under the immutable entry-data mode.  An old
+    # option payload may contain a stale or crafted mode value, and must not
+    # decide whether Advanced-only fields are retained or stripped.
+    data_source = dict(data_source)
+    data_source[CONF_ADVANCED_MODE] = fixed_advanced_mode
+    effective_source = legacy_effective_config(data_source, option_source)
+    effective_source[CONF_ADVANCED_MODE] = fixed_advanced_mode
+    # v4.6.2 already used entry schema 15.  Schema 16 deliberately reruns
+    # normalization for that stable baseline so Issue #79 defaults and
+    # Advanced/Easy field isolation are persisted instead of existing only as
+    # runtime fallbacks.
     data = _normalize_config(data_source)
     # Merge raw legacy values before adding defaults. This supports both the
     # old partial options format and the later full-snapshot format without an
     # injected ``rooms=[]`` masking the entry data.
-    effective = _normalize_config(
-        legacy_effective_config(data_source, option_source)
-    )
+    effective = _normalize_config(effective_source)
     data[CONF_ADVANCED_MODE] = fixed_advanced_mode
     effective[CONF_ADVANCED_MODE] = fixed_advanced_mode
     options = editable_options(effective) if raw_options else {}
@@ -257,7 +402,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, fixed_advanced_mode)
             ) if fixed_advanced_mode else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=15
+        entry, data=data, options=options, version=16
     )
     return True
 
@@ -267,20 +412,32 @@ async def async_setup_entry(
 ) -> bool:
     engine = SmartShadingEngine(hass, entry)
     entry.runtime_data = engine
-    await engine.async_initialize()
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await engine.async_start()
+    try:
+        await engine.async_initialize()
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        await engine.async_start()
+    except Exception:
+        # The selected-date service must never discover a half-initialized
+        # engine after a setup failure.
+        engine.async_stop()
+        raise
+    hass.data.setdefault(_ENGINE_REGISTRY, {})[entry.entry_id] = engine
     return True
 
 async def async_unload_entry(
     hass: HomeAssistant, entry: SmartShadingConfigEntry
 ) -> bool:
     entry.runtime_data.async_stop()
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # The engine is stopped regardless of platform-unload outcome, so do not
+    # leave a stale service target reachable during retry/reload handling.
+    hass.data.get(_ENGINE_REGISTRY, {}).pop(entry.entry_id, None)
+    return unloaded
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove integration-owned notifications and registry records."""
+    hass.data.get(_ENGINE_REGISTRY, {}).pop(entry.entry_id, None)
     store = RuntimeStore(hass, entry.entry_id)
     await store.async_load()
     notification_ids = [

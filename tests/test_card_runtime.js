@@ -14,16 +14,20 @@ class FakeElement extends FakeNode {
   constructor(html = "") { super(); this._innerHTML = ""; this._queryCache = new Map(); this.innerHTML = html; this.scrollTop = 0; }
   set innerHTML(value) { this._innerHTML = String(value || ""); this._queryCache.clear(); }
   get innerHTML() { return this._innerHTML; }
-  querySelector() { return null; }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   querySelectorAll(selector) {
     if (this._queryCache.has(selector)) return this._queryCache.get(selector);
     const attribute = selector.match(/^\[data-([a-z-]+)\]$/)?.[1];
     if (!attribute) return [];
     const key = attribute.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-    const pattern = new RegExp(`data-${attribute}="([^"]*)"`, "g");
+    const pattern = new RegExp(`\\bdata-${attribute}(?:="([^"]*)")?`, "g");
     const nodes = [...this._innerHTML.matchAll(pattern)].map((match) => {
       const node = new FakeElement();
-      node.dataset[key] = match[1];
+      node.dataset[key] = match[1] || "";
+      const tagStart = this._innerHTML.lastIndexOf("<", match.index);
+      const tagEnd = this._innerHTML.indexOf(">", match.index);
+      const tag = this._innerHTML.slice(tagStart, tagEnd + 1);
+      node.value = tag.match(/\bvalue="([^"]*)"/)?.[1] || "";
       return node;
     });
     this._queryCache.set(selector, nodes);
@@ -115,6 +119,101 @@ const roomStatus = {
     active_sectors: ["Süd links"],
     reason: "Normal adaptive solar shading",
     targets: [{ entity_id: "cover.internal_identifier", mode: "solar", position: 0, tilt: 65, suppressed: [] }],
+    // These are the production wrappers emitted by engine.py, not a
+    // convenient flattened test shape. The Card must resolve each layer.
+    decision_trace: {
+      schema: 1,
+      decision: {
+        simulation: false,
+        mode: "solar",
+        target: { position: 0, tilt: 65 },
+        trace: {
+          winner: { rule: "solar", mode: "solar", reason_code: "protected_zone_target_adjusted", target: { position: 0, tilt: 65 } },
+          rejected: [
+            { rule: "comfort", mode: "comfort", reason_code: "comfort_inactive", target: { position: 35, tilt: 45 } },
+            { rule: "open", mode: "open", reason_code: "open_inactive", target: { position: 100 } },
+          ],
+          entries: [
+            { candidate: { rule: "solar", mode: "solar", reason_code: "protected_zone_target_adjusted", target: { position: 0, tilt: 65 } }, outcome: "winner", resolution_reason_code: "highest_matching_priority" },
+            { candidate: { rule: "comfort", mode: "comfort", reason_code: "comfort_inactive", target: { position: 35, tilt: 45 } }, outcome: "rejected", resolution_reason_code: "rule_not_matched" },
+            { candidate: { rule: "open", mode: "open", reason_code: "open_inactive", target: { position: 100 } }, outcome: "rejected", resolution_reason_code: "rule_not_matched" },
+          ],
+          command_result: { status: "sent", reason_code: "cover_command_sent", target: { position: 0, tilt: 65 } },
+          protected_zones: [],
+          input_snapshot: {
+            evaluated_at: "2026-07-14T12:00:00+00:00",
+            inputs: {
+              sun_elevation: { value: 35, unit: "°", quality: "valid", reason_code: "input_valid" },
+              lux: { value: 26398.72, unit: "lx", quality: "stale", reason_code: "input_stale" },
+            },
+          },
+        },
+      },
+      target_decisions: [{
+        sector_id: "south_left",
+        layer_id: "layer",
+        layer_name: "Behanggruppe",
+        decision: {
+          simulation: false,
+          mode: "solar",
+          target: { position: 0, tilt: 65 },
+          trace: {
+            winner: { rule: "solar", mode: "solar", reason_code: "protected_zone_target_adjusted", target: { position: 0, tilt: 65 } },
+            rejected: [{ rule: "open", mode: "open", reason_code: "open_inactive", target: { position: 100 } }],
+            command_result: { status: "sent", reason_code: "cover_command_sent", target: { position: 0, tilt: 65 } },
+            protected_zones: [{ zone_id: "desk", name: "Schreibtisch", sector_id: "south_left", status: "hit", reason_code: "protected_zone_direct_sun_hit", target: { position: 0, tilt: 65 } }],
+            input_snapshot: { inputs: {} },
+          },
+        },
+      }],
+      command_results: [{ cover_id: "cover_one", status: "sent", reason_code: "cover_command_sent", lifecycle_id: "lifecycle-1" }],
+    },
+    simulation_active: true,
+    simulation_trace: {
+      schema: 1,
+      results: [{
+        sector_id: "south_left",
+        layer_id: "layer",
+        cover_targets: [{
+          cover_id: "cover_one",
+          name: "Fenstergruppe",
+          command_position: 0,
+          command_tilt: 65,
+          constraints: ["automation_lock"],
+          command_result: "blocked",
+          reason_code: "automation_lock",
+        }],
+        result: {
+          simulation: true,
+          mode: "solar",
+          target: { position: 0, tilt: 65 },
+          trace: {
+            winner: { rule: "solar", mode: "solar", reason_code: "protected_zone_target_adjusted", target: { position: 0, tilt: 65 } },
+            command_result: { status: "simulated", reason_code: "simulation_never_executes_services", target: { position: 0, tilt: 65 } },
+          },
+        },
+      }, {
+        sector_id: "west_window",
+        layer_id: "blackout_layer",
+        result: {
+          simulation: true,
+          mode: "comfort",
+          target: { position: 42 },
+          trace: {
+            winner: { rule: "comfort", mode: "comfort", reason_code: "input_quality_hold", target: { position: 42 } },
+            command_result: { status: "simulated", reason_code: "simulation_never_executes_services", target: { position: 42 } },
+          },
+        },
+      }],
+    },
+    day_preview: {
+      schema: 1,
+      preview: {
+        day: "2026-07-14",
+        samples: [{ at: "2026-07-14T08:00:00+00:00" }, { at: "2026-07-14T12:00:00+00:00" }],
+        transitions: [{ at: "2026-07-14T12:00:00+00:00", previous_mode: "open", mode: "solar", target: { position: 0, tilt: 65 }, reason_code: "decision_changed" }],
+      },
+    },
     schedule_active: true,
     pause_mode: "auto",
     manual_master_active: false,
@@ -157,6 +256,8 @@ const hass = {
     "button.pause": { entity_id: "button.pause", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "pause_default" } },
     "button.resume": { entity_id: "button.resume", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "resume" } },
     "button.evaluate": { entity_id: "button.evaluate", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "evaluate" } },
+    "button.simulate": { entity_id: "button.simulate", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "simulate" } },
+    "button.preview": { entity_id: "button.preview", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "preview_day" } },
     "switch.master": { entity_id: "switch.master", state: "off", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "manual_master" } },
   },
   calls: [],
@@ -180,6 +281,7 @@ const visibleHtml = html.replace(/data-(?:more|press|toggle|number|select)="[^"]
 if (visibleHtml.includes("cover.internal_identifier")) throw new Error("Card exposed a raw cover entity ID as visible content");
 if (html.includes("undefined")) throw new Error("Card rendered undefined");
 if (!html.includes('data-card-mode="advanced"') || !html.includes("data-advanced-layout") || !html.includes("data-advanced-sectors")) throw new Error("Advanced card did not use its dedicated layout");
+if (!html.includes("data-decision-trace") || !html.includes('data-press="button.simulate"') || !html.includes('data-press="button.preview"')) throw new Error("Advanced card did not render Issue 79 trace or simulation controls");
 if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
@@ -189,10 +291,21 @@ if (!html.includes("@media(prefers-reduced-motion:reduce)") || !html.includes("@
 if (!html.includes("Sonne · Sonnensensor")) throw new Error("Advanced sun feedback did not name its effective source");
 const cardMarkup = html.slice(html.indexOf("</style>") + 8);
 if (/<button[^>]*>\s*<ha-icon/i.test(cardMarkup)) throw new Error("A card button bypassed the shared icon box");
+const detailsOnlyCard = new Card();
+detailsOnlyCard.setConfig({ entity: "sensor.room_status", advanced_mode: true, show_actions: false });
+detailsOnlyCard.hass = hass;
+const detailsOnlyHtml = detailsOnlyCard.shadowRoot.innerHTML;
+const detailsOnlyEntrances = detailsOnlyHtml.match(/data-advanced(?=[\s>])/g) || [];
+if (detailsOnlyEntrances.length !== 1 || !detailsOnlyHtml.includes("data-advanced-layout")) throw new Error("Advanced details were not reachable when ordinary action buttons were hidden");
+if (detailsOnlyHtml.includes('data-press="button.pause"') || detailsOnlyHtml.includes('data-press="button.evaluate"') || detailsOnlyHtml.includes('data-press="button.simulate"') || detailsOnlyHtml.includes('data-press="button.preview"')) throw new Error("show_actions=false still rendered active automation controls");
 card._callEntity("switch.master");
 card._callEntity("button.evaluate");
+card._callEntity("button.simulate");
+card._callEntity("button.preview");
 if (!hass.calls.some((call) => call.domain === "switch" && call.service === "toggle" && call.data.entity_id === "switch.master")) throw new Error("Master switch was not toggled");
 if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.evaluate")) throw new Error("Evaluate button was not pressed");
+if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.simulate")) throw new Error("Simulation button was not pressed");
+if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.preview")) throw new Error("Day preview button was not pressed");
 
 async function runAsyncChecks() {
 await card._openNightSource("schedule.room_night");
@@ -202,18 +315,42 @@ await card._openNightSource("binary_sensor.night_source");
 const fallbackEvent = card.dispatchedEvents.at(-1);
 if (fallbackEvent?.detail?.entityId !== "binary_sensor.night_source" || fallbackEvent.detail?.view) throw new Error("Non-schedule Night source did not retain the More Info fallback");
 
-const easyRoomStatus = JSON.parse(JSON.stringify(roomStatus));
-easyRoomStatus.entity_id = "sensor.easy_room_status";
-easyRoomStatus.attributes.smart_shading_layout = "compact";
+// Keep this intentionally minimal instead of cloning the Advanced status.
+// It proves that Easy Mode consumes neither the Issue 79 trace payload nor
+// Advanced-only buttons when those entities are absent in a real installation.
+const easyRoomStatus = {
+  entity_id: "sensor.easy_room_status",
+  state: "solar",
+  attributes: {
+    name: "Einfacher Raum",
+    smart_shading_layout: "compact",
+    smart_shading_entry_id: "entry",
+    smart_shading_room_id: "easy_room",
+    active_sectors: ["Süd links"],
+    reason: "Normal adaptive solar shading",
+    targets: [{ entity_id: "cover.internal_identifier", mode: "solar", position: 0, tilt: 65, suppressed: [] }],
+    schedule_active: true,
+    manual_master_active: false,
+    cover_pauses: [],
+    easy_confirmation_state: "confirmed",
+    easy_source_summary: "Binary sensor",
+    outdoor_temperature_condition: { enabled: true, source_entity: "sensor.outdoor", value: 24.5, minimum: 18, passed: true },
+    sector_statuses: [{ id: "south_left", name: "Süd links", short: "S1", status: "shading_active", geometry_active: true, sun_presence: true, confirmation_source: "binary", confirmation_entity: "binary_sensor.south_sun_presence", confirmation_state: true, effective_active: true }],
+    configuration: roomStatus.attributes.configuration,
+  },
+};
 hass.states[easyRoomStatus.entity_id] = easyRoomStatus;
+hass.states["switch.easy_master"] = { entity_id: "switch.easy_master", state: "off", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "easy_room", smart_shading_control_key: "manual_master" } };
 const easyCard = new Card();
 easyCard.setConfig({ entity: easyRoomStatus.entity_id });
 easyCard.hass = hass;
 const easyHtml = easyCard.shadowRoot.innerHTML;
+const easyMarkup = easyHtml.slice(easyHtml.indexOf("</style>") + 8);
 if (!easyHtml.includes('data-card-mode="easy"') || !easyHtml.includes("data-easy-layout") || !easyHtml.includes("data-easy-sun") || !easyHtml.includes("data-easy-covers")) throw new Error("Easy card did not use its dedicated minimal layout");
 if (!easyHtml.includes("Sonne im Sektor") || !easyHtml.includes("Sonne · Sonnensensor") || easyHtml.includes("Az 180°")) throw new Error("Easy effective source/status feedback was not compact and simplified");
 if (!easyHtml.includes("easy-cover-row") || !easyHtml.includes("Fenstergruppe") || !easyHtml.includes("100%")) throw new Error("Easy card did not render compact cover feedback");
 if (easyHtml.includes("data-advanced-layout") || easyHtml.includes("data-advanced-sectors") || easyHtml.includes("data-night-source") || easyHtml.includes('data-press="button.pause"')) throw new Error("Easy card exposed Advanced-only controls or details");
+if (easyMarkup.includes("data-decision-trace") || easyMarkup.includes("data-simulation-result") || easyMarkup.includes('data-press="button.simulate"') || easyMarkup.includes('data-press="button.preview"') || easyMarkup.includes("Schreibtisch")) throw new Error("Easy card exposed Issue 79 trace, protected-zone, or simulation data");
 if (easyHtml.includes("Neu auswerten") || !easyHtml.includes("Manuelle Sperre")) throw new Error("Easy card did not limit actions to indefinite Manual Override");
 if ((easyHtml.match(/class="easy-action/g) || []).length !== 2) throw new Error("Easy card rendered more than its single action (CSS selector excluded)");
 
@@ -277,9 +414,84 @@ if (!body.children.length) throw new Error("Advanced dialog was not appended to 
 const dialog = body.children[0];
 if (!dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog did not render");
 if (!dialog.shadowRoot.innerHTML.includes("26") || !dialog.shadowRoot.innerHTML.includes("18") || !dialog.shadowRoot.innerHTML.includes("Pausiert")) throw new Error("Advanced dialog missed lux or local pause details");
+if (!dialog.shadowRoot.innerHTML.includes("Entscheidungs-Trace") || !dialog.shadowRoot.innerHTML.includes("Verworfene Kandidaten") || !dialog.shadowRoot.innerHTML.includes("Datenqualität") || !dialog.shadowRoot.innerHTML.includes("Schreibtisch") || !dialog.shadowRoot.innerHTML.includes("Gesendet") || !dialog.shadowRoot.innerHTML.includes("Simuliert") || !dialog.shadowRoot.innerHTML.includes("Entscheidung geändert") || !dialog.shadowRoot.innerHTML.includes("Simulation aktiv") || !dialog.shadowRoot.innerHTML.includes("Tagvorschau")) throw new Error("Advanced dialog did not resolve the production trace, command, protected-zone, simulation, or preview wrappers");
+const simulationRows = dialog.shadowRoot.innerHTML.match(/data-simulation-result(?=[\s>])/g) || [];
+if (simulationRows.length !== 2
+  || !dialog.shadowRoot.innerHTML.includes("South Left · Layer")
+  || !dialog.shadowRoot.innerHTML.includes("West Window · Blackout Layer")
+  || !dialog.shadowRoot.innerHTML.includes("Gewinner: Sonnenschutz")
+  || !dialog.shadowRoot.innerHTML.includes("Gewinner: Komfort")
+  || !dialog.shadowRoot.innerHTML.includes("Position: 0%")
+  || !dialog.shadowRoot.innerHTML.includes("Position: 42%")
+  || !dialog.shadowRoot.innerHTML.includes("Ziel durch Schutzzone angepasst")
+  || !dialog.shadowRoot.innerHTML.includes("Halten wegen Eingabequalität")
+  || !dialog.shadowRoot.innerHTML.includes("Fenstergruppe")
+  || !dialog.shadowRoot.innerHTML.includes("Manuell gesperrt")) throw new Error("Advanced simulation did not render every sector/layer outcome with winner, target, status, and constrained cover projection");
+if (!dialog.shadowRoot.innerHTML.includes('data-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes('data-press="button.preview"')) throw new Error("Advanced dialog missed simulation or day-preview controls");
+if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
-if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector")) throw new Error("Advanced dialog exposed raw internal reason keys");
+if (!dialog.shadowRoot.innerHTML.includes("Höchste passende Priorität") || !dialog.shadowRoot.innerHTML.includes("Regel nicht zutreffend") || !dialog.shadowRoot.innerHTML.includes("Komfortbedingungen nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Öffnungsregel nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Eingabe gültig") || !dialog.shadowRoot.innerHTML.includes("Eingabe veraltet") || !dialog.shadowRoot.innerHTML.includes("Behangbefehl gesendet")) throw new Error("Advanced dialog did not localize the production candidate, input, command, and resolution trace codes");
+if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector") || dialog.shadowRoot.innerHTML.includes("highest_matching_priority") || dialog.shadowRoot.innerHTML.includes("rule_not_matched")) throw new Error("Advanced dialog exposed raw internal reason keys");
+const germanTraceLabels = {
+  no_cover_target: "Kein Behangziel",
+  room_or_cover_pause_active: "Raum- oder Behangpause aktiv",
+  night_mode_active: "Nachtfunktion aktiv",
+  solar_conditions_matched: "Sonnenschutzbedingungen erfüllt",
+  comfort_conditions_matched: "Komfortbedingungen erfüllt",
+  open_target_selected: "Öffnungsziel ausgewählt",
+  conditions_waiting: "Wartet auf Bedingungen",
+  decision_selected: "Entscheidung ausgewählt",
+  room_automation_disabled: "Raumautomatik deaktiviert",
+  target_confirmed_by_trusted_feedback: "Ziel durch verlässliche Rückmeldung bestätigt",
+  cover_removed_before_execution: "Behang vor Ausführung entfernt",
+  cover_entity_missing: "Behang-Entität fehlt",
+  cover_service_failed: "Behang-Service fehlgeschlagen",
+  position_control_unsupported: "Positionssteuerung nicht unterstützt",
+  tilt_control_unsupported: "Lamellensteuerung nicht unterstützt",
+  command_lifecycle_updated: "Befehlslebenszyklus aktualisiert",
+  night_source_hold: "Nachtquelle hält",
+  schedule_hold: "Zeitplan hält",
+};
+for (const [code, label] of Object.entries(germanTraceLabels)) {
+  if (dialog._traceText(code) !== label) throw new Error(`Missing German trace translation for ${code}`);
+}
+const dialogHass = dialog._hass;
+dialog._hass = { ...hass, language: "en" };
+const englishTraceLabels = {
+  no_cover_target: "No cover target",
+  target_confirmed_by_trusted_feedback: "Target confirmed by trusted feedback",
+  cover_service_failed: "Cover service failed",
+  night_source_hold: "Night source hold",
+  schedule_hold: "Schedule hold",
+};
+for (const [code, label] of Object.entries(englishTraceLabels)) {
+  if (dialog._traceText(code) !== label) throw new Error(`Missing English trace translation for ${code}`);
+}
+dialog._hass = dialogHass;
+const previewInput = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
+const previewAction = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-day]");
+if (!previewInput || !previewAction) throw new Error("Preview controls were not queryable in the card runtime");
+previewInput.value = "2031-06-21";
+previewInput.listeners.get("change")?.();
+previewAction.listeners.get("click")?.();
+const previewServiceCall = hass.calls.at(-1);
+if (previewServiceCall?.domain !== "smart_shading" || previewServiceCall.service !== "preview_day" || previewServiceCall.data?.room_id !== "room" || previewServiceCall.data?.entry_id !== "entry" || previewServiceCall.data?.date !== "2031-06-21") throw new Error("Selected preview date was not sent to the narrow Smart Shading preview service");
+const originalCallService = hass.callService;
+const fallbackCallsBefore = hass.calls.filter((call) => call.domain === "button" && call.service === "press" && call.data?.entity_id === "button.preview").length;
+hass.callService = function(domain, service, data) {
+  if (domain === "smart_shading" && service === "preview_day") {
+    this.calls.push({ domain, service, data });
+    return Promise.reject(new Error("service unavailable"));
+  }
+  return originalCallService.call(this, domain, service, data);
+};
+dialog._previewDay("room", "entry", "2031-06-22", "button.preview");
+await Promise.resolve();
+await Promise.resolve();
+const fallbackCallsAfter = hass.calls.filter((call) => call.domain === "button" && call.service === "press" && call.data?.entity_id === "button.preview").length;
+if (fallbackCallsAfter !== fallbackCallsBefore + 1) throw new Error("Selected-date preview did not use the conservative button fallback after service rejection");
+hass.callService = originalCallService;
 if (dialog.dataset.contentWriteCount !== "1") throw new Error("Advanced dialog did not record its initial content write");
 dialog.shadowRoot.querySelector(".dialog").scrollTop = 123;
 card.hass = hass;
@@ -296,6 +508,12 @@ if (dialog.dataset.contentWriteCount !== "2" || !dialog._mainHtml.includes("75%"
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position while refreshing content");
 const replacementAction = dialog.shadowRoot.querySelector("main").querySelectorAll("[data-press]").find((element) => element.dataset.press === "button.evaluate");
 if (!replacementAction?.focused) throw new Error("Advanced dialog did not restore focused control after a relevant update");
+const focusedPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
+dialog.shadowRoot.activeElement = focusedPreviewDate;
+hass.states["cover.internal_identifier"] = { ...unknownCoverState, attributes: { ...unknownCoverState.attributes, current_position: 74 } };
+card.hass = hass;
+const replacementPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
+if (!replacementPreviewDate?.focused || replacementPreviewDate.value !== "2031-06-21") throw new Error("Advanced dialog did not retain selected-date focus and value after a relevant update");
 const renderCountBeforeUnrelated = Number(card.dataset.renderCount || 0);
 card.hass = { ...hass, states: { ...hass.states, "sensor.unrelated": { entity_id: "sensor.unrelated", state: "1", attributes: {} } } };
 if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw new Error("An unrelated Home Assistant update rebuilt the whole card");

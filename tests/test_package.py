@@ -145,12 +145,13 @@ class PackageTests(unittest.TestCase):
         self.assertIn("def _outdoor_temperature_condition", engine)
         self.assertNotIn("_easy_weather_confirmation", engine)
 
-    def test_config_entry_schema_migrates_previous_v4_beta(self):
+    def test_config_entry_schema_migrates_stable_v4_6_2_and_previous_betas(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 15", flow)
-        self.assertIn("if entry.version >= 15", migration)
-        self.assertIn("version=15", migration.replace(" ", ""))
+        self.assertIn("VERSION = 16", flow)
+        self.assertIn("if entry.version >= 16", migration)
+        self.assertIn("version=16", migration.replace(" ", ""))
+        self.assertIn("v4.6.2 already used entry schema 15", migration)
         self.assertIn("locked_advanced_mode(raw_data, raw_options)", migration)
         self.assertIn("options = editable_options(effective) if raw_options else {}", migration)
         self.assertIn("if entry.version < 10", migration)
@@ -161,6 +162,34 @@ class PackageTests(unittest.TestCase):
         self.assertIn('sector["sun_source"] = source', migration)
         self.assertIn('if source != "lux"', migration)
         self.assertIn("profile_supports_tilt", migration)
+
+    def test_issue79_execution_defaults_are_advanced_only_and_freshness_is_opt_in(self):
+        execution_keys = {
+            "command_stagger_seconds",
+            "stagger_scope",
+            "safety_bypasses_stagger",
+            "target_verification_enabled",
+            "verification_retries",
+            "movement_seconds",
+            "settling_seconds",
+            "source_stale_seconds",
+        }
+        self.assertEqual(const.DEFAULT_SOURCE_STALE_SECONDS, 0.0)
+        self.assertEqual(const.DEFAULT_STAGGER_SCOPE, "room")
+        self.assertTrue(const.DEFAULT_SAFETY_BYPASSES_STAGGER)
+        self.assertFalse(const.DEFAULT_ALLOW_AUTOMATIC_REVERSE)
+        self.assertEqual(const.DEFAULT_OPENING_ORDER, "height_then_tilt")
+        self.assertTrue(
+            execution_keys.issubset(const.ADVANCED_EXECUTION_ROOM_DEFAULTS)
+        )
+        self.assertFalse(execution_keys & set(const.ROOM_DEFAULTS))
+
+        migration = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn("for key in ADVANCED_EXECUTION_ROOM_DEFAULTS", migration)
+        self.assertIn('cover.pop("feedback_quality", None)', migration)
+        self.assertIn('cover.pop("verify_target", None)', migration)
+        self.assertIn('cover.pop("allow_automatic_reverse", None)', migration)
+        self.assertIn('layer.pop("opening_order", None)', migration)
 
     def test_versions_and_resources_match(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))
@@ -399,7 +428,9 @@ class PackageTests(unittest.TestCase):
             "manage_room_maintenance", "manage_automation", "manage_night",
             "manage_pause", "manage_conditions", "manage_sector",
             "manage_sector_source", "configure_sector_source",
-            "configure_lux_profile", "manage_sector_geometry", "manage_layer",
+            "configure_lux_profile", "manage_sector_geometry",
+            "protected_zones_hub", "add_protected_zone",
+            "manage_protected_zone", "delete_protected_zone", "manage_layer",
             "manage_cover", "add_sector_flat", "add_sector_group",
             "add_sector_covers", "add_layer_flat", "add_group_covers",
             "add_covers_flat",
@@ -522,7 +553,10 @@ class PackageTests(unittest.TestCase):
             "room_details", "profile_behavior",
             "room_and_covers", "sun_control", "optional_improvements",
             "advanced_conditions", "schedule_settings", "temperature_settings",
+            "execution_settings",
             "sector_identity", "sun_confirmation", "sector_maintenance",
+            "protected_zone_identity", "protected_zone_geometry",
+            "protected_zone_target", "protected_zone_maintenance",
             "group_identity", "slat_curve", "target_positions",
             "group_maintenance", "cover_identity", "cover_automation",
             "cover_maintenance",
@@ -627,7 +661,9 @@ class PackageTests(unittest.TestCase):
             "manage_room_maintenance", "manage_automation", "manage_night",
             "manage_pause", "manage_conditions", "manage_sector",
             "manage_sector_source", "configure_sector_source",
-            "configure_lux_profile", "manage_sector_geometry", "manage_layer",
+            "configure_lux_profile", "manage_sector_geometry",
+            "protected_zones_hub", "add_protected_zone",
+            "manage_protected_zone", "delete_protected_zone", "manage_layer",
             "manage_cover", "add_sector_flat", "add_sector_group",
             "add_sector_covers", "add_layer_flat", "add_group_covers",
             "add_covers_flat",
@@ -776,6 +812,7 @@ class PackageTests(unittest.TestCase):
         )
         route_source = ast.get_source_segment(flow, route_method) or ""
         self.assertIn('"cover_entity"', route_source)
+        self.assertIn('"zone_id"', route_source)
         self.assertIn('"placement"', route_source)
         getattr_method = next(
             node for node in mixin.body
@@ -783,6 +820,7 @@ class PackageTests(unittest.TestCase):
         )
         getattr_source = ast.get_source_segment(flow, getattr_method) or ""
         self.assertIn('route.get("cover_entity")', getattr_source)
+        self.assertIn('route.get("zone_id")', getattr_source)
         self.assertIn("stale cover route", getattr_source)
 
     def test_customer_text_is_generic(self):
@@ -900,7 +938,9 @@ class PackageTests(unittest.TestCase):
             "add_sector_flat", "add_sector_group", "add_sector_covers",
             "manage_sector", "manage_sector_source",
             "configure_sector_source", "configure_lux_profile",
-            "manage_sector_geometry", "add_layer_flat", "add_group_covers",
+            "manage_sector_geometry", "protected_zones_hub",
+            "add_protected_zone", "manage_protected_zone",
+            "delete_protected_zone", "add_layer_flat", "add_group_covers",
             "manage_layer", "add_covers_flat",
             "manage_cover", "sector_hub", "group_hub", "cover_hub",
             "manage_room_details", "manage_room_maintenance",
@@ -995,16 +1035,17 @@ class PackageTests(unittest.TestCase):
             if isinstance(node, ast.AsyncFunctionDef)
             and node.name in {
                 "async_step_room_hub", "async_step_structure_hub",
-                "async_step_sector_hub",
+                "async_step_sector_hub", "async_step_protected_zones_hub",
                 "async_step_group_hub", "async_step_cover_hub",
             }
         }
-        self.assertEqual(len(hub_methods), 5)
+        self.assertEqual(len(hub_methods), 6)
         hub = "\n".join(source or "" for source in hub_methods.values())
         options = flow[flow.index("class SmartShadingOptionsFlow"):]
         for builder in (
             "build_room_routes", "build_structure_routes",
-            "build_sector_routes", "build_group_routes",
+            "build_sector_routes", "build_protected_zone_routes",
+            "build_group_routes",
         ):
             self.assertIn(builder, hub)
         self.assertNotIn("for sector in room.get", hub)
@@ -1079,13 +1120,19 @@ class PackageTests(unittest.TestCase):
 
     def test_safety_precedes_pause_and_disable(self):
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
-        safety = engine.index("# Safety has the highest priority")
-        disabled = engine.index("if not runtime.enabled:", safety)
-        paused = engine.index("pause_active = self._pause_active(runtime, now)", safety)
+        evaluation = engine.index("async def _evaluate_room")
+        easy = engine.index("if not self.advanced_mode:", evaluation)
+        priority = engine.index(
+            "priority_result = self._resolve_advanced_decision(", evaluation
+        )
+        safety = engine.index("if priority_result.mode == MODE_SAFETY:", priority)
+        disabled = engine.index("if priority_result.mode == MODE_DISABLED:", safety)
+        paused = engine.index("if priority_result.mode == MODE_PAUSED:", disabled)
+        self.assertLess(easy, priority)
+        self.assertLess(priority, safety)
         self.assertLess(safety, disabled)
-        self.assertLess(safety, paused)
-        easy = engine.index("if not self.advanced_mode:", engine.index("async def _evaluate_room"))
-        self.assertLess(easy, safety)
+        self.assertLess(disabled, paused)
+        self.assertIn('"safety_active": bool(blockers)', engine[evaluation:priority])
         self.assertIn("if self.advanced_mode and window_unsafe", engine)
 
     def test_reopen_threshold_is_implemented_for_venetian(self):
@@ -1131,6 +1178,87 @@ class PackageTests(unittest.TestCase):
                 self.assertIn(
                     "window_returns_to_automation", step["data_description"]
                 )
+
+    def test_advanced_execution_controls_are_translated_and_scoped(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        for field in (
+            "command_stagger_seconds",
+            "stagger_scope",
+            "safety_bypasses_stagger",
+            "target_verification_enabled",
+            "verification_retries",
+            "movement_seconds",
+            "settling_seconds",
+            "source_stale_seconds",
+            "feedback_quality",
+            "verify_target",
+            "allow_automatic_reverse",
+            "opening_order",
+        ):
+            self.assertIn(f'"{field}"', flow)
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIn("feedback_quality", data["selector"])
+            self.assertIn("stagger_scope", data["selector"])
+            self.assertIn("opening_order", data["selector"])
+            for section in ("config", "options"):
+                execution = data[section]["step"]["manage_automation"][
+                    "sections"
+                ]["execution_settings"]
+                self.assertTrue(
+                    {
+                        "command_stagger_seconds",
+                        "stagger_scope",
+                        "safety_bypasses_stagger",
+                        "target_verification_enabled",
+                        "verification_retries",
+                        "movement_seconds",
+                        "settling_seconds",
+                        "source_stale_seconds",
+                    }.issubset(execution["data"])
+                )
+                cover = data[section]["step"]["manage_cover"]["sections"][
+                    "cover_automation"
+                ]["data"]
+                self.assertTrue(
+                    {
+                        "feedback_quality",
+                        "verify_target",
+                        "allow_automatic_reverse",
+                    }.issubset(cover)
+                )
+                profile = data[section]["step"]["manage_layer_profile"][
+                    "sections"
+                ]["profile_behavior"]["data"]
+                self.assertIn("opening_order", profile)
+
+    def test_preview_day_service_is_async_and_translated(self):
+        """The customer-facing day preview must work and remain localizable."""
+        integration = (COMP / "__init__.py").read_text(encoding="utf-8")
+        service_schema = (COMP / "services.yaml").read_text(encoding="utf-8")
+        self.assertIn("async def async_handle_preview_day", integration)
+        self.assertIn("async_handle_preview_day,", integration)
+        self.assertIn("raise ServiceValidationError(", integration)
+        self.assertIn("preview_day:", service_schema)
+        for language in ("en", "de"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            preview = data["services"]["preview_day"]
+            self.assertTrue(preview["name"])
+            self.assertTrue(preview["description"])
+            self.assertEqual(
+                set(preview["fields"]), {"room_id", "date", "entry_id"}
+            )
+            for field in preview["fields"].values():
+                self.assertTrue(field["name"])
+                self.assertTrue(field["description"])
 
     def test_sun_sensitivity_is_inverse_threshold(self):
         self.assertGreater(
@@ -1201,10 +1329,13 @@ class PackageTests(unittest.TestCase):
         self.assertIn("return None", logic)
         self.assertNotIn("def _state_float", engine)
 
-    def test_normal_state_changes_are_deferred_to_twenty_minute_interval(self):
+    def test_normal_state_changes_are_event_driven_and_debounced(self):
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
-        self.assertIn("state_change_deferred", engine)
-        self.assertIn("sun_presence_transition_deferred_to_interval", engine)
+        self.assertIn("async def _queue_evaluation", engine)
+        self.assertIn("_evaluation_debounce_unsub", engine)
+        self.assertIn('await self._queue_evaluation(f"input_state:{entity_id}")', engine)
+        self.assertIn("sun_presence_transition", engine)
+        self.assertIn('await self.async_evaluate_all("watchdog")', engine)
         self.assertIn('await self.async_evaluate_all(f"critical_state:{entity_id}")', engine)
 
     def test_startup_reconciles_existing_manual_locks(self):

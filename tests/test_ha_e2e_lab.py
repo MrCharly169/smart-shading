@@ -341,6 +341,14 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ha-hacs-e2e.yml", release)
         self.assertIn("needs: release", release)
 
+    def test_release_preparation_does_not_auto_close_delivery_issues(self):
+        workflow = (
+            ROOT / ".github" / "workflows" / "prepare-release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("Implements #19", workflow)
+        self.assertIn("does not automatically close a delivery issue", workflow)
+        self.assertIn("passes HACS qualification", workflow)
+
     def test_hacs_qualification_is_hosted_and_runs_the_public_tag_in_real_ha(self):
         workflow = (
             ROOT / ".github" / "workflows" / "ha-hacs-e2e.yml"
@@ -366,6 +374,42 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             coverage["boolean_field_contract"]["night_enabled"],
             "real-ha-transition",
         )
+        self.assertTrue(
+            {
+                "protected_zones_hub",
+                "add_protected_zone",
+                "manage_protected_zone",
+                "delete_protected_zone",
+            }.issubset(coverage["all_surfaces"])
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["confirm_delete_protected_zone"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["target_verification_enabled"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["allow_automatic_reverse"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            coverage["boolean_field_contract"]["safety_bypasses_stagger"],
+            "validation-unit",
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["feedback_quality"]),
+            {"trusted", "intermediate", "end_positions", "none"},
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["stagger_scope"]),
+            {"room", "house"},
+        )
+        self.assertEqual(
+            set(coverage["choice_contract"]["opening_order"]),
+            {"height_then_tilt", "tilt_then_height"},
+        )
         self.assertEqual(
             set(coverage["choice_contract"]["profile"]),
             {
@@ -385,11 +429,18 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         workflow = (
             ROOT / ".github" / "workflows" / "ha-upgrade-e2e.yml"
         ).read_text(encoding="utf-8")
+        selector = (
+            ROOT / "scripts" / "ha_e2e" / "select_upgrade_baseline.py"
+        ).read_text(encoding="utf-8")
         shell = (ROOT / "scripts" / "ha_e2e" / "run_lab.sh").read_text(
             encoding="utf-8"
         )
         self.assertIn("HA_E2E_UPGRADE_FROM_REF", workflow)
         self.assertIn("pull_request:", workflow)
+        self.assertIn("select_upgrade_baseline.py", workflow)
+        self.assertIn("newest stable release tag", workflow)
+        self.assertIn("STABLE_TAG", selector)
+        self.assertIn("excluding all prereleases", selector)
         self.assertIn("git archive", shell)
         self.assertIn("manifest-before-upgrade.json", shell)
         self.assertIn("manifest-after-upgrade.json", shell)

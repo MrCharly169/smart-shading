@@ -127,6 +127,56 @@ class OptionsNavigationTests(unittest.TestCase):
         self.assertEqual(sectors[-1]["placement"], "bottom")
         self.assertEqual(groups[-1]["placement"], "bottom")
 
+    def test_protected_zones_are_advanced_only_and_keep_stable_ids(self):
+        room = self.rooms[0]
+        sector = room["sectors"][0]
+        sector["protected_zones"] = [
+            {
+                "id": "desk_glare_a1b2c3",
+                "name": "Desk glare",
+                "enabled": True,
+            },
+            {
+                "id": "screen_glare_d4e5f6",
+                "name": "Screen glare",
+                "enabled": False,
+            },
+        ]
+
+        easy_actions = [
+            route["action"]
+            for route in navigation.build_sector_routes(
+                room, sector, german=False, advanced=False
+            )
+        ]
+        advanced_routes = navigation.build_sector_routes(
+            room, sector, german=False, advanced=True
+        )
+        protected_routes = navigation.build_protected_zone_routes(
+            room, sector, german=False
+        )
+
+        self.assertNotIn("protected_zones_hub", easy_actions)
+        self.assertIn(
+            "protected_zones_hub",
+            [route["action"] for route in advanced_routes],
+        )
+        self.assertEqual(
+            [route["action"] for route in protected_routes],
+            [
+                "manage_protected_zone",
+                "manage_protected_zone",
+                "add_protected_zone",
+            ],
+        )
+        self.assertEqual(
+            [route.get("zone_id") for route in protected_routes[:-1]],
+            ["desk_glare_a1b2c3", "screen_glare_d4e5f6"],
+        )
+        self.assertEqual(protected_routes[-1]["placement"], "bottom")
+        self.assertIn("Active", protected_routes[0]["label"])
+        self.assertIn("Inactive", protected_routes[1]["label"])
+
     def test_cover_routes_keep_stable_entity_identity(self):
         routes = navigation.build_cover_routes(self.rooms[0], german=False)
         cover_routes = [

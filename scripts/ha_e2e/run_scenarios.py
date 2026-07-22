@@ -290,7 +290,7 @@ def submit_options_flow(
 
 
 def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
-    """Create an Easy entry through the current schema-15 guided flow."""
+    """Create an Easy entry through the current schema-16 guided flow."""
     setup = scenario["setup"]
     result = api.post(
         "/api/config/config_entries/flow",

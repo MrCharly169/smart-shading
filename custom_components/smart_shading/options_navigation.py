@@ -136,7 +136,8 @@ def build_structure_routes(
 
 
 def build_sector_routes(
-    room: dict[str, Any], sector: dict[str, Any], *, german: bool
+    room: dict[str, Any], sector: dict[str, Any], *, german: bool,
+    advanced: bool = False,
 ) -> list[dict[str, Any]]:
     """Return sector settings and its direct child groups."""
     room_id = room["id"]
@@ -165,6 +166,26 @@ def build_sector_routes(
             "sector_id": sector_id,
         },
     ]
+    if advanced:
+        zone_count = len(
+            [zone for zone in sector.get("protected_zones", []) if isinstance(zone, dict)]
+        )
+        routes.append(
+            {
+                "label": (
+                    f"Blendschutz · {zone_count} Zone"
+                    if german and zone_count == 1
+                    else f"Blendschutz · {zone_count} Zonen"
+                    if german
+                    else f"Glare protection · {zone_count} zone"
+                    if zone_count == 1
+                    else f"Glare protection · {zone_count} zones"
+                ),
+                "action": "protected_zones_hub",
+                "room_id": room_id,
+                "sector_id": sector_id,
+            }
+        )
     group_fallback = "Behanggruppe" if german else "Cover group"
     for layer in sector.get("layers", []):
         count = len(layer.get("covers", []))
@@ -182,6 +203,46 @@ def build_sector_routes(
         {
             "label": "+ Behanggruppe hinzufügen" if german else "+ Add cover group",
             "action": "add_layer_flat",
+            "room_id": room_id,
+            "sector_id": sector_id,
+            "placement": "bottom",
+        }
+    )
+    return routes
+
+
+def build_protected_zone_routes(
+    room: dict[str, Any], sector: dict[str, Any], *, german: bool
+) -> list[dict[str, Any]]:
+    """Return one stable route per Advanced-only protected zone."""
+    room_id = room["id"]
+    sector_id = sector["id"]
+    fallback = "Schutzzone" if german else "Protected zone"
+    routes: list[dict[str, Any]] = []
+    for index, zone in enumerate(sector.get("protected_zones", [])):
+        if not isinstance(zone, dict):
+            continue
+        zone_id = str(zone.get("id") or "").strip()
+        if not zone_id:
+            continue
+        enabled = bool(zone.get("enabled", True))
+        state = (
+            "Aktiv" if german and enabled else "Inaktiv" if german else
+            "Active" if enabled else "Inactive"
+        )
+        routes.append(
+            {
+                "label": f"{_name(zone, f'{fallback} {index + 1}')} · {state}",
+                "action": "manage_protected_zone",
+                "room_id": room_id,
+                "sector_id": sector_id,
+                "zone_id": zone_id,
+            }
+        )
+    routes.append(
+        {
+            "label": "+ Schutzzone hinzufügen" if german else "+ Add protected zone",
+            "action": "add_protected_zone",
             "room_id": room_id,
             "sector_id": sector_id,
             "placement": "bottom",

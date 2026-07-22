@@ -653,9 +653,16 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "test",
         )
 
-        self.assertEqual(
-            calls, ["set_cover_position", "set_cover_tilt_position"]
-        )
+        # The safety-aware Venetian sequencer claims and sends height first,
+        # then retains the slat correction as a delayed, cancelable step.
+        # The first physical dispatch still has its own-feedback session
+        # before the service call, while the pure planner coverage verifies
+        # the later tilt dispatch and cancellation paths.
+        self.assertEqual(calls, ["set_cover_position"])
+        pending = self.engine.command_planner.pending_steps
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].axis, "tilt")
+        self.assertTrue(pending[0].final_step)
 
     async def test_explicit_ha_command_overrides_active_own_session(self):
         now = datetime.now(timezone.utc)
@@ -721,6 +728,28 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await engine._async_state_changed(FakeEvent("cover.one", third, settled))
         self.assertTrue(engine.cover_pauses["cover_one"].active)
         self.assertEqual(calls, ["safety_manual_cover:cover.one"])
+
+    async def test_confirmed_external_move_rechecks_normal_trace_immediately(self):
+        config = base_config()
+        config[manual_mod.CONF_EXTERNAL_MOVEMENT_DETECTION] = True
+        engine = controller_mod.SmartShadingEngine(self.hass, FakeEntry(config))
+        await engine.async_initialize()
+        calls = []
+
+        async def fake_evaluate(trigger):
+            calls.append(trigger)
+
+        engine.async_evaluate_all = fake_evaluate
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        second = FakeState("closing", current_position=70, current_tilt_position=100)
+        third = FakeState("closing", current_position=40, current_tilt_position=100)
+        settled = FakeState("open", current_position=40, current_tilt_position=100)
+        await engine._async_state_changed(FakeEvent("cover.one", first, second))
+        await engine._async_state_changed(FakeEvent("cover.one", second, third))
+        await engine._async_state_changed(FakeEvent("cover.one", third, settled))
+
+        self.assertTrue(engine.cover_pauses["cover_one"].active)
+        self.assertEqual(calls, ["external_manual_cover:cover.one"])
 
     async def test_window_open_and_close_movements_do_not_pause_cover(self):
         self._configure_window_return()
