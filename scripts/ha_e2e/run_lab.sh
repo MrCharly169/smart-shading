@@ -111,6 +111,9 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
 if [[ -n "${UPGRADE_FROM_REF}" ]]; then
   cp "${CONFIG_DIR}/custom_components/smart_shading/manifest.json" \
     "${ARTIFACT_DIR}/manifest-before-upgrade.json"
+  docker exec "${CONTAINER_NAME}" \
+    chown -R "${HOST_UID}:${HOST_GID}" \
+    /config/custom_components/smart_shading
   rm -rf "${CONFIG_DIR}/custom_components/smart_shading"
   cp -R "${PACKAGE_DIR}/custom_components/smart_shading" \
     "${CONFIG_DIR}/custom_components/smart_shading"
@@ -134,11 +137,19 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
 
-# A clean stop flushes Home Assistant's delayed registry writes. Auditing the
-# files while HA is still running is racy, especially under parallel CI load.
+# Wait until Home Assistant has persisted the in-memory lifecycle result. The
+# integration removes its registry ownership synchronously; Store writes are
+# delayed and must become observable before the container can be stopped.
+python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
+  --storage-dir "${CONFIG_DIR}/.storage" \
+  --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
+  --output "${ARTIFACT_DIR}/registry-summary.json" \
+  --wait-seconds 60
+
 docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
 CONTAINER_RUNNING=0
 
+# Re-read after the clean stop to prove shutdown preserved the same registry.
 python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \
   --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \

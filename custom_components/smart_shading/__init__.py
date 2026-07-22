@@ -7,6 +7,8 @@ from typing import Any
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_ADVANCED_MODE,
@@ -278,7 +280,7 @@ async def async_unload_entry(
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Remove persistent card notifications when the integration is deleted."""
+    """Remove integration-owned notifications and registry records."""
     store = RuntimeStore(hass, entry.entry_id)
     await store.async_load()
     notification_ids = [
@@ -292,3 +294,13 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             {"notification_id": notification_id},
             blocking=False,
         )
+    entity_registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        entity_registry.async_remove(entity.entity_id)
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    ):
+        device_registry.async_remove_device(device.id)

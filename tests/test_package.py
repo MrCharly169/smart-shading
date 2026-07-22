@@ -54,6 +54,13 @@ class PackageTests(unittest.TestCase):
         entity = (COMP / "entity.py").read_text(encoding="utf-8")
         self.assertNotIn('configuration_url="/config/', entity)
 
+    def test_config_entry_removal_clears_owned_registry_records(self):
+        setup = (COMP / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn("er.async_entries_for_config_entry", setup)
+        self.assertIn("entity_registry.async_remove", setup)
+        self.assertIn("dr.async_entries_for_config_entry", setup)
+        self.assertIn("device_registry.async_remove_device", setup)
+
     def test_python_sources_parse(self):
         for path in COMP.glob("*.py"):
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

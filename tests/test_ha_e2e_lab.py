@@ -187,7 +187,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("scripts/build_release.py", shell)
         self.assertIn("docker restart", shell)
         self.assertIn('docker stop --time 30 "${CONTAINER_NAME}"', shell)
-        self.assertNotIn("--wait-seconds 60", shell)
+        self.assertIn("--wait-seconds 60", shell)
         self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
         self.assertIn('chown -R "${HOST_UID}:${HOST_GID}" /config', shell)
         self.assertIn("docker run --rm --entrypoint chown", shell)
@@ -217,10 +217,18 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertIn("check_registry.py", shell)
+        self.assertEqual(shell.count("scripts/ha_e2e/check_registry.py"), 2)
+        self.assertLess(
+            shell.index(
+                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"'
+            ),
+            shell.index("docker stop --time 30"),
+        )
         self.assertLess(
             shell.index("docker stop --time 30"),
             shell.index(
-                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"'
+                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"',
+                shell.index("docker stop --time 30"),
             ),
         )
 
