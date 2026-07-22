@@ -35,6 +35,13 @@ test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }
   const errors = captureBrowserErrors(page);
   await login(page);
   await page.goto("/config/integrations/dashboard/add?domain=smart_shading");
+  await expect(
+    page.getByRole("heading", {
+      name: "Do you want to set up Smart Shading?",
+      exact: true,
+    })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
   await expect(page.getByText("Choose setup type", { exact: true })).toBeVisible();
   await expect(page.getByText("House or area name", { exact: true })).toBeVisible();
   await expect(page.getByText("Setup type", { exact: true })).toBeVisible();
@@ -53,10 +60,10 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
         Array.isArray(state.attributes.sector_statuses)
     );
     const easy = rooms.find(
-      (state) => state.attributes.smart_shading_advanced_mode === false
+      (state) => state.attributes.smart_shading_layout === "compact"
     );
     const advanced = rooms.find(
-      (state) => state.attributes.smart_shading_advanced_mode === true
+      (state) => state.attributes.smart_shading_layout === "detailed"
     );
     if (!easy || !advanced) throw new Error("Missing Easy or Advanced room state");
     return hass.callWS({
