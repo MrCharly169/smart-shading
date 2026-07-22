@@ -294,7 +294,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       rejected: "Verworfene Kandidaten",
       noRejected: "Keine weiteren Kandidaten verworfen.",
       command: "Befehlsausgang",
-      inputQuality: "Eingabequalität",
+      inputQuality: "Datenqualität",
       protectedZones: "Geschützte Zonen",
       noTrace: "Noch keine Entscheidungsdaten vorhanden.",
       noProtectedZones: "Keine geschützten Zonen ausgewertet.",
