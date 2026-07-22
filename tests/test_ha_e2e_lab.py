@@ -10,6 +10,7 @@ from unittest.mock import patch
 from scripts.ha_e2e.run_scenarios import (
     ApiError,
     advanced_execution_settings_payload,
+    advanced_execution_settings_section,
     assert_entry_variant,
     submit_options_expect_error,
     wait_for_home_assistant,
@@ -41,10 +42,19 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             },
         )
 
+    def test_legacy_advanced_automation_omits_candidate_only_section(self):
+        expected = {
+            "execution_settings": advanced_execution_settings_payload()
+        }
+        self.assertEqual(advanced_execution_settings_section(), expected)
+        self.assertEqual(
+            advanced_execution_settings_section(legacy_compatible=True), {}
+        )
+
     def test_advanced_automation_submissions_include_execution_settings(self):
         runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
         tree = ast.parse(runner.read_text(encoding="utf-8"))
-        submission_keys: list[set[str]] = []
+        submission_sections: list[bool] = []
         for node in ast.walk(tree):
             if not (
                 isinstance(node, ast.Call)
@@ -57,17 +67,22 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                 continue
             self.assertIsInstance(node.args[3], ast.Dict)
             payload = node.args[3]
-            submission_keys.append(
-                {
-                    key.value
-                    for key in payload.keys
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str)
-                }
+            has_explicit_section = any(
+                isinstance(key, ast.Constant) and key.value == "execution_settings"
+                for key in payload.keys
+            )
+            has_legacy_aware_section = any(
+                key is None
+                and isinstance(value, ast.Name)
+                and value.id == "execution_settings_section"
+                for key, value in zip(payload.keys, payload.values, strict=True)
+            )
+            submission_sections.append(
+                has_explicit_section or has_legacy_aware_section
             )
 
-        self.assertEqual(len(submission_keys), 10)
-        for keys in submission_keys:
-            self.assertIn("execution_settings", keys)
+        self.assertEqual(len(submission_sections), 10)
+        self.assertTrue(all(submission_sections))
 
     def test_upgrade_checkpoint_reads_only_persisted_smart_shading_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:

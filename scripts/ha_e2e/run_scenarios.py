@@ -412,6 +412,15 @@ def advanced_execution_settings_payload() -> dict[str, Any]:
     }
 
 
+def advanced_execution_settings_section(
+    *, legacy_compatible: bool = False
+) -> dict[str, dict[str, Any]]:
+    """Return the required candidate section, absent from the old baseline."""
+    if legacy_compatible:
+        return {}
+    return {"execution_settings": advanced_execution_settings_payload()}
+
+
 def create_advanced_entry(
     api: HomeAssistantApi,
     scenario: dict[str, Any],
@@ -570,7 +579,9 @@ def create_advanced_entry(
         "normal_shading_temperature": 23.5,
         "reopen_temperature": 22,
     }
-    execution_settings = advanced_execution_settings_payload()
+    execution_settings_section = advanced_execution_settings_section(
+        legacy_compatible=legacy_compatible
+    )
     result = submit_flow(
         api,
         flow_id,
@@ -578,7 +589,7 @@ def create_advanced_entry(
         {
             "schedule_settings": {"schedule_enabled": True},
             "temperature_settings": temperature_settings,
-            "execution_settings": execution_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_automation")
@@ -593,7 +604,7 @@ def create_advanced_entry(
                 "day_window": "fixed_time",
             },
             "temperature_settings": temperature_settings,
-            "execution_settings": execution_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_automation")
@@ -614,7 +625,7 @@ def create_advanced_entry(
                 "heat_outside_schedule": True,
             },
             "temperature_settings": temperature_settings,
-            "execution_settings": execution_settings,
+            **execution_settings_section,
         },
     )
     expect_step(result, "manage_night")
