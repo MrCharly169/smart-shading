@@ -11,6 +11,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     entities = []
     for room_id in engine.rooms:
         entities.append(RoomEnableSwitch(engine, room_id))
+    if not engine.advanced_mode:
+        async_add_entities(entities)
+        return
     for room in engine.config.get("rooms", []):
         for sector in room.get("sectors", []):
             entities.append(

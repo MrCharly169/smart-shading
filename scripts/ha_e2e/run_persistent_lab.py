@@ -36,6 +36,8 @@ def main() -> int:
     base_url = os.environ["HA_PERSISTENT_URL"]
     token = os.environ["HA_PERSISTENT_TOKEN"]
     expected_name = os.environ["HA_PERSISTENT_INSTANCE_NAME"]
+    expected_version = os.environ.get("HA_PERSISTENT_EXPECTED_VERSION", "")
+    hacs_update_entity = os.environ.get("HA_PERSISTENT_HACS_UPDATE_ENTITY", "")
     if os.environ.get("HA_PERSISTENT_SCOPE") != "dedicated-test-only":
         raise SystemExit("HA_PERSISTENT_SCOPE must be dedicated-test-only")
 
@@ -78,6 +80,27 @@ def main() -> int:
         for item in states
         if item.get("attributes", {}).get("smart_shading_entry_id")
     )
+    hacs_version = None
+    if expected_version or hacs_update_entity:
+        if not expected_version or not hacs_update_entity:
+            raise SystemExit(
+                "Both HA_PERSISTENT_EXPECTED_VERSION and "
+                "HA_PERSISTENT_HACS_UPDATE_ENTITY are required for HACS validation"
+            )
+        hacs_state = request(
+            base_url,
+            token,
+            "GET",
+            f"/api/states/{hacs_update_entity}",
+        )
+        hacs_version = str(
+            hacs_state.get("attributes", {}).get("installed_version") or ""
+        )
+        if hacs_version != expected_version:
+            raise SystemExit(
+                f"HACS reports Smart Shading {hacs_version!r}; "
+                f"expected {expected_version!r}"
+            )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(
@@ -86,6 +109,7 @@ def main() -> int:
                 "captured_at": datetime.now(timezone.utc).isoformat(),
                 "instance_name": expected_name,
                 "home_assistant_version": config.get("version"),
+                "hacs_installed_version": hacs_version,
                 "entries": [
                     {key: entry.get(key) for key in ("entry_id", "title", "state")}
                     for entry in entries

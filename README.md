@@ -43,8 +43,41 @@ type: custom:smart-shading-card
 entity: sensor.YOUR_ROOM_STATUS
 ```
 
-The card automatically follows the Easy or Advanced variant of the selected
-Smart Shading config entry.
+The card automatically follows the setup variant chosen when the integration is
+created. It has no separate Easy/Advanced switch.
+
+## Easy and Advanced Mode
+
+- **Easy Mode** always works from `sun.sun`, the configured facade sector, the
+  cover profile, and one room-level **Manual Override**. Each sector uses
+  exactly one source: sun geometry, a local Lux sensor, or an external on/off
+  sensor. An optional outdoor-temperature sensor automatically adds its
+  configured minimum condition. The override remains active until a user or
+  an explicit automation turns it off.
+- **Advanced Mode** adds configurable geometry, Lux or external sun
+  confirmation, temperatures, schedules, Safety, Pause, Heat Protection,
+  Night Mode, diagnostics, per-cover Manual Override entities, and optional
+  external-movement detection.
+
+The setup variant is fixed for the config entry. To use the other variant,
+create a new Smart Shading entry and configure it from the beginning. New
+Advanced rooms keep external-movement pause detection off until it is
+explicitly enabled.
+
+Each Easy sector uses one source: sun geometry, a Lux sensor, or an external
+on/off sun confirmation. Local Lux is recommended and creates Smart Shading's
+Sun Presence binary sensor with hysteresis and delays. An external entity is a
+separate alternative where `on` means direct sun. Sources are never combined
+and there is no hidden weather fallback. If an explicitly selected source is
+unavailable, normal shading waits instead of guessing. Without an outdoor
+temperature sensor, outdoor temperature is ignored entirely.
+
+The cover type is a functional profile, not only a label. Exterior venetian
+blinds and vertical blinds receive position plus slat guidance; roller
+shutters, screens, curtains, and awnings receive their own direction and target
+defaults; simple open/close covers use only open/close services. Changing the
+type updates the wizard, runtime, available entities, and card together and
+removes incompatible options.
 
 ## Updating
 
@@ -53,6 +86,18 @@ Smart Shading config entry.
 3. Reload the browser or Home Assistant companion app if the previous card code is still in memory.
 
 Do not change the resource URL and do not append a version query.
+
+## Cover and slat semantics
+
+Cover height keeps the Home Assistant convention: `0%` is closed and `100%`
+is open. Slat position uses the KNX convention confirmed for exterior venetian
+blinds: `0%` is fully open and lets light through; `100%` is fully closed and
+blocks sunlight.
+
+Accordingly, Open and Safety use a `0%` slat target, Heat Protection uses
+`100%`, and normal shading follows the adaptive KNX-scale slat curve. The
+per-cover **Invert slats** option remains available only for covers that expose
+the opposite direction.
 
 ## Version and change management
 
@@ -78,7 +123,7 @@ Releases use two deliberate maintainer gates:
 2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
 3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
 
-The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. The workflows reject invalid channel or version combinations, duplicate tags, missing release sections, and failed tests.
+The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published Smart Shading tag. A protected isolated runner qualifies the published tag through HACS afterwards. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md).
 
 For automatic draft pull-request creation, repository administrators must enable **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Only pull-request creation is automated; approval and merging remain manual.
 
@@ -91,13 +136,17 @@ HACS downloads the source belonging to the selected GitHub release tag. The atta
 ```text
 custom_components/smart_shading/   Integration and frontend
 tests/                             Regression and runtime tests
+e2e/                               Real HA fixture, scenarios and Playwright suite
 docs/                              Development and repository notes
 scripts/build_release.py           Package and metadata validation
 scripts/check_pr_changelog.py      PR documentation policy
 scripts/release_changelog.py       Release preparation and note extraction
+scripts/ha_e2e/                    HA lifecycle, coverage and registry runners
 .github/workflows/validate.yml     Continuous validation
 .github/workflows/prepare-release.yml  Reviewable release preparation
 .github/workflows/release.yml      Manual beta/stable release automation
 ```
 
-German documentation is available in [README_DE.md](README_DE.md). Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md). Home Assistant presents the integration in English or German according to the user's selected language.
+
+Troubleshooting, including false KNX cover movement caused by readable command objects, is documented in the [FAQ](docs/FAQ.md).

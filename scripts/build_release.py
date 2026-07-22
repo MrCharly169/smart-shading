@@ -20,7 +20,6 @@ REQUIRED = (
     LEGACY_RESOURCE,
     ROOT / "hacs.json",
     ROOT / "README.md",
-    ROOT / "README_DE.md",
     ROOT / "CHANGELOG.md",
 )
 
@@ -49,7 +48,7 @@ def validate(expected_tag: str | None = None) -> str:
     if 'import "./shading.js"' not in legacy:
         raise RuntimeError("legacy card resource must import the canonical shading.js")
 
-    for document in (ROOT / "README.md", ROOT / "README_DE.md"):
+    for document in (ROOT / "README.md",):
         text = document.read_text(encoding="utf-8")
         if CANONICAL_RESOURCE not in text:
             raise RuntimeError(
@@ -80,7 +79,6 @@ def build(output: Path, expected_tag: str | None = None) -> None:
                 archive.write(path, path.relative_to(ROOT))
         for path in (
             ROOT / "README.md",
-            ROOT / "README_DE.md",
             ROOT / "CHANGELOG.md",
             ROOT / "LICENSE",
             ROOT / "hacs.json",

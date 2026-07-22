@@ -19,6 +19,10 @@
     "safety_entity": "binary_sensor.safety_alarm",
     "window_entity": "binary_sensor.window_contact"
   },
+  "options_room": {
+    "room_name": "Easy Added Room",
+    "cover_entity": "cover.binary_cover"
+  },
   "initial": {
     "sun.sun": {
       "state": "above_horizon",

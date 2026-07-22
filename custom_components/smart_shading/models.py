@@ -15,11 +15,25 @@ class CommandMemory:
 
 
 @dataclass(slots=True)
+class OwnCommandSession:
+    """Ephemeral ownership of feedback caused by one Smart Shading command."""
+
+    entity_id: str
+    started_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    position_target: float | None = None
+    tilt_target: float | None = None
+    position_commanded: bool = False
+    tilt_commanded: bool = False
+    target_reached_at: datetime | None = None
+
+
+@dataclass(slots=True)
 class SectorSunRuntime:
     sector_id: str
     is_on: bool = False
     current_lux: float | None = None
-    source_valid: bool = False
     pending_target: bool | None = None
     pending_since: datetime | None = None
     pending_until: datetime | None = None
@@ -29,6 +43,10 @@ class SectorSunRuntime:
     status_reason: str = "Not evaluated"
     geometry_active: bool = False
     shading_active: bool = False
+    confirmation_source: str = "geometry"
+    confirmation_entity: str | None = None
+    confirmation_state: bool | None = None
+    effective_active: bool = False
     mode: str = "idle"
 
 
@@ -54,6 +72,22 @@ class RoomRuntime:
     schedule_active: bool = True
     schedule_reason: str = "Not evaluated"
     next_schedule_change: datetime | None = None
+    night_initialized: bool = False
+    night_active: bool = False
+    night_blocked: bool = False
+    night_reason: str = "Disabled"
+    night_source_state: str | None = None
+    night_next_transition: datetime | None = None
+    night_morning_hold_until: datetime | None = None
+    night_morning_handover_pending: bool = False
+    pause_waiting_for_night: bool = False
+    easy_confirmation_state: str = "inactive"
+    easy_source_summary: str = "Sun geometry"
+    outdoor_temperature_condition_enabled: bool = False
+    outdoor_temperature_source: str | None = None
+    outdoor_temperature_value: float | None = None
+    outdoor_temperature_minimum: float | None = None
+    outdoor_temperature_passed: bool | None = None
 
 
 @dataclass(slots=True)
@@ -66,3 +100,5 @@ class CoverPauseRuntime:
     reason: str = ""
     lock_owned: bool = False
     started_at: datetime | None = None
+    pause_mode: str = "auto"
+    waiting_for_night: bool = False

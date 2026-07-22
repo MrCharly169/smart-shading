@@ -20,6 +20,8 @@ finalize_sector_identity = logic.finalize_sector_identity
 needs_custom_sun_settings = logic.needs_custom_sun_settings
 parse_numeric_value = logic.parse_numeric_value
 classify_cover_feedback = logic.classify_cover_feedback
+migrate_slat_config = logic.migrate_slat_config
+migrate_slat_overrides = logic.migrate_slat_overrides
 
 
 class LogicTests(unittest.TestCase):
@@ -118,15 +120,61 @@ class LogicTests(unittest.TestCase):
 
     def test_adaptive_tilt(self):
         points = [
-            {"elevation": 10, "tilt": 10},
-            {"elevation": 20, "tilt": 35},
-            {"elevation": 40, "tilt": 65},
-            {"elevation": 60, "tilt": 85},
+            {"elevation": 10, "tilt": 90},
+            {"elevation": 20, "tilt": 65},
+            {"elevation": 40, "tilt": 35},
+            {"elevation": 60, "tilt": 15},
         ]
-        self.assertEqual(adaptive_tilt(15, 100, points), 10)
-        self.assertEqual(adaptive_tilt(30, 100, points), 35)
-        self.assertEqual(adaptive_tilt(55, 100, points), 65)
-        self.assertEqual(adaptive_tilt(70, 100, points), 85)
+        self.assertEqual(adaptive_tilt(15, 100, points), 90)
+        self.assertEqual(adaptive_tilt(30, 100, points), 65)
+        self.assertEqual(adaptive_tilt(55, 100, points), 35)
+        self.assertEqual(adaptive_tilt(70, 100, points), 15)
+
+    def test_slat_config_migration_converts_opening_to_closedness_once(self):
+        original = {
+            "rooms": [{
+                "sectors": [{
+                    "layers": [{
+                        "profile": "venetian",
+                        "open_tilt": 100,
+                        "heat_tilt": 0,
+                        "tilt_curve": [
+                            {"elevation": 10, "tilt": 10},
+                            {"elevation": 20, "tilt": 35},
+                        ],
+                        "covers": [{"invert_tilt": True}],
+                    }]
+                }]
+            }]
+        }
+        migrated = migrate_slat_config(original)
+        layer = migrated["rooms"][0]["sectors"][0]["layers"][0]
+        self.assertEqual(layer["open_tilt"], 0.0)
+        self.assertEqual(layer["heat_tilt"], 100.0)
+        self.assertEqual(
+            [point["tilt"] for point in layer["tilt_curve"]],
+            [90.0, 65.0],
+        )
+        self.assertTrue(layer["covers"][0]["invert_tilt"])
+        self.assertEqual(original["rooms"][0]["sectors"][0]["layers"][0]["open_tilt"], 100)
+
+    def test_slat_override_migration_changes_only_layer_tilt_values(self):
+        original = {
+            "layer": {
+                "layer_one": {
+                    "tilt_value_1": 10,
+                    "heat_tilt": 0,
+                    "open_position": 80,
+                }
+            },
+            "room": {"room_one": {"heat_temperature": 27}},
+        }
+        migrated = migrate_slat_overrides(original)
+        self.assertEqual(migrated["layer"]["layer_one"]["tilt_value_1"], 90.0)
+        self.assertEqual(migrated["layer"]["layer_one"]["heat_tilt"], 100.0)
+        self.assertEqual(migrated["layer"]["layer_one"]["open_position"], 80)
+        self.assertEqual(migrated["room"], original["room"])
+        self.assertEqual(original["layer"]["layer_one"]["tilt_value_1"], 10)
 
 
     def test_compact_sector_identity_is_always_created(self):
@@ -274,6 +322,22 @@ class LogicTests(unittest.TestCase):
         )
         self.assertFalse(decision.changed)
         self.assertFalse(decision.manual)
+
+    def test_state_string_transition_without_numeric_feedback_is_ignored(self):
+        decision = classify_cover_feedback(
+            old_position=100,
+            new_position=100,
+            old_tilt=100,
+            new_tilt=100,
+            old_state="open",
+            new_state="closing",
+            target_position=None,
+            target_tilt=None,
+            command_age_seconds=None,
+        )
+        self.assertFalse(decision.changed)
+        self.assertFalse(decision.manual)
+        self.assertEqual(decision.reason, "state_only_change_ignored")
 
 
 if __name__ == "__main__":

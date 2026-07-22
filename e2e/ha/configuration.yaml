@@ -12,6 +12,11 @@ frontend:
 http:
 sun:
 
+lovelace:
+  resources:
+    - url: /smart_shading/shading.js
+      type: module
+
 smart_shading_test_fixture:
 
 cover:
@@ -22,6 +27,14 @@ sensor:
 
 binary_sensor:
   - platform: smart_shading_test_fixture
+
+input_boolean:
+  fixture_manual_override:
+    name: Fixture Manual Override
+  fixture_night_mode:
+    name: Fixture Night Mode
+  fixture_room_pause:
+    name: Fixture Room Pause
 
 logger:
   default: info

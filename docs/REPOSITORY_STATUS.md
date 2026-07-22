@@ -7,7 +7,7 @@ Included:
 - Home Assistant custom integration under `custom_components/smart_shading`
 - canonical Lovelace card resource at `/smart_shading/shading.js`
 - backward-compatible loader for the former card URL
-- German and English documentation
+- English repository documentation and bilingual English/German Home Assistant UI
 - brand assets
 - unit and runtime regression tests
 - package and metadata validation

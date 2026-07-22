@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -23,6 +24,60 @@ def azimuth_inside(value: float, start: float, end: float) -> bool:
 
 def clamp_percent(value: float) -> float:
     return max(0.0, min(100.0, float(value)))
+
+
+_SLAT_TARGET_KEYS = {
+    "open_tilt",
+    "comfort_tilt",
+    "solar_tilt",
+    "heat_tilt",
+    "safety_tilt",
+}
+
+
+def _migrated_slat_value(value):
+    """Convert the legacy opening percentage to KNX slat closedness."""
+    if isinstance(value, bool):
+        return value
+    try:
+        return 100.0 - clamp_percent(float(value))
+    except (TypeError, ValueError):
+        return value
+
+
+def migrate_slat_config(config: dict) -> dict:
+    """Convert stored tilt targets from opening to KNX closedness semantics."""
+    result = deepcopy(config)
+    for room in result.get("rooms", []):
+        for sector in room.get("sectors", []):
+            for layer in sector.get("layers", []):
+                profile = str(layer.get("profile", "venetian"))
+                if profile not in {"venetian", "vertical_blind"}:
+                    continue
+                for key in _SLAT_TARGET_KEYS:
+                    if key in layer:
+                        layer[key] = _migrated_slat_value(layer[key])
+                for point in layer.get("tilt_curve", []):
+                    if isinstance(point, dict) and "tilt" in point:
+                        point["tilt"] = _migrated_slat_value(point["tilt"])
+    return result
+
+
+def migrate_slat_overrides(overrides: dict) -> dict:
+    """Convert persisted layer number overrides to KNX slat semantics."""
+    if not isinstance(overrides, dict):
+        return {}
+    result = deepcopy(overrides)
+    layers = result.get("layer", {})
+    if not isinstance(layers, dict):
+        return result
+    for values in layers.values():
+        if not isinstance(values, dict):
+            continue
+        for key, value in list(values.items()):
+            if key in _SLAT_TARGET_KEYS or key.startswith("tilt_value_"):
+                values[key] = _migrated_slat_value(value)
+    return result
 
 
 def sun_presence_step(
@@ -210,11 +265,12 @@ def classify_cover_feedback(
     position_change_threshold: float = 2.0,
     tilt_change_threshold: float = 3.0,
 ) -> CoverFeedbackDecision:
-    """Decide whether a state change is own feedback or external/manual control.
+    """Classify numeric cover feedback without trusting the cover state string.
 
-    A movement is expected only when it moves toward the last target (or reaches
-    it) and the command has not expired. Moving away from the own target is
-    treated as manual control even while the cover is still moving.
+    ``opening``, ``closing``, ``open`` and ``closed`` are informational only.
+    Some integrations derive those values from command telegrams and configured
+    travel times even when no physical movement occurred. Only numeric position
+    or tilt feedback may therefore count as a relevant change here.
     """
 
     def changed(old: float | None, new: float | None, threshold: float) -> bool:
@@ -226,16 +282,11 @@ def classify_cover_feedback(
 
     position_changed = changed(old_position, new_position, position_change_threshold)
     tilt_changed = changed(old_tilt, new_tilt, tilt_change_threshold)
-    movement_state_changed = old_state != new_state and new_state in {"opening", "closing"}
-    endpoint_state_changed = (
-        old_state in {"open", "closed"}
-        and new_state in {"open", "closed"}
-        and old_state != new_state
-    )
-    state_changed = movement_state_changed or endpoint_state_changed
-    any_changed = position_changed or tilt_changed or state_changed
+    state_changed = old_state != new_state
+    any_changed = position_changed or tilt_changed
     if not any_changed:
-        return CoverFeedbackDecision(False, False, False, False, False, "no_relevant_change")
+        reason = "state_only_change_ignored" if state_changed else "no_relevant_change"
+        return CoverFeedbackDecision(False, False, False, False, False, reason)
 
     fresh = command_age_seconds is not None and 0 <= command_age_seconds <= command_timeout_seconds
     position_complete = (
@@ -259,10 +310,6 @@ def classify_cover_feedback(
             old_distance = abs(float(old_position) - float(target_position))
             new_distance = abs(float(new_position) - float(target_position))
             checks.append(position_complete or new_distance < old_distance - 0.1)
-    elif state_changed and new_state in {"opening", "closing"} and target_position is not None and old_position is not None:
-        expected_direction = "opening" if float(target_position) > float(old_position) else "closing"
-        checks.append(new_state == expected_direction)
-
     if tilt_changed:
         if target_tilt is None:
             checks.append(False)

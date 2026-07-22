@@ -6,7 +6,20 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import (
-    DEVICE_BINARY, DEVICE_VERTICAL, DEVICE_VENETIAN, PROFILE_DEFAULTS
+    DEVICE_AWNING,
+    DEVICE_VENETIAN,
+    IRRADIANCE_MINIMUM_MAX,
+    IRRADIANCE_MINIMUM_MIN,
+    IRRADIANCE_MINIMUM_STEP,
+    OUTDOOR_MINIMUM_MAX_C,
+    OUTDOOR_MINIMUM_MIN_C,
+    OUTDOOR_MINIMUM_STEP_C,
+    PAUSE_DURATION_MAX_HOURS,
+    PAUSE_DURATION_MIN_HOURS,
+    PAUSE_DURATION_STEP_HOURS,
+    PROFILE_DEFAULTS,
+    profile_supports_tilt,
+    profile_target_keys,
 )
 from .entity import SmartShadingEntity, localized
 
@@ -27,10 +40,9 @@ ROOM_NUMBERS = (
     NumberDefinition("comfort_temperature", "Comfort temperature", 5, 40, 0.1, "°C", "mdi:thermometer-low"),
     NumberDefinition("solar_temperature", "Solar temperature", 5, 40, 0.1, "°C", "mdi:thermometer-high"),
     NumberDefinition("heat_temperature", "Heat protection start", 5, 45, 0.1, "°C", "mdi:thermometer-alert"),
-    NumberDefinition("heat_release_temperature", "Heat protection release", 5, 45, 0.1, "°C", "mdi:thermometer-chevron-down"),
     NumberDefinition("reopen_temperature", "Cool-room reopen threshold", 5, 35, 0.1, "°C", "mdi:blinds-open"),
-    NumberDefinition("outdoor_minimum", "Minimum outdoor temperature", -30, 50, 0.1, "°C", "mdi:home-thermometer-outline"),
-    NumberDefinition("irradiance_minimum", "Minimum irradiance", 0, 1500, 10, "W/m²", "mdi:white-balance-sunny"),
+    NumberDefinition("outdoor_minimum", "Minimum outdoor temperature", OUTDOOR_MINIMUM_MIN_C, OUTDOOR_MINIMUM_MAX_C, OUTDOOR_MINIMUM_STEP_C, "°C", "mdi:home-thermometer-outline"),
+    NumberDefinition("irradiance_minimum", "Minimum irradiance", IRRADIANCE_MINIMUM_MIN, IRRADIANCE_MINIMUM_MAX, IRRADIANCE_MINIMUM_STEP, "W/m²", "mdi:white-balance-sunny"),
     NumberDefinition("cloud_cover_maximum", "Maximum cloud cover", 0, 100, 1, "%", "mdi:weather-cloudy"),
 )
 
@@ -47,31 +59,28 @@ SUN_NUMBERS = (
     NumberDefinition("sun_off_delay", "Sun OFF delay", 0, 120, 0.5, "min", "mdi:timer-minus-outline"),
 )
 
-PROFILE_NUMBER_KEYS = {
-    DEVICE_VENETIAN: (
-        ("open_position", "Open position", "mdi:blinds-open"),
-        ("safety_position", "Safety position", "mdi:shield-alert"),
-    ),
-    DEVICE_VERTICAL: (
-        ("open_position", "Open position", "mdi:blinds-open"),
-        ("comfort_tilt", "Comfort tilt", "mdi:rotate-right"),
-        ("heat_tilt", "Heat tilt", "mdi:rotate-right"),
-        ("safety_position", "Safety position", "mdi:shield-alert"),
-    ),
+TARGET_METADATA = {
+    "open_position": ("Open position", "mdi:blinds-open"),
+    "open_tilt": ("Open tilt", "mdi:rotate-right"),
+    "comfort_position": ("Comfort position", "mdi:sun-angle"),
+    "comfort_tilt": ("Comfort tilt", "mdi:rotate-right"),
+    "solar_position": ("Solar position", "mdi:weather-sunny-alert"),
+    "solar_tilt": ("Solar tilt", "mdi:rotate-right"),
+    "heat_position": ("Heat position", "mdi:shield-sun"),
+    "heat_tilt": ("Heat tilt", "mdi:rotate-right"),
+    "night_position": ("Night position", "mdi:weather-night"),
+    "night_tilt": ("Night slat position", "mdi:weather-night"),
+    "safety_position": ("Safety position", "mdi:shield-alert"),
+    "safety_tilt": ("Safety tilt", "mdi:shield-alert"),
 }
-
-DEFAULT_POSITION_KEYS = (
-    ("open_position", "Open position", "mdi:blinds-open"),
-    ("comfort_position", "Comfort position", "mdi:sun-angle"),
-    ("solar_position", "Solar position", "mdi:weather-sunny-alert"),
-    ("heat_position", "Heat position", "mdi:shield-sun"),
-    ("safety_position", "Safety position", "mdi:shield-alert"),
-)
 
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     engine = entry.runtime_data
+    if not engine.advanced_mode:
+        async_add_entities([])
+        return
     entities = []
     for room in engine.config.get("rooms", []):
         room_id = room["id"]
@@ -97,17 +106,24 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                     )
             for layer in sector.get("layers", []):
                 profile = layer.get("profile", "venetian")
-                if profile == DEVICE_BINARY:
-                    continue
-                keys = PROFILE_NUMBER_KEYS.get(profile, DEFAULT_POSITION_KEYS)
-                for key, name, icon in keys:
+                keys = profile_target_keys(
+                    profile,
+                    indoor_temperature=bool(room.get("indoor_temperature")),
+                    night=bool(room.get("night_enabled", False)),
+                    safety=bool(room.get("safety_blockers")),
+                )
+                for key in keys:
+                    name, icon = TARGET_METADATA[key]
                     entities.append(
                         LayerSettingNumber(
                             engine, room_id, sector_id, layer["id"],
                             NumberDefinition(key, name, 0, 100, 1, "%", icon),
                         )
                     )
-                if profile in {DEVICE_VENETIAN, DEVICE_VERTICAL} and layer.get("adaptive_tilt", False):
+                if (
+                    profile_supports_tilt(profile)
+                    and layer.get("adaptive_tilt", False)
+                ):
                     stage_names = ("Very low sun", "Low sun", "Medium sun", "High sun")
                     for index, point in enumerate(layer.get("tilt_curve", []), start=1):
                         stage = stage_names[min(index - 1, len(stage_names) - 1)]
@@ -127,7 +143,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                                 engine, room_id, sector_id, layer["id"],
                                 NumberDefinition(
                                     f"tilt_value_{index}",
-                                    f"{stage} slat opening",
+                                    f"{stage} slat position",
                                     0, 100, 1, "%", "mdi:rotate-right"
                                 ),
                                 default_value=float(point.get("tilt", 0)),
@@ -147,10 +163,20 @@ def _room_profiles(room: dict) -> set[str]:
 def _room_number_relevant(room: dict, key: str) -> bool:
     profiles = _room_profiles(room)
     venetian_only = bool(profiles) and profiles == {DEVICE_VENETIAN}
+    if key in {
+        "normal_shading_temperature",
+        "comfort_temperature",
+        "solar_temperature",
+        "heat_temperature",
+        "reopen_temperature",
+    } and not bool(room.get("indoor_temperature")):
+        return False
     if key == "normal_shading_temperature":
         return venetian_only
     if key in {"comfort_temperature", "solar_temperature"}:
         return not venetian_only
+    if key == "reopen_temperature":
+        return venetian_only
     if key == "outdoor_minimum":
         return bool(room.get("outdoor_temperature"))
     if key == "irradiance_minimum":
@@ -172,7 +198,6 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
             "Comfort temperature": "Comfort-Temperatur",
             "Solar temperature": "Solar-Temperatur",
             "Heat protection start": "Heat-Protection-Start",
-            "Heat protection release": "Heat-Protection-Freigabe",
             "Cool-room reopen threshold": "Wiederöffnungs-Temperatur",
             "Minimum outdoor temperature": "Mindestaußentemperatur",
             "Minimum irradiance": "Mindesteinstrahlung",
@@ -191,17 +216,19 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
             "Solar position": "Solar-Position",
             "Solar tilt": "Solar-Lamelle",
             "Heat position": "Heat-Position",
+            "Night position": "Nachtposition",
+            "Night slat position": "Nacht-Lamellenposition",
             "Heat tilt": "Heat-Lamelle",
             "Safety position": "Safety-Position",
             "Safety tilt": "Safety-Lamelle",
             "Very low sun elevation": "Tiefe Sonne – Sonnenhöhe",
-            "Very low sun slat opening": "Tiefe Sonne – Lamellenöffnung",
+            "Very low sun slat position": "Tiefe Sonne – Lamellenposition",
             "Low sun elevation": "Niedrige Sonne – Sonnenhöhe",
-            "Low sun slat opening": "Niedrige Sonne – Lamellenöffnung",
+            "Low sun slat position": "Niedrige Sonne – Lamellenposition",
             "Medium sun elevation": "Mittlere Sonne – Sonnenhöhe",
-            "Medium sun slat opening": "Mittlere Sonne – Lamellenöffnung",
+            "Medium sun slat position": "Mittlere Sonne – Lamellenposition",
             "High sun elevation": "Hohe Sonne – Sonnenhöhe",
-            "High sun slat opening": "Hohe Sonne – Lamellenöffnung",
+            "High sun slat position": "Hohe Sonne – Lamellenposition",
         }.get(definition.name, definition.name))
         self._attr_native_min_value = definition.minimum
         self._attr_native_max_value = definition.maximum
@@ -218,9 +245,9 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
 
 class PauseHoursNumber(SmartShadingEntity, NumberEntity):
     _attr_name = "Pause duration"
-    _attr_native_min_value = 0
-    _attr_native_max_value = 48
-    _attr_native_step = 0.5
+    _attr_native_min_value = PAUSE_DURATION_MIN_HOURS
+    _attr_native_max_value = PAUSE_DURATION_MAX_HOURS
+    _attr_native_step = PAUSE_DURATION_STEP_HOURS
     _attr_native_unit_of_measurement = "h"
     _attr_mode = NumberMode.SLIDER
     _attr_icon = "mdi:timer-outline"
@@ -232,12 +259,16 @@ class PauseHoursNumber(SmartShadingEntity, NumberEntity):
 
     @property
     def native_value(self):
-        return self.engine.rooms[self.room_id].pause_hours
+        return float(
+            self.engine.room_value(
+                self.room_id, "pause_duration_hours", 2.0
+            )
+        )
 
     @property
     def extra_state_attributes(self):
         attrs = super().extra_state_attributes
-        attrs["smart_shading_control_key"] = "pause_hours"
+        attrs["smart_shading_control_key"] = "pause_duration_hours"
         return attrs
 
     async def async_set_native_value(self, value: float) -> None:
@@ -346,9 +377,15 @@ class LayerSettingNumber(BaseSettingNumber):
         default_value: float | None = None,
     ) -> None:
         layer = engine.layer_config(layer_id)
+        target_name = definition.name
+        if (
+            layer.get("profile") == DEVICE_AWNING
+            and definition.key == "open_position"
+        ):
+            target_name = "Retracted / neutral position"
         named = NumberDefinition(
             definition.key,
-            f"{layer['name']} · {localized(engine, definition.name, {'Open position': 'Öffnungsposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(definition.name, definition.name))}",
+            f"{layer['name']} · {localized(engine, target_name, {'Open position': 'Öffnungsposition', 'Retracted / neutral position': 'Eingefahrene Ruheposition', 'Open tilt': 'Öffnungs-Lamelle', 'Comfort position': 'Comfort-Position', 'Comfort tilt': 'Comfort-Lamelle', 'Solar position': 'Solar-Position', 'Solar tilt': 'Solar-Lamelle', 'Heat position': 'Heat-Position', 'Heat tilt': 'Heat-Lamelle', 'Night position': 'Nachtposition', 'Night slat position': 'Nacht-Lamellenposition', 'Safety position': 'Safety-Position', 'Safety tilt': 'Safety-Lamelle'}.get(target_name, target_name))}",
             definition.minimum,
             definition.maximum,
             definition.step,

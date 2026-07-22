@@ -1,9 +1,29 @@
 name: Home Assistant Nightly Matrix
 
 on:
+  workflow_call:
+    inputs:
+      candidate_ref:
+        description: Commit, branch, or tag to test
+        required: false
+        type: string
   schedule:
     - cron: '23 2 * * *'
   workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Branch or tag to test on stable and beta Home Assistant
+        required: false
+        default: develop
+  pull_request:
+    paths:
+      - 'custom_components/smart_shading/**'
+      - 'e2e/ha/**'
+      - 'scripts/build_release.py'
+      - 'scripts/check_source_syntax.py'
+      - 'scripts/ha_e2e/**'
+      - '.github/workflows/ha-nightly.yml'
+      - 'hacs.json'
 
 permissions:
   contents: read
@@ -13,23 +33,22 @@ jobs:
     name: ${{ matrix.channel }} Home Assistant
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - channel: stable
             image: ghcr.io/home-assistant/home-assistant:stable
-            experimental: false
           - channel: beta
             image: ghcr.io/home-assistant/home-assistant:beta
-            experimental: true
     env:
       HA_E2E_IMAGE: ${{ matrix.image }}
       HA_E2E_PORT: ${{ matrix.channel == 'stable' && '18123' || '18124' }}
       HA_E2E_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-nightly/${{ matrix.channel }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'

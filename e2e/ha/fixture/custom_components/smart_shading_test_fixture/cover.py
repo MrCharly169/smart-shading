@@ -31,6 +31,7 @@ async def async_setup_platform(
             FixtureCover(hass, "Advanced Vertical Blind", "advanced_vertical", supports_position=True, supports_tilt=True),
             FixtureCover(hass, "Advanced Awning", "advanced_awning", supports_position=True, supports_tilt=False),
             FixtureCover(hass, "Binary Cover", "binary_cover", supports_position=False, supports_tilt=False),
+            FixtureCover(hass, "Flow Probe Cover", "flow_probe_cover", supports_position=True, supports_tilt=False),
         ]
     )
 
