@@ -23,10 +23,14 @@ class FakeElement extends FakeNode {
     const pattern = new RegExp(`\\bdata-${attribute}(?:="([^"]*)")?`, "g");
     const nodes = [...this._innerHTML.matchAll(pattern)].map((match) => {
       const node = new FakeElement();
-      node.dataset[key] = match[1] || "";
       const tagStart = this._innerHTML.lastIndexOf("<", match.index);
       const tagEnd = this._innerHTML.indexOf(">", match.index);
       const tag = this._innerHTML.slice(tagStart, tagEnd + 1);
+      for (const dataMatch of tag.matchAll(/\bdata-([a-z0-9-]+)(?:="([^"]*)")?/g)) {
+        const dataKey = dataMatch[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+        node.dataset[dataKey] = dataMatch[2] || "";
+      }
+      node.dataset[key] = match[1] || "";
       node.value = tag.match(/\bvalue="([^"]*)"/)?.[1] || "";
       return node;
     });
@@ -427,8 +431,8 @@ if (simulationRows.length !== 2
   || !dialog.shadowRoot.innerHTML.includes("Halten wegen Eingabequalität")
   || !dialog.shadowRoot.innerHTML.includes("Fenstergruppe")
   || !dialog.shadowRoot.innerHTML.includes("Manuell gesperrt")) throw new Error("Advanced simulation did not render every sector/layer outcome with winner, target, status, and constrained cover projection");
-if (!dialog.shadowRoot.innerHTML.includes('data-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes('data-press="button.preview"')) throw new Error("Advanced dialog missed simulation or day-preview controls");
-if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
+if (!dialog.shadowRoot.innerHTML.includes('data-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || !dialog.shadowRoot.innerHTML.includes('data-preview-fallback="button.preview"')) throw new Error("Advanced dialog missed simulation or selected-date preview controls");
+if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
 if (!dialog.shadowRoot.innerHTML.includes("Höchste passende Priorität") || !dialog.shadowRoot.innerHTML.includes("Regel nicht zutreffend") || !dialog.shadowRoot.innerHTML.includes("Komfortbedingungen nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Öffnungsregel nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Eingabe gültig") || !dialog.shadowRoot.innerHTML.includes("Eingabe veraltet") || !dialog.shadowRoot.innerHTML.includes("Behangbefehl gesendet")) throw new Error("Advanced dialog did not localize the production candidate, input, command, and resolution trace codes");
@@ -471,7 +475,7 @@ for (const [code, label] of Object.entries(englishTraceLabels)) {
 dialog._hass = dialogHass;
 const previewInput = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
 const previewAction = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-day]");
-if (!previewInput || !previewAction) throw new Error("Preview controls were not queryable in the card runtime");
+if (!previewInput || !previewAction || previewAction.dataset.previewFallback !== "button.preview") throw new Error("Preview controls or their conservative fallback were not queryable in the card runtime");
 previewInput.value = "2031-06-21";
 previewInput.listeners.get("change")?.();
 previewAction.listeners.get("click")?.();

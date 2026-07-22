@@ -1017,9 +1017,21 @@ class SmartShadingV4Dialog extends HTMLElement {
       main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
       main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
       main?.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", () => this._openNightSource(element.dataset.nightSource)));
-      main?.querySelectorAll?.("[data-preview-date]").forEach((element) => element.addEventListener("change", () => {
-        this._selectedPreviewDate = element.value || localDateKey();
-      }));
+      const syncPreviewDate = (element) => {
+        const selected = element.value || localDateKey();
+        this._selectedPreviewDate = selected;
+        // Changing an input property does not change ``innerHTML``. Keep the
+        // cached markup aligned so an otherwise unchanged HA update preserves
+        // the chosen date, focus, scroll position, and dialog DOM.
+        this._mainHtml = this._mainHtml.replace(
+          /(data-preview-date value=")[^"]*(")/,
+          `$1${htmlEscape(selected)}$2`,
+        );
+      };
+      main?.querySelectorAll?.("[data-preview-date]").forEach((element) => {
+        element.addEventListener("input", () => syncPreviewDate(element));
+        element.addEventListener("change", () => syncPreviewDate(element));
+      });
       main?.querySelectorAll?.("[data-preview-day]").forEach((element) => element.addEventListener("click", () => {
         const selected = main?.querySelector?.("[data-preview-date]")?.value || this._selectedPreviewDate;
         this._previewDay(
