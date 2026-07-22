@@ -41,6 +41,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install Python test dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-test.txt
 
       - name: Resolve release metadata
         id: metadata
