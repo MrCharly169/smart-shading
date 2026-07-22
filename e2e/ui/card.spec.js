@@ -54,7 +54,7 @@ test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }
 test("real HA card binds Easy and Advanced to their config entries", async ({ page }) => {
   const errors = captureBrowserErrors(page);
   await login(page);
-  const entities = await page.evaluate(() => {
+  const entities = await page.evaluate(async () => {
     const hass = document.querySelector("home-assistant").hass;
     const rooms = Object.values(hass.states).filter(
       (state) =>
@@ -69,22 +69,33 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
     );
     if (!easy || !advanced) throw new Error("Missing Easy or Advanced room state");
     const resourceUrl = "/smart_shading/shading.js";
-    return hass.callWS({ type: "lovelace/resources/list" }).then((resources) => {
-      if (resources.some((resource) => resource.url === resourceUrl)) {
-        return null;
-      }
-      return hass.callWS({
+    const resources = await hass.callWS({ type: "lovelace/resources/list" });
+    if (!resources.some((resource) => resource.url === resourceUrl)) {
+      await hass.callWS({
         type: "lovelace/resources/create",
         res_type: "module",
         url: resourceUrl,
       });
-    }).then(() => hass.callWS({
+    }
+    const dashboardPath = "smart-shading-e2e";
+    const dashboards = await hass.callWS({ type: "lovelace/dashboards/list" });
+    if (!dashboards.some((dashboard) => dashboard.url_path === dashboardPath)) {
+      await hass.callWS({
+        type: "lovelace/dashboards/create",
+        title: "Smart Shading E2E",
+        url_path: dashboardPath,
+        show_in_sidebar: false,
+        require_admin: false,
+      });
+    }
+    await hass.callWS({
       type: "lovelace/config/save",
+      url_path: dashboardPath,
       config: {
         title: "Smart Shading E2E",
         views: [{
           title: "Smart Shading E2E",
-          path: "smart-shading-e2e",
+          path: "binding",
           cards: [
             {
               type: "custom:smart-shading-card",
@@ -99,11 +110,12 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
           ],
         }],
       },
-    })).then(() => ({ easy: easy.entity_id, advanced: advanced.entity_id }));
+    });
+    return { easy: easy.entity_id, advanced: advanced.entity_id };
   });
   expect(entities.easy).toContain("sensor.");
   expect(entities.advanced).toContain("sensor.");
-  await page.goto("/home/smart-shading-e2e");
+  await page.goto("/smart-shading-e2e/binding");
   await page.waitForFunction(() => customElements.get("smart-shading-card"));
   const cards = page.locator("smart-shading-card");
   await expect(cards).toHaveCount(2);
