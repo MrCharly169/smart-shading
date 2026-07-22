@@ -246,20 +246,12 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertNotIn('sector.get("source_valid")', runner)
         self.assertIn("wait_for_entry_removed", runner)
         self.assertIn("check_registry.py", shell)
-        self.assertEqual(shell.count("scripts/ha_e2e/check_registry.py"), 2)
-        self.assertLess(
-            shell.index(
-                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"'
-            ),
-            shell.index("docker stop --time 30"),
-        )
+        self.assertEqual(shell.count("scripts/ha_e2e/check_registry.py"), 1)
         self.assertLess(
             shell.index("docker stop --time 30"),
-            shell.index(
-                'python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"',
-                shell.index("docker stop --time 30"),
-            ),
+            shell.index('python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py"'),
         )
+        self.assertIn("clean stop flushes", shell)
 
     def test_workflow_is_separate_filtered_and_collects_evidence(self):
         workflow = (ROOT / ".github" / "workflows" / "ha-e2e.yml").read_text(

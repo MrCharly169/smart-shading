@@ -141,19 +141,14 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
 
-# Wait until Home Assistant has persisted the in-memory lifecycle result. The
-# integration removes its registry ownership synchronously; Store writes are
-# delayed and must become observable before the container can be stopped.
-python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
-  --storage-dir "${CONFIG_DIR}/.storage" \
-  --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
-  --output "${ARTIFACT_DIR}/registry-summary.json" \
-  --wait-seconds 60
-
+# Home Assistant writes registry files through delayed Store queues. Reading
+# those implementation files while HA is running can observe an older snapshot
+# even though the API lifecycle operation has completed. A clean stop flushes
+# the queues and makes the persisted registry the authoritative acceptance
+# result.
 docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
 CONTAINER_RUNNING=0
 
-# Re-read after the clean stop to prove shutdown preserved the same registry.
 python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \
   --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
