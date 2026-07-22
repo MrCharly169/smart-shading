@@ -6,7 +6,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from scripts.ha_e2e.run_scenarios import wait_for_home_assistant
+from scripts.ha_e2e.run_scenarios import (
+    assert_entry_variant,
+    wait_for_home_assistant,
+)
 
 
 ROOT = Path(__file__).parents[1]
@@ -15,6 +18,32 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_variant_contract_uses_public_layout_attribute(self):
+        class StatesApi:
+            def get(self, path):
+                self.path = path
+                return [
+                    {
+                        "entity_id": "sensor.customer_room_status",
+                        "attributes": {
+                            "smart_shading_entry_id": "easy-entry",
+                            "smart_shading_layout": "compact",
+                        },
+                    },
+                    {
+                        "entity_id": "sensor.customer_room_status_2",
+                        "attributes": {
+                            "smart_shading_entry_id": "advanced-entry",
+                            "smart_shading_layout": "detailed",
+                        },
+                    },
+                ]
+
+        api = StatesApi()
+        assert_entry_variant(api, "easy-entry", False)
+        assert_entry_variant(api, "advanced-entry", True)
+        self.assertEqual(api.path, "/api/states")
+
     def test_readiness_retries_transient_connection_reset(self):
         class ResetOnceApi:
             token = None
@@ -96,6 +125,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("scripts/build_release.py", shell)
         self.assertIn("docker restart", shell)
         self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
+        self.assertIn('chown -R "${HOST_UID}:${HOST_GID}" /config', shell)
         self.assertNotIn('cp "${STATE_FILE}"', shell)
         self.assertIn("/api/config/config_entries/flow", runner)
         self.assertIn('"setup_type": "simple"', runner)

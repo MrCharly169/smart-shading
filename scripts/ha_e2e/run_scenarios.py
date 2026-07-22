@@ -1688,15 +1688,17 @@ def assert_entry_variant(api: HomeAssistantApi, entry_id: str, advanced: bool) -
     ]
     if not matching:
         raise AssertionError(f"No entities found for config entry {entry_id}")
+    expected_layout = "detailed" if advanced else "compact"
     unexpected = [
         item["entity_id"]
         for item in matching
-        if item.get("attributes", {}).get("smart_shading_advanced_mode")
-        is not advanced
+        if item.get("attributes", {}).get("smart_shading_layout")
+        != expected_layout
     ]
     if unexpected:
         raise AssertionError(
-            f"Easy/Advanced variant leaked for {entry_id}: {unexpected}"
+            f"Expected {expected_layout!r} layout for {entry_id}; "
+            f"mismatching entities: {unexpected}"
         )
 
 

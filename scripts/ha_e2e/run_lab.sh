@@ -18,6 +18,8 @@ NETWORK_NAME="${CONTAINER_NAME}-network"
 BASE_URL="http://127.0.0.1:${HA_PORT}"
 CONTAINER_STARTED=0
 NETWORK_CREATED=0
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
 
 mkdir -p "${CONFIG_DIR}/custom_components" "${PACKAGE_DIR}" "${ARTIFACT_DIR}"
 for artifact_name in \
@@ -35,6 +37,8 @@ collect_artifacts() {
   if [[ "${CONTAINER_STARTED}" == "1" ]]; then
     docker logs "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/container.log" 2>&1
     docker inspect "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/container-inspect.json" 2>/dev/null
+    docker exec "${CONTAINER_NAME}" \
+      chown -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1
   fi
   if [[ "${NETWORK_CREATED}" == "1" ]]; then
