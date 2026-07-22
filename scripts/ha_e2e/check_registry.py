@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import time
 
 
 def storage_data(path: Path) -> dict:
@@ -12,19 +13,14 @@ def storage_data(path: Path) -> dict:
     return dict(payload.get("data") or {})
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--storage-dir", type=Path, required=True)
-    parser.add_argument("--lifecycle", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    lifecycle = json.loads(args.lifecycle.read_text(encoding="utf-8"))
+def registry_result(storage_dir: Path, lifecycle: dict) -> dict:
+    """Return lifecycle evidence from Home Assistant's persisted registries."""
     removed = str(lifecycle["removed_entry_id"])
     current = str(lifecycle["reinstalled_entry_id"])
-    entities = storage_data(args.storage_dir / "core.entity_registry").get(
+    entities = storage_data(storage_dir / "core.entity_registry").get(
         "entities", []
     )
-    devices = storage_data(args.storage_dir / "core.device_registry").get(
+    devices = storage_data(storage_dir / "core.device_registry").get(
         "devices", []
     )
     stale_entities = [
@@ -42,21 +38,43 @@ def main() -> int:
         for item in entities
         if item.get("config_entry_id") == current
     ]
-    result = {
+    return {
         "removed_entry_id": removed,
         "reinstalled_entry_id": current,
         "stale_entities": sorted(filter(None, stale_entities)),
         "stale_devices": sorted(filter(None, stale_devices)),
         "current_entities": sorted(filter(None, current_entities)),
     }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--storage-dir", type=Path, required=True)
+    parser.add_argument("--lifecycle", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--wait-seconds", type=float, default=0)
+    args = parser.parse_args()
+    lifecycle = json.loads(args.lifecycle.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + args.wait_seconds
+    while True:
+        result = registry_result(args.storage_dir, lifecycle)
+        if (
+            not result["stale_entities"]
+            and not result["stale_devices"]
+            and result["current_entities"]
+        ):
+            break
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(1)
     args.output.write_text(
         json.dumps(result, indent=2, sort_keys=True), encoding="utf-8"
     )
-    if stale_entities or stale_devices:
+    if result["stale_entities"] or result["stale_devices"]:
         raise SystemExit(
             f"Removed config entry remains in HA registries: {result}"
         )
-    if not current_entities:
+    if not result["current_entities"]:
         raise SystemExit("Reinstalled config entry has no entity registry entries")
     return 0
 

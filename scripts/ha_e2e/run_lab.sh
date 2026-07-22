@@ -131,12 +131,13 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
 
-# Home Assistant persists registry changes asynchronously. Stop it cleanly before
-# inspecting .storage so the audit sees the lifecycle's final registry state.
-docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
-CONTAINER_RUNNING=0
-
+# Home Assistant persists registry changes asynchronously. Poll its storage
+# while it runs, then stop it cleanly once the final lifecycle state is durable.
 python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \
   --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
-  --output "${ARTIFACT_DIR}/registry-summary.json"
+  --output "${ARTIFACT_DIR}/registry-summary.json" \
+  --wait-seconds 30
+
+docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
+CONTAINER_RUNNING=0

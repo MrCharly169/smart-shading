@@ -128,7 +128,16 @@ def onboard(api: HomeAssistantApi) -> str:
         authenticated=False,
     )
     api.token = str(token_response["access_token"])
-    try:
+    onboarding = api.get("/api/onboarding", authenticated=False)
+    done = {
+        str(item.get("step"))
+        for item in onboarding
+        if isinstance(item, dict) and item.get("done")
+    }
+    available = {
+        str(item.get("step")) for item in onboarding if isinstance(item, dict)
+    }
+    if "core_config" in available and "core_config" not in done:
         api.post(
             "/api/onboarding/core_config",
             {
@@ -141,11 +150,27 @@ def onboard(api: HomeAssistantApi) -> str:
                 "currency": "EUR",
             },
         )
-    except ApiError as exc:
-        # Newer Home Assistant releases can mark this step done directly from
-        # configuration.yaml. Only that already-completed response is benign.
-        if exc.status not in {400, 403}:
-            raise
+    if "integration" in available and "integration" not in done:
+        api.post(
+            "/api/onboarding/integration",
+            {
+                "client_id": client_id,
+                "redirect_uri": (
+                    f"{api.base_url}/onboarding.html?auth_callback=1"
+                ),
+            },
+        )
+    if "analytics" in available and "analytics" not in done:
+        api.post("/api/onboarding/analytics", {})
+    remaining = [
+        item
+        for item in api.get("/api/onboarding", authenticated=False)
+        if isinstance(item, dict) and not item.get("done")
+    ]
+    if remaining:
+        raise AssertionError(
+            f"Home Assistant onboarding remains incomplete: {remaining}"
+        )
     return api.token
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from scripts.ha_e2e.run_scenarios import (
     submit_options_expect_error,
     wait_for_home_assistant,
 )
+from scripts.ha_e2e.check_registry import registry_result
 
 
 ROOT = Path(__file__).parents[1]
@@ -20,6 +22,40 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_registry_audit_distinguishes_removed_and_reinstalled_entries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = Path(temp_dir)
+            (storage / "core.entity_registry").write_text(
+                json.dumps(
+                    {
+                        "data": {
+                            "entities": [
+                                {
+                                    "entity_id": "sensor.current_room",
+                                    "config_entry_id": "current-entry",
+                                }
+                            ]
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (storage / "core.device_registry").write_text(
+                json.dumps({"data": {"devices": []}}), encoding="utf-8"
+            )
+
+            result = registry_result(
+                storage,
+                {
+                    "removed_entry_id": "removed-entry",
+                    "reinstalled_entry_id": "current-entry",
+                },
+            )
+
+        self.assertEqual(result["stale_entities"], [])
+        self.assertEqual(result["stale_devices"], [])
+        self.assertEqual(result["current_entities"], ["sensor.current_room"])
+
     def test_invalid_choice_can_be_rejected_by_home_assistant_schema(self):
         class RejectingApi:
             def post(self, path, data):
@@ -152,13 +188,17 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("docker restart", shell)
         self.assertIn('docker stop --time 30 "${CONTAINER_NAME}"', shell)
         self.assertLess(
-            shell.index("docker stop --time 30"), shell.index("check_registry.py")
+            shell.index("check_registry.py"), shell.index("docker stop --time 30")
         )
+        self.assertIn("--wait-seconds 30", shell)
         self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
         self.assertIn('chown -R "${HOST_UID}:${HOST_GID}" /config', shell)
         self.assertIn("docker run --rm --entrypoint chown", shell)
         self.assertNotIn('cp "${STATE_FILE}"', shell)
         self.assertIn("/api/config/config_entries/flow", runner)
+        self.assertIn('"/api/onboarding/integration"', runner)
+        self.assertIn('"/api/onboarding/analytics"', runner)
+        self.assertIn("Home Assistant onboarding remains incomplete", runner)
         self.assertIn('"setup_type": "simple"', runner)
         self.assertIn('"setup_type": "complete"', runner)
         self.assertNotIn('expect_step(result, "compact_room")', runner)
