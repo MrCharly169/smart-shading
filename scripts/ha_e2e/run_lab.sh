@@ -12,6 +12,7 @@ PACKAGE_DIR="${LAB_DIR}/package"
 OLD_SOURCE_DIR="${LAB_DIR}/old-source"
 OLD_PACKAGE_DIR="${LAB_DIR}/old-package"
 UPGRADE_FROM_REF="${HA_E2E_UPGRADE_FROM_REF:-}"
+RELEASE_ARCHIVE="${HA_E2E_RELEASE_ARCHIVE:-}"
 STATE_FILE="${LAB_DIR}/runner-state.json"
 CONTAINER_NAME="smart-shading-e2e-${GITHUB_RUN_ID:-local}-$$"
 NETWORK_NAME="${CONTAINER_NAME}-network"
@@ -68,8 +69,16 @@ collect_artifacts() {
 }
 trap collect_artifacts EXIT
 
-python3 "${ROOT_DIR}/scripts/build_release.py" \
-  --output "${LAB_DIR}/smart_shading.zip"
+if [[ -n "${RELEASE_ARCHIVE}" ]]; then
+  if [[ ! -f "${RELEASE_ARCHIVE}" ]]; then
+    echo "HA_E2E_RELEASE_ARCHIVE does not exist: ${RELEASE_ARCHIVE}" >&2
+    exit 1
+  fi
+  cp "${RELEASE_ARCHIVE}" "${LAB_DIR}/smart_shading.zip"
+else
+  python3 "${ROOT_DIR}/scripts/build_release.py" \
+    --output "${LAB_DIR}/smart_shading.zip"
+fi
 python3 -m zipfile -e "${LAB_DIR}/smart_shading.zip" "${PACKAGE_DIR}"
 INSTALL_PACKAGE_DIR="${PACKAGE_DIR}"
 if [[ -n "${UPGRADE_FROM_REF}" ]]; then

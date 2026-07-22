@@ -23,44 +23,44 @@ concurrency:
 
 jobs:
   hacs-install-update:
-    runs-on: [self-hosted, linux, smart-shading-lab]
-    environment: ha-persistent-lab
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       RELEASE_TAG: ${{ inputs.tag }}
-      HA_PERSISTENT_SCOPE: dedicated-test-only
-      HA_PERSISTENT_URL: ${{ secrets.HA_URL }}
-      HA_PERSISTENT_TOKEN: ${{ secrets.HA_TOKEN }}
-      HA_PERSISTENT_INSTANCE_NAME: ${{ secrets.HA_INSTANCE_NAME }}
-      HA_PERSISTENT_HACS_UPDATE_ENTITY: ${{ secrets.HA_HACS_UPDATE_ENTITY }}
+      HACS_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-hacs
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Read expected integration version
-        id: version
-        run: |
-          VERSION="$(python -c 'import json; print(json.load(open("custom_components/smart_shading/manifest.json"))["version"])')"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-      - name: Install or update the published tag through isolated HACS
-        run: /opt/smart-shading-lab/bin/hacs-install-release "$RELEASE_TAG"
-      - name: Restart the isolated Home Assistant lab
-        run: /opt/smart-shading-lab/bin/restart-home-assistant
-      - name: Verify HACS version and integration lifecycle
+      - name: Verify HACS selects the published tag and download its source
         env:
-          HA_PERSISTENT_EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: >-
-          python scripts/ha_e2e/run_persistent_lab.py
-          --phase after-restart
-          --output artifacts/ha-hacs/qualification.json
+          python scripts/ha_e2e/check_hacs_release.py
+          --repository "${{ github.repository }}"
+          --tag "$RELEASE_TAG"
+          --output "$HACS_ARTIFACT_DIR/recognition.json"
+          --install-archive "$HACS_ARTIFACT_DIR/smart_shading-$RELEASE_TAG.zip"
+      - name: Validate the exact tag with the official HACS backend
+        uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa
+        env:
+          REPOSITORY_REF: ${{ inputs.tag }}
+        with:
+          category: integration
+          repository: ${{ github.repository }}
+          comment: 'false'
+      - name: Run the HACS-resolved release in a fresh Home Assistant
+        env:
+          HA_E2E_PORT: '18135'
+          HA_E2E_RELEASE_ARCHIVE: ${{ env.HACS_ARTIFACT_DIR }}/smart_shading-${{ env.RELEASE_TAG }}.zip
+          HA_E2E_ARTIFACT_DIR: ${{ env.HACS_ARTIFACT_DIR }}/home-assistant
+        run: scripts/ha_e2e/run_lab.sh
       - name: Upload HACS qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ha-hacs-${{ env.RELEASE_TAG }}
           path: artifacts/ha-hacs
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
