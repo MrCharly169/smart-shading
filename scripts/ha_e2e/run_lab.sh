@@ -17,6 +17,7 @@ CONTAINER_NAME="smart-shading-e2e-${GITHUB_RUN_ID:-local}-$$"
 NETWORK_NAME="${CONTAINER_NAME}-network"
 BASE_URL="http://127.0.0.1:${HA_PORT}"
 CONTAINER_STARTED=0
+CONTAINER_RUNNING=0
 NETWORK_CREATED=0
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
@@ -37,8 +38,14 @@ collect_artifacts() {
   if [[ "${CONTAINER_STARTED}" == "1" ]]; then
     docker logs "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/container.log" 2>&1
     docker inspect "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/container-inspect.json" 2>/dev/null
-    docker exec "${CONTAINER_NAME}" \
-      chown -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
+    if [[ "${CONTAINER_RUNNING}" == "1" ]]; then
+      docker exec "${CONTAINER_NAME}" \
+        chown -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
+    else
+      docker run --rm --entrypoint chown \
+        -v "${CONFIG_DIR}:/config" \
+        "${HA_IMAGE}" -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
+    fi
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1
   fi
   if [[ "${NETWORK_CREATED}" == "1" ]]; then
@@ -89,6 +96,7 @@ docker run -d \
   -v "${CONFIG_DIR}:/config" \
   "${HA_IMAGE}" >/dev/null
 CONTAINER_STARTED=1
+CONTAINER_RUNNING=1
 
 python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --base-url "${BASE_URL}" \
@@ -122,6 +130,11 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --scenario "${SCENARIO}" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"
+
+# Home Assistant persists registry changes asynchronously. Stop it cleanly before
+# inspecting .storage so the audit sees the lifecycle's final registry state.
+docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
+CONTAINER_RUNNING=0
 
 python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \

@@ -150,8 +150,13 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         )
         self.assertIn("scripts/build_release.py", shell)
         self.assertIn("docker restart", shell)
+        self.assertIn('docker stop --time 30 "${CONTAINER_NAME}"', shell)
+        self.assertLess(
+            shell.index("docker stop --time 30"), shell.index("check_registry.py")
+        )
         self.assertIn("--tmpfs /run:rw,exec,nosuid,size=64m", shell)
         self.assertIn('chown -R "${HOST_UID}:${HOST_GID}" /config', shell)
+        self.assertIn("docker run --rm --entrypoint chown", shell)
         self.assertNotIn('cp "${STATE_FILE}"', shell)
         self.assertIn("/api/config/config_entries/flow", runner)
         self.assertIn('"setup_type": "simple"', runner)
