@@ -47,7 +47,7 @@ test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }
     page.getByRole("textbox", { name: "House or area name*", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Setup type *", { exact: true })).toBeVisible();
-  await expect(page.locator("ha-dialog:visible, ha-md-dialog:visible")).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 
@@ -103,7 +103,7 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   });
   expect(entities.easy).toContain("sensor.");
   expect(entities.advanced).toContain("sensor.");
-  await page.goto("/lovelace/smart-shading-e2e");
+  await page.goto("/home/smart-shading-e2e");
   await page.waitForFunction(() => customElements.get("smart-shading-card"));
   const cards = page.locator("smart-shading-card");
   await expect(cards).toHaveCount(2);

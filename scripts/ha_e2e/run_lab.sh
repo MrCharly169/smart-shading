@@ -137,7 +137,7 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/check_registry.py" \
   --storage-dir "${CONFIG_DIR}/.storage" \
   --lifecycle "${ARTIFACT_DIR}/lifecycle-final.json" \
   --output "${ARTIFACT_DIR}/registry-summary.json" \
-  --wait-seconds 30
+  --wait-seconds 60
 
 docker stop --time 30 "${CONTAINER_NAME}" >/dev/null
 CONTAINER_RUNNING=0
