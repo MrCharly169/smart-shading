@@ -211,6 +211,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("scripts/build_release.py", shell)
+        self.assertIn("HA_E2E_RELEASE_ARCHIVE", shell)
         self.assertIn("docker restart", shell)
         self.assertIn('docker stop --time 30 "${CONTAINER_NAME}"', shell)
         self.assertIn("--wait-seconds 60", shell)
@@ -339,6 +340,19 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         )
         self.assertIn("uses: ./.github/workflows/ha-hacs-e2e.yml", release)
         self.assertIn("needs: release", release)
+
+    def test_hacs_qualification_is_hosted_and_runs_the_public_tag_in_real_ha(self):
+        workflow = (
+            ROOT / ".github" / "workflows" / "ha-hacs-e2e.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("runs-on: ubuntu-latest", workflow)
+        self.assertNotIn("runs-on: [self-hosted", workflow)
+        self.assertIn("hacs/action@", workflow)
+        self.assertIn("check_hacs_release.py", workflow)
+        self.assertIn("HA_E2E_RELEASE_ARCHIVE", workflow)
+        self.assertIn("scripts/ha_e2e/run_lab.sh", workflow)
+        self.assertNotIn("ref: ${{ inputs.tag }}", workflow)
+        self.assertNotIn("HA_PERSISTENT_", workflow)
 
     def test_wizard_coverage_contract_owns_every_customer_surface(self):
         coverage = json.loads(

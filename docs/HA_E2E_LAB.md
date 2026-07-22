@@ -72,7 +72,7 @@ This avoids an unbounded Cartesian product while preserving the intended guarant
 - `ha-upgrade-e2e.yml` runs for relevant pull requests, installs the newest published tag first and upgrades it to the candidate.
 - `ha-nightly.yml` runs relevant pull requests on stable and beta HA as equally required jobs. Scheduled and manual runs test the selected workflow commit unless a candidate branch or tag is supplied explicitly.
 - `ha-persistent-lab.yml` targets only a protected self-hosted runner labelled `smart-shading-lab`.
-- `ha-hacs-e2e.yml` is called by the publishing workflow after every release and installs that exact tag through HACS in the isolated persistent lab. Keeping it in the same workflow avoids GitHub's suppression of workflows recursively triggered by the normal Actions token.
+- `ha-hacs-e2e.yml` is called by the publishing workflow after every release. On a GitHub-hosted runner it verifies that the official HACS backend accepts the repository, checks that HACS selects the exact public stable or prerelease tag, downloads its public source archive, and runs that artifact through the complete fresh-Home-Assistant lifecycle.
 
 The release workflow requires Stable and Beta HA, clean lifecycle, real browser
 and previous-release upgrade gates before publishing. HACS qualification
@@ -81,7 +81,11 @@ GitHub tag.
 
 Artifacts retain HA/container logs, generated configuration, sanitized config entries, entity/device registries, recorded calls, snapshots, scenario/coverage results, JUnit, screenshots, traces and videos. The disposable access token stays only in the temporary lab directory.
 
-## Persistent runner prerequisites
+## Optional persistent runner prerequisites
+
+Published-release HACS qualification does not require a self-hosted runner. The
+persistent workflow is an additional long-lived upgrade check that can be used
+when a dedicated runner and disposable Home Assistant instance are available.
 
 The dedicated runner must provide these root-owned adapters:
 

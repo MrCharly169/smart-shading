@@ -32,7 +32,9 @@ jobs:
       - name: Validate all source and workflow syntax
         run: python scripts/check_source_syntax.py
       - name: Frontend runtime regression test
-        run: node tests/test_card_runtime.js
+        run: |
+          node tests/test_card_runtime.js
+          node tests/test_browser_error_attribution.js
       - name: Validate release structure
         run: python scripts/build_release.py --check
       - name: Build installable archive

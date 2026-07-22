@@ -1,4 +1,7 @@
 const { test, expect } = require("@playwright/test");
+const {
+  captureSmartShadingBrowserErrors,
+} = require("./browser-errors");
 
 const USERNAME = process.env.HA_E2E_USERNAME || "e2e-owner";
 const PASSWORD =
@@ -22,17 +25,8 @@ async function login(page) {
   });
 }
 
-function captureBrowserErrors(page) {
-  const errors = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(String(error)));
-  return errors;
-}
-
 test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }) => {
-  const errors = captureBrowserErrors(page);
+  const errors = captureSmartShadingBrowserErrors(page);
   await login(page);
   await page.goto("/config/integrations/dashboard/add?domain=smart_shading");
   await expect(
@@ -52,7 +46,7 @@ test("real Home Assistant opens the Smart Shading setup dialog", async ({ page }
 });
 
 test("real HA card binds Easy and Advanced to their config entries", async ({ page }) => {
-  const errors = captureBrowserErrors(page);
+  const errors = captureSmartShadingBrowserErrors(page);
   await login(page);
   const entities = await page.evaluate(async () => {
     const hass = document.querySelector("home-assistant").hass;
