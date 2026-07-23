@@ -12,6 +12,7 @@ PACKAGE_DIR="${LAB_DIR}/package"
 OLD_SOURCE_DIR="${LAB_DIR}/old-source"
 OLD_PACKAGE_DIR="${LAB_DIR}/old-package"
 UPGRADE_FROM_REF="${HA_E2E_UPGRADE_FROM_REF:-}"
+UPGRADE_BASELINE_VERSION=""
 RELEASE_ARCHIVE="${HA_E2E_RELEASE_ARCHIVE:-}"
 STATE_FILE="${LAB_DIR}/runner-state.json"
 CONTAINER_NAME="smart-shading-e2e-${GITHUB_RUN_ID:-local}-$$"
@@ -84,6 +85,11 @@ INSTALL_PACKAGE_DIR="${PACKAGE_DIR}"
 if [[ -n "${UPGRADE_FROM_REF}" ]]; then
   mkdir -p "${OLD_SOURCE_DIR}" "${OLD_PACKAGE_DIR}"
   git archive "${UPGRADE_FROM_REF}" | tar -x -C "${OLD_SOURCE_DIR}"
+  UPGRADE_BASELINE_VERSION="$(
+    python3 -c \
+      'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' \
+      "${OLD_SOURCE_DIR}/custom_components/smart_shading/manifest.json"
+  )"
   python3 "${OLD_SOURCE_DIR}/scripts/build_release.py" \
     --output "${LAB_DIR}/smart_shading-old.zip"
   python3 -m zipfile -e "${LAB_DIR}/smart_shading-old.zip" "${OLD_PACKAGE_DIR}"
@@ -113,6 +119,7 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --base-url "${BASE_URL}" \
   --phase bootstrap \
   --bootstrap-mode "${BOOTSTRAP_MODE}" \
+  --upgrade-baseline-version "${UPGRADE_BASELINE_VERSION}" \
   --scenario "${SCENARIO}" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"

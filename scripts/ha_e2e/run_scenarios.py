@@ -548,6 +548,12 @@ def advanced_execution_settings_section(
     return {"execution_settings": advanced_execution_settings_payload()}
 
 
+def baseline_uses_legacy_wizard(version: str) -> bool:
+    """Return whether an upgrade baseline predates the CalVer wizard."""
+    normalized = str(version or "").strip().removeprefix("v")
+    return not normalized.startswith("20")
+
+
 def create_advanced_entry(
     api: HomeAssistantApi,
     scenario: dict[str, Any],
@@ -2990,6 +2996,7 @@ def run_upgrade_bootstrap(
     scenario: dict[str, Any],
     state_file: Path,
     output_dir: Path,
+    baseline_version: str,
 ) -> None:
     """Create representative state with the published pre-upgrade version."""
     token = onboard(api)
@@ -3001,8 +3008,9 @@ def run_upgrade_bootstrap(
     wait_for_entry_loaded(api, entry_id)
     wait_for_smart_shading_entities(api, entry_id)
     assert_entry_variant(api, entry_id, False)
+    legacy_compatible = baseline_uses_legacy_wizard(baseline_version)
     advanced_entry_id = create_advanced_entry(
-        api, scenario, legacy_compatible=True
+        api, scenario, legacy_compatible=legacy_compatible
     )
     wait_for_entry_loaded(api, advanced_entry_id)
     wait_for_smart_shading_entities(api, advanced_entry_id)
@@ -3017,6 +3025,7 @@ def run_upgrade_bootstrap(
                 "advanced_entry_id": advanced_entry_id,
                 "entity_ids": entity_ids,
                 "upgrade_baseline": True,
+                "upgrade_baseline_version": baseline_version,
             }
         ),
         encoding="utf-8",
@@ -3029,7 +3038,12 @@ def run_upgrade_bootstrap(
         entity_ids,
         [],
         api.get("/api/config"),
-        {"upgrade_baseline": "legacy-compatible"},
+        {
+            "upgrade_baseline": (
+                "legacy-compatible" if legacy_compatible else "calver"
+            ),
+            "upgrade_baseline_version": baseline_version,
+        },
     )
 
 
@@ -3158,6 +3172,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--bootstrap-mode", choices=("full", "upgrade"), default="full"
     )
+    parser.add_argument("--upgrade-baseline-version", default="")
     return parser.parse_args()
 
 
@@ -3174,12 +3189,18 @@ def main() -> int:
     error: str | None = None
     try:
         if args.phase == "bootstrap":
-            bootstrap = (
-                run_upgrade_bootstrap
-                if args.bootstrap_mode == "upgrade"
-                else run_bootstrap
-            )
-            bootstrap(api, scenario, args.state_file, args.output_dir)
+            if args.bootstrap_mode == "upgrade":
+                run_upgrade_bootstrap(
+                    api,
+                    scenario,
+                    args.state_file,
+                    args.output_dir,
+                    args.upgrade_baseline_version,
+                )
+            else:
+                run_bootstrap(
+                    api, scenario, args.state_file, args.output_dir
+                )
         else:
             run_restart(api, scenario, saved_state, args.output_dir)
     except Exception as exc:

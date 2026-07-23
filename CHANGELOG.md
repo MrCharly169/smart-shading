@@ -15,6 +15,9 @@
   byte-for-byte
 - use a new release tag so HACS and browser caches cannot retain an earlier
   package that was published under the reused `v2026.7.0` tag
+- make the upgrade laboratory select the setup dialect of its actual baseline,
+  so CalVer-to-CalVer upgrades are tested through the matching wizard instead
+  of submitting fields from the retired 4.x flow
 
 
 ## 2026.7.0 - 2026-07-23

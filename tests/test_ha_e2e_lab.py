@@ -12,6 +12,7 @@ from scripts.ha_e2e.run_scenarios import (
     advanced_execution_settings_payload,
     advanced_execution_settings_section,
     assert_entry_variant,
+    baseline_uses_legacy_wizard,
     duplicate_wizard_setting_owners,
     is_retired_legacy_optional_entity,
     submit_options_expect_error,
@@ -73,6 +74,12 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertEqual(
             advanced_execution_settings_section(legacy_compatible=True), {}
         )
+
+    def test_upgrade_wizard_matches_the_selected_baseline_generation(self):
+        self.assertTrue(baseline_uses_legacy_wizard("4.6.2"))
+        self.assertTrue(baseline_uses_legacy_wizard("v5.0.0-beta.0"))
+        self.assertFalse(baseline_uses_legacy_wizard("2026.7.0"))
+        self.assertFalse(baseline_uses_legacy_wizard("v2026.7.1"))
 
     def test_advanced_features_use_focused_automation_submissions(self):
         runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
@@ -414,10 +421,14 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             runner,
         )
         self.assertIn("run_upgrade_bootstrap", runner)
-        self.assertIn("legacy_compatible=True", runner)
+        self.assertIn("baseline_uses_legacy_wizard", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)
         self.assertIn("entity IDs disappeared during upgrade", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)
+        self.assertIn(
+            '--upgrade-baseline-version "${UPGRADE_BASELINE_VERSION}"',
+            shell,
+        )
         self.assertIn("wait_for_config_entries.py", shell)
         self.assertIn("run_interaction_matrix", runner)
         self.assertIn('"set_entry_enabled"', runner)
