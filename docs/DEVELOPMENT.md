@@ -59,8 +59,9 @@ manually.
 1. Merge each reviewed feature or fix into `develop` and keep
    `CHANGELOG.md → Unreleased` current.
 2. Run **Actions → Prepare Release → Run workflow** from the default branch.
-3. Choose `beta` with an `X.Y.Z-beta.N` version or `stable` with an `X.Y.Z`
-   version. Do not include a leading `v`.
+3. Choose `beta` with a `YYYY.M.PATCHbN` version or `stable` with a
+   `YYYY.M.PATCH` version. Do not include a leading `v`. Months are not
+   zero-padded; the initial monthly stable uses patch `.0`.
 4. Review the generated draft pull request, including its version, changelog,
    documentation, migration impact, and validation checks.
 5. Mark the pull request ready and merge it only after review.
@@ -80,24 +81,24 @@ published release passes HACS qualification.
 
 ### Publish a reviewed release
 
-After the preparation pull request is merged, run
-**Actions → Release → Run workflow** on the merged target branch:
+Merging the preparation pull request starts **Release** automatically:
 
-- Beta: branch `develop`, channel `beta`, exact beta manifest version.
-- Stable: branch `main`, channel `stable`, exact stable manifest version.
+- a manifest-version change on `develop` selects Beta;
+- a manifest-version change on `main` selects Stable.
 
-The publication workflow repeats validation and blocks on both Stable and Beta
-Home Assistant, the clean lifecycle, browser/Card, and previous-release upgrade
-labs before it creates the immutable tag. The default upgrade baseline is the
-newest stable release tag, not a prerelease. It then builds the recovery ZIP and
-publishes either a GitHub prerelease or the latest stable release. The release
-body comes directly from the matching changelog section. HACS qualification
-runs after publication and is a mandatory final acceptance gate; do not close
-the delivery issue until it succeeds.
+The manual workflow entry is a guarded retry and requires the exact manifest
+version. The publication workflow repeats validation and blocks on both Stable
+and Beta Home Assistant, the clean lifecycle, browser/Card, and
+previous-release upgrade labs before it creates the immutable tag. The default
+upgrade baseline is the newest stable release tag, not a prerelease. It then
+builds the recovery ZIP and publishes either a GitHub prerelease or the latest
+stable release. The release body comes directly from the matching changelog
+section. HACS qualification runs after publication and is a mandatory final
+acceptance gate; do not close the delivery issue until it succeeds.
 After a stable publication, synchronize `main` back into `develop` before the
 next development cycle.
 
-Issue #79 adds the major-version-specific acceptance, migration, evidence, and
+Issue #79 adds the release-specific acceptance, migration, evidence, and
 HACS sign-off checklist in
 [docs/ISSUE_79_RELEASE_ACCEPTANCE.md](ISSUE_79_RELEASE_ACCEPTANCE.md).
 

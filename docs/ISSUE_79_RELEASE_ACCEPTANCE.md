@@ -1,9 +1,10 @@
-# Issue #79 major-release acceptance
+# Issue #79 release acceptance
 
 This document is the release acceptance record for Issue #79, “Next major
 version: strengthen the decision engine, movement execution, diagnostics, and
-simulation.” It applies to the first stable major release, expected to be
-`5.0.0`, and to every `5.0.0-beta.N` candidate leading to it.
+simulation.” It applies to the first public stable release, expected to be
+`2026.7.0`. The legacy `5.0.0-beta.0` candidate remains part of its evidence;
+future candidates use the calendar-version format.
 
 No item may be silently deferred. A deferral needs a documented maintainer
 decision, an issue link, an explicit compatibility impact, and a revised
@@ -12,12 +13,12 @@ acceptance owner. A failed gate means the candidate is not accepted.
 ## Release intent and version discipline
 
 - Work is integrated and qualified on `develop` first.
-- Beta candidates use `5.0.0-beta.N` and are prepared and published only from
-  `develop`.
-- The stable candidate uses `5.0.0` and is prepared and published only from
+- Beta candidates use `YYYY.M.PATCHbN` and are prepared and published only
+  from `develop`.
+- The stable candidate uses `2026.7.0` and is prepared and published only from
   `main`, after the release workflow integrates the tested `develop` state.
 - Versions are entered into GitHub Actions without the leading `v`; published
-  tags use it, for example `v5.0.0`.
+  tags use it, for example `v2026.7.0`.
 - Tags and releases are immutable. Do not repair a failed publication by
   changing a tag; publish a new version after the root cause is fixed.
 - `manifest.json` and the dated matching `CHANGELOG.md` section are the only
@@ -49,10 +50,11 @@ regression receives a focused automated test and a row in
 
 ## Migration acceptance
 
-The major migration is accepted only when an upgrade from the latest stable
+The migration is accepted only when an upgrade from the latest stable
 release, currently `v4.6.2`, succeeds. The automatic upgrade workflow selects
-the highest normal-release tag and excludes every `-beta.N` tag; this prevents
-`v4.6.2-beta.9` from accidentally becoming the major-release baseline.
+the highest normal-release tag and excludes both legacy `-beta.N` and current
+`bN` prerelease tags; this prevents `v4.6.2-beta.9` from accidentally becoming
+the release baseline.
 
 The migration evidence must show that it preserves or explicitly and safely
 migrates:
@@ -85,17 +87,17 @@ node tests/test_browser_error_attribution.js
 python scripts/build_release.py --check
 ```
 
-After the candidate has the prepared `5.0.0` manifest and dated changelog
+After the candidate has the prepared `2026.7.0` manifest and dated changelog
 section, also verify the exact release contract and generated release notes:
 
 ```bash
 python scripts/validate_release_channel.py \
-  --channel stable --branch main --confirm-version 5.0.0
-python scripts/build_release.py --check --tag v5.0.0
+  --channel stable --branch main --confirm-version 2026.7.0
+python scripts/build_release.py --check --tag v2026.7.0
 python scripts/build_release.py \
-  --tag v5.0.0 --output /tmp/smart_shading-v5.0.0.zip
+  --tag v2026.7.0 --output /tmp/smart_shading-v2026.7.0.zip
 python scripts/release_changelog.py notes \
-  --version 5.0.0 --output /tmp/smart_shading-v5.0.0-notes.md
+  --version 2026.7.0 --output /tmp/smart_shading-v2026.7.0-notes.md
 ```
 
 With Docker and unused loopback ports available, collect real Home Assistant
@@ -169,20 +171,22 @@ notes, release ZIP contents, and the absence of unresolved review feedback.
 
 ## Publication and post-publication HACS acceptance
 
-1. Run **Prepare Release** with `stable` and `5.0.0` from the default branch.
-   It creates `release/v5.0.0`, merges the tested `develop` state into a
+1. Run **Prepare Release** with `stable` and `2026.7.0` from the default branch.
+   It creates `release/v2026.7.0`, merges the tested `develop` state into a
    reviewable promotion PR, generates the dated changelog section, and
    dispatches normal validation.
 2. Review and deliberately merge that PR into `main`. Verify that the Actions
-   setting allowing workflow-created pull requests remains enabled.
-3. Run **Release** on `main`, select `stable`, and type the exact `5.0.0`
-   confirmation. The workflow may create `v5.0.0`, the attached recovery ZIP,
-   and the latest GitHub release only after every pre-publication gate passes.
+   setting allowing workflow-created pull requests remains enabled. The
+   manifest-version change on `main` starts **Release** automatically.
+3. Use the manual **Release** entry only to retry an infrastructure failure,
+   selecting `main` and typing the exact `2026.7.0` confirmation. The workflow
+   may create `v2026.7.0`, the attached recovery ZIP, and the latest GitHub
+   release only after every pre-publication gate passes.
 4. Treat `ha-hacs-qualification` as a mandatory final acceptance gate. It runs
    after publication because HACS can only resolve a published tag. It must
    show that the official HACS backend accepts the public repository, selects
-   exactly `v5.0.0`, downloads the public source archive whose manifest is
-   `5.0.0`, and completes a fresh real-Home-Assistant lifecycle from that
+   exactly `v2026.7.0`, downloads the public source archive whose manifest is
+   `2026.7.0`, and completes a fresh real-Home-Assistant lifecycle from that
    artifact.
 5. Inspect the retained HACS artifact and mark the release accepted only after
    that job succeeds. Then synchronize `main` back to `develop` and close

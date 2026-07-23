@@ -1,18 +1,17 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - custom_components/smart_shading/manifest.json
   workflow_dispatch:
     inputs:
-      channel:
-        description: Release channel
-        required: true
-        type: choice
-        options:
-          - beta
-          - stable
       confirm_version:
-        description: Type the exact version from manifest.json (without v)
-        required: true
+        description: For a manual retry, type the exact manifest version (without v)
+        required: false
         type: string
 
 permissions:
@@ -23,27 +22,81 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-metadata:
+    name: Resolve branch release channel
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      channel: ${{ steps.release.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Resolve branch and manifest version
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/smart_shading/manifest.json"))["version"])')"
+          CHANNEL=""
+          if [[ "$BRANCH" == "develop" && "$VERSION" =~ ^20[0-9]{2}\.([1-9]|1[0-2])\.[0-9]+b[0-9]+$ ]]; then
+            CHANNEL="beta"
+          elif [[ "$BRANCH" == "main" && "$VERSION" =~ ^20[0-9]{2}\.([1-9]|1[0-2])\.[0-9]+$ ]]; then
+            CHANNEL="stable"
+          fi
+
+          if [[ -z "$CHANNEL" ]]; then
+            if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              echo "::error::The manifest version does not match the release channel for $BRANCH."
+              exit 1
+            fi
+            echo "::notice::The manifest change synchronizes branch state and is not a release."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "channel=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
   ha-e2e:
     name: Required real Home Assistant gate
+    needs: release-metadata
+    if: needs.release-metadata.outputs.publish == 'true'
     uses: ./.github/workflows/ha-e2e.yml
 
   ha-ui-e2e:
     name: Required real Home Assistant browser gate
+    needs: release-metadata
+    if: needs.release-metadata.outputs.publish == 'true'
     uses: ./.github/workflows/ha-ui-e2e.yml
 
   ha-upgrade-e2e:
     name: Required previous-release upgrade gate
+    needs: release-metadata
+    if: needs.release-metadata.outputs.publish == 'true'
     uses: ./.github/workflows/ha-upgrade-e2e.yml
 
   ha-matrix-e2e:
     name: Required stable and beta Home Assistant gate
+    needs: release-metadata
+    if: needs.release-metadata.outputs.publish == 'true'
     uses: ./.github/workflows/ha-nightly.yml
     with:
       candidate_ref: ${{ github.sha }}
 
   release:
-    name: Publish ${{ inputs.channel }} release
-    needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e, ha-matrix-e2e]
+    name: Publish branch release
+    needs:
+      - release-metadata
+      - ha-e2e
+      - ha-ui-e2e
+      - ha-upgrade-e2e
+      - ha-matrix-e2e
+    if: needs.release-metadata.outputs.publish == 'true'
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.metadata.outputs.tag }}
@@ -69,11 +122,14 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Validate selected channel, branch, version, and changelog
+        env:
+          CHANNEL: ${{ needs.release-metadata.outputs.channel }}
+          CONFIRM_VERSION: ${{ github.event_name == 'push' && steps.metadata.outputs.version || inputs.confirm_version }}
         run: >-
           python scripts/validate_release_channel.py
-          --channel "${{ inputs.channel }}"
+          --channel "$CHANNEL"
           --branch "${{ github.ref_name }}"
-          --confirm-version "${{ inputs.confirm_version }}"
+          --confirm-version "$CONFIRM_VERSION"
 
       - name: Reject an existing release tag
         env:
@@ -117,8 +173,8 @@ jobs:
           tag_name: ${{ steps.metadata.outputs.tag }}
           target_commitish: ${{ github.sha }}
           name: Smart Shading ${{ steps.metadata.outputs.tag }}
-          prerelease: ${{ inputs.channel == 'beta' }}
-          make_latest: ${{ inputs.channel == 'stable' }}
+          prerelease: ${{ github.ref_name == 'develop' }}
+          make_latest: ${{ github.ref_name == 'main' }}
           body_path: dist/release-notes.md
           fail_on_unmatched_files: true
           files: dist/smart_shading-${{ steps.metadata.outputs.tag }}.zip

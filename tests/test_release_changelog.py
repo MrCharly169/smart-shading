@@ -9,7 +9,7 @@ from scripts import release_changelog
 
 
 class ReleaseChangelogTests(unittest.TestCase):
-    def _root(self, changelog: str, version: str = "4.6.0-beta.2") -> Path:
+    def _root(self, changelog: str, version: str = "2026.8.0b0") -> Path:
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
@@ -27,14 +27,14 @@ class ReleaseChangelogTests(unittest.TestCase):
             "# Changelog\n\n"
             "## Unreleased\n\n"
             "### Fixed\n\n- Manual pause synchronization.\n\n"
-            "## 4.6.0-beta.2 - 2026-07-16\n\n- Earlier change.\n"
+            "## 2026.8.0b0 - 2026-07-16\n\n- Earlier change.\n"
         )
 
         prepared = release_changelog.prepare_release(
             "beta",
             "develop",
             "develop",
-            "4.6.0-beta.3",
+            "2026.8.0b1",
             "2026-07-17",
             root=root,
         )
@@ -45,15 +45,15 @@ class ReleaseChangelogTests(unittest.TestCase):
             )
         )
         changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertEqual(manifest["version"], "4.6.0-beta.3")
+        self.assertEqual(manifest["version"], "2026.8.0b1")
         self.assertEqual(prepared.source_branch, "develop")
         self.assertEqual(prepared.target_branch, "develop")
         self.assertIn(
-            "## Unreleased\n\n\n## 4.6.0-beta.3 - 2026-07-17\n",
+            "## Unreleased\n\n\n## 2026.8.0b1 - 2026-07-17\n",
             changelog,
         )
         self.assertEqual(
-            release_changelog.extract_release_notes(changelog, "4.6.0-beta.3"),
+            release_changelog.extract_release_notes(changelog, "2026.8.0b1"),
             "### Fixed\n\n- Manual pause synchronization.",
         )
 
@@ -61,39 +61,63 @@ class ReleaseChangelogTests(unittest.TestCase):
         root = self._root(
             "# Changelog\n\n"
             "## Unreleased\n\n"
-            "## 4.6.0-beta.4 - 2026-07-17\n\n"
+            "## 2026.8.0b1 - 2026-07-17\n\n"
             "### Fixed\n\n- Latest beta fix.\n\n"
-            "## 4.6.0-beta.3 - 2026-07-16\n\n"
+            "## 2026.8.0b0 - 2026-07-16\n\n"
             "### Added\n\n- Earlier beta feature.\n\n"
-            "## 4.5.0 - 2026-07-01\n\n- Previous stable release.\n\n"
-            "## 4.5.1-beta.1 - 2026-06-30\n\n- Older beta.\n",
-            version="4.6.0-beta.4",
+            "## 2026.7.0 - 2026-07-01\n\n- Previous stable release.\n\n"
+            "## 2026.7.0b1 - 2026-06-30\n\n- Older beta.\n",
+            version="2026.8.0b1",
         )
 
         prepared = release_changelog.prepare_release(
             "stable",
             "develop",
             "main",
-            "4.6.0",
+            "2026.8.0",
             "2026-07-18",
             root=root,
         )
 
         changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
-        notes = release_changelog.extract_release_notes(changelog, "4.6.0")
+        notes = release_changelog.extract_release_notes(changelog, "2026.8.0")
         self.assertEqual(prepared.source_branch, "develop")
         self.assertEqual(prepared.target_branch, "main")
         self.assertIn("### Included beta release history", notes)
-        self.assertLess(notes.index("#### 4.6.0-beta.4"), notes.index("#### 4.6.0-beta.3"))
+        self.assertLess(notes.index("#### 2026.8.0b1"), notes.index("#### 2026.8.0b0"))
         self.assertIn("##### Fixed", notes)
         self.assertIn("##### Added", notes)
         self.assertNotIn("Older beta", notes)
-        self.assertIn("## 4.6.0-beta.4 - 2026-07-17", changelog)
+        self.assertIn("## 2026.8.0b1 - 2026-07-17", changelog)
+
+    def test_first_calver_stable_aggregates_legacy_beta_history(self):
+        root = self._root(
+            "# Changelog\n\n"
+            "## Unreleased\n\n- Calendar release process.\n\n"
+            "## 5.0.0-beta.0 - 2026-07-22\n\n- Issue 79 candidate.\n\n"
+            "## 4.6.2 - 2026-07-21\n\n- Previous stable.\n",
+            version="5.0.0-beta.0",
+        )
+
+        release_changelog.prepare_release(
+            "stable",
+            "develop",
+            "main",
+            "2026.7.0",
+            "2026-07-23",
+            root=root,
+        )
+
+        changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+        notes = release_changelog.extract_release_notes(changelog, "2026.7.0")
+        self.assertIn("Calendar release process.", notes)
+        self.assertIn("#### 5.0.0-beta.0", notes)
+        self.assertIn("Issue 79 candidate.", notes)
 
     def test_beta_rejects_empty_unreleased_without_writing_files(self):
         root = self._root(
             "# Changelog\n\n## Unreleased\n\n"
-            "## 4.6.0-beta.2 - 2026-07-16\n\n- Earlier.\n"
+            "## 2026.8.0b0 - 2026-07-16\n\n- Earlier.\n"
         )
         manifest_path = root / "custom_components/smart_shading/manifest.json"
         changelog_path = root / "CHANGELOG.md"
@@ -105,7 +129,7 @@ class ReleaseChangelogTests(unittest.TestCase):
                 "beta",
                 "develop",
                 "develop",
-                "4.6.0-beta.3",
+                "2026.8.0b1",
                 "2026-07-17",
                 root=root,
             )
@@ -116,11 +140,11 @@ class ReleaseChangelogTests(unittest.TestCase):
     def test_channel_rejects_wrong_source_target_and_version(self):
         root = self._root("# Changelog\n\n## Unreleased\n\n- Change.\n")
         cases = (
-            ("beta", "main", "develop", "4.6.0-beta.3", "must use develop"),
-            ("beta", "develop", "main", "4.6.0-beta.3", "must target develop"),
-            ("stable", "develop", "develop", "4.6.0", "must target main"),
-            ("stable", "develop", "main", "4.6.0-beta.3", "invalid for stable"),
-            ("beta", "develop", "develop", "v4.6.0-beta.3", "invalid for beta"),
+            ("beta", "main", "develop", "2026.8.0b1", "must use develop"),
+            ("beta", "develop", "main", "2026.8.0b1", "must target develop"),
+            ("stable", "develop", "develop", "2026.8.0", "must target main"),
+            ("stable", "develop", "main", "2026.8.0b1", "invalid for stable"),
+            ("beta", "develop", "develop", "v2026.8.0b1", "invalid for beta"),
         )
         for channel, source, target, version, error in cases:
             with self.subTest(channel=channel, source=source, target=target, version=version):
@@ -137,14 +161,14 @@ class ReleaseChangelogTests(unittest.TestCase):
     def test_invalid_date_and_duplicate_version_are_rejected(self):
         root = self._root(
             "# Changelog\n\n## Unreleased\n\n- Change.\n\n"
-            "## 4.6.0-beta.3 - 2026-07-16\n\n- Existing.\n"
+            "## 2026.8.0b1 - 2026-07-16\n\n- Existing.\n"
         )
         with self.assertRaisesRegex(RuntimeError, "invalid; expected YYYY-MM-DD"):
             release_changelog.prepare_release(
                 "beta",
                 "develop",
                 "develop",
-                "4.6.0-beta.4",
+                "2026.8.0b2",
                 "2026-02-30",
                 root=root,
             )
@@ -153,7 +177,7 @@ class ReleaseChangelogTests(unittest.TestCase):
                 "beta",
                 "develop",
                 "develop",
-                "4.6.0-beta.3",
+                "2026.8.0b1",
                 "2026-07-17",
                 root=root,
             )

@@ -31,47 +31,56 @@ class ReleaseChannelTests(unittest.TestCase):
         )
         return root
 
-    def test_beta_requires_develop_and_beta_semver(self):
-        root = self._root("4.6.0-beta.2")
+    def test_beta_requires_develop_and_beta_calver(self):
+        root = self._root("2026.8.0b1")
         self.assertEqual(
             release_mod.validate_release(
-                "beta", "develop", "4.6.0-beta.2", root=root
+                "beta", "develop", "2026.8.0b1", root=root
             ),
-            "4.6.0-beta.2",
+            "2026.8.0b1",
         )
         with self.assertRaisesRegex(RuntimeError, "must run from develop"):
             release_mod.validate_release(
-                "beta", "main", "4.6.0-beta.2", root=root
+                "beta", "main", "2026.8.0b1", root=root
             )
 
-    def test_stable_requires_main_and_stable_semver(self):
-        root = self._root("1.0.0")
+    def test_stable_requires_main_and_stable_calver(self):
+        root = self._root("2026.7.0")
         self.assertEqual(
-            release_mod.validate_release("stable", "main", "1.0.0", root=root),
-            "1.0.0",
+            release_mod.validate_release(
+                "stable", "main", "2026.7.0", root=root
+            ),
+            "2026.7.0",
         )
         with self.assertRaisesRegex(RuntimeError, "must run from main"):
             release_mod.validate_release(
-                "stable", "develop", "1.0.0", root=root
+                "stable", "develop", "2026.7.0", root=root
             )
 
     def test_channel_rejects_wrong_version_shape(self):
-        beta_root = self._root("4.6.0")
+        beta_root = self._root("2026.8.0")
         with self.assertRaisesRegex(RuntimeError, "invalid for beta"):
             release_mod.validate_release(
-                "beta", "develop", "4.6.0", root=beta_root
+                "beta", "develop", "2026.8.0", root=beta_root
             )
-        stable_root = self._root("4.6.0-beta.2")
+        stable_root = self._root("2026.8.0b1")
         with self.assertRaisesRegex(RuntimeError, "invalid for stable"):
             release_mod.validate_release(
-                "stable", "main", "4.6.0-beta.2", root=stable_root
+                "stable", "main", "2026.8.0b1", root=stable_root
             )
+        for invalid in ("2026.07.0", "2026.13.0", "5.0.0", "2026.8.0-beta.1"):
+            with self.subTest(invalid=invalid):
+                root = self._root(invalid)
+                with self.assertRaisesRegex(RuntimeError, "invalid"):
+                    release_mod.validate_release(
+                        "stable", "main", invalid, root=root
+                    )
 
     def test_confirmation_and_changelog_are_required(self):
-        root = self._root("4.6.0-beta.2")
+        root = self._root("2026.8.0b1")
         with self.assertRaisesRegex(RuntimeError, "does not match"):
             release_mod.validate_release(
-                "beta", "develop", "4.6.0-beta.3", root=root
+                "beta", "develop", "2026.8.0b2", root=root
             )
         (root / "CHANGELOG.md").write_text(
             "# Changelog\n\n## Unreleased\n",
@@ -79,21 +88,21 @@ class ReleaseChannelTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "release section is invalid"):
             release_mod.validate_release(
-                "beta", "develop", "4.6.0-beta.2", root=root
+                "beta", "develop", "2026.8.0b1", root=root
             )
 
     def test_dated_changelog_heading_is_accepted(self):
-        root = self._root("4.6.0-beta.2")
+        root = self._root("2026.8.0b1")
         (root / "CHANGELOG.md").write_text(
             "# Changelog\n\n## Unreleased\n\n"
-            "## 4.6.0-beta.2 - 2026-07-17\n\n- Prepared release.\n",
+            "## 2026.8.0b1 - 2026-07-17\n\n- Prepared release.\n",
             encoding="utf-8",
         )
         self.assertEqual(
             release_mod.validate_release(
-                "beta", "develop", "4.6.0-beta.2", root=root
+                "beta", "develop", "2026.8.0b1", root=root
             ),
-            "4.6.0-beta.2",
+            "2026.8.0b1",
         )
 
 

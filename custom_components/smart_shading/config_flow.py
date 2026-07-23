@@ -1353,7 +1353,7 @@ class _SmartShadingWizardMixin:
     async def async_step_initial_glare_protection(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Create the first protected zone during the linear feature setup."""
+        """Create the first zone in the only sector available at this point."""
         if not self._room_supports_glare_protection():
             return await self._complete_initial_feature()
         sectors = [
@@ -1375,31 +1375,7 @@ class _SmartShadingWizardMixin:
         ]
         if not sectors:
             return await self._complete_initial_feature()
-        if user_input is not None:
-            self._sector_id = str(user_input["sector_id"])
-        elif len(sectors) == 1:
-            self._sector_id = str(sectors[0]["id"])
-        else:
-            return self.async_show_form(
-                step_id="initial_glare_protection",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required("sector_id"): selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=[
-                                    {
-                                        "value": str(sector["id"]),
-                                        "label": str(sector["name"]),
-                                    }
-                                    for sector in sectors
-                                ],
-                                mode="dropdown",
-                            )
-                        )
-                    }
-                ),
-                description_placeholders=self._option_placeholders(),
-            )
+        self._sector_id = str(sectors[0]["id"])
         self._after_protected_zone_step = "complete_initial_feature"
         return await self.async_step_add_protected_zone()
 

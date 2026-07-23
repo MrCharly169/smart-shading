@@ -490,8 +490,17 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ha-ui-e2e.yml", release)
         self.assertIn("uses: ./.github/workflows/ha-upgrade-e2e.yml", release)
         self.assertIn("uses: ./.github/workflows/ha-nightly.yml", release)
+        self.assertIn("release-metadata:", release)
+        for required_job in (
+            "release-metadata",
+            "ha-e2e",
+            "ha-ui-e2e",
+            "ha-upgrade-e2e",
+            "ha-matrix-e2e",
+        ):
+            self.assertIn(f"- {required_job}", release)
         self.assertIn(
-            "needs: [ha-e2e, ha-ui-e2e, ha-upgrade-e2e, ha-matrix-e2e]",
+            "if: needs.release-metadata.outputs.publish == 'true'",
             release,
         )
         self.assertIn("uses: ./.github/workflows/ha-hacs-e2e.yml", release)
@@ -527,9 +536,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIs(coverage["unique_setting_ownership"], True)
         self.assertGreaterEqual(len(coverage["all_surfaces"]), 35)
         self.assertEqual(len(coverage["live_transitions"]), 5)
-        self.assertEqual(
-            coverage["boolean_field_contract"]["night_enabled"],
-            "real-ha-transition",
+        self.assertIn(
+            "existing_room.night_enabled.off_to_on.configure.save_reload.runtime",
+            coverage["live_transitions"],
         )
         self.assertTrue(
             {

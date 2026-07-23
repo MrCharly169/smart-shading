@@ -4,20 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
 try:
-    from scripts.release_changelog import extract_release_notes
+    from scripts.release_changelog import extract_release_notes, validate_version
 except ModuleNotFoundError:  # Direct execution adds scripts/, not the repository root.
-    from release_changelog import extract_release_notes
+    from release_changelog import extract_release_notes, validate_version
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "custom_components" / "smart_shading" / "manifest.json"
 CHANGELOG = ROOT / "CHANGELOG.md"
-BETA_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$")
-STABLE_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
 def validate_release(
@@ -27,7 +24,7 @@ def validate_release(
     *,
     root: Path = ROOT,
 ) -> str:
-    """Validate branch, SemVer channel, confirmation, and changelog."""
+    """Validate branch, CalVer channel, confirmation, and changelog."""
     manifest = root / "custom_components" / "smart_shading" / "manifest.json"
     changelog_path = root / "CHANGELOG.md"
     version = str(json.loads(manifest.read_text(encoding="utf-8"))["version"]).strip()
@@ -39,12 +36,10 @@ def validate_release(
             f"{channel} releases must run from {expected_branch}, not {normalized_branch}"
         )
 
-    pattern = BETA_VERSION if channel == "beta" else STABLE_VERSION
-    if not pattern.fullmatch(version):
-        expected = "X.Y.Z-beta.N" if channel == "beta" else "X.Y.Z"
-        raise RuntimeError(
-            f"manifest version {version!r} is invalid for {channel}; expected {expected}"
-        )
+    try:
+        validate_version(channel, version)
+    except RuntimeError as exc:
+        raise RuntimeError(f"manifest {exc}") from exc
 
     if confirm_version.strip() != version:
         raise RuntimeError(

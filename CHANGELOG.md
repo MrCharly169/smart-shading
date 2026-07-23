@@ -3,7 +3,40 @@
 ## Unreleased
 
 
-## 5.0.0-beta.0 - 2026-07-22
+## 2026.7.0 - 2026-07-23
+
+### Customer setup and clarity
+
+- let each Advanced room explicitly select only the optional capabilities it
+  uses before their focused setup pages are shown; unselected capabilities no
+  longer leave hidden automation or unsolicited dashboard controls behind
+- replace persistent “simulation active” feedback with a completed,
+  non-actuating result and surface Test and Day Preview only when a room opted
+  into those tools
+- simplify the Advanced details view to a current outcome and plain-language
+  explanation, with test tools and technical support evidence kept in explicit
+  collapsible sections
+- add calculated object glare protection for roller shades, screens, curtains,
+  binary covers and vertical slats using Sun position, window dimensions and a
+  measured protected area; slatted venetian blinds keep their normal adaptive
+  solar protection
+- migrate existing Advanced rooms to schema 17, preserving configured glare
+  zones and their current behaviour while keeping newly introduced test tools
+  opt-in
+- align facade Lux presets with common outdoor weather-station practice: make the
+  35,000/30,000 lx profile the default with 10/30 minute filtering, provide
+  clearly named earlier/strong-sun alternatives, and stop recommending indoor
+  Lux sensors for direct-sun confirmation
+
+### Release channels
+
+- adopt Home Assistant-style calendar versions: `YYYY.M.PATCH` for stable
+  releases and `YYYY.M.PATCHbN` for prereleases
+- publish a reviewed manifest-version change on `develop` automatically as a
+  GitHub prerelease and the corresponding change on `main` as the latest stable
+  release, while retaining the manual workflow as a guarded retry
+- keep historical release and tag names readable without allowing the retired
+  semantic-version format for new publications
 
 ### Decision and execution foundation
 
@@ -28,28 +61,47 @@
   decision trace, and allow the Card to request a selected-date preview
   without ever invoking the physical executor
 
-### Customer setup and clarity
+### Release qualification
 
-- let each Advanced room explicitly select only the optional capabilities it
-  uses before their focused setup pages are shown; unselected capabilities no
-  longer leave hidden automation or unsolicited dashboard controls behind
-- replace persistent “simulation active” feedback with a completed,
-  non-actuating result and surface Test and Day Preview only when a room opted
-  into those tools
-- simplify the Advanced details view to a current outcome and plain-language
-  explanation, with test tools and technical support evidence kept in explicit
-  collapsible sections
-- add calculated object glare protection for roller shades, screens, curtains,
-  binary covers and vertical slats using Sun position, window dimensions and a
-  measured protected area; slatted venetian blinds keep their normal adaptive
-  solar protection
-- migrate existing Advanced rooms to schema 17, preserving configured glare
-  zones and their current behaviour while keeping newly introduced test tools
-  opt-in
-- align facade Lux presets with common outdoor weather-station practice: make the
-  35,000/30,000 lx profile the default with 10/30 minute filtering, provide
-  clearly named earlier/strong-sun alternatives, and stop recommending indoor
-  Lux sensors for direct-sun confirmation
+- make release-preparation pull requests neutral with respect to issue closure;
+  a parent delivery issue is closed only after the published tag passes the
+  HACS qualification gate
+- select the newest stable release tag, rather than a prerelease, as the
+  default Home Assistant upgrade baseline
+- document the complete Issue #79 release acceptance, migration, and
+  post-publication HACS procedure
+
+### Release laboratory
+
+- moved published-tag HACS qualification to an automatic GitHub-hosted job that
+  uses the official HACS backend, verifies public release selection and runs the
+  downloaded tag artifact through a fresh real Home Assistant lifecycle
+
+
+## 5.0.0-beta.0 - 2026-07-22
+
+### Decision and execution foundation
+
+- add a deterministic, traceable Advanced decision pipeline with normalized
+  source quality, immutable rule precedence, safe simulation, and day preview
+- persist per-cover command ownership, delayed sequence work, bounded target
+  verification, and cancelable stagger queues across Home Assistant restarts
+- make ordinary Advanced evaluation event-driven with debouncing, exact
+  schedule/Sun boundaries, and a watchdog-only interval
+- add Advanced-only protected Solar glare zones with sector/group scope,
+  geometric validation, and most-protective target selection
+- expose decision traces, heat lifecycle state, simulation results, and command
+  lifecycle diagnostics without adding Advanced controls to Easy Mode
+- add exact one-shot geometry boundary wakeups for sector entry/exit and
+  adaptive-slat target changes, plus a selected-date virtual day preview
+  backed by Astral or an explicit deterministic trajectory
+- add Advanced-only ownership and execution controls: opt-in automatic
+  reversal after an external takeover, room/house stagger scope with an
+  optional Safety bypass, and a hardware-specific slat-before-height opening
+  order
+- make a confirmed external cover movement immediately refresh the affected
+  decision trace, and allow the Card to request a selected-date preview
+  without ever invoking the physical executor
 
 ### Release qualification
 

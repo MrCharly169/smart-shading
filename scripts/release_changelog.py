@@ -11,13 +11,17 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-BETA_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$")
-STABLE_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+CALVER_BASE = r"20[0-9]{2}\.(?:[1-9]|1[0-2])\.[0-9]+"
+BETA_VERSION = re.compile(rf"^{CALVER_BASE}b[0-9]+$")
+STABLE_VERSION = re.compile(rf"^{CALVER_BASE}$")
+LEGACY_BETA_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$")
+LEGACY_STABLE_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 SECTION_HEADING = re.compile(
     r"(?m)^##[ \t]+(?P<title>[^\r\n]+?)[ \t]*\r?\n"
 )
 DATED_VERSION = re.compile(
-    r"^(?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)"
+    rf"^(?P<version>(?:{CALVER_BASE}(?:b[0-9]+)?|"
+    r"[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?))"
     r"(?:[ \t]+-[ \t]+(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}))?$"
 )
 
@@ -67,7 +71,7 @@ def validate_version(channel: str, version: str) -> str:
     if channel not in {"beta", "stable"}:
         raise RuntimeError(f"unsupported release channel {channel!r}")
     pattern = BETA_VERSION if channel == "beta" else STABLE_VERSION
-    expected = "X.Y.Z-beta.N" if channel == "beta" else "X.Y.Z"
+    expected = "YYYY.M.PATCHbN" if channel == "beta" else "YYYY.M.PATCH"
     if not pattern.fullmatch(normalized):
         raise RuntimeError(
             f"version {version!r} is invalid for {channel}; expected {expected}"
@@ -164,9 +168,14 @@ def _beta_history_since_stable(
         version = _version_from_title(section.title)
         if version is None:
             continue
-        if STABLE_VERSION.fullmatch(version):
+        if STABLE_VERSION.fullmatch(version) or LEGACY_STABLE_VERSION.fullmatch(
+            version
+        ):
             break
-        if BETA_VERSION.fullmatch(version) and section.body:
+        if (
+            BETA_VERSION.fullmatch(version)
+            or LEGACY_BETA_VERSION.fullmatch(version)
+        ) and section.body:
             history.append((version, section.body))
     return history
 

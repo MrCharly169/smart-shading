@@ -46,8 +46,17 @@ Release preparation and publication are separate maintainer actions.
 
 Run **Actions → Prepare Release → Run workflow** from the default branch.
 
-- Beta versions must match `X.Y.Z-beta.N`. The workflow branches from `develop` and opens a draft pull request back to `develop`.
-- Stable versions must match `X.Y.Z`. The workflow creates the release branch from the current `main`, integrates the tested `develop` state locally, and opens a draft promotion pull request back to `main`. Unexpected merge conflicts abort before the branch is pushed. The one historical add/add conflict for `.github/workflows/release.yml` is resolved explicitly in favor of the tested `develop` version; every other conflict requires manual reconciliation.
+- Beta versions must match `YYYY.M.PATCHbN`, for example `2026.8.0b0`.
+  The workflow branches from `develop` and opens a draft pull request back to
+  `develop`.
+- Stable versions must match `YYYY.M.PATCH`, for example `2026.7.0`. The
+  initial monthly release uses `.0`; fixes increment the patch. The workflow
+  creates the release branch from the current `main`, integrates the tested
+  `develop` state locally, and opens a draft promotion pull request back to
+  `main`. Unexpected merge conflicts abort before the branch is pushed. The one
+  historical add/add conflict for `.github/workflows/release.yml` is resolved
+  explicitly in favor of the tested `develop` version; every other conflict
+  requires manual reconciliation.
 
 The workflow validates the requested version, checks for an existing tag, runs the complete test and package suite, updates the manifest, and moves `CHANGELOG.md → Unreleased` into a dated release section. Stable preparation can aggregate beta sections since the previous stable release when `Unreleased` is empty. It then pushes only a dedicated release branch and opens a draft pull request. It cannot merge or publish a release.
 
@@ -55,11 +64,17 @@ Review the generated pull request for version, channel, changelog quality, docum
 
 ### Publish a reviewed release
 
-After the release pull request is merged, run **Actions → Release → Run workflow** from the merged target branch:
+Merging the release pull request starts publication automatically:
 
-- Beta: select `develop`, channel `beta`, and confirm the exact manifest version.
-- Stable: select `main`, channel `stable`, and confirm the exact manifest version.
+- a manifest-version change on `develop` publishes a Beta;
+- a manifest-version change on `main` publishes a Stable.
 
-This second workflow repeats all validation, creates the immutable `v<manifest-version>` tag and installation ZIP, and publishes the GitHub release. Its release body is the exact content of the matching changelog section. Do not create release tags or GitHub releases manually.
+The manual **Actions → Release → Run workflow** entry remains available only
+to retry the same branch after an infrastructure failure; it requires the exact
+manifest version as confirmation. The release workflow repeats all validation,
+creates the immutable `v<manifest-version>` tag and installation ZIP, and
+publishes the GitHub release. Its release body is the exact content of the
+matching changelog section. Do not create release tags or GitHub releases
+manually.
 
 After publishing a stable release, synchronize `main` back into `develop` before starting the next release cycle. This preserves the stable changelog boundary used by later stable aggregation.

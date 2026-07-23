@@ -142,14 +142,22 @@ A pull request that changes production or release behavior must update `CHANGELO
 
 Smart Shading uses two release channels:
 
-- **Beta:** built only from `develop`, with versions such as `4.6.0-beta.2`, and published as a GitHub prerelease.
-- **Stable:** built only from `main`, with versions such as `4.6.0` or the future `1.0.0`, and published as the latest stable GitHub release.
+- **Beta:** built only from `develop`, with Home Assistant-style versions such
+  as `2026.8.0b0`, and published as a GitHub prerelease.
+- **Stable:** built only from `main`, with versions such as `2026.7.0`, and
+  published as the latest stable GitHub release. The initial release of a month
+  ends in `.0`; later fixes use `.1`, `.2`, and so on.
 
 Releases use two deliberate maintainer gates:
 
 1. Open **GitHub → Actions → Prepare Release → Run workflow** on the default branch. Select the channel and enter the requested version without a leading `v`. The workflow validates and tests the tested `develop` state, updates the manifest, moves `Unreleased` into a dated version section, creates a dedicated draft pull request, and dispatches the normal validation workflow for its release commit. It never merges or publishes.
 2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
-3. Open **GitHub → Actions → Release → Run workflow** on the merged target branch. Select the same channel and type the exact manifest version as confirmation. Only this separate workflow creates the immutable tag, installation ZIP, and GitHub release.
+3. Merging the reviewed manifest-version change starts **Release**
+   automatically. A version change on `develop` selects Beta; the same change
+   on `main` selects Stable. The manual **Release → Run workflow** entry is only
+   a guarded retry and requires the exact manifest version as confirmation.
+   Only this separate workflow creates the immutable tag, installation ZIP,
+   and GitHub release.
 
 The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published stable Smart Shading tag. Afterwards, a hosted job uses the official HACS backend to resolve the published tag, downloads the same public source archive HACS sees, and runs that artifact in a fresh Home Assistant instance. The HACS job is the final post-publication acceptance gate; a parent delivery issue is closed only after it succeeds. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md) and [the Issue #79 major-release acceptance record](docs/ISSUE_79_RELEASE_ACCEPTANCE.md).
 
