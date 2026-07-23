@@ -3,6 +3,20 @@
 ## Unreleased
 
 
+## 2026.7.1 - 2026-07-23
+
+### Verified Docker UAT zero point
+
+- publish the complete Smart Shading component extracted from the visually
+  accepted Home Assistant 2026.7.3 Docker instance as a fresh, never-reused
+  stable version
+- preserve the accepted setup wizard, calculated glare protection, compact
+  Advanced details view, Winner decision data, diagnostics and dashboard Card
+  byte-for-byte
+- use a new release tag so HACS and browser caches cannot retain an earlier
+  package that was published under the reused `v2026.7.0` tag
+
+
 ## 2026.7.0 - 2026-07-23
 
 ### Customer setup and clarity
