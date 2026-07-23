@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -19,6 +20,43 @@ import xml.etree.ElementTree as ET
 LIVE_WIZARD_COVERAGE: dict[str, set[str]] = {}
 LIVE_WIZARD_TRANSITIONS: set[str] = set()
 OPTIONS_SURFACE_PATHS: dict[tuple[str, str], tuple[str, ...]] = {}
+INITIAL_ADVANCED_WIZARD_COVERAGE: dict[str, set[str]] = {}
+CAPTURE_INITIAL_ADVANCED_WIZARD = False
+ADVANCED_FEATURE_KEYS = (
+    "schedule",
+    "temperature",
+    "night",
+    "safety",
+    "conditions",
+    "glare_protection",
+    "test_tools",
+    "expert_execution",
+)
+NON_SETTING_SCHEMA_FIELDS = {
+    "next_step_id",
+    "name",
+    "short",
+    "room_details",
+    "profile_behavior",
+    "target_positions",
+    "slat_curve",
+    "schedule_settings",
+    "temperature_settings",
+    "execution_settings",
+    "sector_identity",
+    "sector_maintenance",
+    "group_identity",
+    "group_maintenance",
+    "cover_identity",
+    "cover_automation",
+    "cover_maintenance",
+    "protected_zone_identity",
+    "protected_zone_geometry",
+    "protected_zone_target",
+    "protected_zone_window",
+    "protected_zone_object",
+    "protected_zone_maintenance",
+}
 
 
 @dataclass
@@ -244,9 +282,83 @@ def record_flow_surface(result: dict[str, Any]) -> None:
     step_id = result.get("step_id")
     if not isinstance(step_id, str):
         return
-    LIVE_WIZARD_COVERAGE.setdefault(step_id, set()).update(
-        _schema_fields(result.get("data_schema", []))
-    )
+    fields = _schema_fields(result.get("data_schema", []))
+    LIVE_WIZARD_COVERAGE.setdefault(step_id, set()).update(fields)
+    if CAPTURE_INITIAL_ADVANCED_WIZARD:
+        owner = _initial_wizard_setting_owner(step_id, fields)
+        INITIAL_ADVANCED_WIZARD_COVERAGE.setdefault(owner, set()).update(
+            fields
+        )
+
+
+def _initial_wizard_setting_owner(
+    step_id: str, fields: set[str]
+) -> str:
+    """Return the customer-facing owner of one dynamic wizard form."""
+    if step_id == "manage_automation":
+        sections = {
+            section
+            for section in (
+                "schedule_settings",
+                "temperature_settings",
+                "execution_settings",
+            )
+            if section in fields
+        }
+        if len(sections) != 1:
+            raise AssertionError(
+                "Advanced automation page must contain exactly one feature, "
+                f"got {sorted(sections)} with fields {sorted(fields)}"
+            )
+        return {
+            "schedule_settings": "manage_schedule",
+            "temperature_settings": "manage_temperature",
+            "execution_settings": "manage_execution",
+        }[next(iter(sections))]
+    if step_id == "manage_conditions":
+        has_safety = bool(
+            fields & {"safety_blockers", "safety_behavior"}
+        )
+        has_weather = bool(
+            fields
+            & {
+                "irradiance_sensor",
+                "irradiance_minimum",
+                "cloud_cover_sensor",
+                "cloud_cover_maximum",
+                "weather_permission",
+                "occupancy_sensor",
+                "weather_logic",
+                "comfort_requires_occupancy",
+                "heat_ignores_weather",
+                "heat_requires_sun",
+            }
+        )
+        if has_safety == has_weather:
+            raise AssertionError(
+                "Protection page must contain exactly one feature, "
+                f"got safety={has_safety}, weather={has_weather} with "
+                f"fields {sorted(fields)}"
+            )
+        return "manage_safety" if has_safety else "manage_weather_conditions"
+    return step_id
+
+
+def duplicate_wizard_setting_owners(
+    coverage: dict[str, set[str]],
+) -> dict[str, list[str]]:
+    """Return settings that are owned by more than one wizard page."""
+    owners: dict[str, set[str]] = {}
+    for page, fields in coverage.items():
+        for field in fields:
+            if field in NON_SETTING_SCHEMA_FIELDS:
+                continue
+            owners.setdefault(field, set()).add(page)
+    return {
+        field: sorted(pages)
+        for field, pages in sorted(owners.items())
+        if len(pages) > 1
+    }
 
 
 def _menu_options(result: dict[str, Any]) -> list[str]:
@@ -428,6 +540,9 @@ def create_advanced_entry(
     legacy_compatible: bool = False,
 ) -> str:
     """Exercise Advanced setup, optionally avoiding broken legacy optionals."""
+    global CAPTURE_INITIAL_ADVANCED_WIZARD
+    INITIAL_ADVANCED_WIZARD_COVERAGE.clear()
+    CAPTURE_INITIAL_ADVANCED_WIZARD = not legacy_compatible
     setup = scenario["advanced_setup"]
     result = api.post(
         "/api/config/config_entries/flow",
@@ -451,17 +566,19 @@ def create_advanced_entry(
         {"sun_entity": "sun.sun"},
     )
     expect_step(result, "room_setup")
+    room_details = {
+        "name": setup["room_name"],
+        "outdoor_temperature": setup["outdoor_temperature_entity"],
+    }
+    if legacy_compatible:
+        room_details["indoor_temperature"] = setup[
+            "indoor_temperature_entity"
+        ]
     result = submit_flow(
         api,
         flow_id,
         "room_setup",
-        {
-            "room_details": {
-                "name": setup["room_name"],
-                "indoor_temperature": setup["indoor_temperature_entity"],
-                "outdoor_temperature": setup["outdoor_temperature_entity"],
-            }
-        },
+        {"room_details": room_details},
     )
     expect_step(result, "configure_outdoor_temperature")
     result = submit_flow(
@@ -519,6 +636,12 @@ def create_advanced_entry(
         },
     )
     expect_step(result, "manage_layer_profile")
+    initial_targets = {
+        "open_position": 100,
+        "open_tilt": 0,
+    }
+    if legacy_compatible:
+        initial_targets["heat_tilt"] = 100
     result = submit_flow(
         api,
         flow_id,
@@ -529,11 +652,7 @@ def create_advanced_entry(
                 "tilt_preset": "balanced",
                 "tilt_tolerance": 5,
             },
-            "target_positions": {
-                "open_position": 100,
-                "open_tilt": 0,
-                "heat_tilt": 100,
-            },
+            "target_positions": initial_targets,
         },
     )
     expect_step(result, "add_sector_covers")
@@ -560,81 +679,77 @@ def create_advanced_entry(
             "invert_tilt": False,
         },
     )
-    expect_step(result, "manage_cover_special")
-    result = submit_flow(
-        api, flow_id, "manage_cover_special", {"enforce_max_open_position": True}
-    )
-    expect_step(result, "manage_cover_special")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_cover_special",
-        {"enforce_max_open_position": True, "max_open_position": 90},
-    )
-    expect_step(result, "manage_automation")
-    temperature_settings = {
-        "heat_temperature": 27,
-        "evening_release_time": "18:00:00",
-        "sunset_offset_minutes": 0,
-        "normal_shading_temperature": 23.5,
-        "reopen_temperature": 22,
-    }
-    execution_settings_section = advanced_execution_settings_section(
-        legacy_compatible=legacy_compatible
-    )
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {"schedule_enabled": True},
-            "temperature_settings": temperature_settings,
-            **execution_settings_section,
-        },
-    )
-    expect_step(result, "manage_automation")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {
-                "schedule_enabled": True,
-                "schedule_profile": "custom",
-                "day_window": "fixed_time",
-            },
-            "temperature_settings": temperature_settings,
-            **execution_settings_section,
-        },
-    )
-    expect_step(result, "manage_automation")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {
-                "schedule_enabled": True,
-                "schedule_profile": "custom",
-                "day_window": "fixed_time",
-                "active_months": [str(value) for value in range(1, 13)],
-                "active_weekdays": [str(value) for value in range(7)],
-                "start_time": "06:00:00",
-                "end_time": "22:00:00",
-                "outside_schedule_behavior": "open",
-                "heat_outside_schedule": True,
-            },
-            "temperature_settings": temperature_settings,
-            **execution_settings_section,
-        },
-    )
-    expect_step(result, "manage_night")
     if legacy_compatible:
+        expect_step(result, "manage_cover_special")
         result = submit_flow(
             api,
             flow_id,
-            "manage_night",
-            {"night_enabled": False},
+            "manage_cover_special",
+            {"enforce_max_open_position": True},
+        )
+        expect_step(result, "manage_cover_special")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_cover_special",
+            {"enforce_max_open_position": True, "max_open_position": 90},
+        )
+        expect_step(result, "manage_automation")
+        temperature_settings = {
+            "heat_temperature": 27,
+            "evening_release_time": "18:00:00",
+            "sunset_offset_minutes": 0,
+            "normal_shading_temperature": 23.5,
+            "reopen_temperature": 22,
+        }
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {
+                "schedule_settings": {"schedule_enabled": True},
+                "temperature_settings": temperature_settings,
+            },
+        )
+        expect_step(result, "manage_automation")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {
+                "schedule_settings": {
+                    "schedule_enabled": True,
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                },
+                "temperature_settings": temperature_settings,
+            },
+        )
+        expect_step(result, "manage_automation")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {
+                "schedule_settings": {
+                    "schedule_enabled": True,
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                    "active_months": [
+                        str(value) for value in range(1, 13)
+                    ],
+                    "active_weekdays": [str(value) for value in range(7)],
+                    "start_time": "06:00:00",
+                    "end_time": "22:00:00",
+                    "outside_schedule_behavior": "open",
+                    "heat_outside_schedule": True,
+                },
+                "temperature_settings": temperature_settings,
+            },
+        )
+        expect_step(result, "manage_night")
+        result = submit_flow(
+            api, flow_id, "manage_night", {"night_enabled": False}
         )
         expect_step(result, "manage_pause")
         result = submit_flow(
@@ -657,15 +772,63 @@ def create_advanced_entry(
             {"heat_requires_sun": True},
         )
         expect_step(result, "init")
-        result = submit_flow(api, flow_id, "init", {"next_step_id": "finish"})
+        result = submit_flow(
+            api, flow_id, "init", {"next_step_id": "finish"}
+        )
         expect_step(result, "finish")
-        result = submit_flow(api, flow_id, "finish", {"confirm_start": True})
+        result = submit_flow(
+            api, flow_id, "finish", {"confirm_start": True}
+        )
+        CAPTURE_INITIAL_ADVANCED_WIZARD = False
         return _created_entry_id(api, result, setup["house_name"])
+    expect_step(result, "choose_advanced_features")
     result = submit_flow(
         api,
         flow_id,
-        "manage_night",
-        {"night_enabled": True},
+        "choose_advanced_features",
+        {
+            "schedule": True,
+            "temperature": True,
+            "night": not legacy_compatible,
+            "safety": not legacy_compatible,
+            "conditions": True,
+            "test_tools": not legacy_compatible,
+            "expert_execution": not legacy_compatible,
+        },
+    )
+    expect_step(result, "manage_automation")
+    result = submit_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "schedule_settings": {
+                "schedule_profile": "custom",
+                "day_window": "fixed_time",
+                "active_months": [str(value) for value in range(1, 13)],
+                "active_weekdays": [str(value) for value in range(7)],
+                "start_time": "06:00:00",
+                "end_time": "22:00:00",
+                "outside_schedule_behavior": "open",
+            },
+        },
+    )
+    expect_step(result, "manage_automation")
+    result = submit_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {
+            "temperature_settings": {
+                "indoor_temperature": setup["indoor_temperature_entity"],
+                "heat_temperature": 27,
+                "evening_release_time": "18:00:00",
+                "sunset_offset_minutes": 0,
+                "heat_outside_schedule": True,
+                "normal_shading_temperature": 23.5,
+                "reopen_temperature": 22,
+            }
+        },
     )
     expect_step(result, "manage_night")
     result = submit_flow(
@@ -673,9 +836,7 @@ def create_advanced_entry(
         flow_id,
         "manage_night",
         {
-            "night_enabled": True,
             "night_source": "sun",
-            "night_entity": "input_boolean.fixture_night_mode",
             "night_morning_transition_minutes": 0,
             "night_evening_transition_minutes": 0,
         },
@@ -686,7 +847,6 @@ def create_advanced_entry(
         flow_id,
         "manage_night",
         {
-            "night_enabled": True,
             "night_source": "sun",
             "night_start_offset_minutes": 0,
             "night_end_offset_minutes": 0,
@@ -701,56 +861,44 @@ def create_advanced_entry(
         "initial_night_targets",
         {"night_position": 0, "night_tilt": 100},
     )
-    expect_step(result, "manage_pause")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_pause",
-        {
-            "default_pause_mode": "next_night_end",
-            "pause_sun_offset_minutes": -60,
-            "pause_duration_hours": 2,
-            "external_movement_detection": True,
-            "heat_during_pause": True,
-        },
-    )
-    expect_step(result, "manage_conditions")
-    condition_sources = {
-        "safety_blockers": [setup["safety_entity"]],
-        "irradiance_sensor": "sensor.irradiance",
-        "cloud_cover_sensor": "sensor.cloud_cover",
-        "weather_permission": "binary_sensor.weather_permission",
-        "glare_sensor": "binary_sensor.glare",
-        "occupancy_sensor": "binary_sensor.occupancy",
-        "heat_requires_sun": True,
-    }
-    result = submit_flow(api, flow_id, "manage_conditions", condition_sources)
     expect_step(result, "manage_conditions")
     result = submit_flow(
         api,
         flow_id,
         "manage_conditions",
         {
-            **condition_sources,
-            "irradiance_minimum": 150,
-            "cloud_cover_maximum": 85,
-            "weather_logic": "all",
-            "comfort_requires_occupancy": False,
+            "safety_blockers": [setup["safety_entity"]],
             "safety_behavior": "move_safe",
-            "heat_ignores_weather": True,
+            "safety_position": 100,
+            "safety_tilt": 0,
         },
     )
-    expect_step(result, "initial_safety_targets")
+    expect_step(result, "manage_conditions")
+    condition_sources = {
+        "irradiance_sensor": "sensor.irradiance",
+        "cloud_cover_sensor": "sensor.cloud_cover",
+        "weather_permission": "binary_sensor.weather_permission",
+        "occupancy_sensor": "binary_sensor.occupancy",
+        "heat_requires_sun": True,
+        "irradiance_minimum": 150,
+        "cloud_cover_maximum": 85,
+        "weather_logic": "all",
+        "comfort_requires_occupancy": False,
+        "heat_ignores_weather": True,
+    }
+    result = submit_flow(api, flow_id, "manage_conditions", condition_sources)
+    expect_step(result, "manage_automation")
     result = submit_flow(
         api,
         flow_id,
-        "initial_safety_targets",
-        {"safety_position": 100, "safety_tilt": 0},
+        "manage_automation",
+        {"execution_settings": advanced_execution_settings_payload()},
     )
     expect_step(result, "init")
     result = submit_flow(api, flow_id, "init", {"next_step_id": "finish"})
     expect_step(result, "finish")
     result = submit_flow(api, flow_id, "finish", {"confirm_start": True})
+    CAPTURE_INITIAL_ADVANCED_WIZARD = False
     return _created_entry_id(api, result, setup["house_name"])
 
 
@@ -878,6 +1026,44 @@ def replay_options_path(
     return flow_id, result
 
 
+def advanced_feature_payload(
+    configuration: dict[str, Any],
+    *,
+    add: tuple[str, ...] = (),
+    remove: tuple[str, ...] = (),
+    visible_fields: set[str] | None = None,
+) -> dict[str, bool]:
+    """Return the complete feature selector state for one existing room."""
+    selected = set(configuration.get("advanced_features") or ())
+    selected.update(add)
+    selected.difference_update(remove)
+    return {
+        key: key in selected
+        for key in ADVANCED_FEATURE_KEYS
+        if visible_fields is None or key in visible_fields
+    }
+
+
+def replay_advanced_feature(
+    api: HomeAssistantApi,
+    entry_id: str,
+    action: str,
+    expected_step: str,
+) -> tuple[str, dict[str, Any]]:
+    """Open one focused feature from the Advanced Features menu."""
+    flow_id, result = replay_options_path(
+        api, entry_id, "advanced_features_hub"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": action},
+    )
+    expect_step(result, expected_step)
+    return flow_id, result
+
+
 def _profile_form_payload(profile: str) -> dict[str, Any]:
     targets = {
         "venetian": {
@@ -960,10 +1146,31 @@ def assert_existing_room_night_transition(
     scenario: dict[str, Any],
     entry_id: str,
 ) -> None:
-    """Disable and re-enable Night on a persisted room, including runtime use."""
-    flow_id, _ = replay_options_path(api, entry_id, "manage_night")
+    """Disable and re-enable Night through the room feature selection."""
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    flow_id, feature_form = replay_options_path(
+        api, entry_id, "choose_advanced_features"
+    )
     result = submit_options_flow(
-        api, flow_id, "manage_night", {"night_enabled": False}
+        api,
+        flow_id,
+        "choose_advanced_features",
+        advanced_feature_payload(
+            configuration,
+            remove=("night",),
+            visible_fields=_schema_fields(
+                feature_form.get("data_schema", [])
+            ),
+        ),
+    )
+    expect_step(result, "advanced_features_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": "back_to_room"},
     )
     save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
@@ -979,13 +1186,33 @@ def assert_existing_room_night_transition(
     )
 
     explore_options_surfaces(api, entry_id)
-    flow_id, _ = replay_options_path(api, entry_id, "manage_night")
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    flow_id, feature_form = replay_options_path(
+        api, entry_id, "choose_advanced_features"
+    )
     result = submit_options_flow(
-        api, flow_id, "manage_night", {"night_enabled": True}
+        api,
+        flow_id,
+        "choose_advanced_features",
+        advanced_feature_payload(
+            configuration,
+            add=("night",),
+            visible_fields=_schema_fields(
+                feature_form.get("data_schema", [])
+            ),
+        ),
+    )
+    expect_step(result, "advanced_features_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": "manage_night"},
     )
     expect_step(result, "manage_night")
     night_values = {
-        "night_enabled": True,
         "night_source": "sun",
         "night_start_offset_minutes": 0,
         "night_end_offset_minutes": 0,
@@ -995,24 +1222,9 @@ def assert_existing_room_night_transition(
     result = submit_options_flow(
         api, flow_id, "manage_night", night_values
     )
-    # A legacy room may still retain a different disabled source. In that
-    # case the first submit intentionally rebuilds the source-specific form.
     if result.get("step_id") == "manage_night":
         result = submit_options_flow(
             api, flow_id, "manage_night", night_values
-        )
-    expect_step(result, "initial_night_targets")
-    while result.get("step_id") == "initial_night_targets":
-        target_values = {
-            field: 100 if field.endswith("tilt") else 0
-            for field in _schema_fields(result.get("data_schema", []))
-        }
-        if not target_values:
-            raise AssertionError(
-                f"Night target step did not expose target fields: {result}"
-            )
-        result = submit_options_flow(
-            api, flow_id, "initial_night_targets", target_values
         )
     save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
@@ -1027,15 +1239,6 @@ def assert_existing_room_night_transition(
         raise AssertionError(
             f"Night source was not persisted for an existing room: {configuration}"
         )
-    layers = [
-        layer
-        for sector in configuration.get("sectors", [])
-        for layer in sector.get("layers", [])
-    ]
-    if not layers or any("night_position" not in layer for layer in layers):
-        raise AssertionError(
-            f"Night targets were not persisted for all existing layers: {layers}"
-        )
 
     below_horizon = dict(scenario["initial"]["sun.sun"])
     below_horizon["state"] = "below_horizon"
@@ -1049,43 +1252,38 @@ def assert_existing_room_night_transition(
         )
     set_fixture_state(api, "sun.sun", scenario["initial"]["sun.sun"])
     LIVE_WIZARD_TRANSITIONS.add(
-        "existing_room.night_enabled.off_to_on.targets.save_reload.runtime"
+        "existing_room.night_enabled.off_to_on.configure.save_reload.runtime"
     )
 
 
 def assert_existing_room_schedule_transition(
     api: HomeAssistantApi, entry_id: str
 ) -> None:
-    """Persist both states of the schedule selector and its revealed fields."""
-    temperatures = {
-        "heat_temperature": 27,
-        "evening_release_time": "18:00:00",
-        "sunset_offset_minutes": 0,
-        "normal_shading_temperature": 23.5,
-        "reopen_temperature": 22,
-    }
-    execution_settings = advanced_execution_settings_payload()
-    flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {"schedule_enabled": False},
-            "temperature_settings": temperatures,
-            "execution_settings": execution_settings,
-        },
+    """Persist both states of the dedicated Schedule feature."""
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    flow_id, feature_form = replay_options_path(
+        api, entry_id, "choose_advanced_features"
     )
-    expect_step(result, "manage_automation")
     result = submit_options_flow(
         api,
         flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {"schedule_enabled": False},
-            "temperature_settings": temperatures,
-            "execution_settings": execution_settings,
-        },
+        "choose_advanced_features",
+        advanced_feature_payload(
+            configuration,
+            remove=("schedule",),
+            visible_fields=_schema_fields(
+                feature_form.get("data_schema", [])
+            ),
+        ),
+    )
+    expect_step(result, "advanced_features_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": "back_to_room"},
     )
     save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
@@ -1099,38 +1297,54 @@ def assert_existing_room_schedule_transition(
         )
 
     explore_options_surfaces(api, entry_id)
-    flow_id, _ = replay_options_path(api, entry_id, "manage_automation")
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    flow_id, feature_form = replay_options_path(
+        api, entry_id, "choose_advanced_features"
+    )
     result = submit_options_flow(
         api,
         flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {"schedule_enabled": True},
-            "temperature_settings": temperatures,
-            "execution_settings": execution_settings,
-        },
+        "choose_advanced_features",
+        advanced_feature_payload(
+            configuration,
+            add=("schedule",),
+            visible_fields=_schema_fields(
+                feature_form.get("data_schema", [])
+            ),
+        ),
+    )
+    expect_step(result, "advanced_features_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": "manage_schedule"},
     )
     expect_step(result, "manage_automation")
+    schedule_values = {
+        "schedule_profile": "custom",
+        "day_window": "fixed_time",
+        "active_months": [str(value) for value in range(1, 13)],
+        "active_weekdays": [str(value) for value in range(7)],
+        "start_time": "06:00:00",
+        "end_time": "22:00:00",
+        "outside_schedule_behavior": "open",
+    }
     result = submit_options_flow(
         api,
         flow_id,
         "manage_automation",
-        {
-            "schedule_settings": {
-                "schedule_enabled": True,
-                "schedule_profile": "custom",
-                "day_window": "fixed_time",
-                "active_months": [str(value) for value in range(1, 13)],
-                "active_weekdays": [str(value) for value in range(7)],
-                "start_time": "06:00:00",
-                "end_time": "22:00:00",
-                "outside_schedule_behavior": "open",
-                "heat_outside_schedule": True,
-            },
-            "temperature_settings": temperatures,
-            "execution_settings": execution_settings,
-        },
+        {"schedule_settings": schedule_values},
     )
+    if result.get("step_id") == "manage_automation":
+        result = submit_options_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {"schedule_settings": schedule_values},
+        )
     save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
     configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
@@ -1283,6 +1497,155 @@ def add_advanced_group_through_options(
     save_options_from_group_hub(api, flow_id, result)
     wait_for_entry_loaded(api, entry_id)
     explore_options_surfaces(api, entry_id)
+
+
+def assert_calculated_glare_zone_flow(
+    api: HomeAssistantApi, entry_id: str
+) -> None:
+    """Create and edit one exact-cover glare zone through real HA forms."""
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    flow_id, feature_form = replay_options_path(
+        api, entry_id, "choose_advanced_features"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "choose_advanced_features",
+        advanced_feature_payload(
+            configuration,
+            add=("glare_protection",),
+            visible_fields=_schema_fields(
+                feature_form.get("data_schema", [])
+            ),
+        ),
+    )
+    expect_step(result, "advanced_features_hub")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "advanced_features_hub",
+        {"next_step_id": "glare_protection_hub"},
+    )
+    expect_step(result, "glare_protection_hub")
+    sector_choice = next(
+        option
+        for option in _menu_options(result)
+        if option != "back_to_room"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "glare_protection_hub",
+        {"next_step_id": sector_choice},
+    )
+    expect_step(result, "protected_zones_hub")
+    add_choice = next(
+        option
+        for option in _menu_options(result)
+        if option != "back_to_sector"
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "protected_zones_hub",
+        {"next_step_id": add_choice},
+    )
+    expect_step(result, "add_protected_zone")
+    fields = _schema_fields(result.get("data_schema", []))
+    for required in (
+        "cover_entity",
+        "window_width_m",
+        "window_height_m",
+        "window_sill_height_m",
+        "object_distance_m",
+        "object_center_height_m",
+        "object_height_m",
+        "object_lateral_center_m",
+        "object_width_m",
+    ):
+        if required not in fields:
+            raise AssertionError(
+                f"Glare form is missing {required}: {sorted(fields)}"
+            )
+    for removed in ("group_ids", "calculated", "target_position"):
+        if removed in fields:
+            raise AssertionError(
+                f"Glare form still exposes obsolete {removed}: "
+                f"{sorted(fields)}"
+            )
+    zone_payload = {
+        "protected_zone_identity": {
+            "name": "Dining table",
+            "cover_entity": "cover.advanced_curtain",
+        },
+        "protected_zone_window": {
+            "window_width_m": 2.4,
+            "window_height_m": 2.1,
+            "window_sill_height_m": 0.2,
+        },
+        "protected_zone_object": {
+            "object_distance_m": 1.8,
+            "object_center_height_m": 0.8,
+            "object_height_m": 0.8,
+            "object_lateral_center_m": 0.3,
+            "object_width_m": 1.2,
+        },
+    }
+    result = submit_options_flow(
+        api, flow_id, "add_protected_zone", zone_payload
+    )
+    expect_step(result, "protected_zones_hub")
+    zone_choice = next(
+        option
+        for option in _menu_options(result)
+        if option not in {"back_to_sector", add_choice}
+    )
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "protected_zones_hub",
+        {"next_step_id": zone_choice},
+    )
+    expect_step(result, "manage_protected_zone")
+    edit_payload = deepcopy(zone_payload)
+    edit_payload["protected_zone_identity"]["enabled"] = True
+    edit_payload["protected_zone_maintenance"] = {
+        "delete_protected_zone": False
+    }
+    result = submit_options_flow(
+        api, flow_id, "manage_protected_zone", edit_payload
+    )
+    expect_step(result, "protected_zones_hub")
+    for step_id, choice, expected in (
+        ("protected_zones_hub", "back_to_sector", "sector_hub"),
+        ("sector_hub", "back_to_structure", "structure_hub"),
+        ("structure_hub", "back_to_room", "room_hub"),
+    ):
+        result = submit_options_flow(
+            api, flow_id, step_id, {"next_step_id": choice}
+        )
+        expect_step(result, expected)
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+
+    configuration = entry_room_state(api, entry_id).get(
+        "attributes", {}
+    ).get("configuration", {})
+    zones = configuration["sectors"][0].get("protected_zones", [])
+    zone = next(
+        item for item in zones if item.get("name") == "Dining table"
+    )
+    if zone.get("cover_entity") != "cover.advanced_curtain":
+        raise AssertionError(f"Glare zone lost exact cover scope: {zone}")
+    if zone.get("calculation_mode") != "curtain":
+        raise AssertionError(f"Glare zone has wrong calculation mode: {zone}")
+    if "group_ids" in zone or "calculated" in zone:
+        raise AssertionError(f"Glare zone persisted obsolete switches: {zone}")
+    LIVE_WIZARD_TRANSITIONS.add(
+        "existing_room.glare_zone.single_cover.create_edit.save_reload"
+    )
 
 
 def add_advanced_sector_through_options(
@@ -1710,65 +2073,28 @@ def probe_choice_matrix(
         finally:
             _cancel_options_flow(api, flow_id)
 
-    temperature = {
-        "heat_temperature": 27,
-        "evening_release_time": "18:00:00",
-        "sunset_offset_minutes": 0,
-        "comfort_temperature": 23.5,
-        "solar_temperature": 25.5,
-    }
-    execution_settings = advanced_execution_settings_payload()
     for profile in ("year_round", "summer", "custom"):
-        flow_id, _ = replay_options_path(
-            api, advanced_entry_id, "manage_automation"
+        flow_id, _ = replay_advanced_feature(
+            api,
+            advanced_entry_id,
+            "manage_schedule",
+            "manage_automation",
         )
         try:
-            result = submit_options_flow(
-                api,
-                flow_id,
-                "manage_automation",
-                {
-                    "schedule_settings": {
-                        "schedule_enabled": True,
-                        "schedule_profile": profile,
-                        "day_window": "all_day",
-                        "active_months": ["1"],
-                        "active_weekdays": ["0"],
-                        "start_time": "06:00:00",
-                        "end_time": "22:00:00",
-                        "outside_schedule_behavior": "open",
-                        "heat_outside_schedule": True,
-                    },
-                    "temperature_settings": temperature,
-                    "execution_settings": execution_settings,
-                },
-            )
-            expect_step(result, "manage_automation")
-            schedule_settings: dict[str, Any] = {
-                "schedule_enabled": True,
+            initial_schedule = {
                 "schedule_profile": profile,
                 "day_window": "all_day",
+                "active_months": ["1"],
+                "active_weekdays": ["0"],
+                "start_time": "06:00:00",
+                "end_time": "22:00:00",
+                "outside_schedule_behavior": "open",
             }
-            if profile == "custom":
-                schedule_settings.update(
-                    {"active_months": ["1"], "active_weekdays": ["0"]}
-                )
-            if profile != "year_round":
-                schedule_settings.update(
-                    {
-                        "outside_schedule_behavior": "open",
-                        "heat_outside_schedule": True,
-                    }
-                )
             result = submit_options_flow(
                 api,
                 flow_id,
                 "manage_automation",
-                {
-                    "schedule_settings": schedule_settings,
-                    "temperature_settings": temperature,
-                    "execution_settings": execution_settings,
-                },
+                {"schedule_settings": initial_schedule},
             )
             expect_step(result, "room_hub")
             evidence["schedule_profiles"].append(profile)
@@ -1781,30 +2107,35 @@ def probe_choice_matrix(
         finally:
             _cancel_options_flow(api, flow_id)
 
-    flow_id, _ = replay_options_path(
-        api, advanced_entry_id, "manage_automation"
+    flow_id, _ = replay_advanced_feature(
+        api,
+        advanced_entry_id,
+        "manage_schedule",
+        "manage_automation",
     )
     try:
+        fixed_schedule = {
+            "schedule_profile": "custom",
+            "day_window": "fixed_time",
+            "active_months": ["1"],
+            "active_weekdays": ["0"],
+            "start_time": "06:00:00",
+            "end_time": "22:00:00",
+            "outside_schedule_behavior": "hold",
+        }
         result = submit_options_flow(
             api,
             flow_id,
             "manage_automation",
-            {
-                "schedule_settings": {
-                    "schedule_enabled": True,
-                    "schedule_profile": "custom",
-                    "day_window": "fixed_time",
-                    "active_months": ["1"],
-                    "active_weekdays": ["0"],
-                    "start_time": "06:00:00",
-                    "end_time": "22:00:00",
-                    "outside_schedule_behavior": "hold",
-                    "heat_outside_schedule": True,
-                },
-                "temperature_settings": temperature,
-                "execution_settings": execution_settings,
-            },
+            {"schedule_settings": fixed_schedule},
         )
+        if result.get("step_id") == "manage_automation":
+            result = submit_options_flow(
+                api,
+                flow_id,
+                "manage_automation",
+                {"schedule_settings": fixed_schedule},
+            )
         expect_step(result, "room_hub")
         evidence["day_windows"].append("fixed_time")
         evidence["outside_schedule_behaviors"].append("hold")
@@ -1835,14 +2166,15 @@ def probe_choice_matrix(
             _cancel_options_flow(api, flow_id)
 
     for source in ("sun", "entity"):
-        flow_id, _ = replay_options_path(api, advanced_entry_id, "manage_night")
+        flow_id, _ = replay_advanced_feature(
+            api, advanced_entry_id, "manage_night", "manage_night"
+        )
         try:
             result = submit_options_flow(
                 api,
                 flow_id,
                 "manage_night",
                 {
-                    "night_enabled": True,
                     "night_source": source,
                     "night_start_offset_minutes": 0,
                     "night_end_offset_minutes": 0,
@@ -1857,7 +2189,6 @@ def probe_choice_matrix(
                     flow_id,
                     "manage_night",
                     {
-                        "night_enabled": True,
                         "night_source": "entity",
                         "night_entity": "input_boolean.fixture_night_mode",
                         "night_morning_transition_minutes": 0,
@@ -1870,14 +2201,12 @@ def probe_choice_matrix(
         finally:
             _cancel_options_flow(api, flow_id)
 
-    condition_sources = {
-        "safety_blockers": ["binary_sensor.safety_alarm"],
+    weather_sources = {
         "irradiance_sensor": "sensor.irradiance",
         "irradiance_minimum": 150,
         "cloud_cover_sensor": "sensor.cloud_cover",
         "cloud_cover_maximum": 85,
         "weather_permission": "binary_sensor.weather_permission",
-        "glare_sensor": "binary_sensor.glare",
         "occupancy_sensor": "binary_sensor.occupancy",
         "weather_logic": "all",
         "comfort_requires_occupancy": False,
@@ -1888,8 +2217,11 @@ def probe_choice_matrix(
         ("move_safe", "all"),
         ("block", "any"),
     ):
-        flow_id, _ = replay_options_path(
-            api, advanced_entry_id, "manage_conditions"
+        flow_id, _ = replay_advanced_feature(
+            api,
+            advanced_entry_id,
+            "manage_safety",
+            "manage_conditions",
         )
         try:
             result = submit_options_flow(
@@ -1897,13 +2229,28 @@ def probe_choice_matrix(
                 flow_id,
                 "manage_conditions",
                 {
-                    **condition_sources,
+                    "safety_blockers": ["binary_sensor.safety_alarm"],
                     "safety_behavior": behavior,
-                    "weather_logic": weather_logic,
                 },
             )
             expect_step(result, "room_hub")
             evidence["safety_behaviors"].append(behavior)
+        finally:
+            _cancel_options_flow(api, flow_id)
+        flow_id, _ = replay_advanced_feature(
+            api,
+            advanced_entry_id,
+            "manage_weather_conditions",
+            "manage_conditions",
+        )
+        try:
+            result = submit_options_flow(
+                api,
+                flow_id,
+                "manage_conditions",
+                {**weather_sources, "weather_logic": weather_logic},
+            )
+            expect_step(result, "room_hub")
             evidence["weather_logic"].append(weather_logic)
         finally:
             _cancel_options_flow(api, flow_id)
@@ -2030,6 +2377,17 @@ def assert_live_wizard_coverage(output_dir: Path) -> None:
     missing_transitions = sorted(
         required_transitions - LIVE_WIZARD_TRANSITIONS
     )
+    duplicate_setting_owners = (
+        duplicate_wizard_setting_owners(
+            INITIAL_ADVANCED_WIZARD_COVERAGE
+        )
+        if contract.get("unique_setting_ownership", False)
+        else {}
+    )
+    missing_initial_capture = (
+        bool(contract.get("unique_setting_ownership", False))
+        and not INITIAL_ADVANCED_WIZARD_COVERAGE
+    )
     report = {
         "required": sorted(required),
         "observed": {
@@ -2040,14 +2398,29 @@ def assert_live_wizard_coverage(output_dir: Path) -> None:
         "required_transitions": sorted(required_transitions),
         "observed_transitions": sorted(LIVE_WIZARD_TRANSITIONS),
         "missing_transitions": missing_transitions,
+        "initial_advanced_setting_owners": {
+            page: sorted(fields)
+            for page, fields in sorted(
+                INITIAL_ADVANCED_WIZARD_COVERAGE.items()
+            )
+        },
+        "duplicate_initial_setting_owners": duplicate_setting_owners,
+        "missing_initial_setting_capture": missing_initial_capture,
     }
     (output_dir / "wizard-coverage-live.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
     )
-    if missing or missing_transitions:
+    if (
+        missing
+        or missing_transitions
+        or duplicate_setting_owners
+        or missing_initial_capture
+    ):
         raise AssertionError(
             "Mandatory wizard coverage was not exercised in real HA: "
-            f"surfaces={missing}, transitions={missing_transitions}"
+            f"surfaces={missing}, transitions={missing_transitions}, "
+            f"duplicate_settings={duplicate_setting_owners}, "
+            f"missing_initial_capture={missing_initial_capture}"
         )
 
 
@@ -2549,6 +2922,7 @@ def run_bootstrap(
             cover_entity=cover_entity,
             name=name,
         )
+    assert_calculated_glare_zone_flow(api, advanced_entry_id)
     add_advanced_sector_through_options(api, scenario, advanced_entry_id)
     explore_options_surfaces(api, advanced_entry_id)
     choice_evidence = probe_choice_matrix(api, entry_id, advanced_entry_id)

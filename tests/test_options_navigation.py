@@ -62,8 +62,7 @@ class OptionsNavigationTests(unittest.TestCase):
             [route["action"] for route in routes],
             [
                 "manage_room_details", "structure_hub",
-                "manage_automation", "manage_night", "manage_pause",
-                "manage_conditions", "manage_room_maintenance",
+                "advanced_features_hub", "manage_room_maintenance",
             ],
         )
         labels = " ".join(route["label"] for route in routes)

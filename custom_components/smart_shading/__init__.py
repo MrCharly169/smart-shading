@@ -14,8 +14,10 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    ADVANCED_FEATURES,
     ADVANCED_EXECUTION_ROOM_DEFAULTS,
     CONF_ADVANCED_MODE,
+    CONF_ADVANCED_FEATURES,
     CONF_DIAGNOSTIC_LEVEL,
     DEFAULT_EVALUATION_DEBOUNCE_SECONDS,
     CONF_EVALUATION_INTERVAL,
@@ -34,6 +36,12 @@ from .const import (
     DEFAULT_SUNSET_OFFSET_MINUTES,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DOMAIN,
+    FEATURE_CONDITIONS,
+    FEATURE_GLARE_PROTECTION,
+    FEATURE_NIGHT,
+    FEATURE_SAFETY,
+    FEATURE_SCHEDULE,
+    FEATURE_TEMPERATURE,
     PLATFORMS,
     OPENING_ORDER_OPTIONS,
     PROFILE_DEFAULTS,
@@ -167,12 +175,57 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(bypasses_stagger, bool)
                 else DEFAULT_SAFETY_BYPASSES_STAGGER
             )
+            # Issue #79 originally made every diagnostic and experimental
+            # capability visible for every Advanced room.  Preserve existing
+            # configured behaviour, but migrate those capabilities into an
+            # explicit per-room selection.  Test/support tools deliberately
+            # remain off for legacy rooms: they never changed automation and
+            # must not suddenly clutter a customer's dashboard.
+            raw_features = room.get(CONF_ADVANCED_FEATURES)
+            if isinstance(raw_features, (list, tuple, set)):
+                room[CONF_ADVANCED_FEATURES] = [
+                    feature
+                    for feature in dict.fromkeys(str(value) for value in raw_features)
+                    if feature in ADVANCED_FEATURES
+                ]
+            else:
+                inferred: list[str] = []
+                if room.get("schedule_enabled"):
+                    inferred.append(FEATURE_SCHEDULE)
+                if any(
+                    str(room.get(key) or "").strip()
+                    for key in ("indoor_temperature", "outdoor_temperature")
+                ):
+                    inferred.append(FEATURE_TEMPERATURE)
+                if room.get("night_enabled"):
+                    inferred.append(FEATURE_NIGHT)
+                if room.get("safety_blockers"):
+                    inferred.append(FEATURE_SAFETY)
+                if any(
+                    room.get(key)
+                    for key in (
+                        "irradiance_sensor",
+                        "cloud_cover_sensor",
+                        "weather_permission",
+                        "occupancy_sensor",
+                        "glare_sensor",
+                    )
+                ):
+                    inferred.append(FEATURE_CONDITIONS)
+                if any(
+                    sector.get("protected_zones")
+                    for sector in room.get("sectors", [])
+                    if isinstance(sector, dict)
+                ):
+                    inferred.append(FEATURE_GLARE_PROTECTION)
+                room[CONF_ADVANCED_FEATURES] = inferred
         else:
             # Issue #79 execution controls are an Advanced-only contract.
             # Remove crafted or beta-era values as well as avoiding new
             # defaults, so an Easy entry has no hidden execution surface.
             for key in ADVANCED_EXECUTION_ROOM_DEFAULTS:
                 room.pop(key, None)
+            room.pop(CONF_ADVANCED_FEATURES, None)
         room.setdefault("normal_shading_temperature", room.get("comfort_temperature", 23.5))
         room.setdefault("sectors", [])
         room["active_months"] = [int(v) for v in room.get("active_months", range(1, 13))]
@@ -351,7 +404,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 16:
+    if entry.version >= 17:
         return True
     raw_data = dict(entry.data)
     raw_options = dict(entry.options)
@@ -374,10 +427,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data_source[CONF_ADVANCED_MODE] = fixed_advanced_mode
     effective_source = legacy_effective_config(data_source, option_source)
     effective_source[CONF_ADVANCED_MODE] = fixed_advanced_mode
-    # v4.6.2 already used entry schema 15.  Schema 16 deliberately reruns
-    # normalization for that stable baseline so Issue #79 defaults and
-    # Advanced/Easy field isolation are persisted instead of existing only as
-    # runtime fallbacks.
+    # v4.6.2 already used entry schema 15. Schema 16 normalized that stable
+    # baseline, while schema 17 persists each Advanced room's selected
+    # customer capabilities. Existing glare rules are inferred so an update
+    # never silently removes established protection.
     data = _normalize_config(data_source)
     # Merge raw legacy values before adding defaults. This supports both the
     # old partial options format and the later full-snapshot format without an
@@ -402,7 +455,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, fixed_advanced_mode)
             ) if fixed_advanced_mode else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=16
+        entry, data=data, options=options, version=17
     )
     return True
 

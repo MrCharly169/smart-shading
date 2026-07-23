@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "description": "Every customer-facing config/options-flow surface must stay assigned to a real HA or browser scenario.",
+  "unique_setting_ownership": true,
   "all_surfaces": [
     "user",
     "global_settings",
@@ -59,10 +60,12 @@
     "initial_night_targets",
     "manage_pause",
     "manage_conditions",
-    "initial_safety_targets",
     "configure_sector_source",
     "configure_lux_profile",
     "manage_sector_geometry",
+    "protected_zones_hub",
+    "add_protected_zone",
+    "manage_protected_zone",
     "add_sector_flat",
     "add_sector_group",
     "add_sector_covers",
@@ -73,8 +76,9 @@
   ],
   "live_transitions": [
     "existing_room.night_enabled.on_to_off.save_reload",
-    "existing_room.night_enabled.off_to_on.targets.save_reload.runtime",
+    "existing_room.night_enabled.off_to_on.configure.save_reload.runtime",
     "existing_room.schedule_enabled.on_to_off_to_on.save_reload",
+    "existing_room.glare_zone.single_cover.create_edit.save_reload",
     "existing_cover.enforce_max_open_position.on_to_off_to_on.save_reload"
   ],
   "boolean_field_contract": {

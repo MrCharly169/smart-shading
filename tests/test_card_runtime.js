@@ -285,7 +285,7 @@ const visibleHtml = html.replace(/data-(?:more|press|toggle|number|select)="[^"]
 if (visibleHtml.includes("cover.internal_identifier")) throw new Error("Card exposed a raw cover entity ID as visible content");
 if (html.includes("undefined")) throw new Error("Card rendered undefined");
 if (!html.includes('data-card-mode="advanced"') || !html.includes("data-advanced-layout") || !html.includes("data-advanced-sectors")) throw new Error("Advanced card did not use its dedicated layout");
-if (!html.includes("data-decision-trace") || !html.includes('data-press="button.simulate"') || !html.includes('data-press="button.preview"')) throw new Error("Advanced card did not render Issue 79 trace or simulation controls");
+if (!html.includes("data-decision-trace") || html.includes('data-press="button.simulate"') || html.includes('data-press="button.preview"')) throw new Error("Advanced card exposed test controls outside the details view");
 if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
@@ -303,13 +303,7 @@ const detailsOnlyEntrances = detailsOnlyHtml.match(/data-advanced(?=[\s>])/g) ||
 if (detailsOnlyEntrances.length !== 1 || !detailsOnlyHtml.includes("data-advanced-layout")) throw new Error("Advanced details were not reachable when ordinary action buttons were hidden");
 if (detailsOnlyHtml.includes('data-press="button.pause"') || detailsOnlyHtml.includes('data-press="button.evaluate"') || detailsOnlyHtml.includes('data-press="button.simulate"') || detailsOnlyHtml.includes('data-press="button.preview"')) throw new Error("show_actions=false still rendered active automation controls");
 card._callEntity("switch.master");
-card._callEntity("button.evaluate");
-card._callEntity("button.simulate");
-card._callEntity("button.preview");
 if (!hass.calls.some((call) => call.domain === "switch" && call.service === "toggle" && call.data.entity_id === "switch.master")) throw new Error("Master switch was not toggled");
-if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.evaluate")) throw new Error("Evaluate button was not pressed");
-if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.simulate")) throw new Error("Simulation button was not pressed");
-if (!hass.calls.some((call) => call.domain === "button" && call.service === "press" && call.data.entity_id === "button.preview")) throw new Error("Day preview button was not pressed");
 
 async function runAsyncChecks() {
 await card._openNightSource("schedule.room_night");
@@ -418,7 +412,7 @@ if (!body.children.length) throw new Error("Advanced dialog was not appended to 
 const dialog = body.children[0];
 if (!dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog did not render");
 if (!dialog.shadowRoot.innerHTML.includes("26") || !dialog.shadowRoot.innerHTML.includes("18") || !dialog.shadowRoot.innerHTML.includes("Pausiert")) throw new Error("Advanced dialog missed lux or local pause details");
-if (!dialog.shadowRoot.innerHTML.includes("Entscheidungs-Trace") || !dialog.shadowRoot.innerHTML.includes("Verworfene Kandidaten") || !dialog.shadowRoot.innerHTML.includes("Datenqualität") || !dialog.shadowRoot.innerHTML.includes("Schreibtisch") || !dialog.shadowRoot.innerHTML.includes("Gesendet") || !dialog.shadowRoot.innerHTML.includes("Simuliert") || !dialog.shadowRoot.innerHTML.includes("Entscheidung geändert") || !dialog.shadowRoot.innerHTML.includes("Simulation aktiv") || !dialog.shadowRoot.innerHTML.includes("Tagvorschau")) throw new Error("Advanced dialog did not resolve the production trace, command, protected-zone, simulation, or preview wrappers");
+if (!dialog.shadowRoot.innerHTML.includes("Was passiert gerade?") || !dialog.shadowRoot.innerHTML.includes("Warum?") || !dialog.shadowRoot.innerHTML.includes("data-test-tools") || !dialog.shadowRoot.innerHTML.includes("Technische Supportdaten") || !dialog.shadowRoot.innerHTML.includes("Schreibtisch") || !dialog.shadowRoot.innerHTML.includes("Tagvorschau")) throw new Error("Advanced dialog did not separate customer explanation, tools, and technical support data");
 const simulationRows = dialog.shadowRoot.innerHTML.match(/data-simulation-result(?=[\s>])/g) || [];
 if (simulationRows.length !== 2
   || !dialog.shadowRoot.innerHTML.includes("South Left · Layer")
@@ -431,7 +425,7 @@ if (simulationRows.length !== 2
   || !dialog.shadowRoot.innerHTML.includes("Halten wegen Eingabequalität")
   || !dialog.shadowRoot.innerHTML.includes("Fenstergruppe")
   || !dialog.shadowRoot.innerHTML.includes("Manuell gesperrt")) throw new Error("Advanced simulation did not render every sector/layer outcome with winner, target, status, and constrained cover projection");
-if (!dialog.shadowRoot.innerHTML.includes('data-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || !dialog.shadowRoot.innerHTML.includes('data-preview-fallback="button.preview"')) throw new Error("Advanced dialog missed simulation or selected-date preview controls");
+if (!dialog.shadowRoot.innerHTML.includes('data-tool-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || dialog.shadowRoot.innerHTML.includes("data-preview-fallback")) throw new Error("Advanced dialog missed explicit simulation or selected-date preview controls");
 if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
@@ -475,14 +469,13 @@ for (const [code, label] of Object.entries(englishTraceLabels)) {
 dialog._hass = dialogHass;
 const previewInput = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
 const previewAction = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-day]");
-if (!previewInput || !previewAction || previewAction.dataset.previewFallback !== "button.preview") throw new Error("Preview controls or their conservative fallback were not queryable in the card runtime");
+if (!previewInput || !previewAction || previewAction.dataset.previewFallback) throw new Error("Preview controls were not queryable in the card runtime");
 previewInput.value = "2031-06-21";
 previewInput.listeners.get("change")?.();
 previewAction.listeners.get("click")?.();
 const previewServiceCall = hass.calls.at(-1);
 if (previewServiceCall?.domain !== "smart_shading" || previewServiceCall.service !== "preview_day" || previewServiceCall.data?.room_id !== "room" || previewServiceCall.data?.entry_id !== "entry" || previewServiceCall.data?.date !== "2031-06-21") throw new Error("Selected preview date was not sent to the narrow Smart Shading preview service");
 const originalCallService = hass.callService;
-const fallbackCallsBefore = hass.calls.filter((call) => call.domain === "button" && call.service === "press" && call.data?.entity_id === "button.preview").length;
 hass.callService = function(domain, service, data) {
   if (domain === "smart_shading" && service === "preview_day") {
     this.calls.push({ domain, service, data });
@@ -490,27 +483,25 @@ hass.callService = function(domain, service, data) {
   }
   return originalCallService.call(this, domain, service, data);
 };
-dialog._previewDay("room", "entry", "2031-06-22", "button.preview");
-await Promise.resolve();
-await Promise.resolve();
-const fallbackCallsAfter = hass.calls.filter((call) => call.domain === "button" && call.service === "press" && call.data?.entity_id === "button.preview").length;
-if (fallbackCallsAfter !== fallbackCallsBefore + 1) throw new Error("Selected-date preview did not use the conservative button fallback after service rejection");
+await dialog._previewDay("room", "entry", "2031-06-22");
+if (!dialog._toolStatus.includes("vollständig neu starten")) throw new Error("Unavailable selected-date preview did not explain the required Home Assistant restart");
 hass.callService = originalCallService;
-if (dialog.dataset.contentWriteCount !== "1") throw new Error("Advanced dialog did not record its initial content write");
+const contentWritesAfterTools = Number(dialog.dataset.contentWriteCount || 0);
+if (contentWritesAfterTools < 1) throw new Error("Advanced dialog did not record its initial content write");
 dialog.shadowRoot.querySelector(".dialog").scrollTop = 123;
 card.hass = hass;
 if (!dialog.isConnected || !dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog closed during state update");
 if (dialog.shadowRoot.innerHTML.includes("undefined")) throw new Error("Dialog rendered undefined");
-if (dialog.dataset.contentWriteCount !== "1") throw new Error("Unchanged Home Assistant state rewrote the Advanced dialog DOM");
+if (Number(dialog.dataset.contentWriteCount || 0) !== contentWritesAfterTools) throw new Error("Unchanged Home Assistant state rewrote the Advanced dialog DOM");
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position on an unchanged update");
 const focusedAction = new FakeElement();
-focusedAction.dataset.press = "button.evaluate";
+focusedAction.dataset.toolPress = "button.simulate";
 dialog.shadowRoot.activeElement = focusedAction;
 hass.states["cover.internal_identifier"] = { ...unknownCoverState, attributes: { ...unknownCoverState.attributes, current_position: 75 } };
 card.hass = hass;
-if (dialog.dataset.contentWriteCount !== "2" || !dialog._mainHtml.includes("75%")) throw new Error("Changed relevant cover feedback did not refresh the Advanced dialog");
+if (Number(dialog.dataset.contentWriteCount || 0) !== contentWritesAfterTools + 1 || !dialog._mainHtml.includes("75%")) throw new Error("Changed relevant cover feedback did not refresh the Advanced dialog");
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position while refreshing content");
-const replacementAction = dialog.shadowRoot.querySelector("main").querySelectorAll("[data-press]").find((element) => element.dataset.press === "button.evaluate");
+const replacementAction = dialog.shadowRoot.querySelector("main").querySelectorAll("[data-tool-press]").find((element) => element.dataset.toolPress === "button.simulate");
 if (!replacementAction?.focused) throw new Error("Advanced dialog did not restore focused control after a relevant update");
 const focusedPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
 dialog.shadowRoot.activeElement = focusedPreviewDate;

@@ -443,6 +443,26 @@ class WizardRouteContractTests(unittest.TestCase):
             _attribute_calls(first_room_handler),
         )
 
+    def test_indoor_temperature_is_owned_by_the_optional_temperature_feature(self):
+        room_setup = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.config_flow, "_async_step_room_setup"),
+        ) or ""
+        room_details = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_room_details"),
+        ) or ""
+        automation = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_automation"),
+        ) or ""
+
+        self.assertNotIn('vol.Optional("indoor_temperature")', room_setup)
+        self.assertNotIn('room["indoor_temperature"]', room_setup)
+        self.assertNotIn('"indoor_temperature"', room_details)
+        self.assertIn('vol.Required(\n                    "indoor_temperature"', automation)
+        self.assertIn("temperature_selected", automation)
+
     def test_protected_zone_wizard_is_advanced_and_pipeline_compatible(self):
         source = FLOW_PATH.read_text(encoding="utf-8")
         mixin_methods = {
@@ -494,10 +514,11 @@ class WizardRouteContractTests(unittest.TestCase):
                 node
                 for node in self.mixin.body
                 if isinstance(node, ast.FunctionDef)
-                and node.name == "_protected_zone_group_selector"
+                and node.name == "_protected_zone_cover_selector"
             ),
         ) or ""
-        self.assertIn("multiple=True", selector_source)
+        self.assertIn("multiple=False", selector_source)
+        self.assertIn("_protected_zone_covers()", selector_source)
 
         payload_source = ast.get_source_segment(
             source,
@@ -510,16 +531,22 @@ class WizardRouteContractTests(unittest.TestCase):
         ) or ""
         for field in (
             "sector_id",
-            "group_ids",
+            "cover_entity",
             "distance_m",
             "lower_height_m",
             "upper_height_m",
-            "lateral_min_m",
-            "lateral_max_m",
-            "target_position",
-            "target_tilt",
+            "window_width_m",
+            "window_height_m",
+            "window_sill_height_m",
+            "object_distance_m",
+            "object_center_height_m",
+            "object_height_m",
+            "object_lateral_center_m",
+            "object_width_m",
         ):
             self.assertIn(f'"{field}"', payload_source)
+        self.assertNotIn('"group_ids"', payload_source)
+        self.assertNotIn('"calculated"', payload_source)
         self.assertNotIn("distance_from_facade", payload_source)
         self.assertNotIn("protection_strength", payload_source)
 
@@ -614,40 +641,36 @@ class WizardRouteContractTests(unittest.TestCase):
             ast.get_source_segment(source, add_covers) or "",
         )
 
-    def test_advanced_creation_chain_reaches_night_pause_and_conditions(self):
-        expected_edges = (
-            (
-                self.config_flow,
-                "async_step_compact_cover_details",
-                "async_step_manage_automation",
-            ),
-            (
-                self.options_flow,
-                "async_step_manage_automation",
-                "async_step_manage_night",
-            ),
-            (
-                self.options_flow,
-                "async_step_manage_night",
-                "async_step_manage_pause",
-            ),
-            (
-                self.options_flow,
-                "async_step_manage_pause",
-                "async_step_manage_conditions",
-            ),
-            (
-                self.options_flow,
-                "async_step_manage_conditions",
-                "async_step_after_room",
-            ),
+    def test_advanced_creation_configures_only_selected_features_in_order(self):
+        compact_calls = _async_step_calls(
+            _method(self.config_flow, "async_step_compact_cover_details")
         )
-        for owner, source, target in expected_edges:
-            with self.subTest(source=source, target=target):
-                self.assertIn(
-                    target,
-                    _async_step_calls(_method(owner, source)),
-                )
+        self.assertIn("async_step_choose_advanced_features", compact_calls)
+        self.assertNotIn("async_step_manage_automation", compact_calls)
+
+        dispatcher = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.mixin, "async_step_configure_next_advanced_feature"),
+        ) or ""
+        ordered_handlers = (
+            "manage_schedule",
+            "manage_temperature",
+            "manage_night",
+            "manage_safety",
+            "manage_weather_conditions",
+            "initial_glare_protection",
+            "manage_execution",
+        )
+        offsets = [dispatcher.index(f'"{handler}"') for handler in ordered_handlers]
+        self.assertEqual(offsets, sorted(offsets))
+
+        chooser = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.mixin, "async_step_choose_advanced_features"),
+        ) or ""
+        self.assertIn('room["schedule_enabled"] = True', chooser)
+        self.assertIn('room["night_enabled"] = True', chooser)
+        self.assertIn("_start_initial_feature_sequence", chooser)
 
         night_source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
@@ -658,32 +681,46 @@ class WizardRouteContractTests(unittest.TestCase):
             _method(self.options_flow, "async_step_manage_conditions"),
         ) or ""
         self.assertIn("async_step_initial_night_targets", night_source)
-        self.assertIn('else "room_hub"', night_source)
-        self.assertIn('_night_just_enabled', night_source)
-        self.assertIn("async_step_initial_safety_targets", conditions_source)
+        self.assertIn('"complete_initial_feature"', night_source)
+        self.assertNotIn('vol.Required(\n                "night_enabled"', night_source)
+        self.assertIn(
+            '_optional_marker(\n                    "night_entity"',
+            night_source,
+        )
+        self.assertIn("inline_safety_target", conditions_source)
+        self.assertIn('_layers_with_function_targets("safety_")', conditions_source)
+        self.assertIn("for key in target_keys", conditions_source)
+        self.assertNotIn("async_step_initial_safety_targets", conditions_source)
+        self.assertIn("_complete_initial_feature", conditions_source)
 
-    def test_schedule_form_hides_fields_until_they_can_take_effect(self):
+    def test_schedule_and_temperature_forms_show_the_complete_feature_once(self):
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
             _method(self.options_flow, "async_step_manage_automation"),
         ) or ""
 
-        self.assertIn(
-            "if current_schedule_enabled and current_profile == SCHEDULE_CUSTOM:",
-            source,
-        )
-        self.assertIn(
-            "if current_schedule_enabled and current_window == DAY_WINDOW_FIXED:",
-            source,
-        )
-        self.assertIn('"schedule_enabled"', source)
-        self.assertIn(
-            "current_profile != SCHEDULE_YEAR_ROUND", source
-        )
-        self.assertIn("return await self.async_step_manage_automation()", source)
-        self.assertIn("has_indoor_temperature", source)
+        self.assertNotIn('vol.Required(\n                "schedule_enabled"', source)
+        self.assertNotIn("return await self._rerender_automation_feature()", source)
+        for field in (
+            "schedule_profile",
+            "day_window",
+            "active_months",
+            "active_weekdays",
+            "start_time",
+            "end_time",
+            "outside_schedule_behavior",
+            "indoor_temperature",
+            "heat_temperature",
+            "heat_outside_schedule",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(f'"{field}"', source)
         self.assertIn(
             'sections[vol.Required("temperature_settings")]', source
+        )
+        self.assertGreater(
+            source.index('"heat_outside_schedule"'),
+            source.index("temperatures: dict[Any, Any]"),
         )
 
     def test_dynamic_choices_use_focused_follow_up_steps(self):
@@ -705,9 +742,9 @@ class WizardRouteContractTests(unittest.TestCase):
             _method(self.options_flow, "async_step_manage_night"),
         ) or ""
 
-        self.assertLess(
-            automation.index("room.update(values)"),
-            automation.index("return await self.async_step_manage_automation()"),
+        self.assertIn("for key, value in values.items()", automation)
+        self.assertNotIn(
+            "return await self._rerender_automation_feature()", automation
         )
         self.assertIn("async_step_configure_sector_source", sector_source)
         self.assertNotIn("async_step_manage_sector_source()", sector_source)

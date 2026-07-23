@@ -177,6 +177,10 @@ class SmartShadingV4Dialog extends HTMLElement {
     this._contentWriteCount = 0;
     this._mainHtml = "";
     this._selectedPreviewDate = "";
+    this._toolStatus = "";
+    this._toolsOpen = false;
+    this._technicalOpen = false;
+    this._runtimeSupportOpen = false;
     this._opener = null;
     this._keyHandler = (event) => {
       if (event.key === "Escape") {
@@ -312,6 +316,16 @@ class SmartShadingV4Dialog extends HTMLElement {
       rule: "Regel",
       quality: "Qualität",
       status: "Status",
+      whatNow: "Was passiert gerade?",
+      whyNow: "Warum?",
+      nextNow: "Als Nächstes",
+      tools: "Test & Vorschau",
+      technical: "Technische Supportdaten",
+      toolsHint: "Testläufe bewegen keine Behänge.",
+      toolRunning: "Berechnung wird gestartet …",
+      toolReady: "Ergebnis bereit – es wurden keine Behänge bewegt.",
+      toolUnavailable: "Die Vorschau ist nach dem Update noch nicht verfügbar. Home Assistant bitte vollständig neu starten.",
+      toolFailed: "Die Berechnung konnte nicht gestartet werden.",
     } : {
       title: "Smart Shading · Details",
       close: "Close",
@@ -379,6 +393,16 @@ class SmartShadingV4Dialog extends HTMLElement {
       rule: "Rule",
       quality: "Quality",
       status: "Status",
+      whatNow: "What is happening now?",
+      whyNow: "Why?",
+      nextNow: "What happens next?",
+      tools: "Test & preview",
+      technical: "Technical support data",
+      toolsHint: "Test runs never move covers.",
+      toolRunning: "Starting calculation …",
+      toolReady: "Result ready – no covers were moved.",
+      toolUnavailable: "Preview is not available after this update yet. Please fully restart Home Assistant.",
+      toolFailed: "The calculation could not be started.",
     };
   }
 
@@ -762,36 +786,43 @@ class SmartShadingV4Dialog extends HTMLElement {
       <span class="trace-status">${htmlEscape(this._traceText(command.status))}</span>
       <small>${htmlEscape(this._traceText(command.reason_code))}</small>
     </div>`;
+    const explanation = traceAvailable
+      ? `${this._traceText(winner.reason_code || commandReason)}${winnerEntry ? ` · ${this._traceText(asRecord(winnerEntry).resolution_reason_code)}` : ""}`
+      : L.noTrace;
+    const toolsAvailable = Boolean(simulate?.entity_id || previewButton?.entity_id);
     return `
-      <section data-decision-trace><h3>${htmlEscape(L.decision)}</h3>
+      <section data-decision-trace><h3>${htmlEscape(L.whatNow)}</h3>
         ${traceAvailable ? `<div class="summary trace-summary">
-          <div><small>${htmlEscape(L.winner)}</small><strong>${htmlEscape(this._traceText(winner.rule || winner.mode))}</strong></div>
           <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(winner.mode))}</strong></div>
           <div><small>${htmlEscape(L.target)}</small><strong>${htmlEscape(this._traceTarget(winner.target, L))}</strong></div>
           <div><small>${htmlEscape(L.command)}</small><strong>${htmlEscape(this._traceText(commandStatus))}</strong></div>
+        </div>` : `<div class="empty">${htmlEscape(L.noTrace)}</div>`}
+      </section>
+      <section data-decision-explanation><h3>${htmlEscape(L.whyNow)}</h3><div class="muted">${htmlEscape(explanation)}</div></section>
+      ${toolsAvailable ? `<section class="collapsible" data-test-tools>
+        <button class="collapsible-toggle" data-collapse-toggle="tools" aria-expanded="${this._toolsOpen}"><span>${htmlEscape(L.tools)}</span>${iconBox(this._toolsOpen ? "mdi:chevron-up" : "mdi:chevron-down", "action-icon")}</button>
+        <div class="collapsible-content" ${this._toolsOpen ? "" : "hidden"}>
+          <p class="muted">${htmlEscape(L.toolsHint)}</p>
+          ${this._toolStatus ? `<div class="warning" data-tool-status>${htmlEscape(this._toolStatus)}</div>` : ""}
+          <section data-simulation><h3>${htmlEscape(L.simulation)}</h3>
+            ${simulationHtml}
+            ${simulate?.entity_id ? `<div class="actions"><button data-tool-press="${htmlEscape(simulate.entity_id)}">${iconBox("mdi:flask-outline", "action-icon")}${htmlEscape(L.runSimulation)}</button></div>` : ""}
+          </section>
+          <section data-day-preview><h3>${htmlEscape(L.dayPreview)}</h3>
+            ${Object.keys(preview).length ? `<div class="summary trace-summary"><div><small>${htmlEscape(L.transitions)}</small><strong>${htmlEscape(transitions.length)}</strong></div><div><small>${htmlEscape(L.dayPreview)}</small><strong>${htmlEscape(preview.day || "–")}</strong></div></div>` : ""}
+            <div class="trace-list">${transitionHtml}</div>
+            ${previewButton?.entity_id ? `<div class="actions preview-actions"><label class="preview-date"><span>${htmlEscape(L.previewDate)}</span><input type="date" data-preview-date value="${htmlEscape(previewDate)}"></label><button data-preview-day data-preview-room="${htmlEscape(roomId)}" data-preview-entry="${htmlEscape(entryId)}">${iconBox("mdi:calendar-search-outline", "action-icon")}${htmlEscape(L.previewDay)}</button></div>` : ""}
+          </section>
         </div>
-        <div class="muted">${htmlEscape(`${this._traceText(winner.reason_code || commandReason)}${winnerEntry ? ` · ${this._traceText(asRecord(winnerEntry).resolution_reason_code)}` : ""}`)}</div>` : `<div class="empty">${htmlEscape(L.noTrace)}</div>`}
-      </section>
-      <section data-input-quality><h3>${htmlEscape(L.inputQuality)}</h3><div class="trace-list">${inputHtml}</div></section>
-      <section data-command-results><h3>${htmlEscape(L.command)}</h3><div class="trace-list">${commandHtml}</div></section>
-      <section data-rejected-candidates><h3>${htmlEscape(L.rejected)}</h3><div class="trace-list">${rejectedHtml}</div></section>
-      <section data-protected-zones><h3>${htmlEscape(L.protectedZones)}</h3><div class="trace-list">${zoneHtml}</div></section>
-      <section data-simulation><h3>${htmlEscape(L.simulation)}</h3>
-        ${attrs.simulation_active ? `<div class="warning">${htmlEscape(L.simulationActive)}</div>` : ""}
-        ${simulationHtml}
-        ${simulate?.entity_id ? `<div class="actions"><button data-press="${htmlEscape(simulate.entity_id)}">${iconBox("mdi:flask-outline", "action-icon")}${htmlEscape(L.runSimulation)}</button></div>` : ""}
-      </section>
-      <section data-day-preview><h3>${htmlEscape(L.dayPreview)}</h3>
-        ${Object.keys(preview).length ? `<div class="summary trace-summary">
-          <div><small>${htmlEscape(L.samples)}</small><strong>${htmlEscape(samples.length)}</strong></div>
-          <div><small>${htmlEscape(L.transitions)}</small><strong>${htmlEscape(transitions.length)}</strong></div>
-          <div><small>${htmlEscape(L.dayPreview)}</small><strong>${htmlEscape(preview.day || "–")}</strong></div>
-        </div>` : ""}
-        <div class="trace-list">${transitionHtml}</div>
-        ${previewButton?.entity_id ? `<div class="actions preview-actions">
-          <label class="preview-date"><span>${htmlEscape(L.previewDate)}</span><input type="date" data-preview-date value="${htmlEscape(previewDate)}"></label>
-          <button data-preview-day data-preview-room="${htmlEscape(roomId)}" data-preview-entry="${htmlEscape(entryId)}" data-preview-fallback="${htmlEscape(previewButton.entity_id)}">${iconBox("mdi:calendar-search-outline", "action-icon")}${htmlEscape(L.previewDay)}</button>
-        </div>` : ""}
+      </section>` : ""}
+      <section class="collapsible" data-technical-details>
+        <button class="collapsible-toggle" data-collapse-toggle="technical" aria-expanded="${this._technicalOpen}"><span>${htmlEscape(L.technical)}</span>${iconBox(this._technicalOpen ? "mdi:chevron-up" : "mdi:chevron-down", "action-icon")}</button>
+        <div class="collapsible-content" ${this._technicalOpen ? "" : "hidden"}>
+          <section data-input-quality><h3>${htmlEscape(L.inputQuality)}</h3><div class="trace-list">${inputHtml}</div></section>
+          <section data-command-results><h3>${htmlEscape(L.command)}</h3><div class="trace-list">${commandHtml}</div></section>
+          <section data-rejected-candidates><h3>${htmlEscape(L.rejected)}</h3><div class="trace-list">${rejectedHtml}</div></section>
+          <section data-protected-zones><h3>${htmlEscape(L.protectedZones)}</h3><div class="trace-list">${zoneHtml}</div></section>
+        </div>
       </section>`;
   }
 
@@ -799,27 +830,57 @@ class SmartShadingV4Dialog extends HTMLElement {
     return this._controls.find((state) => state?.attributes?.smart_shading_control_key === key);
   }
 
-  _callEntity(entityId) {
-    if (!this._hass || !entityId) return;
+  async _callEntity(entityId, { testTool = false } = {}) {
+    if (!this._hass || !entityId) return false;
     const domain = entityId.split(".")[0];
     const service = domain === "button" ? "press" : domain === "switch" ? "toggle" : null;
-    if (service) this._hass.callService(domain, service, { entity_id: entityId });
+    if (!service) return false;
+    if (testTool) {
+      this._toolsOpen = true;
+      this._toolStatus = this._labels().toolRunning;
+      this._render();
+    }
+    try {
+      await this._hass.callService(domain, service, { entity_id: entityId });
+      if (testTool) {
+        this._toolStatus = this._labels().toolReady;
+        this._render();
+      }
+      return true;
+    } catch (_error) {
+      if (testTool) {
+        this._toolStatus = this._labels().toolFailed;
+        this._render();
+      }
+      return false;
+    }
   }
 
-  _previewDay(roomId, entryId, date, fallbackEntity) {
+  async _previewDay(roomId, entryId, date) {
     const selected = /^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))
       ? String(date)
       : localDateKey();
     if (!this._hass?.callService || !roomId) {
-      this._callEntity(fallbackEntity);
-      return;
+      this._toolsOpen = true;
+      this._toolStatus = this._labels().toolUnavailable;
+      this._render();
+      return false;
     }
     const request = { room_id: roomId, date: selected };
     if (entryId) request.entry_id = entryId;
-    const pending = this._hass.callService("smart_shading", "preview_day", request);
-    // The button remains a conservative today-only fallback for a partially
-    // upgraded installation whose backend service has not registered yet.
-    if (pending?.catch) pending.catch(() => this._callEntity(fallbackEntity));
+    this._toolsOpen = true;
+    this._toolStatus = this._labels().toolRunning;
+    this._render();
+    try {
+      await this._hass.callService("smart_shading", "preview_day", request);
+      this._toolStatus = this._labels().toolReady;
+      this._render();
+      return true;
+    } catch (_error) {
+      this._toolStatus = this._labels().toolUnavailable;
+      this._render();
+      return false;
+    }
   }
 
   _more(entityId) {
@@ -900,11 +961,6 @@ class SmartShadingV4Dialog extends HTMLElement {
           <span>${htmlEscape(parsed)}</span>
           <span>${sector.geometry_active ? "Az/El ✓" : "Az/El –"}</span>
         </div>
-        <div class="details">
-          <span>${htmlEscape(L.raw)}: ${htmlEscape(raw)} ${htmlEscape(sector.lux_unit || "")}</span>
-          <span>${htmlEscape(L.thresholds)}: ON ${htmlEscape(settings.sun_on_lux ?? "–")} / OFF ${htmlEscape(settings.sun_off_lux ?? "–")} lx</span>
-          ${sector.pending_until ? `<span>${htmlEscape(L.pending)}: ${htmlEscape(pending)}</span>` : ""}
-        </div>
       </div>`;
     }).join("");
 
@@ -948,8 +1004,6 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.reason)}</small><strong>${htmlEscape(localizedReason(attrs.reason, this._hass?.language, L.noReason))}</strong></div>
         <div><small>${htmlEscape(L.schedule)}</small><strong>${attrs.schedule_active === false ? L.inactive : L.active}</strong></div>
         <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
-        <div><small>${htmlEscape(L.sent)}</small><strong>${htmlEscape(attrs.sent_commands ?? 0)}</strong></div>
-        <div><small>${htmlEscape(L.suppressed)}</small><strong>${htmlEscape(attrs.suppressed_commands ?? 0)}</strong></div>
       </div></section>
       ${decisionHtml}
       ${nightHtml}
@@ -957,13 +1011,17 @@ class SmartShadingV4Dialog extends HTMLElement {
         ${attrs.pause_mode && attrs.pause_mode !== "auto"
           ? (resume?.entity_id ? `<button data-press="${htmlEscape(resume.entity_id)}">${iconBox("mdi:play", "action-icon")}${htmlEscape(L.resume)}</button>` : "")
           : (pause?.entity_id ? `<button data-press="${htmlEscape(pause.entity_id)}">${iconBox("mdi:pause", "action-icon")}${htmlEscape(L.pause)}</button>` : "")}
-        ${evaluate?.entity_id ? `<button data-press="${htmlEscape(evaluate.entity_id)}">${iconBox("mdi:refresh", "action-icon")}${htmlEscape(L.evaluate)}</button>` : ""}
         ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}">${iconBox("mdi:hand-back-right", "action-icon")}${htmlEscape(L.master)}</button>` : ""}
-        ${exportLog?.entity_id ? `<button data-press="${htmlEscape(exportLog.entity_id)}">${iconBox("mdi:file-download-outline", "action-icon")}${htmlEscape(L.exportLog)}</button>` : ""}
       </div></section>
       <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
       <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
-      <section><h3>${htmlEscape(L.diagnostics)}</h3><div>${eventHtml}</div></section>`;
+      <section class="collapsible" data-runtime-support>
+        <button class="collapsible-toggle" data-collapse-toggle="runtimeSupport" aria-expanded="${this._runtimeSupportOpen}"><span>${htmlEscape(L.technical)}</span>${iconBox(this._runtimeSupportOpen ? "mdi:chevron-up" : "mdi:chevron-down", "action-icon")}</button>
+        <div class="collapsible-content" ${this._runtimeSupportOpen ? "" : "hidden"}>
+          <section><h3>${htmlEscape(L.diagnostics)}</h3><div>${eventHtml}</div></section>
+          ${exportLog?.entity_id ? `<div class="actions"><button data-press="${htmlEscape(exportLog.entity_id)}">${iconBox("mdi:file-download-outline", "action-icon")}${htmlEscape(L.exportLog)}</button></div>` : ""}
+        </div>
+      </section>`;
 
     if (!existingDialog) this.shadowRoot.innerHTML = `
       <style>
@@ -983,7 +1041,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         .muted,.empty{font-size:11px;opacity:.62;line-height:1.35;margin-top:5px}.facts{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;opacity:.78;margin-top:7px}.warning{font-size:10px;color:var(--warning-color,#ffbf69);margin-top:7px;overflow-wrap:anywhere}.details{display:grid;gap:3px;font-size:10px;opacity:.55;margin-top:8px}.pause-card{border-color:rgba(255,90,72,.35)}
         .trace-summary{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}.trace-list{display:grid;gap:5px}.trace-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:8px 9px;border-radius:10px;background:rgba(255,255,255,.04);font-size:11px}.trace-item strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trace-item small{grid-column:1/-1;opacity:.58;overflow-wrap:anywhere}.trace-status{font-size:9px;line-height:1.25;opacity:.72;text-align:right;white-space:nowrap}.trace-status.ok{color:var(--success-color,#8be29a);opacity:1}.trace-status.warn{color:var(--warning-color,#ffbf69);opacity:1}
         .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.summary div{padding:11px;border-radius:14px;background:rgba(255,255,255,.055)}.summary small{display:block;opacity:.55;margin-bottom:4px}.summary strong{font-size:12px;overflow-wrap:anywhere}
-        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;line-height:1}.preview-date{display:inline-flex;align-items:center;gap:6px;font-size:10px;opacity:.82}.preview-date input{min-height:34px;max-width:145px;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:0 8px;background:rgba(255,255,255,.06);color:inherit;font:inherit}
+        .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{height:34px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;line-height:1}.preview-date{display:inline-flex;align-items:center;gap:6px;font-size:10px;opacity:.82}.preview-date input{min-height:34px;max-width:145px;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:0 8px;background:rgba(255,255,255,.06);color:inherit;font:inherit}.collapsible{gap:0;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.025)}.collapsible-toggle{width:100%;height:42px;padding:0 12px;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-size:12px;font-weight:700}.collapsible-content{display:grid;gap:13px;padding:2px 12px 13px}.collapsible-content[hidden]{display:none}
         .event{display:grid;grid-template-columns:95px minmax(100px,170px) 1fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:10px;align-items:start}.event time{opacity:.55}.event strong{font-size:10px}.event span{opacity:.66;overflow-wrap:anywhere}
         @media(max-width:560px){header,main{padding-left:14px;padding-right:14px}.event{grid-template-columns:1fr}.dialog{border-radius:18px}.summary{grid-template-columns:1fr 1fr}.actions{width:100%}.actions button{flex:1 1 auto}.facts{align-items:flex-start}}
       </style>
@@ -1000,7 +1058,7 @@ class SmartShadingV4Dialog extends HTMLElement {
     const main = this.shadowRoot.querySelector?.("main");
     const activeElement = this.shadowRoot.activeElement;
     const focusToken = activeElement && activeElement !== main
-      ? ["press", "more", "nightSource", "previewDate", "previewDay"].find((key) =>
+      ? ["press", "toolPress", "more", "nightSource", "previewDate", "previewDay"].find((key) =>
         Object.prototype.hasOwnProperty.call(activeElement.dataset || {}, key)
       )
       : null;
@@ -1015,6 +1073,13 @@ class SmartShadingV4Dialog extends HTMLElement {
     if (!existingDialog) this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
     if (contentChanged) {
       main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
+      main?.querySelectorAll?.("[data-tool-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.toolPress, { testTool: true })));
+      main?.querySelectorAll?.("[data-collapse-toggle]").forEach((element) => element.addEventListener("click", () => {
+        const key = element.dataset.collapseToggle;
+        const property = key === "tools" ? "_toolsOpen" : key === "technical" ? "_technicalOpen" : "_runtimeSupportOpen";
+        this[property] = !this[property];
+        this._render();
+      }));
       main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
       main?.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", () => this._openNightSource(element.dataset.nightSource)));
       const syncPreviewDate = (element) => {
@@ -1038,12 +1103,12 @@ class SmartShadingV4Dialog extends HTMLElement {
           element.dataset.previewRoom,
           element.dataset.previewEntry,
           selected,
-          element.dataset.previewFallback,
         );
       }));
       if (focusToken) {
         const attribute = {
           nightSource: "data-night-source",
+          toolPress: "data-tool-press",
           previewDate: "data-preview-date",
           previewDay: "data-preview-day",
         }[focusToken] || `data-${focusToken}`;
@@ -1643,9 +1708,6 @@ class SmartShadingV4Card extends HTMLElement {
             ${this._config.show_actions !== false ? `${paused
               ? (resumeButton?.entity_id ? `<button class="round" data-press="${htmlEscape(resumeButton.entity_id)}" title="${htmlEscape(L.resume)}">${iconBox("mdi:play", "action-icon")}</button>` : "")
               : (pauseButton?.entity_id ? `<button class="round" data-press="${htmlEscape(pauseButton.entity_id)}" title="${htmlEscape(L.pause)}">${iconBox("mdi:pause", "action-icon")}</button>` : "")}
-            ${evaluateButton?.entity_id ? `<button class="round" data-press="${htmlEscape(evaluateButton.entity_id)}" title="${htmlEscape(L.evaluate)}">${iconBox("mdi:refresh", "action-icon")}</button>` : ""}
-            ${simulateButton?.entity_id ? `<button class="round" data-press="${htmlEscape(simulateButton.entity_id)}" title="${htmlEscape(L.runSimulation)}">${iconBox("mdi:flask-outline", "action-icon")}</button>` : ""}
-            ${previewButton?.entity_id ? `<button class="round" data-press="${htmlEscape(previewButton.entity_id)}" title="${htmlEscape(L.previewDay)}">${iconBox("mdi:calendar-search-outline", "action-icon")}</button>` : ""}
             ${masterButton ? `<button class="round ${attrs.manual_master_active ? "active-master" : ""}" data-press="${htmlEscape(masterButton.entity_id || "")}" title="${htmlEscape(attrs.manual_master_active ? `${L.master}: ON` : `${L.master}: OFF`)}">${iconBox("mdi:hand-back-right", "action-icon")}</button>` : ""}
             ${attrs.night_enabled && attrs.night_source === "entity" && attrs.night_entity && this._state(attrs.night_entity) ? `<button class="round" data-night-source="${htmlEscape(attrs.night_entity)}" title="${htmlEscape(L.nightSchedule)}">${iconBox("mdi:calendar-clock", "action-icon")}</button>` : ""}` : ""}
             <button class="round advanced-button" data-advanced title="${htmlEscape(L.advanced)}">${iconBox("mdi:tune-variant", "advanced-icon")}<span>${htmlEscape(L.advanced)}</span></button>

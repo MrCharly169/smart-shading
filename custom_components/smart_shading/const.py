@@ -18,6 +18,30 @@ PLATFORMS = ["sensor", "binary_sensor", "switch", "select", "number", "button"]
 
 CONF_HOUSE_NAME = "house_name"
 CONF_SUN_ENTITY = "sun_entity"
+CONF_ADVANCED_FEATURES = "advanced_features"
+
+# Advanced must describe customer-selected capabilities, not expose every
+# engineering surface merely because an entry uses the Advanced setup route.
+# The base solar automation is always present; these flags only add optional
+# configuration, controls and explanatory UI for one room.
+FEATURE_SCHEDULE = "schedule"
+FEATURE_TEMPERATURE = "temperature"
+FEATURE_NIGHT = "night"
+FEATURE_SAFETY = "safety"
+FEATURE_CONDITIONS = "conditions"
+FEATURE_GLARE_PROTECTION = "glare_protection"
+FEATURE_TEST_TOOLS = "test_tools"
+FEATURE_EXPERT_EXECUTION = "expert_execution"
+ADVANCED_FEATURES = (
+    FEATURE_SCHEDULE,
+    FEATURE_TEMPERATURE,
+    FEATURE_NIGHT,
+    FEATURE_SAFETY,
+    FEATURE_CONDITIONS,
+    FEATURE_GLARE_PROTECTION,
+    FEATURE_TEST_TOOLS,
+    FEATURE_EXPERT_EXECUTION,
+)
 CONF_EVALUATION_INTERVAL = "evaluation_interval"
 CONF_TEST_MODE = "test_mode"  # legacy compatibility
 CONF_DIAGNOSTIC_LEVEL = "diagnostic_level"
@@ -149,10 +173,10 @@ PRESET_MEDIUM = "medium"
 PRESET_HIGH = "high"
 PRESET_CUSTOM = "custom"
 SUN_PRESETS = {
-    # Sensitive = lower thresholds (more likely to turn ON early).
-    PRESET_LOW: {"sun_on_lux": 35000.0, "sun_off_lux": 18000.0, "sun_on_delay": 6.0, "sun_off_delay": 20.0},
-    PRESET_MEDIUM: {"sun_on_lux": 18000.0, "sun_off_lux": 9000.0, "sun_on_delay": 3.0, "sun_off_delay": 12.0},
-    PRESET_HIGH: {"sun_on_lux": 8000.0, "sun_off_lux": 4000.0, "sun_on_delay": 2.0, "sun_off_delay": 8.0},
+    # Facade-related outdoor Lux presets. Lower thresholds react earlier.
+    PRESET_LOW: {"sun_on_lux": 50000.0, "sun_off_lux": 35000.0, "sun_on_delay": 10.0, "sun_off_delay": 30.0},
+    PRESET_MEDIUM: {"sun_on_lux": 35000.0, "sun_off_lux": 30000.0, "sun_on_delay": 10.0, "sun_off_delay": 30.0},
+    PRESET_HIGH: {"sun_on_lux": 25000.0, "sun_off_lux": 18000.0, "sun_on_delay": 5.0, "sun_off_delay": 15.0},
 }
 SUN_PRESET_OPTIONS = [PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_CUSTOM]
 

@@ -11,7 +11,7 @@
         },
         "data_description": {
           "house_name": "Names this Smart Shading setup.",
-          "setup_type": "Easy asks only for the essentials. Advanced reveals each relevant comfort and protection function; unsuitable fields stay hidden."
+          "setup_type": "Easy asks only for the essentials. Advanced adds selectable comfort and protection functions."
         }
       },
       "room_setup": {
@@ -23,12 +23,10 @@
             "description": "Create the room first. The sun sector, cover group, profile and covers follow as separate guided steps.",
             "data": {
               "name": "Room name",
-              "indoor_temperature": "Indoor temperature sensor (optional)",
               "outdoor_temperature": "Outdoor temperature sensor (optional)"
             },
             "data_description": {
               "name": "Shown in Home Assistant and on the dashboard card.",
-              "indoor_temperature": "Enables optional temperature stages and heat protection.",
               "outdoor_temperature": "Adds a minimum outdoor-temperature condition."
             }
           },
@@ -57,7 +55,7 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
@@ -86,6 +84,48 @@
               "outdoor_minimum": "Minimum outdoor temperature for normal shading."
             }
           }
+        }
+      },
+      "choose_advanced_features": {
+        "title": "Choose optional features",
+        "description": "Base shading is ready. Every selection activates that feature for this room immediately, then the wizard opens its settings one after another. There is no second enable switch. Unselected features stay hidden.",
+        "data": {
+          "schedule": "Use a schedule",
+          "temperature": "Use temperature and heat protection",
+          "night": "Use night mode",
+          "safety": "Use wind, frost or window safety",
+          "conditions": "Use weather or occupancy sensors",
+          "glare_protection": "Use glare protection for an area or object",
+          "test_tools": "Show test and day preview tools",
+          "expert_execution": "Show expert command settings"
+        },
+        "data_description": {
+          "schedule": "Prevents unnecessary movements when the room does not need automatic shading. You can choose months, weekdays and a daily time window.",
+          "temperature": "Uses the measured room temperature to move between comfort, solar and heat protection. The room therefore reacts to actual heat instead of the sun position alone.",
+          "night": "Uses dedicated night targets and hands control back to daytime automation in the morning. An entity or sunset and sunrise can define the night period.",
+          "safety": "Gives wind, frost or window signals priority over comfort. When danger is reported, Smart Shading blocks movement or moves to configured safe targets.",
+          "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
+          "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
+          "test_tools": "Shows preview and calculation tools for checking decisions without sending a movement command.",
+          "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
+        }
+      },
+      "advanced_features_hub": {
+        "title": "Features and protection",
+        "description": "Every selected feature has its own settings area. Selecting it already activates the feature; use this menu later only to adjust its behaviour."
+      },
+      "glare_protection_hub": {
+        "title": "Glare protection",
+        "description": "Open the facade whose protected areas should be configured or changed."
+      },
+      "initial_glare_protection": {
+        "title": "Choose a facade for glare protection",
+        "description": "Choose the facade containing the window in front of the first area you want to protect.",
+        "data": {
+          "sector_id": "Facade"
+        },
+        "data_description": {
+          "sector_id": "Next you will enter the window dimensions and the position of the protected area."
         }
       },
       "global_settings": {
@@ -117,12 +157,10 @@
             "description": "Create the room first. The sun sector, cover group, profile and covers follow as separate guided steps.",
             "data": {
               "name": "Room name",
-              "indoor_temperature": "Indoor temperature sensor (optional)",
               "outdoor_temperature": "Outdoor temperature sensor (optional)"
             },
             "data_description": {
               "name": "Shown in Home Assistant and on the dashboard card.",
-              "indoor_temperature": "Enables optional temperature stages and heat protection.",
               "outdoor_temperature": "Adds a minimum outdoor-temperature condition."
             }
           },
@@ -151,7 +189,7 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
@@ -269,16 +307,14 @@
       },
       "manage_room_details": {
         "title": "Room details",
-        "description": "Edit the name and primary temperature sources.",
+        "description": "Edit the general room details.",
         "data": {
           "name": "Room name",
-          "indoor_temperature": "Indoor temperature (optional)",
           "outdoor_temperature": "Outdoor temperature (optional)",
           "outdoor_minimum": "Minimum outdoor temperature"
         },
         "data_description": {
           "name": "Name used in cards and status entities.",
-          "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
           "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
           "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
         }
@@ -305,11 +341,11 @@
       },
       "manage_automation": {
         "title": "Automation",
-        "description": "Set active times. Temperature stages appear when a room sensor is configured.",
+        "description": "Only the previously selected feature appears here. It is already active; saving applies its behaviour directly.",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "When normal shading may run.",
+            "description": "The schedule prevents automatic comfort movements outside the times when the room is in use. Safety functions remain active at all times.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -318,8 +354,7 @@
               "day_window": "Daily permission",
               "start_time": "Start time",
               "end_time": "End time",
-              "outside_schedule_behavior": "Outside the schedule",
-              "heat_outside_schedule": "Allow heat protection outside schedule"
+              "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
               "schedule_enabled": "Optional. When off, normal shading is available all year and all day.",
@@ -329,30 +364,33 @@
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies.",
-              "heat_outside_schedule": "Keeps overheating protection available outside normal shading times."
+              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies."
             }
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Thresholds are checked in a safe order.",
+            "description": "Room temperature complements the sun calculation: Comfort reacts earlier, while heat protection shades more strongly when the room is actually overheating.",
             "data": {
+              "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
               "comfort_temperature": "Comfort from",
               "solar_temperature": "Solar from",
               "heat_temperature": "Heat protection from",
               "evening_release_time": "Release no later than",
               "sunset_offset_minutes": "Release relative to sunset",
+              "heat_outside_schedule": "Keep heat protection active outside the schedule",
               "reopen_temperature": "Reopen below"
             },
             "data_description": {
-              "normal_shading_temperature": "Exterior blinds start normal sun shading above this indoor temperature.",
-              "comfort_temperature": "First indoor threshold for compatible cover profiles.",
-              "solar_temperature": "Stronger solar-protection threshold for compatible profiles.",
+              "indoor_temperature": "Select the sensor that provides the room temperature. All temperature stages are configured in this same form.",
+              "normal_shading_temperature": "Normal shading starts above this indoor temperature.",
+              "comfort_temperature": "The Comfort stage starts above this indoor temperature.",
+              "solar_temperature": "The stronger solar-protection stage starts above this indoor temperature.",
               "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
               "evening_release_time": "Active heat protection ends no later than this time.",
               "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
-              "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
+              "heat_outside_schedule": "Keeps overheating protection available even while the normal schedule does not allow comfort shading.",
+              "reopen_temperature": "Below this value, normal shading may reopen."
             }
           },
           "execution_settings": {
@@ -383,7 +421,7 @@
       },
       "manage_night": {
         "title": "Night function",
-        "description": "Choose when this room moves to its night position.",
+        "description": "The Night function uses dedicated targets for privacy and darkness. Choose an existing time source or calculate the period from sunset and sunrise.",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -405,7 +443,7 @@
       },
       "initial_night_targets": {
         "title": "Night targets · {group_name}",
-        "description": "Night was enabled. Choose only the targets supported by this cover type.",
+        "description": "Set the night position for this cover group.",
         "data": {
           "night_position": "Night position",
           "night_tilt": "Night slat position"
@@ -434,8 +472,8 @@
         }
       },
       "manage_conditions": {
-        "title": "Safety and conditions",
-        "description": "Add optional weather, occupancy and safety inputs. Empty fields are ignored.",
+        "title": "Selected protection feature",
+        "description": "Configure the inputs for the feature currently being edited. It is already active; optional empty sources are ignored.",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -449,7 +487,9 @@
           "heat_ignores_weather": "Heat ignores normal weather conditions",
           "heat_requires_sun": "Heat requires an active sun sector",
           "comfort_requires_occupancy": "Comfort requires occupancy",
-          "safety_behavior": "Safety behavior"
+          "safety_behavior": "Safety behavior",
+          "safety_position": "Safety position",
+          "safety_tilt": "Safety slat position"
         },
         "data_description": {
           "irradiance_sensor": "Optional global solar-radiation value.",
@@ -463,13 +503,15 @@
           "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
           "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
           "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
-          "safety_behavior": "Move to the safe target or block normal commands while unsafe.",
+          "safety_behavior": "Move to the configured safe target or only block normal automatic commands while danger is active.",
+          "safety_position": "Cover position used immediately while a configured safety sensor reports danger.",
+          "safety_tilt": "Slat position used immediately while a configured safety sensor reports danger.",
           "safety_blockers": "Wind, frost or other on/off sensors; on means danger is active."
         }
       },
       "initial_safety_targets": {
         "title": "Safety targets · {group_name}",
-        "description": "Move-to-safe protection was enabled. Choose the safe targets for this exterior cover type.",
+        "description": "Set the safety position for this cover group.",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -517,7 +559,7 @@
               "sun_off_delay": "Off delay"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
               "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
               "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
               "sun_preset": "Selects brightness thresholds and delays.",
@@ -545,20 +587,20 @@
           "sun_source": "Sun source"
         },
         "data_description": {
-          "sun_source": "A local Lux sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
+          "sun_source": "A facade-related outdoor sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
         }
       },
       "configure_sector_source": {
         "title": "{sector_name} · Configure sun source",
         "description": "Only the fields required by the selected source are shown.",
         "data": {
-          "lux_sensor": "Local Lux sensor",
+          "lux_sensor": "Facade-related outdoor sensor",
           "sun_preset": "Sun sensitivity",
           "sun_presence_entity": "External on/off sensor"
         },
         "data_description": {
-          "lux_sensor": "Recommended local Lux brightness sensor for this facade.",
-          "sun_preset": "Sets suitable brightness thresholds and delays.",
+          "lux_sensor": "Outdoor Lux sensor or directional weather-station channel for this facade. Indoor sensors are unsuitable for this purpose.",
+          "sun_preset": "Balanced uses 35,000/30,000 lx with 10/30 minute delays. The other profiles react earlier or only to strong sunlight.",
           "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
         }
       },
@@ -599,19 +641,23 @@
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
-        "description": "Available only in the complete setup. Saving creates a stable zone identity that remains limited to this sun sector.",
+        "description": "Choose one physical cover, then describe its window and the object that should stay out of direct sun. Smart Shading continuously calculates the least restrictive protective position.",
         "sections": {
           "protected_zone_identity": {
-            "name": "Zone identity and groups",
+            "name": "Protected object and cover",
             "data": {
               "name": "Zone name",
               "enabled": "Enable this zone",
-              "group_ids": "Affected cover groups"
+              "cover_entity": "Cover for this window",
+              "group_ids": "Affected cover groups",
+              "calculated": "Calculate the position from the window and protected area"
             },
             "data_description": {
               "name": "A stable internal ID is generated when the zone is saved.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
-              "group_ids": "Choose every cover group in this sector that this zone may protect."
+              "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect.",
+              "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
           },
           "protected_zone_geometry": {
@@ -639,26 +685,65 @@
             },
             "data_description": {
               "target_position": "Requested cover position while this zone protects against glare.",
-              "target_tilt": "Optional requested slat position for covers that support tilt."
+              "target_tilt": "Optional slat position for the protection case."
+            }
+          },
+          "protected_zone_window": {
+            "name": "Window dimensions",
+            "data": {
+              "window_width_m": "Window width",
+              "window_height_m": "Window height",
+              "window_sill_height_m": "Bottom of window above floor",
+              "target_lateral_center_m": "Protected-area lateral centre",
+              "target_lateral_width_m": "Protected-area width"
+            },
+            "data_description": {
+              "window_width_m": "Width of the light-transmitting window surface.",
+              "window_height_m": "Height of the light-transmitting window surface.",
+              "window_sill_height_m": "Height from the finished floor to the bottom edge of the light-transmitting window surface.",
+              "target_lateral_center_m": "Lateral offset of the protected-area centre from the window centre.",
+              "target_lateral_width_m": "Width of the area that should be protected from direct sun."
+            }
+          },
+          "protected_zone_object": {
+            "name": "Protected object relative to the window",
+            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "data": {
+              "object_distance_m": "Distance from window to object",
+              "object_center_height_m": "Object centre above floor",
+              "object_height_m": "Protected object height",
+              "object_lateral_center_m": "Object centre left/right of window centre",
+              "object_width_m": "Protected object width"
+            },
+            "data_description": {
+              "object_distance_m": "Shortest horizontal distance from the window plane to the protected object area.",
+              "object_center_height_m": "Height from the finished floor to the centre of the protected object area.",
+              "object_height_m": "Total vertical height of the area that must stay shaded.",
+              "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
+              "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           }
         }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
-        "description": "Available only in the complete setup. The zone keeps its stable identity while its geometry, affected groups and targets are edited.",
+        "description": "Edit the window and protected-object measurements for this one physical cover. Its position is always calculated automatically from the sun.",
         "sections": {
           "protected_zone_identity": {
-            "name": "Zone identity and groups",
+            "name": "Protected object and cover",
             "data": {
               "name": "Zone name",
               "enabled": "Enable this zone",
-              "group_ids": "Affected cover groups"
+              "cover_entity": "Cover for this window",
+              "group_ids": "Affected cover groups",
+              "calculated": "Calculate the position from the window and protected area"
             },
             "data_description": {
               "name": "The internal zone ID remains stable when the name changes.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
-              "group_ids": "Choose every cover group in this sector that this zone may protect."
+              "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect.",
+              "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
           },
           "protected_zone_geometry": {
@@ -686,7 +771,42 @@
             },
             "data_description": {
               "target_position": "Requested cover position while this zone protects against glare.",
-              "target_tilt": "Optional requested slat position for covers that support tilt."
+              "target_tilt": "Optional slat position for the protection case."
+            }
+          },
+          "protected_zone_window": {
+            "name": "Window dimensions",
+            "data": {
+              "window_width_m": "Window width",
+              "window_height_m": "Window height",
+              "window_sill_height_m": "Bottom of window above floor",
+              "target_lateral_center_m": "Protected-area lateral centre",
+              "target_lateral_width_m": "Protected-area width"
+            },
+            "data_description": {
+              "window_width_m": "Width of the light-transmitting window surface.",
+              "window_height_m": "Height of the light-transmitting window surface.",
+              "window_sill_height_m": "Height from the finished floor to the bottom edge of the light-transmitting window surface.",
+              "target_lateral_center_m": "Lateral offset of the protected-area centre from the window centre.",
+              "target_lateral_width_m": "Width of the area that should be protected from direct sun."
+            }
+          },
+          "protected_zone_object": {
+            "name": "Protected object relative to the window",
+            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "data": {
+              "object_distance_m": "Distance from window to object",
+              "object_center_height_m": "Object centre above floor",
+              "object_height_m": "Protected object height",
+              "object_lateral_center_m": "Object centre left/right of window centre",
+              "object_width_m": "Protected object width"
+            },
+            "data_description": {
+              "object_distance_m": "Shortest horizontal distance from the window plane to the protected object area.",
+              "object_center_height_m": "Height from the finished floor to the centre of the protected object area.",
+              "object_height_m": "Total vertical height of the area that must stay shaded.",
+              "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
+              "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           },
           "protected_zone_maintenance": {
@@ -755,7 +875,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Choose geometry, the recommended local Lux sensor, or an external on/off confirmation."
+          "sun_source": "Choose geometry, the recommended facade-related outdoor sensor, or an external on/off confirmation."
         }
       },
       "manage_layer": {
@@ -771,13 +891,13 @@
             },
             "data_description": {
               "name": "Name shown for this cover group.",
-              "profile": "Changing the type reloads this page, applies its complete profile and removes incompatible settings while keeping assigned covers.",
+              "profile": "This selection sets movement behavior and defaults. Assigned covers remain in the group.",
               "tilt_preset": "Select Custom to use the four editable stages below."
             }
           },
           "slat_curve": {
             "name": "Slat guidance",
-            "description": "Used only with the Custom slat profile. Elevations must increase.",
+            "description": "Sun elevations must increase from one stage to the next.",
             "data": {
               "elevation_1": "Stage 1 sun elevation",
               "tilt_1": "Stage 1 slat position",
@@ -801,7 +921,7 @@
           },
           "target_positions": {
             "name": "Target positions",
-            "description": "0% and 100% follow Home Assistant cover position. Slats use 0% fully open and 100% fully closed.",
+            "description": "0% and 100% follow the Home Assistant cover position.",
             "data": {
               "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
@@ -816,7 +936,7 @@
               "safety_tilt": "Safety slat position"
             },
             "data_description": {
-              "open_position": "Neutral target. Most covers use 100% open; awnings use 0% retracted by default.",
+              "open_position": "Default position when no comfort or protection function is active.",
               "open_tilt": "Neutral slat position; 0% is fully open.",
               "comfort_position": "Cover height in Comfort mode.",
               "comfort_tilt": "Slat position in Comfort mode.",
@@ -842,11 +962,11 @@
       },
       "manage_layer_profile": {
         "title": "Profile settings",
-        "description": "These options belong only to the selected physical cover type. Unsupported functions are hidden.",
+        "description": "Configure movement and target positions for this cover group.",
         "sections": {
           "profile_behavior": {
             "name": "Movement profile",
-            "description": "Command tolerances default to 5%. Slat guidance appears only for slatted covers.",
+            "description": "Command tolerances default to 5%.",
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
@@ -876,7 +996,7 @@
           },
           "target_positions": {
             "name": "Available target positions",
-            "description": "Only targets supported by this cover type and the enabled room functions are shown.",
+            "description": "Set the target positions for the enabled room functions.",
             "data": {
               "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
@@ -902,7 +1022,7 @@
         },
         "data_description": {
           "name": "Name shown for the new group.",
-          "profile": "Sets suitable defaults and available options for this physical cover type."
+          "profile": "Sets the movement behavior and suitable defaults for this group."
         }
       },
       "cover_settings_hub": {
@@ -1029,7 +1149,13 @@
       "protected_zone_distance_range": "The facade distance must be between 0.1 m and 30 m.",
       "protected_zone_height_range": "The lower protected height must be below the upper height, within 0 m to 10 m.",
       "protected_zone_lateral_range": "Enter both lateral values and make sure the start is below the end.",
-      "protected_zone_target_range": "Target positions must be between 0% and 100%."
+      "protected_zone_target_range": "Target positions must be between 0% and 100%.",
+      "protected_zone_single_group_required": "Select exactly one cover group for automatic calculation.",
+      "protected_zone_profile_not_supported": "Automatic glare calculation is not useful for the selected cover type. Choose an individually controlled roller, screen, curtain, vertical blind or binary cover.",
+      "protected_zone_cover_required": "Select the one physical cover that belongs to this window.",
+      "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
+      "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
+      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -1038,9 +1164,51 @@
   },
   "options": {
     "step": {
+      "choose_advanced_features": {
+        "title": "Choose optional features",
+        "description": "Base shading is ready. Every selection activates that feature for this room immediately, then the wizard opens its settings one after another. There is no second enable switch. Unselected features stay hidden.",
+        "data": {
+          "schedule": "Use a schedule",
+          "temperature": "Use temperature and heat protection",
+          "night": "Use night mode",
+          "safety": "Use wind, frost or window safety",
+          "conditions": "Use weather or occupancy sensors",
+          "glare_protection": "Use glare protection for an area or object",
+          "test_tools": "Show test and day preview tools",
+          "expert_execution": "Show expert command settings"
+        },
+        "data_description": {
+          "schedule": "Prevents unnecessary movements when the room does not need automatic shading. You can choose months, weekdays and a daily time window.",
+          "temperature": "Uses the measured room temperature to move between comfort, solar and heat protection. The room therefore reacts to actual heat instead of the sun position alone.",
+          "night": "Uses dedicated night targets and hands control back to daytime automation in the morning. An entity or sunset and sunrise can define the night period.",
+          "safety": "Gives wind, frost or window signals priority over comfort. When danger is reported, Smart Shading blocks movement or moves to configured safe targets.",
+          "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
+          "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
+          "test_tools": "Shows preview and calculation tools for checking decisions without sending a movement command.",
+          "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
+        }
+      },
+      "advanced_features_hub": {
+        "title": "Features and protection",
+        "description": "Every selected feature has its own settings area. Selecting it already activates the feature; use this menu later only to adjust its behaviour."
+      },
+      "glare_protection_hub": {
+        "title": "Glare protection",
+        "description": "Open the facade whose protected areas should be configured or changed."
+      },
+      "initial_glare_protection": {
+        "title": "Choose a facade for glare protection",
+        "description": "Choose the facade containing the window in front of the first area you want to protect.",
+        "data": {
+          "sector_id": "Facade"
+        },
+        "data_description": {
+          "sector_id": "Next you will enter the window dimensions and the position of the protected area."
+        }
+      },
       "initial_night_targets": {
         "title": "Night targets · {group_name}",
-        "description": "Night was enabled. Choose only the targets supported by this cover type.",
+        "description": "Set the night position for this cover group.",
         "data": {
           "night_position": "Night position",
           "night_tilt": "Night slat position"
@@ -1052,7 +1220,7 @@
       },
       "initial_safety_targets": {
         "title": "Safety targets · {group_name}",
-        "description": "Move-to-safe protection was enabled. Choose the safe targets for this exterior cover type.",
+        "description": "Set the safety position for this cover group.",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -1091,12 +1259,10 @@
             "description": "Create the room first. The sun sector, cover group, profile and covers follow as separate guided steps.",
             "data": {
               "name": "Room name",
-              "indoor_temperature": "Indoor temperature sensor (optional)",
               "outdoor_temperature": "Outdoor temperature sensor (optional)"
             },
             "data_description": {
               "name": "Shown in Home Assistant and on the dashboard card.",
-              "indoor_temperature": "Enables optional temperature stages and heat protection.",
               "outdoor_temperature": "Adds a minimum outdoor-temperature condition."
             }
           },
@@ -1125,7 +1291,7 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
@@ -1216,7 +1382,7 @@
               "sun_off_delay": "Off delay"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun.",
               "lux_sensor": "Select the Lux sensor used to confirm direct sun.",
               "sun_presence_entity": "Select an existing on/off entity where on means direct sun.",
               "sun_preset": "Selects brightness thresholds and delays.",
@@ -1250,7 +1416,7 @@
           "name": "Name used in cards and status entities.",
           "short": "Short label for compact displays.",
           "direction": "Facade direction used for sun geometry.",
-          "sun_source": "Choose geometry, the recommended local Lux sensor, or an external on/off confirmation."
+          "sun_source": "Choose geometry, the recommended facade-related outdoor sensor, or an external on/off confirmation."
         }
       },
       "manage_layer": {
@@ -1266,13 +1432,13 @@
             },
             "data_description": {
               "name": "Name shown for this cover group.",
-              "profile": "Changing the type reloads this page, applies its complete profile and removes incompatible settings while keeping assigned covers.",
+              "profile": "This selection sets movement behavior and defaults. Assigned covers remain in the group.",
               "tilt_preset": "Select Custom to use the four editable stages below."
             }
           },
           "slat_curve": {
             "name": "Slat guidance",
-            "description": "Used only with the Custom slat profile. Elevations must increase.",
+            "description": "Sun elevations must increase from one stage to the next.",
             "data": {
               "elevation_1": "Stage 1 sun elevation",
               "tilt_1": "Stage 1 slat position",
@@ -1296,7 +1462,7 @@
           },
           "target_positions": {
             "name": "Target positions",
-            "description": "0% and 100% follow Home Assistant cover position. Slats use 0% fully open and 100% fully closed.",
+            "description": "0% and 100% follow the Home Assistant cover position.",
             "data": {
               "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
@@ -1311,7 +1477,7 @@
               "safety_tilt": "Safety slat position"
             },
             "data_description": {
-              "open_position": "Neutral target. Most covers use 100% open; awnings use 0% retracted by default.",
+              "open_position": "Default position when no comfort or protection function is active.",
               "open_tilt": "Neutral slat position; 0% is fully open.",
               "comfort_position": "Cover height in Comfort mode.",
               "comfort_tilt": "Slat position in Comfort mode.",
@@ -1344,16 +1510,16 @@
         },
         "data_description": {
           "name": "Name shown for the new group.",
-          "profile": "Sets suitable defaults and available options for this physical cover type."
+          "profile": "Sets the movement behavior and suitable defaults for this group."
         }
       },
       "manage_layer_profile": {
         "title": "Profile settings",
-        "description": "These options belong only to the selected physical cover type. Unsupported functions are hidden.",
+        "description": "Configure movement and target positions for this cover group.",
         "sections": {
           "profile_behavior": {
             "name": "Movement profile",
-            "description": "Command tolerances default to 5%. Slat guidance appears only for slatted covers.",
+            "description": "Command tolerances default to 5%.",
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
@@ -1383,7 +1549,7 @@
           },
           "target_positions": {
             "name": "Available target positions",
-            "description": "Only targets supported by this cover type and the enabled room functions are shown.",
+            "description": "Set the target positions for the enabled room functions.",
             "data": {
               "open_position": "Neutral / open position",
               "open_tilt": "Open slat position",
@@ -1504,16 +1670,14 @@
       },
       "manage_room_details": {
         "title": "Room details",
-        "description": "Edit the name and primary temperature sources.",
+        "description": "Edit the general room details.",
         "data": {
           "name": "Room name",
-          "indoor_temperature": "Indoor temperature (optional)",
           "outdoor_temperature": "Outdoor temperature (optional)",
           "outdoor_minimum": "Minimum outdoor temperature"
         },
         "data_description": {
           "name": "Name used in cards and status entities.",
-          "indoor_temperature": "Adds temperature stages and heat protection. Leave empty for sun- and schedule-based shading.",
           "outdoor_temperature": "Optional. Selecting a sensor automatically enables its minimum condition.",
           "outdoor_minimum": "Shading starts only when the selected sensor reaches this value."
         }
@@ -1540,11 +1704,11 @@
       },
       "manage_automation": {
         "title": "Automation",
-        "description": "Set active times. Temperature stages appear when a room sensor is configured.",
+        "description": "Only the previously selected feature appears here. It is already active; saving applies its behaviour directly.",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "When normal shading may run.",
+            "description": "The schedule prevents automatic comfort movements outside the times when the room is in use. Safety functions remain active at all times.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -1553,8 +1717,7 @@
               "day_window": "Daily permission",
               "start_time": "Start time",
               "end_time": "End time",
-              "outside_schedule_behavior": "Outside the schedule",
-              "heat_outside_schedule": "Allow heat protection outside schedule"
+              "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
               "schedule_enabled": "Optional. When off, normal shading is available all year and all day.",
@@ -1564,30 +1727,33 @@
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies.",
-              "heat_outside_schedule": "Keeps overheating protection available outside normal shading times."
+              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies."
             }
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Thresholds are checked in a safe order.",
+            "description": "Room temperature complements the sun calculation: Comfort reacts earlier, while heat protection shades more strongly when the room is actually overheating.",
             "data": {
+              "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
               "comfort_temperature": "Comfort from",
               "solar_temperature": "Solar from",
               "heat_temperature": "Heat protection from",
               "evening_release_time": "Release no later than",
               "sunset_offset_minutes": "Release relative to sunset",
+              "heat_outside_schedule": "Keep heat protection active outside the schedule",
               "reopen_temperature": "Reopen below"
             },
             "data_description": {
-              "normal_shading_temperature": "Exterior blinds start normal sun shading above this indoor temperature.",
-              "comfort_temperature": "First indoor threshold for compatible cover profiles.",
-              "solar_temperature": "Stronger solar-protection threshold for compatible profiles.",
+              "indoor_temperature": "Select the sensor that provides the room temperature. All temperature stages are configured in this same form.",
+              "normal_shading_temperature": "Normal shading starts above this indoor temperature.",
+              "comfort_temperature": "The Comfort stage starts above this indoor temperature.",
+              "solar_temperature": "The stronger solar-protection stage starts above this indoor temperature.",
               "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
               "evening_release_time": "Active heat protection ends no later than this time.",
               "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
-              "reopen_temperature": "Used only when every cover group is an exterior venetian blind; below this value normal shading may reopen."
+              "heat_outside_schedule": "Keeps overheating protection available even while the normal schedule does not allow comfort shading.",
+              "reopen_temperature": "Below this value, normal shading may reopen."
             }
           },
           "execution_settings": {
@@ -1618,7 +1784,7 @@
       },
       "manage_night": {
         "title": "Night function",
-        "description": "Choose when this room moves to its night position.",
+        "description": "The Night function uses dedicated targets for privacy and darkness. Choose an existing time source or calculate the period from sunset and sunrise.",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -1657,8 +1823,8 @@
         }
       },
       "manage_conditions": {
-        "title": "Safety and conditions",
-        "description": "Add optional weather, occupancy and safety inputs. Empty fields are ignored.",
+        "title": "Selected protection feature",
+        "description": "Configure the inputs for the feature currently being edited. It is already active; optional empty sources are ignored.",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -1672,7 +1838,9 @@
           "heat_ignores_weather": "Heat ignores normal weather conditions",
           "heat_requires_sun": "Heat requires an active sun sector",
           "comfort_requires_occupancy": "Comfort requires occupancy",
-          "safety_behavior": "Safety behavior"
+          "safety_behavior": "Safety behavior",
+          "safety_position": "Safety position",
+          "safety_tilt": "Safety slat position"
         },
         "data_description": {
           "irradiance_sensor": "Optional global solar-radiation value.",
@@ -1686,7 +1854,9 @@
           "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
           "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
           "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
-          "safety_behavior": "Move to the safe target or block normal commands while unsafe.",
+          "safety_behavior": "Move to the configured safe target or only block normal automatic commands while danger is active.",
+          "safety_position": "Cover position used immediately while a configured safety sensor reports danger.",
+          "safety_tilt": "Slat position used immediately while a configured safety sensor reports danger.",
           "safety_blockers": "Wind, frost or other on/off sensors; on means danger is active."
         }
       },
@@ -1751,12 +1921,10 @@
             "description": "Create the room first. The sun sector, cover group, profile and covers follow as separate guided steps.",
             "data": {
               "name": "Room name",
-              "indoor_temperature": "Indoor temperature sensor (optional)",
               "outdoor_temperature": "Outdoor temperature sensor (optional)"
             },
             "data_description": {
               "name": "Shown in Home Assistant and on the dashboard card.",
-              "indoor_temperature": "Enables optional temperature stages and heat protection.",
               "outdoor_temperature": "Adds a minimum outdoor-temperature condition."
             }
           },
@@ -1785,7 +1953,7 @@
               "sun_source": "Sun source"
             },
             "data_description": {
-              "sun_source": "Sun position uses geometry only. A local Lux sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
+              "sun_source": "Sun position uses geometry only. A facade-related outdoor sensor is recommended and creates Smart Shading's Sun Presence. An external on/off sensor is also supported; on must mean direct sun."
             }
           },
           "optional_improvements": {
@@ -1823,20 +1991,20 @@
           "sun_source": "Sun source"
         },
         "data_description": {
-          "sun_source": "A local Lux sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
+          "sun_source": "A facade-related outdoor sensor is recommended. Sun position needs no entity; an external on/off sensor must be on during direct sun."
         }
       },
       "configure_sector_source": {
         "title": "{sector_name} · Configure sun source",
         "description": "Only the fields required by the selected source are shown.",
         "data": {
-          "lux_sensor": "Local Lux sensor",
+          "lux_sensor": "Facade-related outdoor sensor",
           "sun_preset": "Sun sensitivity",
           "sun_presence_entity": "External on/off sensor"
         },
         "data_description": {
-          "lux_sensor": "Recommended local Lux brightness sensor for this facade.",
-          "sun_preset": "Sets suitable brightness thresholds and delays.",
+          "lux_sensor": "Outdoor Lux sensor or directional weather-station channel for this facade. Indoor sensors are unsuitable for this purpose.",
+          "sun_preset": "Balanced uses 35,000/30,000 lx with 10/30 minute delays. The other profiles react earlier or only to strong sunlight.",
           "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
         }
       },
@@ -1877,19 +2045,23 @@
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
-        "description": "Available only in the complete setup. Saving creates a stable zone identity that remains limited to this sun sector.",
+        "description": "Choose one physical cover, then describe its window and the object that should stay out of direct sun. Smart Shading continuously calculates the least restrictive protective position.",
         "sections": {
           "protected_zone_identity": {
-            "name": "Zone identity and groups",
+            "name": "Protected object and cover",
             "data": {
               "name": "Zone name",
               "enabled": "Enable this zone",
-              "group_ids": "Affected cover groups"
+              "cover_entity": "Cover for this window",
+              "group_ids": "Affected cover groups",
+              "calculated": "Calculate the position from the window and protected area"
             },
             "data_description": {
               "name": "A stable internal ID is generated when the zone is saved.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
-              "group_ids": "Choose every cover group in this sector that this zone may protect."
+              "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect.",
+              "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
           },
           "protected_zone_geometry": {
@@ -1917,26 +2089,65 @@
             },
             "data_description": {
               "target_position": "Requested cover position while this zone protects against glare.",
-              "target_tilt": "Optional requested slat position for covers that support tilt."
+              "target_tilt": "Optional slat position for the protection case."
+            }
+          },
+          "protected_zone_window": {
+            "name": "Window dimensions",
+            "data": {
+              "window_width_m": "Window width",
+              "window_height_m": "Window height",
+              "window_sill_height_m": "Bottom of window above floor",
+              "target_lateral_center_m": "Protected-area lateral centre",
+              "target_lateral_width_m": "Protected-area width"
+            },
+            "data_description": {
+              "window_width_m": "Width of the light-transmitting window surface.",
+              "window_height_m": "Height of the light-transmitting window surface.",
+              "window_sill_height_m": "Height from the finished floor to the bottom edge of the light-transmitting window surface.",
+              "target_lateral_center_m": "Lateral offset of the protected-area centre from the window centre.",
+              "target_lateral_width_m": "Width of the area that should be protected from direct sun."
+            }
+          },
+          "protected_zone_object": {
+            "name": "Protected object relative to the window",
+            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "data": {
+              "object_distance_m": "Distance from window to object",
+              "object_center_height_m": "Object centre above floor",
+              "object_height_m": "Protected object height",
+              "object_lateral_center_m": "Object centre left/right of window centre",
+              "object_width_m": "Protected object width"
+            },
+            "data_description": {
+              "object_distance_m": "Shortest horizontal distance from the window plane to the protected object area.",
+              "object_center_height_m": "Height from the finished floor to the centre of the protected object area.",
+              "object_height_m": "Total vertical height of the area that must stay shaded.",
+              "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
+              "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           }
         }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
-        "description": "Available only in the complete setup. The zone keeps its stable identity while its geometry, affected groups and targets are edited.",
+        "description": "Edit the window and protected-object measurements for this one physical cover. Its position is always calculated automatically from the sun.",
         "sections": {
           "protected_zone_identity": {
-            "name": "Zone identity and groups",
+            "name": "Protected object and cover",
             "data": {
               "name": "Zone name",
               "enabled": "Enable this zone",
-              "group_ids": "Affected cover groups"
+              "cover_entity": "Cover for this window",
+              "group_ids": "Affected cover groups",
+              "calculated": "Calculate the position from the window and protected area"
             },
             "data_description": {
               "name": "The internal zone ID remains stable when the name changes.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
-              "group_ids": "Choose every cover group in this sector that this zone may protect."
+              "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "group_ids": "Choose every cover group in this sector that this zone may protect.",
+              "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
           },
           "protected_zone_geometry": {
@@ -1964,7 +2175,42 @@
             },
             "data_description": {
               "target_position": "Requested cover position while this zone protects against glare.",
-              "target_tilt": "Optional requested slat position for covers that support tilt."
+              "target_tilt": "Optional slat position for the protection case."
+            }
+          },
+          "protected_zone_window": {
+            "name": "Window dimensions",
+            "data": {
+              "window_width_m": "Window width",
+              "window_height_m": "Window height",
+              "window_sill_height_m": "Bottom of window above floor",
+              "target_lateral_center_m": "Protected-area lateral centre",
+              "target_lateral_width_m": "Protected-area width"
+            },
+            "data_description": {
+              "window_width_m": "Width of the light-transmitting window surface.",
+              "window_height_m": "Height of the light-transmitting window surface.",
+              "window_sill_height_m": "Height from the finished floor to the bottom edge of the light-transmitting window surface.",
+              "target_lateral_center_m": "Lateral offset of the protected-area centre from the window centre.",
+              "target_lateral_width_m": "Width of the area that should be protected from direct sun."
+            }
+          },
+          "protected_zone_object": {
+            "name": "Protected object relative to the window",
+            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "data": {
+              "object_distance_m": "Distance from window to object",
+              "object_center_height_m": "Object centre above floor",
+              "object_height_m": "Protected object height",
+              "object_lateral_center_m": "Object centre left/right of window centre",
+              "object_width_m": "Protected object width"
+            },
+            "data_description": {
+              "object_distance_m": "Shortest horizontal distance from the window plane to the protected object area.",
+              "object_center_height_m": "Height from the finished floor to the centre of the protected object area.",
+              "object_height_m": "Total vertical height of the area that must stay shaded.",
+              "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
+              "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           },
           "protected_zone_maintenance": {
@@ -2044,7 +2290,13 @@
       "protected_zone_distance_range": "The facade distance must be between 0.1 m and 30 m.",
       "protected_zone_height_range": "The lower protected height must be below the upper height, within 0 m to 10 m.",
       "protected_zone_lateral_range": "Enter both lateral values and make sure the start is below the end.",
-      "protected_zone_target_range": "Target positions must be between 0% and 100%."
+      "protected_zone_target_range": "Target positions must be between 0% and 100%.",
+      "protected_zone_single_group_required": "Select exactly one cover group for automatic calculation.",
+      "protected_zone_profile_not_supported": "Automatic glare calculation is not useful for the selected cover type. Choose an individually controlled roller, screen, curtain, vertical blind or binary cover.",
+      "protected_zone_cover_required": "Select the one physical cover that belongs to this window.",
+      "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
+      "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
+      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."
@@ -2074,17 +2326,17 @@
     },
     "sun_preset": {
       "options": {
-        "low": "Low sensitivity",
+        "low": "Strong sunlight only",
         "medium": "Balanced",
-        "high": "High sensitivity",
+        "high": "Shade earlier",
         "custom": "Custom",
-        "keep_current": "Keep current sensitivity"
+        "keep_current": "Keep existing Lux profile"
       }
     },
     "sun_source": {
       "options": {
         "geometry": "Sun position only",
-        "lux": "Local Lux sensor (recommended)",
+        "lux": "Facade-related outdoor sensor (recommended)",
         "external": "External on/off sensor"
       }
     },

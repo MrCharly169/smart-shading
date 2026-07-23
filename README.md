@@ -54,12 +54,11 @@ created. It has no separate Easy/Advanced switch.
   sensor. An optional outdoor-temperature sensor automatically adds its
   configured minimum condition. The override remains active until a user or
   an explicit automation turns it off.
-- **Advanced Mode** adds configurable geometry, Lux or external sun
-  confirmation, temperatures, schedules, Safety, Pause, Heat Protection,
-  Night Mode, diagnostics, per-cover Manual Override entities, optional
-  external-movement detection, explainable decision traces, bounded target
-  verification, staggered commands, simulation, day preview, and protected
-  glare zones.
+- **Advanced Mode** starts with the same base shading, then lets each room
+  select only the optional capabilities it needs: schedules, temperatures,
+  Night, Safety, weather or occupancy conditions, glare protection, test
+  tools, and expert command settings. Unselected features do not run in the
+  background and do not add controls to the dashboard.
 
 The setup variant is fixed for the config entry. To use the other variant,
 create a new Smart Shading entry and configure it from the beginning. New
@@ -87,17 +86,19 @@ the configured bound. Venetian and vertical-blind height movement is always
 completed before a delayed slat correction. A newer higher-priority target,
 especially Safety, cancels obsolete delayed work.
 
-In **Sun sector → Glare protection**, Advanced users can add protected zones
-with a measured distance, protected height range, optional lateral range,
-affected cover groups, and stricter position/slat targets. Zones participate
-only in Solar shading. A valid direct-sun intersection chooses the most
-protective applicable target; incomplete geometry is shown in the trace and
-leaves ordinary Solar shading safe and unchanged. Easy Mode has neither the
+In **Sun sector → Glare protection**, Advanced users can add a protected area
+with a measured distance, height range, optional lateral range, affected cover
+group, and a fixed target. Roller shades, screens, curtains, binary covers,
+and vertical slats can instead calculate the least restrictive protection from
+the live Sun position, window width/height, and the protected area's position.
+Venetian blinds keep their normal adaptive slat protection. Zones participate
+only in Solar shading. Incomplete geometry is shown in the trace and leaves
+ordinary Solar shading safe and unchanged. Easy Mode has neither the
 configuration nor the runtime controls for this feature.
 
 Simulation and day preview reuse the production decision path but never call a
-cover service. They are intended for testing a virtual input change or a
-sequence of day-boundary snapshots before changing physical covers.
+cover service. They are an explicit per-room Test & Preview option, and return
+a completed result rather than changing the room's automation state.
 
 The cover type is a functional profile, not only a label. Exterior venetian
 blinds and vertical blinds receive position plus slat guidance; roller

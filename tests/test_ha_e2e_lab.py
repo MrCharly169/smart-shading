@@ -12,6 +12,7 @@ from scripts.ha_e2e.run_scenarios import (
     advanced_execution_settings_payload,
     advanced_execution_settings_section,
     assert_entry_variant,
+    duplicate_wizard_setting_owners,
     submit_options_expect_error,
     wait_for_home_assistant,
 )
@@ -51,10 +52,10 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             advanced_execution_settings_section(legacy_compatible=True), {}
         )
 
-    def test_advanced_automation_submissions_include_execution_settings(self):
+    def test_advanced_features_use_focused_automation_submissions(self):
         runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
         tree = ast.parse(runner.read_text(encoding="utf-8"))
-        submission_sections: list[bool] = []
+        submission_sections: list[set[str]] = []
         for node in ast.walk(tree):
             if not (
                 isinstance(node, ast.Call)
@@ -67,22 +68,99 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                 continue
             self.assertIsInstance(node.args[3], ast.Dict)
             payload = node.args[3]
-            has_explicit_section = any(
-                isinstance(key, ast.Constant) and key.value == "execution_settings"
+            sections = {
+                str(key.value)
                 for key in payload.keys
-            )
-            has_legacy_aware_section = any(
-                key is None
-                and isinstance(value, ast.Name)
-                and value.id == "execution_settings_section"
-                for key, value in zip(payload.keys, payload.values, strict=True)
-            )
-            submission_sections.append(
-                has_explicit_section or has_legacy_aware_section
-            )
+                if isinstance(key, ast.Constant)
+                and key.value
+                in {
+                    "schedule_settings",
+                    "temperature_settings",
+                    "execution_settings",
+                }
+            }
+            submission_sections.append(sections)
 
-        self.assertEqual(len(submission_sections), 10)
-        self.assertTrue(all(submission_sections))
+        self.assertIn({"schedule_settings"}, submission_sections)
+        self.assertIn({"temperature_settings"}, submission_sections)
+        self.assertIn({"execution_settings"}, submission_sections)
+        self.assertNotIn(
+            {
+                "schedule_settings",
+                "temperature_settings",
+                "execution_settings",
+            },
+            submission_sections,
+        )
+        self.assertTrue(
+            all(
+                sections == {"execution_settings"}
+                for sections in submission_sections
+                if "execution_settings" in sections
+            )
+        )
+
+    def test_initial_wizard_rejects_duplicate_setting_owners(self):
+        coverage = {
+            "manage_schedule": {
+                "schedule_settings",
+                "start_time",
+                "name",
+            },
+            "manage_night": {
+                "night_source",
+                "start_time",
+                "name",
+            },
+            "manage_temperature": {
+                "temperature_settings",
+                "heat_temperature",
+            },
+        }
+
+        self.assertEqual(
+            duplicate_wizard_setting_owners(coverage),
+            {
+                "start_time": [
+                    "manage_night",
+                    "manage_schedule",
+                ]
+            },
+        )
+
+    def test_current_owner_contract_has_no_declared_duplicates(self):
+        coverage = {
+            "manage_schedule": {
+                "schedule_settings",
+                "schedule_profile",
+                "day_window",
+                "start_time",
+                "end_time",
+            },
+            "manage_temperature": {
+                "temperature_settings",
+                "indoor_temperature",
+                "heat_temperature",
+                "heat_outside_schedule",
+            },
+            "manage_night": {
+                "night_source",
+                "night_entity",
+            },
+            "manage_safety": {
+                "safety_blockers",
+                "safety_behavior",
+            },
+            "manage_weather_conditions": {
+                "weather_permission",
+                "heat_requires_sun",
+            },
+        }
+
+        self.assertEqual(
+            duplicate_wizard_setting_owners(coverage),
+            {},
+        )
 
     def test_upgrade_checkpoint_reads_only_persisted_smart_shading_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -309,7 +387,10 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("/api/config/config_entries/entry/{entry_id}/reload", runner)
         self.assertIn("create_advanced_entry", runner)
         self.assertIn("advanced_execution_settings_payload", runner)
-        self.assertIn('"execution_settings": execution_settings', runner)
+        self.assertIn(
+            '"execution_settings": advanced_execution_settings_payload()',
+            runner,
+        )
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("legacy_compatible=True", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)
@@ -443,8 +524,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
+        self.assertIs(coverage["unique_setting_ownership"], True)
         self.assertGreaterEqual(len(coverage["all_surfaces"]), 35)
-        self.assertEqual(len(coverage["live_transitions"]), 4)
+        self.assertEqual(len(coverage["live_transitions"]), 5)
         self.assertEqual(
             coverage["boolean_field_contract"]["night_enabled"],
             "real-ha-transition",

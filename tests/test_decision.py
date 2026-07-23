@@ -511,6 +511,113 @@ class ProtectedZoneTests(unittest.TestCase):
             "protected_zone_hit_no_stricter_target",
         )
 
+    def test_top_down_object_protection_calculates_smallest_safe_position(self):
+        zone = self._zone(
+            group_ids=("blinds",),
+            target_position=None,
+            target_tilt=None,
+            calculation_mode="top_down",
+            window_width_m=1.6,
+            window_height_m=2.4,
+            target_lateral_center_m=0.0,
+            target_lateral_width_m=0.5,
+        )
+        evaluation = evaluate_protected_zone(
+            zone, self.geometry, sector_id="south", group_id="blinds"
+        )
+        self.assertEqual(evaluation.status, ProtectedZoneStatus.HIT)
+        self.assertIsNotNone(evaluation.target)
+        self.assertAlmostEqual(evaluation.target.position, 44.42, places=1)
+        self.assertEqual(evaluation.details["calculation"], "top_down")
+        adjustment = apply_protected_zones(Target(position=70), (evaluation,))
+        self.assertLess(adjustment.target.position, 70)
+        self.assertEqual(adjustment.applied_zone_ids, ("tv",))
+
+    def test_calculated_zone_applies_only_to_its_physical_cover(self):
+        zone = self._zone(
+            group_ids=(),
+            cover_entity="cover.living_left",
+            target_position=None,
+            target_tilt=None,
+            calculation_mode="top_down",
+            window_width_m=1.6,
+            window_height_m=2.4,
+            window_sill_height_m=0.0,
+            object_distance_m=1.5,
+            object_center_height_m=0.5,
+            object_height_m=0.6,
+            object_lateral_center_m=0.0,
+            object_width_m=0.5,
+            target_lateral_center_m=0.0,
+            target_lateral_width_m=0.5,
+        )
+
+        matching = evaluate_protected_zone(
+            zone,
+            self.geometry,
+            sector_id="south",
+            group_id="blinds",
+            cover_entity="cover.living_left",
+        )
+        other = evaluate_protected_zone(
+            zone,
+            self.geometry,
+            sector_id="south",
+            group_id="blinds",
+            cover_entity="cover.living_right",
+        )
+
+        self.assertEqual(matching.status, ProtectedZoneStatus.HIT)
+        self.assertEqual(other.status, ProtectedZoneStatus.INACTIVE)
+        self.assertEqual(other.reason_code, "protected_zone_other_cover")
+
+    def test_curtain_keeps_the_largest_safe_central_opening(self):
+        zone = self._zone(
+            group_ids=(),
+            cover_entity="cover.curtain",
+            target_position=None,
+            target_tilt=None,
+            calculation_mode="curtain",
+            window_width_m=2.0,
+            window_height_m=2.4,
+            window_sill_height_m=0.0,
+            object_distance_m=1.5,
+            object_center_height_m=0.5,
+            object_height_m=0.6,
+            object_lateral_center_m=0.5,
+            object_width_m=0.2,
+            target_lateral_center_m=0.5,
+            target_lateral_width_m=0.2,
+        )
+
+        evaluation = evaluate_protected_zone(
+            zone,
+            self.geometry,
+            sector_id="south",
+            cover_entity="cover.curtain",
+        )
+
+        self.assertEqual(evaluation.status, ProtectedZoneStatus.HIT)
+        self.assertAlmostEqual(evaluation.target.position, 40.0)
+        self.assertEqual(evaluation.details["calculation"], "curtain")
+
+    def test_calculated_zone_requires_one_physical_cover(self):
+        zone = self._zone(
+            group_ids=(),
+            cover_entity="",
+            target_position=None,
+            calculation_mode="top_down",
+            window_width_m=1.6,
+            window_height_m=2.4,
+            target_lateral_center_m=0.0,
+            target_lateral_width_m=0.2,
+        )
+        validation = validate_protected_zone(zone)
+        self.assertEqual(validation.status, ProtectedZoneStatus.INVALID)
+        self.assertIn(
+            "calculated_zone_cover_required", validation.details["errors"]
+        )
+
 
 class SimulationAndPreviewTests(unittest.TestCase):
     def test_simulation_uses_pipeline_without_mutating_live_context(self):

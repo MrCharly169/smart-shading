@@ -350,7 +350,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cover["id"], f"{mode}-cover")
         self.assertEqual(cover["entity"], f"cover.{mode}")
 
-    async def test_schema_16_re_normalizes_v4_6_2_advanced_and_easy_entries(self):
+    async def test_schema_17_re_normalizes_v4_6_2_advanced_and_easy_entries(self):
         """Schema 15 stable snapshots gain or lose the Issue #79 surface."""
         advanced_data = self._schema_15_payload(advanced=True)
         advanced_room_seed = advanced_data["rooms"][0]
@@ -372,7 +372,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             await migration_mod.async_migrate_entry(advanced_hass, advanced_entry)
         )
-        self.assertEqual(advanced_entry.version, 16)
+        self.assertEqual(advanced_entry.version, 17)
         self.assertEqual(len(advanced_hass.config_entries.updates), 1)
         self._assert_hierarchy(advanced_entry.data, mode="advanced")
         self._assert_hierarchy(advanced_entry.options, mode="advanced")
@@ -452,7 +452,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             await migration_mod.async_migrate_entry(easy_hass, easy_entry)
         )
-        self.assertEqual(easy_entry.version, 16)
+        self.assertEqual(easy_entry.version, 17)
         self.assertEqual(len(easy_hass.config_entries.updates), 1)
         self._assert_hierarchy(easy_entry.data, mode="easy")
         self._assert_hierarchy(easy_entry.options, mode="easy")
@@ -481,6 +481,35 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("feedback_quality", cover)
             self.assertNotIn("verify_target", cover)
             self.assertNotIn("allow_automatic_reverse", cover)
+
+    async def test_schema_16_preserves_existing_glare_rules_as_selected_feature(self):
+        """The beta upgrade must not hide or disable an existing protection zone."""
+        data = self._schema_15_payload(advanced=True)
+        room = data["rooms"][0]
+        room["sectors"][0]["protected_zones"] = [
+            {
+                "id": "existing-zone",
+                "name": "Desk",
+                "group_ids": ["advanced-layer"],
+                "distance_m": 1.0,
+                "lower_height_m": 0.0,
+                "upper_height_m": 1.0,
+                "target_position": 45.0,
+            }
+        ]
+        entry = FakeMigrationEntry(data, {}, version=16)
+        hass = FakeMigrationHass()
+
+        self.assertTrue(await migration_mod.async_migrate_entry(hass, entry))
+        self.assertEqual(entry.version, 17)
+        self.assertIn(
+            migration_mod.FEATURE_GLARE_PROTECTION,
+            entry.data["rooms"][0]["advanced_features"],
+        )
+        self.assertEqual(
+            entry.data["rooms"][0]["sectors"][0]["protected_zones"][0]["id"],
+            "existing-zone",
+        )
 
     async def test_preview_service_routes_only_to_a_loaded_matching_room(self):
         """The Card-facing preview service is narrow, async, and non-actuating."""
@@ -521,7 +550,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 next_rising=tomorrow.isoformat(),
                 next_setting=tomorrow.isoformat(),
             ),
-            "sensor.lux": FakeState("26398.72", unit_of_measurement="lx"),
+            "sensor.lux": FakeState("36000", unit_of_measurement="lx"),
             "cover.one": FakeState("open", current_position=100, current_tilt_position=100),
             "switch.cover_lock": FakeState("off"),
         }
@@ -1460,15 +1489,18 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(targets["cover.two"]["command_tilt"], 0.0)
         self.assertEqual(targets["cover.two"]["tilt_mapping"], "inverted")
 
-    async def test_real_ha_lux_state_turns_balanced_sector_on_after_three_minutes(self):
+    async def test_real_ha_lux_state_turns_balanced_sector_on_after_ten_minutes(self):
         start = datetime(2026, 7, 15, 14, 0, tzinfo=timezone.utc)
         sector = self.engine.sector_config("south")
+        self.hass.states.values["sensor.lux"] = FakeState(
+            "36000", unit_of_measurement="lx"
+        )
         await self.engine._update_sun_presence(sector, start)
         runtime = self.engine.sun_runtime["south"]
         self.assertFalse(runtime.is_on)
         self.assertTrue(runtime.pending_target)
-        self.assertEqual(runtime.current_lux, 26398.72)
-        await self.engine._update_sun_presence(sector, start + timedelta(minutes=3))
+        self.assertEqual(runtime.current_lux, 36000)
+        await self.engine._update_sun_presence(sector, start + timedelta(minutes=10))
         self.assertTrue(runtime.is_on)
         self.assertIsNone(runtime.pending_target)
 
@@ -1476,9 +1508,9 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         sector = self.engine.sector_config("south")
         sector.update({"sun_on_lux": 65000, "sun_off_lux": 50000, "sun_on_delay": 30})
         settings = self.engine._sun_settings("south")
-        self.assertEqual(settings["sun_on_lux"], 18000)
-        self.assertEqual(settings["sun_off_lux"], 9000)
-        self.assertEqual(settings["sun_on_delay"], 3)
+        self.assertEqual(settings["sun_on_lux"], 35000)
+        self.assertEqual(settings["sun_off_lux"], 30000)
+        self.assertEqual(settings["sun_on_delay"], 10)
 
     async def test_custom_profile_uses_custom_thresholds(self):
         sector = self.engine.sector_config("south")
@@ -1508,7 +1540,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_advanced_evaluation_persists_a_complete_live_decision_trace(self):
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         await self.engine._evaluate_room(
             self.engine.room_config("room"),
             datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc),
@@ -1523,6 +1555,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_protected_zone_changes_only_the_scoped_solar_layer_target(self):
         room = self.engine.room_config("room")
+        room.setdefault("advanced_features", []).append("glare_protection")
         sector = self.engine.sector_config("south")
         sector["protected_zones"] = [
             {
@@ -1538,7 +1571,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             }
         ]
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         await self.engine._evaluate_room(
             room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
         )
@@ -1552,16 +1585,79 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(zone["zone_id"], "desk")
         self.assertEqual(zone["status"], "hit")
 
+    async def test_calculated_glare_target_changes_only_its_exact_cover(self):
+        room = self.engine.room_config("room")
+        room.setdefault("advanced_features", []).append("glare_protection")
+        sector = self.engine.sector_config("south")
+        layer = sector["layers"][0]
+        layer["profile"] = "roller_shutter"
+        second = deepcopy(layer["covers"][0])
+        second.update(
+            {
+                "id": "cover_two",
+                "entity": "cover.two",
+                "name": "Cover two",
+                "short": "C2",
+                "lock": "",
+            }
+        )
+        layer["covers"].append(second)
+        self.hass.states.values["cover.two"] = FakeState(
+            "open", current_position=100, supported_features=4
+        )
+        sector["protected_zones"] = [
+            {
+                "id": "screen",
+                "name": "Screen",
+                "sector_id": "south",
+                "cover_entity": "cover.one",
+                "enabled": True,
+                "distance_m": 1.5,
+                "lower_height_m": 0.1,
+                "upper_height_m": 0.3,
+                "calculation_mode": "top_down",
+                "window_width_m": 1.6,
+                "window_height_m": 2.0,
+                "window_sill_height_m": 0.8,
+                "object_distance_m": 1.5,
+                "object_center_height_m": 0.2,
+                "object_height_m": 0.2,
+                "object_lateral_center_m": 0.0,
+                "object_width_m": 0.5,
+                "target_lateral_center_m": 0.0,
+                "target_lateral_width_m": 0.5,
+            }
+        ]
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 36000
+
+        await self.engine._evaluate_room(
+            room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        )
+
+        targets = {
+            target["entity_id"]: target
+            for target in self.engine.rooms["room"].targets
+        }
+        self.assertLess(targets["cover.one"]["position"], 65.0)
+        self.assertEqual(targets["cover.two"]["position"], 65.0)
+        self.assertEqual(
+            targets["cover.one"]["protected_zone_applied_ids"], ["screen"]
+        )
+        self.assertEqual(
+            targets["cover.two"]["protected_zone_applied_ids"], []
+        )
+
     async def test_quality_hold_prevents_new_solar_cover_service(self):
         room = self.engine.room_config("room")
         room["source_stale_seconds"] = 1
         self.hass.states.values["sensor.lux"] = FakeState(
-            "26398.72",
+            "36000",
             unit_of_measurement="lx",
             last_updated=datetime.now(timezone.utc) - timedelta(hours=1),
         )
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         self.hass.services.calls.clear()
 
         await self.engine._evaluate_room(room, datetime.now(timezone.utc))
@@ -1594,7 +1690,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_simulation_and_preview_never_call_cover_services(self):
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         self.hass.services.calls.clear()
 
         simulation = await self.engine.async_simulate_room(
@@ -1614,7 +1710,8 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(simulation["available"])
-        self.assertTrue(self.engine.rooms["room"].simulation_active)
+        self.assertTrue(simulation["completed"])
+        self.assertFalse(self.engine.rooms["room"].simulation_active)
         self.assertTrue(preview["available"])
         self.assertTrue(preview["day_preview"]["samples"])
         self.assertFalse(any(call[0] == "cover" for call in self.hass.services.calls))
@@ -1631,7 +1728,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         bright = await self.engine.async_simulate_room(
             "room",
-            {"at": at, "lux": 30000},
+            {"at": at, "lux": 40000},
         )
         self.assertEqual(dark["result"]["mode"], "open")
         self.assertEqual(bright["result"]["mode"], "solar")
@@ -1647,7 +1744,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "at": at + timedelta(hours=1),
                     "label": "bright",
-                    "overrides": {"lux": 30000},
+                    "overrides": {"lux": 40000},
                 },
             ],
         )
@@ -1677,7 +1774,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "room",
             {
                 "at": at,
-                "lux": 30000,
+                "lux": 40000,
                 "cover:cover_one:window_state": "off",
             },
         )
@@ -1688,7 +1785,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         locked = await self.engine.async_simulate_room(
             "room",
-            {"at": at, "lux": 30000, "cover:cover_one:lock_active": True},
+            {"at": at, "lux": 40000, "cover:cover_one:lock_active": True},
         )
         lock_target = locked["results"][0]["cover_targets"][0]
         self.assertEqual(lock_target["command_result"], "blocked")
@@ -1696,7 +1793,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         paused = await self.engine.async_simulate_room(
             "room",
-            {"at": at, "lux": 30000, "cover:cover_one:pause_active": True},
+            {"at": at, "lux": 40000, "cover:cover_one:pause_active": True},
         )
         pause_target = paused["results"][0]["cover_targets"][0]
         self.assertEqual(pause_target["command_result"], "blocked")
@@ -1892,7 +1989,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         start = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
         original_now = engine_mod.dt_util.now
         notifications: list[bool] = []
@@ -1935,7 +2032,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         self.engine.sun_runtime["south"].is_on = True
-        self.engine.sun_runtime["south"].current_lux = 26398.72
+        self.engine.sun_runtime["south"].current_lux = 36000
         start = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
         original_now = engine_mod.dt_util.now
         engine_mod.dt_util.now = lambda: start
@@ -2157,7 +2254,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         path = Path("/tmp/www/smart_shading_logs") / url.rsplit("/", 1)[-1]
         self.assertTrue(path.exists())
         content = path.read_text(encoding="utf-8")
-        self.assertIn('"26398.72"', content)
+        self.assertIn('"36000"', content)
         self.assertIn('"evaluation_interval_seconds": 1200', content)
         self.assertIn('"sun_presence"', content)
 

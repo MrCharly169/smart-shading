@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from enum import Enum, IntEnum
-from math import cos, isfinite, radians, tan
+from math import atan2, cos, degrees, isfinite, radians, tan
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
@@ -577,8 +577,8 @@ class SunGeometry:
 class ProtectedZone:
     """Advanced-only geometry and target adjustment for a protected area.
 
-    ``group_ids`` is empty when every compatible group in ``sector_id`` may be
-    adjusted.  A non-empty tuple scopes the zone to exactly those group IDs.
+    ``cover_entity`` scopes a calculated zone to one physical cover.  The
+    legacy ``group_ids`` scope remains readable for pre-migration records.
     ``target_position`` and ``target_tilt`` are optional; a geometrically hit
     zone without either still appears in traces but does not alter the target.
     """
@@ -590,16 +590,31 @@ class ProtectedZone:
     lower_height_m: float | None
     upper_height_m: float | None
     group_ids: tuple[str, ...] = ()
+    cover_entity: str = ""
     enabled: bool = True
     lateral_min_m: float | None = None
     lateral_max_m: float | None = None
     target_position: float | None = None
     target_tilt: float | None = None
+    calculation_mode: str = "fixed"
+    window_width_m: float | None = None
+    window_height_m: float | None = None
+    window_sill_height_m: float | None = None
+    object_distance_m: float | None = None
+    object_center_height_m: float | None = None
+    object_height_m: float | None = None
+    object_lateral_center_m: float | None = None
+    object_width_m: float | None = None
+    target_lateral_center_m: float | None = None
+    target_lateral_width_m: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "zone_id", str(self.zone_id or ""))
         object.__setattr__(self, "name", str(self.name or ""))
         object.__setattr__(self, "sector_id", str(self.sector_id or ""))
+        object.__setattr__(
+            self, "cover_entity", str(self.cover_entity or "")
+        )
         object.__setattr__(
             self,
             "group_ids",
@@ -629,11 +644,25 @@ class ProtectedZone:
             lower_height_m=values.get("lower_height_m"),
             upper_height_m=values.get("upper_height_m"),
             group_ids=tuple(values.get("group_ids") or ()),
+            cover_entity=str(values.get("cover_entity") or ""),
             enabled=bool(values.get("enabled", True)),
             lateral_min_m=values.get("lateral_min_m"),
             lateral_max_m=values.get("lateral_max_m"),
             target_position=values.get("target_position"),
             target_tilt=values.get("target_tilt"),
+            calculation_mode=str(values.get("calculation_mode") or "fixed"),
+            window_width_m=values.get("window_width_m"),
+            window_height_m=values.get("window_height_m"),
+            window_sill_height_m=values.get("window_sill_height_m"),
+            object_distance_m=values.get("object_distance_m"),
+            object_center_height_m=values.get("object_center_height_m"),
+            object_height_m=values.get("object_height_m"),
+            object_lateral_center_m=values.get(
+                "object_lateral_center_m"
+            ),
+            object_width_m=values.get("object_width_m"),
+            target_lateral_center_m=values.get("target_lateral_center_m"),
+            target_lateral_width_m=values.get("target_lateral_width_m"),
         )
 
 
@@ -755,12 +784,51 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
         if parsed is None or not 0.0 <= parsed <= 100.0:
             errors.append(f"{key}_invalid")
 
+    calculation_mode = str(zone.calculation_mode or "fixed")
+    if calculation_mode not in {"fixed", "top_down", "curtain", "binary", "vertical_slats"}:
+        errors.append("calculation_mode_invalid")
+    window_width = _finite_measurement(zone.window_width_m)
+    window_height = _finite_measurement(zone.window_height_m)
+    window_sill = (
+        _finite_measurement(zone.window_sill_height_m)
+        if zone.window_sill_height_m is not None
+        else 0.0
+    )
+    lateral_center = _finite_measurement(zone.target_lateral_center_m)
+    lateral_width = _finite_measurement(zone.target_lateral_width_m)
+    if calculation_mode != "fixed":
+        if not zone.cover_entity and len(zone.group_ids) != 1:
+            errors.append("calculated_zone_cover_required")
+        if window_width is None or not 0.1 <= window_width <= 30:
+            errors.append("window_width_invalid")
+        if window_height is None or not 0.1 <= window_height <= 15:
+            errors.append("window_height_invalid")
+        if (
+            window_sill is None
+            or not 0 <= window_sill <= 10
+            or (
+                window_height is not None
+                and window_sill + window_height > 15
+            )
+        ):
+            errors.append("window_sill_height_invalid")
+        if lateral_center is None or not -30 <= lateral_center <= 30:
+            errors.append("target_lateral_center_invalid")
+        if lateral_width is None or not 0.0 <= lateral_width <= 30:
+            errors.append("target_lateral_width_invalid")
+
     details = {
         "distance_m": distance,
         "lower_height_m": lower,
         "upper_height_m": upper,
         "lateral_min_m": lateral_min,
         "lateral_max_m": lateral_max,
+        "calculation_mode": calculation_mode,
+        "window_width_m": window_width,
+        "window_height_m": window_height,
+        "window_sill_height_m": window_sill,
+        "target_lateral_center_m": lateral_center,
+        "target_lateral_width_m": lateral_width,
     }
     if errors:
         return ProtectedZoneValidation(
@@ -818,12 +886,98 @@ def _zone_target(zone: ProtectedZone) -> Target | None:
     return Target(position=zone.target_position, tilt=zone.target_tilt)
 
 
+def _calculated_zone_target(
+    zone: ProtectedZone,
+    *,
+    projected_height_range: tuple[float, float],
+    lateral_offset: float | None,
+) -> tuple[Target | None, dict[str, Any]]:
+    """Calculate a least-restrictive target for an object-protection zone.
+
+    The configuration is deliberately local to the window: heights are
+    measured from its lower edge and lateral values from its centre.  A
+    top-down cover only needs to cover the *lowest* projected sun ray.  The
+    remaining aperture therefore stays as large as possible while the whole
+    protected rectangle is in shade.
+    """
+    mode = str(zone.calculation_mode or "fixed")
+    if mode == "fixed":
+        return _zone_target(zone), {"calculation": "fixed_target"}
+
+    width = _finite_measurement(zone.window_width_m)
+    height = _finite_measurement(zone.window_height_m)
+    center = _finite_measurement(zone.target_lateral_center_m)
+    target_width = _finite_measurement(zone.target_lateral_width_m)
+    if None in {width, height, center, target_width, lateral_offset}:
+        return None, {"calculation": "geometry_incomplete"}
+    assert width is not None and height is not None
+    assert center is not None and target_width is not None and lateral_offset is not None
+    sill = _finite_measurement(zone.window_sill_height_m) or 0.0
+
+    projected_lateral = (
+        center - target_width / 2.0 + lateral_offset,
+        center + target_width / 2.0 + lateral_offset,
+    )
+    window_lateral = (-width / 2.0, width / 2.0)
+    if max(projected_lateral[0], window_lateral[0]) > min(
+        projected_lateral[1], window_lateral[1]
+    ):
+        return None, {
+            "calculation": "object_ray_outside_window",
+            "projected_lateral_range_m": projected_lateral,
+            "window_lateral_range_m": window_lateral,
+        }
+
+    details: dict[str, Any] = {
+        "calculation": mode,
+        "projected_lateral_range_m": projected_lateral,
+        "window_lateral_range_m": window_lateral,
+    }
+    if mode == "top_down":
+        # Home Assistant position semantics are 0 = closed, 100 = open.  A
+        # top-down blind covers from the upper edge down to the aperture edge.
+        aperture_edge = max(
+            0.0,
+            min(height, projected_height_range[0] - sill),
+        )
+        position = max(0.0, min(100.0, aperture_edge / height * 100.0))
+        details["open_aperture_edge_m"] = aperture_edge
+        details["calculated_position"] = position
+        return Target(position=position), details
+    if mode == "curtain":
+        # A two-panel curtain is treated as opening symmetrically from the
+        # centre.  The free central aperture may extend only up to the nearer
+        # edge of the projected protected area.
+        nearest_edge = max(
+            0.0,
+            abs((projected_lateral[0] + projected_lateral[1]) / 2.0)
+            - target_width / 2.0,
+        )
+        position = max(0.0, min(100.0, nearest_edge / (width / 2.0) * 100.0))
+        details["central_opening_half_width_m"] = nearest_edge
+        details["calculated_position"] = position
+        return Target(position=position), details
+    if mode == "binary":
+        details["calculated_position"] = 0.0
+        return Target(position=0.0), details
+    if mode == "vertical_slats":
+        # This is intentionally a test-capable geometrical baseline.  Real
+        # vane dimensions and actuator calibration can refine it later; the
+        # normal component of direct sun determines the protective tilt.
+        relative = abs(degrees(atan2(lateral_offset, max(0.001, zone.distance_m or 0.001))))
+        tilt = max(0.0, min(100.0, (1.0 - relative / 90.0) * 100.0))
+        details["calculated_tilt"] = tilt
+        return Target(tilt=tilt), details
+    return None, {"calculation": "geometry_mode_not_supported"}
+
+
 def evaluate_protected_zone(
     zone: ProtectedZone,
     geometry: SunGeometry | None,
     *,
     sector_id: str | None = None,
     group_id: str | None = None,
+    cover_entity: str | None = None,
 ) -> ProtectedZoneEvaluation:
     """Evaluate one protected zone with no side effects.
 
@@ -872,7 +1026,29 @@ def evaluate_protected_zone(
             reason_code="protected_zone_other_sector",
             details={"requested_sector_id": str(sector_id)},
         )
-    if zone.group_ids:
+    if zone.cover_entity:
+        if cover_entity is None:
+            return ProtectedZoneEvaluation(
+                zone_id=zone.zone_id,
+                name=zone.name,
+                sector_id=zone.sector_id,
+                status=ProtectedZoneStatus.INACTIVE,
+                reason_code="protected_zone_cover_context_required",
+                details={"cover_entity": zone.cover_entity},
+            )
+        if str(cover_entity) != zone.cover_entity:
+            return ProtectedZoneEvaluation(
+                zone_id=zone.zone_id,
+                name=zone.name,
+                sector_id=zone.sector_id,
+                status=ProtectedZoneStatus.INACTIVE,
+                reason_code="protected_zone_other_cover",
+                details={
+                    "requested_cover_entity": str(cover_entity),
+                    "cover_entity": zone.cover_entity,
+                },
+            )
+    elif zone.group_ids:
         if group_id is None:
             return ProtectedZoneEvaluation(
                 zone_id=zone.zone_id,
@@ -927,8 +1103,24 @@ def evaluate_protected_zone(
     distance = _finite_measurement(zone.distance_m)
     lower = _finite_measurement(zone.lower_height_m)
     upper = _finite_measurement(zone.upper_height_m)
-    window_lower = _finite_measurement(geometry.window_lower_height_m)
-    window_upper = _finite_measurement(geometry.window_upper_height_m)
+    calculated_mode = str(zone.calculation_mode or "fixed") != "fixed"
+    window_lower = (
+        (
+            _finite_measurement(zone.window_sill_height_m)
+            if zone.window_sill_height_m is not None
+            else 0.0
+        )
+        if calculated_mode
+        else _finite_measurement(geometry.window_lower_height_m)
+    )
+    window_upper = (
+        (
+            float(window_lower)
+            + float(_finite_measurement(zone.window_height_m) or 0.0)
+        )
+        if calculated_mode
+        else _finite_measurement(geometry.window_upper_height_m)
+    )
     assert None not in {distance, lower, upper, window_lower, window_upper}
     vertical_drop = float(distance) * tan(radians(elevation))
     projected = (float(lower) + vertical_drop, float(upper) + vertical_drop)
@@ -947,7 +1139,9 @@ def evaluate_protected_zone(
     lateral_bounds_configured = (
         zone.lateral_min_m is not None or zone.lateral_max_m is not None
     )
-    if lateral_bounds_configured and (sun_azimuth is None or facade_azimuth is None):
+    if (lateral_bounds_configured or calculated_mode) and (
+        sun_azimuth is None or facade_azimuth is None
+    ):
         # A customer supplied a lateral protected range, so applying it with
         # unknown lateral ray geometry would silently make it a full-width
         # wildcard.  Keep ordinary solar behaviour and expose the missing fact.
@@ -956,7 +1150,11 @@ def evaluate_protected_zone(
             name=zone.name,
             sector_id=zone.sector_id,
             status=ProtectedZoneStatus.INACTIVE,
-            reason_code="protected_zone_lateral_geometry_required",
+            reason_code=(
+                "protected_zone_lateral_geometry_required"
+                if lateral_bounds_configured
+                else "calculated_zone_lateral_geometry_required"
+            ),
             projected_height_range_m=projected,
             details=details,
         )
@@ -1018,13 +1216,36 @@ def evaluate_protected_zone(
             details=details,
         )
 
+    target, calculation_details = _calculated_zone_target(
+        zone,
+        projected_height_range=projected,
+        lateral_offset=lateral_offset,
+    )
+    details.update(calculation_details)
+    if calculated_mode and target is None:
+        reason = str(calculation_details.get("calculation") or "geometry_incomplete")
+        return ProtectedZoneEvaluation(
+            zone_id=zone.zone_id,
+            name=zone.name,
+            sector_id=zone.sector_id,
+            status=(
+                ProtectedZoneStatus.MISS
+                if reason == "object_ray_outside_window"
+                else ProtectedZoneStatus.INACTIVE
+            ),
+            reason_code=f"calculated_zone_{reason}",
+            projected_height_range_m=projected,
+            lateral_offset_m=lateral_offset,
+            details=details,
+        )
+
     return ProtectedZoneEvaluation(
         zone_id=zone.zone_id,
         name=zone.name,
         sector_id=zone.sector_id,
         status=ProtectedZoneStatus.HIT,
         reason_code="protected_zone_direct_sun_hit",
-        target=_zone_target(zone),
+        target=target,
         projected_height_range_m=projected,
         lateral_offset_m=lateral_offset,
         details=details,
@@ -1037,6 +1258,7 @@ def evaluate_protected_zones(
     *,
     sector_id: str | None = None,
     group_id: str | None = None,
+    cover_entity: str | None = None,
 ) -> tuple[ProtectedZoneEvaluation, ...]:
     """Evaluate all configured zones, retaining inactive/invalid trace facts."""
 
@@ -1046,6 +1268,7 @@ def evaluate_protected_zones(
             geometry,
             sector_id=sector_id,
             group_id=group_id,
+            cover_entity=cover_entity,
         )
         for zone in zones
     )
@@ -1475,6 +1698,7 @@ class DecisionContext:
     targets: Mapping[str, Target] = field(default_factory=dict)
     sector_id: str | None = None
     group_id: str | None = None
+    cover_entity: str | None = None
     sun_geometry: SunGeometry | None = None
     protected_zones: tuple[ProtectedZone, ...] = ()
     details: Mapping[str, Any] = field(default_factory=dict)
@@ -1550,15 +1774,26 @@ class DecisionPipeline:
     def _build_candidates(
         self,
         context: DecisionContext,
-        adjustment: ProtectedTargetAdjustment,
+        solar_adjustment: ProtectedTargetAdjustment,
+        comfort_adjustment: ProtectedTargetAdjustment,
         quality_failures: Mapping[str, str],
     ) -> tuple[DecisionCandidate, ...]:
         quality_hold = bool(quality_failures) and context.hold_on_invalid_normal_inputs
-        solar_target = adjustment.target or context.target_for(MODE_SOLAR)
+        solar_target = (
+            solar_adjustment.target or context.target_for(MODE_SOLAR)
+        )
+        comfort_target = (
+            comfort_adjustment.target or context.target_for(MODE_COMFORT)
+        )
         solar_reason = (
             "solar_glare_target_adjusted"
-            if adjustment.applied_zone_ids
+            if solar_adjustment.applied_zone_ids
             else "solar_conditions_met"
+        )
+        comfort_reason = (
+            "comfort_glare_target_adjusted"
+            if comfort_adjustment.applied_zone_ids
+            else "comfort_active"
         )
         candidates = (
             DecisionCandidate(
@@ -1650,26 +1885,47 @@ class DecisionPipeline:
                     else solar_reason if context.solar_active else "solar_inactive"
                 ),
                 details={
-                    "protected_zone_hit_ids": adjustment.hit_zone_ids,
-                    "protected_zone_applied_ids": adjustment.applied_zone_ids,
-                    "protected_zone_reason": adjustment.reason_code,
+                    "protected_zone_hit_ids": solar_adjustment.hit_zone_ids,
+                    "protected_zone_applied_ids": (
+                        solar_adjustment.applied_zone_ids
+                    ),
+                    "protected_zone_reason": solar_adjustment.reason_code,
                     # Keep both sides of the glare/protected-zone merge in
                     # the production trace: consumers must not have to infer
                     # the ordinary profile target from a later command.
-                    "ordinary_target": adjustment.details.get("ordinary_target"),
-                    "protected_zone_determining_ids": adjustment.applied_zone_ids,
+                    "ordinary_target": solar_adjustment.details.get(
+                        "ordinary_target"
+                    ),
+                    "protected_zone_determining_ids": (
+                        solar_adjustment.applied_zone_ids
+                    ),
                 },
             ),
             DecisionCandidate(
                 rule="comfort",
                 matched=context.comfort_active and not quality_hold,
                 mode=MODE_COMFORT,
-                target=context.target_for(MODE_COMFORT),
+                target=comfort_target,
                 reason_code=(
                     "comfort_blocked_by_input_quality"
                     if context.comfort_active and quality_hold
-                    else "comfort_active" if context.comfort_active else "comfort_inactive"
+                    else comfort_reason
+                    if context.comfort_active
+                    else "comfort_inactive"
                 ),
+                details={
+                    "protected_zone_hit_ids": comfort_adjustment.hit_zone_ids,
+                    "protected_zone_applied_ids": (
+                        comfort_adjustment.applied_zone_ids
+                    ),
+                    "protected_zone_reason": comfort_adjustment.reason_code,
+                    "ordinary_target": comfort_adjustment.details.get(
+                        "ordinary_target"
+                    ),
+                    "protected_zone_determining_ids": (
+                        comfort_adjustment.applied_zone_ids
+                    ),
+                },
             ),
             DecisionCandidate(
                 rule="open",
@@ -1701,13 +1957,22 @@ class DecisionPipeline:
             context.sun_geometry,
             sector_id=context.sector_id,
             group_id=context.group_id,
+            cover_entity=context.cover_entity,
         )
-        adjustment = apply_protected_zones(
+        solar_adjustment = apply_protected_zones(
             context.target_for(MODE_SOLAR), zone_evaluations
+        )
+        comfort_adjustment = apply_protected_zones(
+            context.target_for(MODE_COMFORT), zone_evaluations
         )
         quality_failures = self._quality_details(context)
         resolution = self.resolver.resolve(
-            self._build_candidates(context, adjustment, quality_failures)
+            self._build_candidates(
+                context,
+                solar_adjustment,
+                comfort_adjustment,
+                quality_failures,
+            )
         )
         command_result = CommandResult(
             status=(

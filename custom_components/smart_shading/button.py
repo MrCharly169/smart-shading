@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
 from .entity import SmartShadingEntity, localized
@@ -13,21 +14,29 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         # Evaluation remains automatic and is not a customer-facing control.
         async_add_entities([])
         return
-    entities = [EvaluateHouseButton(engine)]
-    entities.append(ExportDiagnosticsButton(engine))
+    # Customer controls stay intentionally small.  Test and support controls
+    # are opt-in per room; an Advanced installation is not consent to expose
+    # a row of engineering buttons in every existing dashboard.
+    entities = [EvaluateHouseButton(engine)] if any(
+        engine.room_test_tools_enabled(room_id) for room_id in engine.rooms
+    ) else []
+    if entities:
+        entities.append(ExportDiagnosticsButton(engine))
     for room_id in engine.rooms:
-        entities.extend(
-            [
-                PauseRoomButton(engine, room_id),
-                ResumeRoomButton(engine, room_id),
-                EvaluateRoomButton(engine, room_id),
-                SimulateRoomButton(engine, room_id),
-                PreviewRoomDayButton(engine, room_id),
-                ResetFinishedButton(engine, room_id),
-                ExportRoomDiagnosticsButton(engine, room_id),
-            ]
-        )
+        entities.extend([PauseRoomButton(engine, room_id), ResumeRoomButton(engine, room_id)])
+        if engine.room_test_tools_enabled(room_id):
+            entities.extend(
+                [
+                    EvaluateRoomButton(engine, room_id),
+                    SimulateRoomButton(engine, room_id),
+                    PreviewRoomDayButton(engine, room_id),
+                    ResetFinishedButton(engine, room_id),
+                    ExportRoomDiagnosticsButton(engine, room_id),
+                ]
+            )
     for room in engine.config.get("rooms", []):
+        if not engine.room_test_tools_enabled(room["id"]):
+            continue
         for sector in room.get("sectors", []):
             if sector.get("lux_sensor"):
                 entities.append(
@@ -121,8 +130,8 @@ class SimulateRoomButton(SmartShadingEntity, ButtonEntity):
         super().__init__(engine, room_id=room_id)
         self._attr_name = localized(
             engine,
-            "Run decision simulation",
-            "Entscheidung simulieren",
+            "Test evaluation (does not move covers)",
+            "Testauswertung (bewegt keine Behänge)",
         )
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_simulate"
 
@@ -137,8 +146,9 @@ class SimulateRoomButton(SmartShadingEntity, ButtonEntity):
         # pre-Issue-79 runtime: a missing simulation adapter must never fall
         # back to a live evaluation or cover service call.
         simulate = getattr(self.engine, "async_simulate_room", None)
-        if callable(simulate):
-            await simulate(self.room_id)
+        if not callable(simulate):
+            raise HomeAssistantError("Smart Shading simulation is unavailable after this update")
+        await simulate(self.room_id)
 
 
 class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
@@ -152,8 +162,8 @@ class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
         super().__init__(engine, room_id=room_id)
         self._attr_name = localized(
             engine,
-            "Preview today",
-            "Tagvorschau berechnen",
+            "Preview today (does not move covers)",
+            "Tagvorschau (bewegt keine Behänge)",
         )
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_preview_day"
 
@@ -167,8 +177,9 @@ class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
         # As with simulation, preserve the non-actuating contract if an older
         # runtime does not yet provide the preview adapter.
         preview = getattr(self.engine, "async_preview_room_day", None)
-        if callable(preview):
-            await preview(self.room_id)
+        if not callable(preview):
+            raise HomeAssistantError("Smart Shading day preview is unavailable after this update")
+        await preview(self.room_id)
 
 
 class ResetFinishedButton(SmartShadingEntity, ButtonEntity):

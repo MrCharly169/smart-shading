@@ -25,6 +25,29 @@
   decision trace, and allow the Card to request a selected-date preview
   without ever invoking the physical executor
 
+### Customer setup and clarity
+
+- let each Advanced room explicitly select only the optional capabilities it
+  uses before their focused setup pages are shown; unselected capabilities no
+  longer leave hidden automation or unsolicited dashboard controls behind
+- replace persistent “simulation active” feedback with a completed,
+  non-actuating result and surface Test and Day Preview only when a room opted
+  into those tools
+- simplify the Advanced details view to a current outcome and plain-language
+  explanation, with test tools and technical support evidence kept in explicit
+  collapsible sections
+- add calculated object glare protection for roller shades, screens, curtains,
+  binary covers and vertical slats using Sun position, window dimensions and a
+  measured protected area; slatted venetian blinds keep their normal adaptive
+  solar protection
+- migrate existing Advanced rooms to schema 17, preserving configured glare
+  zones and their current behaviour while keeping newly introduced test tools
+  opt-in
+- align facade Lux presets with common outdoor weather-station practice: make the
+  35,000/30,000 lx profile the default with 10/30 minute filtering, provide
+  clearly named earlier/strong-sun alternatives, and stop recommending indoor
+  Lux sensors for direct-sun confirmation
+
 ### Release qualification
 
 - make release-preparation pull requests neutral with respect to issue closure;

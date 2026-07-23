@@ -148,9 +148,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_stable_v4_6_2_and_previous_betas(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 16", flow)
-        self.assertIn("if entry.version >= 16", migration)
-        self.assertIn("version=16", migration.replace(" ", ""))
+        self.assertIn("VERSION = 17", flow)
+        self.assertIn("if entry.version >= 17", migration)
+        self.assertIn("version=17", migration.replace(" ", ""))
         self.assertIn("v4.6.2 already used entry schema 15", migration)
         self.assertIn("locked_advanced_mode(raw_data, raw_options)", migration)
         self.assertIn("options = editable_options(effective) if raw_options else {}", migration)
@@ -556,7 +556,9 @@ class PackageTests(unittest.TestCase):
             "execution_settings",
             "sector_identity", "sun_confirmation", "sector_maintenance",
             "protected_zone_identity", "protected_zone_geometry",
-            "protected_zone_target", "protected_zone_maintenance",
+            "protected_zone_target", "protected_zone_window",
+            "protected_zone_object",
+            "protected_zone_maintenance",
             "group_identity", "slat_curve", "target_positions",
             "group_maintenance", "cover_identity", "cover_automation",
             "cover_maintenance",
@@ -965,7 +967,7 @@ class PackageTests(unittest.TestCase):
             ):
                 self.assertIn(error, data["options"]["error"])
 
-    def test_initial_setup_offers_complete_features_in_safe_order(self):
+    def test_initial_setup_runs_selected_features_in_safe_order(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         tree = ast.parse(flow)
         config_flow = next(
@@ -999,21 +1001,36 @@ class PackageTests(unittest.TestCase):
             }
 
         self.assertIn(
-            "async_step_manage_automation",
+            "async_step_choose_advanced_features",
             calls(config_flow, "async_step_compact_cover_details"),
         )
-        self.assertIn(
-            "async_step_manage_night",
-            calls(options_flow, "async_step_manage_automation"),
+        mixin = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "_SmartShadingWizardMixin"
         )
-        self.assertIn(
-            "async_step_manage_pause",
-            calls(options_flow, "async_step_manage_night"),
-        )
-        self.assertIn(
-            "async_step_manage_conditions",
-            calls(options_flow, "async_step_manage_pause"),
-        )
+        dispatcher = ast.get_source_segment(
+            flow, method(mixin, "async_step_configure_next_advanced_feature")
+        ) or ""
+        for handler in (
+            "manage_schedule",
+            "manage_temperature",
+            "manage_night",
+            "manage_safety",
+            "manage_weather_conditions",
+            "initial_glare_protection",
+            "manage_execution",
+        ):
+            self.assertIn(f'"{handler}"', dispatcher)
+        automation = ast.get_source_segment(
+            flow, method(options_flow, "async_step_manage_automation")
+        ) or ""
+        self.assertNotIn('vol.Required(\n                "schedule_enabled"', automation)
+        night = ast.get_source_segment(
+            flow, method(options_flow, "async_step_manage_night")
+        ) or ""
+        self.assertNotIn('vol.Required(\n                "night_enabled"', night)
 
         initial_cover = ast.get_source_segment(
             flow, method(config_flow, "async_step_compact_cover_details")

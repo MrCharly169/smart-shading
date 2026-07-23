@@ -29,6 +29,7 @@ def _install_home_assistant_stubs() -> None:
     helpers = types.ModuleType("homeassistant.helpers")
     entity = types.ModuleType("homeassistant.helpers.entity")
     device_registry = types.ModuleType("homeassistant.helpers.device_registry")
+    exceptions = types.ModuleType("homeassistant.exceptions")
 
     class ButtonEntity:
         pass
@@ -42,10 +43,14 @@ def _install_home_assistant_stubs() -> None:
     class DeviceInfo(dict):
         pass
 
+    class HomeAssistantError(Exception):
+        pass
+
     button.ButtonEntity = ButtonEntity
     entity.Entity = Entity
     entity.EntityCategory = EntityCategory
     device_registry.DeviceInfo = DeviceInfo
+    exceptions.HomeAssistantError = HomeAssistantError
     sys.modules.update(
         {
             "homeassistant": homeassistant,
@@ -54,6 +59,7 @@ def _install_home_assistant_stubs() -> None:
             "homeassistant.helpers": helpers,
             "homeassistant.helpers.entity": entity,
             "homeassistant.helpers.device_registry": device_registry,
+            "homeassistant.exceptions": exceptions,
         }
     )
 
@@ -68,7 +74,7 @@ button_module = _load_module(f"{PACKAGE}.button", COMPONENT / "button.py")
 
 
 class _Engine:
-    def __init__(self, *, advanced_mode: bool = True) -> None:
+    def __init__(self, *, advanced_mode: bool = True, test_tools: bool = True) -> None:
         self.advanced_mode = advanced_mode
         self.entry = types.SimpleNamespace(entry_id="entry", title="Test")
         self.hass = types.SimpleNamespace(config=types.SimpleNamespace(language="en"))
@@ -78,6 +84,10 @@ class _Engine:
         self.simulations: list[str] = []
         self.previews: list[str] = []
         self.evaluations: list[str] = []
+        self.test_tools = test_tools
+
+    def room_test_tools_enabled(self, room_id: str) -> bool:
+        return self.test_tools
 
     async def async_simulate_room(self, room_id: str) -> None:
         self.simulations.append(room_id)
@@ -141,6 +151,22 @@ class Issue79ButtonTests(unittest.TestCase):
         engine = _Engine()
         engine.async_simulate_room = None
         engine.async_preview_room_day = None
-        asyncio.run(button_module.SimulateRoomButton(engine, "room").async_press())
-        asyncio.run(button_module.PreviewRoomDayButton(engine, "room").async_press())
+        with self.assertRaises(button_module.HomeAssistantError):
+            asyncio.run(button_module.SimulateRoomButton(engine, "room").async_press())
+        with self.assertRaises(button_module.HomeAssistantError):
+            asyncio.run(button_module.PreviewRoomDayButton(engine, "room").async_press())
         self.assertEqual(engine.evaluations, [])
+
+    def test_existing_advanced_rooms_do_not_receive_test_tools_without_opt_in(self) -> None:
+        engine = _Engine(test_tools=False)
+        entities = []
+        asyncio.run(
+            button_module.async_setup_entry(
+                None,
+                types.SimpleNamespace(runtime_data=engine),
+                entities.extend,
+            )
+        )
+        self.assertFalse(any(isinstance(entity, button_module.SimulateRoomButton) for entity in entities))
+        self.assertFalse(any(isinstance(entity, button_module.PreviewRoomDayButton) for entity in entities))
+        self.assertEqual(len(entities), 2)

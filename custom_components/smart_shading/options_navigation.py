@@ -58,14 +58,7 @@ def build_room_routes(
             ),
         ]
         if full:
-            labels.extend(
-                [
-                    ("Automatik", "manage_automation"),
-                    ("Nachtfunktion", "manage_night"),
-                    ("Pause und manuelle Bedienung", "manage_pause"),
-                    ("Sicherheit und Bedingungen", "manage_conditions"),
-                ]
-            )
+            labels.append(("Funktionen und Schutz", "advanced_features_hub"))
         labels.append(("Raum entfernen", "manage_room_maintenance"))
     else:
         sector_label = f"{sectors} sector" if sectors == 1 else f"{sectors} sectors"
@@ -79,14 +72,7 @@ def build_room_routes(
             ),
         ]
         if full:
-            labels.extend(
-                [
-                    ("Automation", "manage_automation"),
-                    ("Night function", "manage_night"),
-                    ("Pause and manual control", "manage_pause"),
-                    ("Safety and conditions", "manage_conditions"),
-                ]
-            )
+            labels.append(("Features and protection", "advanced_features_hub"))
         labels.append(("Remove room", "manage_room_maintenance"))
     return [
         {"label": label, "action": action, "room_id": room_id}
@@ -145,7 +131,7 @@ def build_sector_routes(
     source = str(sector.get("sun_source", "geometry"))
     source_labels = {
         "geometry": "Nur Sonnenstand" if german else "Sun position only",
-        "lux": "Lokaler Lux-Sensor" if german else "Local Lux sensor",
+        "lux": "Fassadenbezogener Außensensor" if german else "Facade-related outdoor sensor",
         "external": "Externer Ein/Aus-Sensor" if german else "External on/off sensor",
     }
     routes: list[dict[str, Any]] = [

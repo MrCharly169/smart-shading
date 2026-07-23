@@ -23,6 +23,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CARD_RESOURCE,
     CONF_ADVANCED_MODE,
+    CONF_ADVANCED_FEATURES,
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
@@ -46,6 +47,8 @@ from .const import (
     DEVICE_VERTICAL,
     DEVICE_VENETIAN,
     DOMAIN,
+    FEATURE_TEST_TOOLS,
+    FEATURE_GLARE_PROTECTION,
     MODE_COMFORT,
     MODE_DISABLED,
     MODE_FINISHED,
@@ -2472,6 +2475,35 @@ class SmartShadingEngine:
             if room["id"] == room_id
         )
 
+    def room_feature_enabled(self, room_id: str, feature: str) -> bool:
+        """Return whether a customer explicitly enabled one Advanced feature.
+
+        The base automation remains independent of this list.  It is used for
+        optional tools and views so an integration update cannot add controls
+        to an established room without the customer's consent.
+        """
+        if not self.advanced_mode:
+            return False
+        room = self.room_config(room_id)
+        features = room.get(CONF_ADVANCED_FEATURES)
+        # Runtime fixtures and entries loaded before schema 17 may not yet
+        # have the selection list. Preserve an already persisted calculated
+        # or fixed protected zone until migration writes that list; test tools
+        # still remain opt-in because no legacy room inferred that feature.
+        if features is None:
+            return feature == FEATURE_GLARE_PROTECTION and any(
+                sector.get("protected_zones")
+                for sector in room.get("sectors", [])
+                if isinstance(sector, dict)
+            )
+        return str(feature) in {
+            str(value) for value in features if isinstance(value, str)
+        }
+
+    def room_test_tools_enabled(self, room_id: str) -> bool:
+        """Return whether non-actuating test tools may be exposed for a room."""
+        return self.room_feature_enabled(room_id, FEATURE_TEST_TOOLS)
+
     def sector_config(self, sector_id: str) -> dict[str, Any]:
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
@@ -2865,10 +2897,10 @@ class SmartShadingEngine:
         if preset in SUN_PRESETS:
             return {key: float(value) for key, value in SUN_PRESETS[preset].items()}
         return {
-            "sun_on_lux": float(self.sector_value(sector_id, "sun_on_lux", 18000)),
-            "sun_off_lux": float(self.sector_value(sector_id, "sun_off_lux", 9000)),
-            "sun_on_delay": float(self.sector_value(sector_id, "sun_on_delay", 3)),
-            "sun_off_delay": float(self.sector_value(sector_id, "sun_off_delay", 12)),
+            "sun_on_lux": float(self.sector_value(sector_id, "sun_on_lux", 35000)),
+            "sun_off_lux": float(self.sector_value(sector_id, "sun_off_lux", 30000)),
+            "sun_on_delay": float(self.sector_value(sector_id, "sun_on_delay", 10)),
+            "sun_off_delay": float(self.sector_value(sector_id, "sun_off_delay", 30)),
         }
 
     async def _update_sun_presence(
@@ -3876,6 +3908,7 @@ class SmartShadingEngine:
         snapshot: InputSnapshot | None = None,
         sector: dict[str, Any] | None = None,
         layer: dict[str, Any] | None = None,
+        cover_entity: str | None = None,
         local_pause_active: bool = False,
     ) -> DecisionContext:
         """Adapt the established Advanced evaluation to one pure context.
@@ -3960,10 +3993,14 @@ class SmartShadingEngine:
             targets=targets,
             sector_id=sector_id,
             group_id=group_id,
+            cover_entity=cover_entity,
             sun_geometry=geometry,
             protected_zones=(
                 self._advanced_protected_zones(sector, layer)
-                if sector is not None
+                if (
+                    sector is not None
+                    and self.room_feature_enabled(str(room.get("id") or ""), FEATURE_GLARE_PROTECTION)
+                )
                 else ()
             ),
             details={
@@ -3973,6 +4010,7 @@ class SmartShadingEngine:
                 "room_id": runtime.room_id,
                 "sector_id": sector_id,
                 "layer_id": group_id,
+                "cover_entity": cover_entity,
                 "protected_zone_ignored_tilt_ids": (
                     self._protected_zone_ignored_tilt_ids(sector, layer)
                     if sector is not None
@@ -3991,6 +4029,7 @@ class SmartShadingEngine:
         snapshot: InputSnapshot | None = None,
         sector: dict[str, Any] | None = None,
         layer: dict[str, Any] | None = None,
+        cover_entity: str | None = None,
         local_pause_active: bool = False,
     ):
         """Resolve live Advanced facts once through the production pipeline."""
@@ -4003,6 +4042,7 @@ class SmartShadingEngine:
                 snapshot=snapshot,
                 sector=sector,
                 layer=layer,
+                cover_entity=cover_entity,
                 local_pause_active=local_pause_active,
             )
         )
@@ -5347,6 +5387,7 @@ class SmartShadingEngine:
         payload = {
             "schema": 1,
             "available": True,
+            "completed": True,
             "room_id": room_id,
             "simulated_at": simulated_at.isoformat(),
             "overrides": virtual,
@@ -5354,7 +5395,10 @@ class SmartShadingEngine:
             "result": results[0]["result"] if len(results) == 1 else None,
             "reason_code": "simulation_never_executes_services",
         }
-        runtime.simulation_active = True
+        # A simulation is an instantaneous calculation, not a mode.  Keeping
+        # this flag set made the customer UI report "Simulation active" long
+        # after the result was available.
+        runtime.simulation_active = False
         runtime.simulation_trace = payload
         self._notify()
         return payload
@@ -5576,6 +5620,7 @@ class SmartShadingEngine:
         payload = {
             "schema": 1,
             "available": True,
+            "completed": True,
             "room_id": room_id,
             "generated_at": now.isoformat(),
             "date": day_start.date().isoformat(),
@@ -6692,40 +6737,72 @@ class SmartShadingEngine:
             for cover in layer.get("covers", []):
                 before = len(runtime.targets)
                 cover_decision_result = decision_result
+                cover_mode = resolved_mode
+                cover_position = position
+                cover_tilt = tilt
                 if decision_result is not None:
                     pause = self.cover_pause_info(cover)
-                    if pause.get("active") and resolved_mode != MODE_SAFETY:
-                        if facts is None:
-                            cover_decision_result = self.decision_pipeline.evaluate(
+                    local_pause_active = bool(
+                        pause.get("active")
+                        and resolved_mode != MODE_SAFETY
+                    )
+                    if facts is None:
+                        cover_decision_result = (
+                            self.decision_pipeline.evaluate(
                                 self._advanced_decision_context(
                                     room,
                                     runtime,
-                                    runtime.last_evaluation or dt_util.now(),
+                                    runtime.last_evaluation
+                                    or dt_util.now(),
                                     mode=mode,
                                     sector=sector,
                                     layer=layer,
-                                    local_pause_active=True,
+                                    cover_entity=str(
+                                        cover.get("entity") or ""
+                                    ),
+                                    local_pause_active=local_pause_active,
                                 )
                             )
-                        else:
-                            cover_decision_result = self._resolve_advanced_decision(
+                        )
+                    else:
+                        cover_decision_result = (
+                            self._resolve_advanced_decision(
                                 room,
                                 runtime,
-                                runtime.last_evaluation or dt_util.now(),
+                                runtime.last_evaluation
+                                or dt_util.now(),
                                 facts=facts,
                                 sector=sector,
                                 layer=layer,
-                                local_pause_active=True,
+                                cover_entity=str(
+                                    cover.get("entity") or ""
+                                ),
+                                local_pause_active=local_pause_active,
                             )
+                        )
+                    cover_mode = cover_decision_result.mode
+                    cover_position, cover_tilt = self._targets(
+                        layer, cover_mode, elevation
+                    )
+                    if cover_decision_result.target is not None:
+                        if (
+                            cover_decision_result.target.position
+                            is not None
+                        ):
+                            cover_position = (
+                                cover_decision_result.target.position
+                            )
+                        if cover_decision_result.target.tilt is not None:
+                            cover_tilt = cover_decision_result.target.tilt
                 await self._apply_cover(
                     room,
                     sector,
                     layer,
                     cover,
                     runtime,
-                    resolved_mode,
-                    position,
-                    tilt,
+                    cover_mode,
+                    cover_position,
+                    cover_tilt,
                     reason,
                 )
                 if cover_decision_result is None or trace_record is None:
