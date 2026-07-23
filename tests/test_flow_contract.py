@@ -693,6 +693,21 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertNotIn("async_step_initial_safety_targets", conditions_source)
         self.assertIn("_complete_initial_feature", conditions_source)
 
+        initial_glare_source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.mixin, "async_step_initial_glare_protection"),
+        ) or ""
+        self.assertIn(
+            'self._sector_id = str(user_input["sector_id"])',
+            initial_glare_source,
+        )
+        self.assertIn("elif len(sectors) == 1", initial_glare_source)
+        self.assertIn(
+            'step_id="initial_glare_protection"',
+            initial_glare_source,
+        )
+        self.assertIn('vol.Required("sector_id")', initial_glare_source)
+
     def test_schedule_and_temperature_forms_show_the_complete_feature_once(self):
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),

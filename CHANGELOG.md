@@ -20,6 +20,8 @@
   binary covers and vertical slats using Sun position, window dimensions and a
   measured protected area; slatted venetian blinds keep their normal adaptive
   solar protection
+- when more than one compatible sector exists, ask which sector protects the
+  object instead of silently assigning the first sector
 - migrate existing Advanced rooms to schema 17, preserving configured glare
   zones and their current behaviour while keeping newly introduced test tools
   opt-in
