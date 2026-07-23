@@ -422,6 +422,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         )
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("baseline_uses_legacy_wizard", runner)
+        self.assertIn("include_test_tools=False", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)
         self.assertIn("entity IDs disappeared during upgrade", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)

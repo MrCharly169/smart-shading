@@ -559,6 +559,7 @@ def create_advanced_entry(
     scenario: dict[str, Any],
     *,
     legacy_compatible: bool = False,
+    include_test_tools: bool = True,
 ) -> str:
     """Exercise Advanced setup, optionally avoiding broken legacy optionals."""
     global CAPTURE_INITIAL_ADVANCED_WIZARD
@@ -813,7 +814,7 @@ def create_advanced_entry(
             "night": not legacy_compatible,
             "safety": not legacy_compatible,
             "conditions": True,
-            "test_tools": not legacy_compatible,
+            "test_tools": not legacy_compatible and include_test_tools,
             "expert_execution": not legacy_compatible,
         },
     )
@@ -3010,7 +3011,10 @@ def run_upgrade_bootstrap(
     assert_entry_variant(api, entry_id, False)
     legacy_compatible = baseline_uses_legacy_wizard(baseline_version)
     advanced_entry_id = create_advanced_entry(
-        api, scenario, legacy_compatible=legacy_compatible
+        api,
+        scenario,
+        legacy_compatible=legacy_compatible,
+        include_test_tools=False,
     )
     wait_for_entry_loaded(api, advanced_entry_id)
     wait_for_smart_shading_entities(api, advanced_entry_id)
