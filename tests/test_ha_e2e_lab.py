@@ -13,6 +13,7 @@ from scripts.ha_e2e.run_scenarios import (
     advanced_execution_settings_section,
     assert_entry_variant,
     duplicate_wizard_setting_owners,
+    is_retired_legacy_optional_entity,
     submit_options_expect_error,
     wait_for_home_assistant,
 )
@@ -28,6 +29,27 @@ FIXTURE = LAB / "fixture" / "custom_components" / "smart_shading_test_fixture"
 
 
 class HomeAssistantE2ELabTests(unittest.TestCase):
+    def test_upgrade_allows_only_retired_unsolicited_test_buttons(self):
+        for entity_id in (
+            "button.smart_shading_room_sector_reset_sun_detection",
+            "button.smart_shading_room_evaluate_now",
+            "button.smart_shading_room_export_room_diagnostic_log",
+            "button.smart_shading_room_reset_finished_today_state",
+            "button.smart_shading_house_evaluate_all_rooms_now",
+            "button.smart_shading_house_export_diagnostic_log",
+        ):
+            with self.subTest(entity_id=entity_id):
+                self.assertTrue(is_retired_legacy_optional_entity(entity_id))
+
+        for entity_id in (
+            "button.smart_shading_room_pause_automation",
+            "button.smart_shading_room_resume_automation",
+            "sensor.smart_shading_room_room_status",
+            "button.other_integration_evaluate_now",
+        ):
+            with self.subTest(entity_id=entity_id):
+                self.assertFalse(is_retired_legacy_optional_entity(entity_id))
+
     def test_advanced_execution_settings_payload_is_complete(self):
         self.assertEqual(
             advanced_execution_settings_payload(),

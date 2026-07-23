@@ -32,6 +32,14 @@ ADVANCED_FEATURE_KEYS = (
     "test_tools",
     "expert_execution",
 )
+RETIRED_LEGACY_OPTIONAL_BUTTON_SUFFIXES = (
+    "_reset_sun_detection",
+    "_evaluate_now",
+    "_export_room_diagnostic_log",
+    "_reset_finished_today_state",
+    "_evaluate_all_rooms_now",
+    "_export_diagnostic_log",
+)
 NON_SETTING_SCHEMA_FIELDS = {
     "next_step_id",
     "name",
@@ -68,6 +76,13 @@ class ApiError(RuntimeError):
 
     def __str__(self) -> str:
         return f"{self.method} {self.path} failed with HTTP {self.status}: {self.body}"
+
+
+def is_retired_legacy_optional_entity(entity_id: str) -> bool:
+    """Identify unsolicited legacy buttons replaced by explicit feature opt-in."""
+    return entity_id.startswith("button.smart_shading_") and entity_id.endswith(
+        RETIRED_LEGACY_OPTIONAL_BUTTON_SUFFIXES
+    )
 
 
 class HomeAssistantApi:
@@ -3044,11 +3059,25 @@ def run_restart(
     entity_ids = assert_unique_entities(api)
     expected_entity_ids = list(saved_state.get("entity_ids", []))
     if saved_state.get("upgrade_baseline"):
-        missing_entity_ids = sorted(set(expected_entity_ids) - set(entity_ids))
+        expected_retired_ids = {
+            entity_id
+            for entity_id in expected_entity_ids
+            if is_retired_legacy_optional_entity(entity_id)
+        }
+        retained_expected_ids = set(expected_entity_ids) - expected_retired_ids
+        missing_entity_ids = sorted(retained_expected_ids - set(entity_ids))
         if missing_entity_ids:
             raise AssertionError(
                 "Smart Shading entity IDs disappeared during upgrade: "
                 f"missing={missing_entity_ids}, after={entity_ids}"
+            )
+        legacy_buttons_still_visible = sorted(
+            expected_retired_ids & set(entity_ids)
+        )
+        if legacy_buttons_still_visible:
+            raise AssertionError(
+                "Legacy test buttons remained visible without feature opt-in: "
+                f"{legacy_buttons_still_visible}"
             )
     elif expected_entity_ids and entity_ids != expected_entity_ids:
         raise AssertionError(

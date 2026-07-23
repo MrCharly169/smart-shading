@@ -68,6 +68,9 @@
   HACS qualification gate
 - select the newest stable release tag, rather than a prerelease, as the
   default Home Assistant upgrade baseline
+- require every operational entity ID to survive the `v4.6.2` upgrade while
+  explicitly retiring only the unsolicited legacy Test & Preview buttons that
+  are now hidden until a room opts into that feature
 - document the complete Issue #79 release acceptance, migration, and
   post-publication HACS procedure
 
