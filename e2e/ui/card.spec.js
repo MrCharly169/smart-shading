@@ -149,6 +149,12 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   const dialog = page.locator("smart-shading-dialog");
   await expect(dialog).toHaveCount(1);
   await expect(dialog.locator("[data-decision-trace]")).toBeVisible();
+  const testTools = dialog.locator("[data-test-tools]");
+  const testToolsToggle = testTools.locator('[data-collapse-toggle="tools"]');
+  await expect(testToolsToggle).toBeVisible();
+  await expect(testToolsToggle).toHaveAttribute("aria-expanded", "false");
+  await testToolsToggle.click();
+  await expect(testToolsToggle).toHaveAttribute("aria-expanded", "true");
   const previewDate = dialog.locator("input[data-preview-date]");
   const previewAction = dialog.locator("button[data-preview-day]");
   await expect(previewDate).toBeVisible();
