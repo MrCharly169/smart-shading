@@ -18,7 +18,9 @@ import zipfile
 
 API_ROOT = "https://api.github.com"
 DOMAIN = "smart_shading"
-TAG_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
+TAG_PATTERN = re.compile(
+    r"^v?(\d+\.\d+\.\d+(?:(?:a|b|rc)\d+|-[0-9A-Za-z.-]+)?)$"
+)
 
 
 class HacsReleaseError(RuntimeError):
@@ -53,7 +55,11 @@ def version_from_tag(tag: str) -> str:
 
 def expected_release_channel(tag: str) -> str:
     """Return the HACS release channel selected by the tag."""
-    return "prerelease" if "-" in version_from_tag(tag) else "stable"
+    version = version_from_tag(tag)
+    is_prerelease = "-" in version or re.search(
+        r"(?:a|b|rc)\d+$", version
+    )
+    return "prerelease" if is_prerelease else "stable"
 
 
 def select_hacs_release(releases: list[dict[str, Any]], channel: str) -> dict[str, Any]:

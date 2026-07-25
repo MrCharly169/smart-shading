@@ -9,9 +9,11 @@ import zipfile
 
 from scripts.ha_e2e.check_hacs_release import (
     HacsReleaseError,
+    expected_release_channel,
     inspect_source_archive,
     select_hacs_release,
     validate_release_metadata,
+    version_from_tag,
 )
 
 
@@ -47,6 +49,15 @@ def source_archive(version: str = "2026.7.0") -> bytes:
 
 
 class HacsReleaseTests(unittest.TestCase):
+    def test_calver_beta_tag_uses_the_hacs_prerelease_channel(self):
+        self.assertEqual(
+            "2026.7.2b1", version_from_tag("v2026.7.2b1")
+        )
+        self.assertEqual(
+            "prerelease", expected_release_channel("v2026.7.2b1")
+        )
+        self.assertEqual("stable", expected_release_channel("v2026.7.2"))
+
     def test_stable_selection_skips_drafts_and_prereleases(self):
         releases = [
             {"tag_name": "v2026.7.1", "draft": True, "prerelease": False},
