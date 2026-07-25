@@ -406,6 +406,34 @@ def continue_past_legacy_global_settings(
     )
 
 
+def continue_past_initial_structure_hub(
+    api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
+) -> dict[str, Any]:
+    """Complete the structure checkpoint when the installed version has it."""
+    if result.get("step_id") != "initial_structure_hub":
+        return result
+    return submit_flow(
+        api,
+        flow_id,
+        "initial_structure_hub",
+        {"next_step_id": "complete_initial_structure"},
+    )
+
+
+def supported_form_data(
+    result: dict[str, Any], data: dict[str, Any]
+) -> dict[str, Any]:
+    """Limit a submission to fields exposed by the installed flow version."""
+    supported = {
+        str(field.get("name"))
+        for field in result.get("data_schema", [])
+        if isinstance(field, dict) and field.get("name")
+    }
+    if not supported:
+        return data
+    return {key: value for key, value in data.items() if key in supported}
+
+
 def start_options_flow(
     api: HomeAssistantApi, entry_id: str
 ) -> tuple[str, dict[str, Any]]:
@@ -804,28 +832,23 @@ def create_advanced_entry(
         )
         CAPTURE_INITIAL_ADVANCED_WIZARD = False
         return _created_entry_id(api, result, setup["house_name"])
-    expect_step(result, "initial_structure_hub")
-    result = submit_flow(
-        api,
-        flow_id,
-        "initial_structure_hub",
-        {"next_step_id": "complete_initial_structure"},
-    )
+    result = continue_past_initial_structure_hub(api, flow_id, result)
     expect_step(result, "choose_advanced_features")
+    advanced_features = {
+        "schedule": True,
+        "temperature": True,
+        "night": not legacy_compatible,
+        "safety": not legacy_compatible,
+        "conditions": True,
+        "maximum_opening": True,
+        "test_tools": not legacy_compatible and include_test_tools,
+        "expert_execution": not legacy_compatible,
+    }
     result = submit_flow(
         api,
         flow_id,
         "choose_advanced_features",
-        {
-            "schedule": True,
-            "temperature": True,
-            "night": not legacy_compatible,
-            "safety": not legacy_compatible,
-            "conditions": True,
-            "maximum_opening": True,
-            "test_tools": not legacy_compatible and include_test_tools,
-            "expert_execution": not legacy_compatible,
-        },
+        supported_form_data(result, advanced_features),
     )
     expect_step(result, "manage_automation")
     result = submit_flow(
@@ -861,40 +884,43 @@ def create_advanced_entry(
         },
     )
     expect_step(result, "manage_night")
+    night_source = {
+        "night_source": "sun",
+        "night_morning_transition_minutes": 0,
+        "night_evening_transition_minutes": 0,
+    }
     result = submit_flow(
         api,
         flow_id,
         "manage_night",
-        {
-            "night_source": "sun",
-            "night_morning_transition_minutes": 0,
-            "night_evening_transition_minutes": 0,
-        },
+        supported_form_data(result, night_source),
     )
     expect_step(result, "manage_night")
+    night_offsets = {
+        "night_source": "sun",
+        "night_start_offset_minutes": 0,
+        "night_end_offset_minutes": 0,
+        "night_morning_transition_minutes": 0,
+        "night_evening_transition_minutes": 0,
+    }
     result = submit_flow(
         api,
         flow_id,
         "manage_night",
-        {
-            "night_source": "sun",
-            "night_start_offset_minutes": 0,
-            "night_end_offset_minutes": 0,
-            "night_morning_transition_minutes": 0,
-            "night_evening_transition_minutes": 0,
-        },
+        supported_form_data(result, night_offsets),
     )
     expect_step(result, "manage_conditions")
+    safety_conditions = {
+        "safety_blockers": [setup["safety_entity"]],
+        "safety_behavior": "move_safe",
+        "safety_position": 100,
+        "safety_tilt": 0,
+    }
     result = submit_flow(
         api,
         flow_id,
         "manage_conditions",
-        {
-            "safety_blockers": [setup["safety_entity"]],
-            "safety_behavior": "move_safe",
-            "safety_position": 100,
-            "safety_tilt": 0,
-        },
+        supported_form_data(result, safety_conditions),
     )
     expect_step(result, "manage_conditions")
     condition_sources = {
@@ -909,16 +935,22 @@ def create_advanced_entry(
         "comfort_requires_occupancy": False,
         "heat_ignores_weather": True,
     }
-    result = submit_flow(api, flow_id, "manage_conditions", condition_sources)
-    expect_step(result, "initial_maximum_opening")
     result = submit_flow(
         api,
         flow_id,
-        "initial_maximum_opening",
-        {
+        "manage_conditions",
+        supported_form_data(result, condition_sources),
+    )
+    if result.get("step_id") == "initial_maximum_opening":
+        maximum_opening = {
             "enforce_max_open_position": True,
             "max_open_position": 90,
-        },
+        }
+        result = submit_flow(
+            api,
+            flow_id,
+            "initial_maximum_opening",
+            supported_form_data(result, maximum_opening),
     )
     expect_step(result, "manage_automation")
     result = submit_flow(

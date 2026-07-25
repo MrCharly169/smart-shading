@@ -14,9 +14,11 @@ from scripts.ha_e2e.run_scenarios import (
     assert_entry_variant,
     baseline_uses_legacy_wizard,
     continue_past_legacy_global_settings,
+    continue_past_initial_structure_hub,
     duplicate_wizard_setting_owners,
     is_retired_legacy_optional_entity,
     submit_options_expect_error,
+    supported_form_data,
     wait_for_home_assistant,
 )
 from scripts.ha_e2e.check_registry import registry_result
@@ -103,6 +105,47 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
             ),
         )
         api.post.assert_not_called()
+
+    def test_upgrade_bootstrap_accepts_optional_structure_checkpoint(self):
+        api = Mock()
+        api.post.return_value = {"step_id": "choose_advanced_features"}
+        result = continue_past_initial_structure_hub(
+            api, "flow-1", {"step_id": "initial_structure_hub"}
+        )
+        self.assertEqual({"step_id": "choose_advanced_features"}, result)
+        api.post.assert_called_once_with(
+            "/api/config/config_entries/flow/flow-1",
+            {"next_step_id": "complete_initial_structure"},
+        )
+
+        api.reset_mock()
+        old_result = {"step_id": "choose_advanced_features"}
+        self.assertIs(
+            old_result,
+            continue_past_initial_structure_hub(
+                api, "flow-2", old_result
+            ),
+        )
+        api.post.assert_not_called()
+
+    def test_upgrade_bootstrap_filters_candidate_only_form_fields(self):
+        result = {
+            "data_schema": [
+                {"name": "schedule"},
+                {"name": "temperature"},
+            ]
+        }
+        self.assertEqual(
+            {"schedule": True, "temperature": True},
+            supported_form_data(
+                result,
+                {
+                    "schedule": True,
+                    "temperature": True,
+                    "maximum_opening": True,
+                },
+            ),
+        )
 
     def test_advanced_features_use_focused_automation_submissions(self):
         runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
