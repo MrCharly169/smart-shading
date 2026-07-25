@@ -392,6 +392,20 @@ def submit_flow(
     return result
 
 
+def continue_past_legacy_global_settings(
+    api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
+) -> dict[str, Any]:
+    """Submit the retired Sun form when bootstrapping an older release."""
+    if result.get("step_id") != "global_settings":
+        return result
+    return submit_flow(
+        api,
+        flow_id,
+        "global_settings",
+        {"sun_entity": "sun.sun"},
+    )
+
+
 def start_options_flow(
     api: HomeAssistantApi, entry_id: str
 ) -> tuple[str, dict[str, Any]]:
@@ -433,6 +447,7 @@ def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
             "setup_type": "simple",
         },
     )
+    result = continue_past_legacy_global_settings(api, flow_id, result)
     expect_step(result, "room_setup")
     result = submit_flow(
         api,
@@ -573,6 +588,7 @@ def create_advanced_entry(
             "setup_type": "complete",
         },
     )
+    result = continue_past_legacy_global_settings(api, flow_id, result)
     expect_step(result, "room_setup")
     room_details = {
         "name": setup["room_name"],

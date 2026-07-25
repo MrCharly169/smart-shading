@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts.ha_e2e.run_scenarios import (
     ApiError,
@@ -13,6 +13,7 @@ from scripts.ha_e2e.run_scenarios import (
     advanced_execution_settings_section,
     assert_entry_variant,
     baseline_uses_legacy_wizard,
+    continue_past_legacy_global_settings,
     duplicate_wizard_setting_owners,
     is_retired_legacy_optional_entity,
     submit_options_expect_error,
@@ -80,6 +81,28 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertTrue(baseline_uses_legacy_wizard("v5.0.0-beta.0"))
         self.assertFalse(baseline_uses_legacy_wizard("2026.7.0"))
         self.assertFalse(baseline_uses_legacy_wizard("v2026.7.1"))
+
+    def test_upgrade_bootstrap_accepts_retired_global_settings_step(self):
+        api = Mock()
+        api.post.return_value = {"step_id": "room_setup"}
+        result = continue_past_legacy_global_settings(
+            api, "flow-1", {"step_id": "global_settings"}
+        )
+        self.assertEqual({"step_id": "room_setup"}, result)
+        api.post.assert_called_once_with(
+            "/api/config/config_entries/flow/flow-1",
+            {"sun_entity": "sun.sun"},
+        )
+
+        api.reset_mock()
+        current_result = {"step_id": "room_setup"}
+        self.assertIs(
+            current_result,
+            continue_past_legacy_global_settings(
+                api, "flow-2", current_result
+            ),
+        )
+        api.post.assert_not_called()
 
     def test_advanced_features_use_focused_automation_submissions(self):
         runner = ROOT / "scripts" / "ha_e2e" / "run_scenarios.py"
