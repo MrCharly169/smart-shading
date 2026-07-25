@@ -1,0 +1,17 @@
+name: smart-shading-dev
+
+services:
+  home-assistant:
+    image: ${HA_DEV_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}
+    container_name: smart-shading-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HA_DEV_PORT:-8123}:8123"
+    volumes:
+      - ./.dev/ha-config:/config
+      - ./e2e/ha/configuration.yaml:/config/configuration.yaml:ro
+      - ./custom_components/smart_shading:/config/custom_components/smart_shading:ro
+      - ./e2e/ha/fixture/custom_components/smart_shading_test_fixture:/config/custom_components/smart_shading_test_fixture:ro
+    environment:
+      TZ: ${TZ:-Europe/Luxembourg}
+

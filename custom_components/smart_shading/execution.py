@@ -165,6 +165,12 @@ class CommandRequest:
     # Direct planner callers must opt in just like the customer-facing
     # Advanced setting; external ownership is never reclaimed by default.
     allow_automatic_reverse: bool = False
+    # A complete newer room evaluation is authoritative over a command
+    # lifecycle created by an older evaluation.  This is deliberately
+    # separate from ``priority``: priority orders competing rules in one
+    # decision, while this flag lets a cleared Safety/Night/Heat condition
+    # replace the obsolete physical command it started.
+    authoritative_replacement: bool = False
 
     @property
     def effective_priority(self) -> int:
@@ -592,8 +598,42 @@ class CommandPlanner:
             request.position_tolerance,
             request.tilt_tolerance,
         )
+        authoritative_target_replacement = bool(
+            request.authoritative_replacement
+            and existing
+            and self._is_active(existing)
+            and existing.target != request.target
+        )
 
         if existing and self._is_active(existing):
+            # A higher-priority movement can still be travelling after its
+            # source has already cleared.  If the fresh authoritative target
+            # differs, send its changed axes even when current feedback still
+            # appears to be at that new target.  The command is needed to
+            # stop/reverse the older actuator request before delayed feedback
+            # can strand the cover at the obsolete target.
+            if (
+                authoritative_target_replacement
+            ):
+                position_needed = position_needed or (
+                    request.target.position is not None
+                    and (
+                        existing.target.position is None
+                        or abs(
+                            existing.target.position
+                            - request.target.position
+                        )
+                        > max(0.0, request.position_tolerance)
+                    )
+                )
+                tilt_needed = tilt_needed or (
+                    request.target.tilt is not None
+                    and (
+                        existing.target.tilt is None
+                        or abs(existing.target.tilt - request.target.tilt)
+                        > max(0.0, request.tilt_tolerance)
+                    )
+                )
             if (
                 existing.target == request.target
                 and existing.priority >= priority
@@ -609,7 +649,11 @@ class CommandPlanner:
                     (),
                     existing,
                 )
-            if existing.priority > priority and not request.safety:
+            if (
+                existing.priority > priority
+                and not request.safety
+                and not request.authoritative_replacement
+            ):
                 return PlanResult(
                     CommandResult.BLOCKED,
                     request.cover_id,
@@ -723,7 +767,15 @@ class CommandPlanner:
         return PlanResult(
             entry.result,
             request.cover_id,
-            "safety_replacement" if request.safety and cancelled else "target_planned",
+            (
+                "safety_replacement"
+                if request.safety and cancelled
+                else (
+                    "authoritative_replacement"
+                    if authoritative_target_replacement
+                    else "target_planned"
+                )
+            ),
             tuple(steps),
             entry,
             tuple(cancelled),

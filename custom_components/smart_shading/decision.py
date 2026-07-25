@@ -37,6 +37,7 @@ MODE_IDLE = "idle"
 MODE_OPEN = "open"
 MODE_COMFORT = "comfort"
 MODE_SOLAR = "solar"
+MODE_GLARE = "glare"
 MODE_HEAT = "heat"
 MODE_NIGHT = "night"
 
@@ -80,10 +81,12 @@ class DecisionPriority(IntEnum):
     OPEN = 200
     COMFORT = 300
     SOLAR = 400
+    GLARE = 425
     INPUT_HOLD = 450
     HEAT = 500
     NIGHT = 600
     NIGHT_SOURCE_HOLD = 650
+    SAFETY_SOURCE_HOLD = 675
     MANUAL = 700
     SAFETY = 800
 
@@ -1490,12 +1493,14 @@ class DecisionResolver:
             "room_pause": DecisionPriority.MANUAL,
             "local_cover_pause": DecisionPriority.MANUAL,
             "manual_override": DecisionPriority.MANUAL,
+            "safety_source_hold": DecisionPriority.SAFETY_SOURCE_HOLD,
             "night_source_hold": DecisionPriority.NIGHT_SOURCE_HOLD,
             "night": DecisionPriority.NIGHT,
             "heat_protection": DecisionPriority.HEAT,
             "heat": DecisionPriority.HEAT,
             "schedule_hold": DecisionPriority.INPUT_HOLD,
             "input_quality_hold": DecisionPriority.INPUT_HOLD,
+            "glare_protection": DecisionPriority.GLARE,
             "solar": DecisionPriority.SOLAR,
             "comfort": DecisionPriority.COMFORT,
             "open": DecisionPriority.OPEN,
@@ -1509,6 +1514,7 @@ class DecisionResolver:
             MODE_PAUSED: DecisionPriority.MANUAL,
             MODE_NIGHT: DecisionPriority.NIGHT,
             MODE_HEAT: DecisionPriority.HEAT,
+            MODE_GLARE: DecisionPriority.GLARE,
             MODE_SOLAR: DecisionPriority.SOLAR,
             MODE_COMFORT: DecisionPriority.COMFORT,
             MODE_OPEN: DecisionPriority.OPEN,
@@ -1522,16 +1528,18 @@ class DecisionResolver:
             "room_pause": 20,
             "local_cover_pause": 30,
             "manual_override": 40,
+            "safety_source_hold": 42,
             "night_source_hold": 45,
             "night": 50,
             "heat_protection": 60,
             "heat": 70,
             "schedule_hold": 75,
             "input_quality_hold": 80,
-            "solar": 90,
-            "comfort": 100,
-            "open": 110,
-            "idle": 120,
+            "glare_protection": 90,
+            "solar": 100,
+            "comfort": 110,
+            "open": 120,
+            "idle": 130,
         }
     )
     _RULE_MODES: Mapping[str, str] = MappingProxyType(
@@ -1541,12 +1549,14 @@ class DecisionResolver:
             "room_pause": MODE_PAUSED,
             "local_cover_pause": MODE_PAUSED,
             "manual_override": MODE_DISABLED,
+            "safety_source_hold": MODE_IDLE,
             "night_source_hold": MODE_IDLE,
             "night": MODE_NIGHT,
             "heat_protection": MODE_HEAT,
             "heat": MODE_HEAT,
             "schedule_hold": MODE_IDLE,
             "input_quality_hold": MODE_IDLE,
+            "glare_protection": MODE_GLARE,
             "solar": MODE_SOLAR,
             "comfort": MODE_COMFORT,
             "open": MODE_OPEN,
@@ -1682,10 +1692,12 @@ class DecisionContext:
     manual_override_active: bool = False
     room_pause_active: bool = False
     local_pause_active: bool = False
+    safety_source_hold_active: bool = False
     night_active: bool = False
     night_source_hold_active: bool = False
     heat_active: bool = False
     schedule_hold_active: bool = False
+    glare_allowed: bool = False
     solar_active: bool = False
     comfort_active: bool = False
     # The original public pipeline treated Open as an unconditional fallback.
@@ -1774,11 +1786,13 @@ class DecisionPipeline:
     def _build_candidates(
         self,
         context: DecisionContext,
+        glare_adjustment: ProtectedTargetAdjustment,
         solar_adjustment: ProtectedTargetAdjustment,
         comfort_adjustment: ProtectedTargetAdjustment,
         quality_failures: Mapping[str, str],
     ) -> tuple[DecisionCandidate, ...]:
         quality_hold = bool(quality_failures) and context.hold_on_invalid_normal_inputs
+        glare_target = glare_adjustment.target
         solar_target = (
             solar_adjustment.target or context.target_for(MODE_SOLAR)
         )
@@ -1830,6 +1844,16 @@ class DecisionPipeline:
                 ),
             ),
             DecisionCandidate(
+                rule="safety_source_hold",
+                matched=context.safety_source_hold_active,
+                mode=MODE_IDLE,
+                reason_code=(
+                    "safety_source_unavailable_hold"
+                    if context.safety_source_hold_active
+                    else "safety_source_available"
+                ),
+            ),
+            DecisionCandidate(
                 rule="night_source_hold",
                 matched=context.night_source_hold_active,
                 mode=MODE_IDLE,
@@ -1873,6 +1897,43 @@ class DecisionPipeline:
                     else "normal_input_quality_valid"
                 ),
                 details={"quality_failures": dict(quality_failures)},
+            ),
+            DecisionCandidate(
+                rule="glare_protection",
+                matched=(
+                    context.glare_allowed
+                    and bool(glare_adjustment.applied_zone_ids)
+                    and not quality_hold
+                ),
+                mode=MODE_GLARE,
+                target=glare_target,
+                reason_code=(
+                    "glare_blocked_by_input_quality"
+                    if (
+                        context.glare_allowed
+                        and glare_adjustment.applied_zone_ids
+                        and quality_hold
+                    )
+                    else "protected_zone_target_adjusted"
+                    if (
+                        context.glare_allowed
+                        and glare_adjustment.applied_zone_ids
+                    )
+                    else "protected_zone_inactive"
+                ),
+                details={
+                    "protected_zone_hit_ids": glare_adjustment.hit_zone_ids,
+                    "protected_zone_applied_ids": (
+                        glare_adjustment.applied_zone_ids
+                    ),
+                    "protected_zone_reason": glare_adjustment.reason_code,
+                    "ordinary_target": glare_adjustment.details.get(
+                        "ordinary_target"
+                    ),
+                    "protected_zone_determining_ids": (
+                        glare_adjustment.applied_zone_ids
+                    ),
+                },
             ),
             DecisionCandidate(
                 rule="solar",
@@ -1959,6 +2020,16 @@ class DecisionPipeline:
             group_id=context.group_id,
             cover_entity=context.cover_entity,
         )
+        glare_baseline = (
+            context.target_for(MODE_SOLAR)
+            if context.solar_active
+            else context.target_for(MODE_COMFORT)
+            if context.comfort_active
+            else context.target_for(MODE_OPEN)
+        )
+        glare_adjustment = apply_protected_zones(
+            glare_baseline, zone_evaluations
+        )
         solar_adjustment = apply_protected_zones(
             context.target_for(MODE_SOLAR), zone_evaluations
         )
@@ -1969,6 +2040,7 @@ class DecisionPipeline:
         resolution = self.resolver.resolve(
             self._build_candidates(
                 context,
+                glare_adjustment,
                 solar_adjustment,
                 comfort_adjustment,
                 quality_failures,

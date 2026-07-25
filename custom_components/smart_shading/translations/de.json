@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Einrichtungsart wählen",
-        "description": "Smart Shading bewegt Behänge nur, wenn die Sonne ihre Fassade erreicht und die gewählte Sonnenquelle dies bestätigt. Easy nutzt eine kurze Einrichtung mit sicheren Profil-Standardwerten. Advanced ergänzt Zeitpläne, Temperaturstufen, Nachtfunktion, Pausen, Sicherheit und individuelle Zielwerte. Sicherheitsfunktionen und manuelle Bedienung haben immer Vorrang.",
+        "description": "Smart Shading steuert jeden Behang nur dann, wenn die Sonne seine Fassade erreicht und die ausgewählte Sonnenquelle aktive Sonneneinstrahlung bestätigt. Wählen Sie Easy für eine schnelle Einrichtung mit geprüften, sicheren Standardwerten: Sie wählen Behänge, Fassadenrichtungen und Sonnenquelle aus; Smart Shading übernimmt die technischen Einstellungen automatisch. Wählen Sie Advanced für individuelle Kontrolle mit Zeitplänen, temperaturabhängigem Hitzeschutz, Nachtpositionen, Blendschutz, Pausen, Sicherheitssensoren, Schutzzonen, eigenen Zielpositionen und Experteneinstellungen für die Ausführung. In beiden Modi haben Sicherheitsfunktionen und die manuelle Bedienung der Behänge immer Vorrang vor der Automatik.",
         "data": {
           "house_name": "Name des Hauses oder Bereichs",
           "setup_type": "Einrichtungsart"
@@ -88,7 +88,7 @@
       },
       "choose_advanced_features": {
         "title": "Zusatzfunktionen auswählen",
-        "description": "Die Grundbeschattung ist eingerichtet. Jede Auswahl aktiviert die Funktion sofort für diesen Raum; anschließend führt Sie der Assistent nacheinander durch die zugehörigen Einstellungen. Ein zweiter Aktivierungsschalter ist nicht nötig. Nicht gewählte Funktionen bleiben ausgeblendet.",
+        "description": "Wählen Sie die Zusatzfunktionen für diesen Raum. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion ist vollständig eingerichtet, sobald ihre erforderlichen Angaben gespeichert sind; sie kann später jederzeit geändert oder abgewählt werden.",
         "data": {
           "schedule": "Zeitplan verwenden",
           "temperature": "Temperatur und Hitzeschutz verwenden",
@@ -96,6 +96,7 @@
           "safety": "Wind-, Frost- oder Fenstersicherheit verwenden",
           "conditions": "Wetter- oder Anwesenheitssensoren verwenden",
           "glare_protection": "Blendschutz für Bereich oder Objekt verwenden",
+          "maximum_opening": "Maximale Öffnungsbegrenzung verwenden",
           "test_tools": "Test und Tagvorschau anzeigen",
           "expert_execution": "Experteneinstellungen für Fahrbefehle anzeigen"
         },
@@ -106,21 +107,39 @@
           "safety": "Gibt Wind-, Frost- oder Fenstersignalen Vorrang vor dem Komfortbetrieb. Bei Gefahr blockiert Smart Shading Fahrten oder fährt festgelegte sichere Positionen an.",
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
-          "test_tools": "Blendet Vorschau- und Berechnungswerkzeuge ein, mit denen Entscheidungen geprüft werden können, ohne einen Fahrbefehl auszulösen.",
+          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
+        }
+      },
+      "initial_structure_hub": {
+        "title": "Struktur für {room_name} fertigstellen",
+        "description": "Richten Sie zuerst alle Fassaden, Behanggruppen und Behänge dieses Raums ein. Sie können vorhandene Elemente öffnen oder weitere hinzufügen. Fahren Sie erst fort, wenn die Raumstruktur vollständig ist.",
+        "menu_options": {
+          "complete_initial_structure": "Raumstruktur ist vollständig – Zusatzfunktionen wählen"
+        }
+      },
+      "new_optional_feature_available": {
+        "title": "Neue Zusatzfunktion für {room_name}",
+        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
+        "data": {
+          "open_optional_features": "Zusatzfunktionen jetzt öffnen"
+        },
+        "data_description": {
+          "open_optional_features": "Ein öffnet die Funktionsauswahl dieses Raums. Aus führt zurück zur zuletzt bearbeiteten Struktur."
         }
       },
       "advanced_features_hub": {
         "title": "Funktionen und Schutz",
-        "description": "Jede ausgewählte Funktion besitzt einen eigenen Einstellungsbereich. Die Auswahl selbst aktiviert die Funktion; hier ändern Sie später nur noch deren Verhalten."
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Funktionsname und Raum bleiben auf jeder folgenden Seite sichtbar."
       },
       "glare_protection_hub": {
         "title": "Blendschutz",
         "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen."
       },
       "initial_glare_protection": {
-        "title": "Fassade für den Blendschutz wählen",
-        "description": "Wählen Sie die Fassade mit dem Fenster, vor dem der erste geschützte Bereich liegt.",
+        "title": "{feature_context} · Blendschutz · Fassade wählen",
+        "description": "{feature_description} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature}",
         "data": {
           "sector_id": "Fassade"
         },
@@ -325,12 +344,12 @@
         }
       },
       "manage_automation": {
-        "title": "Automatik",
-        "description": "Hier erscheint nur die zuvor ausgewählte Funktion. Sie ist bereits aktiv; mit Speichern übernehmen Sie direkt deren Verhalten.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} {next_feature}",
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
-            "description": "Der Zeitplan verhindert automatische Komfortfahrten außerhalb der gewünschten Nutzungszeiten. Sicherheitsfunktionen bleiben jederzeit aktiv.",
+            "description": "Der allgemeine Beschattungszeitplan gibt alle automatischen Tagesfunktionen frei: adaptive Beschattung, Komfort, Sonnenschutz, Blendschutz und Hitzeschutz. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
               "schedule_profile": "Aktivitätsprofil",
@@ -342,40 +361,38 @@
               "outside_schedule_behavior": "Außerhalb des Zeitplans"
             },
             "data_description": {
-              "schedule_enabled": "Optional. Aus bedeutet, dass normale Beschattung ganzjährig und ganztägig verfügbar ist.",
+              "schedule_enabled": "Aus bedeutet, dass alle automatischen Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Die Nachtfunktion bleibt unabhängig.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
               "day_window": "Wählen Sie ganztägig oder ein festes tägliches Zeitfenster.",
               "start_time": "Nur bei festem Zeitfenster; über Mitternacht ist möglich.",
               "end_time": "Nur bei festem Zeitfenster.",
-              "outside_schedule_behavior": "Legt die Neutralposition außerhalb der Freigabe fest; Sicherheit bleibt aktiv."
+              "outside_schedule_behavior": "Außerhalb der Freigabe werden die Behänge geöffnet oder unverändert gehalten. Die unabhängige Nachtfunktion und Sicherheitsbedingungen behalten Vorrang."
             }
           },
           "temperature_settings": {
             "name": "Temperaturen und Hitzeschutz",
-            "description": "Die Raumtemperatur ergänzt die Sonnenberechnung: Komfort reagiert früher, während Hitzeschutz bei echter Überhitzung stärker beschattet.",
+            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
             "data": {
               "indoor_temperature": "Raumtemperatursensor",
               "normal_shading_temperature": "Normale Beschattung ab",
-              "comfort_temperature": "Komfort ab",
-              "solar_temperature": "Sonnenschutz ab",
+              "comfort_temperature": "Leichte Komfortbeschattung ab",
+              "solar_temperature": "Starker Sonnenschutz ab",
               "heat_temperature": "Hitzeschutz ab",
               "evening_release_time": "Spätestens freigeben um",
               "sunset_offset_minutes": "Freigabe relativ zum Sonnenuntergang",
-              "heat_outside_schedule": "Hitzeschutz außerhalb des Zeitplans aktiv halten",
-              "reopen_temperature": "Wieder öffnen unter"
+              "reopen_temperature": "Normale Beschattung zurücksetzen unter"
             },
             "data_description": {
               "indoor_temperature": "Wählen Sie den Sensor, der die Raumtemperatur liefert. Alle Temperaturstufen werden direkt in diesem Formular eingestellt.",
               "normal_shading_temperature": "Ab dieser Raumtemperatur beginnt die normale Beschattung.",
-              "comfort_temperature": "Ab dieser Raumtemperatur beginnt die Komfortstufe.",
-              "solar_temperature": "Ab dieser Raumtemperatur beginnt die stärkere Sonnenschutzstufe.",
-              "heat_temperature": "Oberhalb kann der Hitzeschutz starten; er bleibt bis zur festen Abendfreigabe aktiv.",
-              "evening_release_time": "Spätestens zu dieser Uhrzeit endet ein aktiver Hitzeschutz.",
-              "sunset_offset_minutes": "Negative Werte geben vor Sonnenuntergang frei, positive Werte danach.",
-              "heat_outside_schedule": "Hält den Überhitzungsschutz auch dann verfügbar, wenn der normale Zeitplan gerade keine Komfortbeschattung erlaubt.",
-              "reopen_temperature": "Unter diesem Wert darf die normale Beschattung wieder öffnen."
+              "comfort_temperature": "Ab dieser Raumtemperatur gilt die leichte Komfortposition, sofern der Behangtyp eine eigene Komfortstufe unterstützt.",
+              "solar_temperature": "Ab dieser Raumtemperatur gilt das stärkere Sonnenschutzziel, sofern der Behangtyp getrennte Stufen unterstützt.",
+              "heat_temperature": "Oberhalb kann der Hitzeschutz innerhalb des allgemeinen Beschattungszeitplans einmal pro Tag starten.",
+              "evening_release_time": "Spätestens zu dieser Uhrzeit endet der tägliche Hitzeschutz. Ein früheres Zeitplanende oder die Sonnenuntergangsfreigabe beendet ihn vorher.",
+              "sunset_offset_minutes": "Negative Werte geben vor Sonnenuntergang frei, positive Werte danach. Es gilt immer die früheste Freigabe.",
+              "reopen_temperature": "Gilt nur für die normale temperaturabhängige Beschattung, nicht für Hitzeschutz. Unterhalb endet die normale Beschattungsanforderung; bei weiterhin direkter Sonne wird die aktuelle Position gehalten und nicht sofort geöffnet."
             }
           },
           "execution_settings": {
@@ -405,8 +422,8 @@
         }
       },
       "manage_night": {
-        "title": "Nachtfunktion",
-        "description": "Die Nachtfunktion nutzt eigene Zielpositionen für Privatsphäre und Dunkelheit. Wählen Sie eine vorhandene Zeitsteuerung oder lassen Sie Beginn und Ende aus Sonnenuntergang und Sonnenaufgang berechnen.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} Wählen Sie eine eigene Zeitsteuerung oder Sonnenuntergang bis Sonnenaufgang mit Offset. Die Nachtposition gehört in die Profileinstellungen der jeweiligen Behanggruppe. {next_feature}",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
@@ -426,21 +443,9 @@
           "night_evening_transition_minutes": "Übergangsfenster, bevor die Nachtfunktion übernimmt."
         }
       },
-      "initial_night_targets": {
-        "title": "Nachtziele · {group_name}",
-        "description": "Legen Sie die Nachtposition für diese Behanggruppe fest.",
-        "data": {
-          "night_position": "Nachtposition",
-          "night_tilt": "Nacht-Lamellenposition"
-        },
-        "data_description": {
-          "night_position": "Position während der aktiven Nachtfunktion.",
-          "night_tilt": "Nacht-Lamellenposition während der aktiven Nachtfunktion."
-        }
-      },
       "manage_pause": {
-        "title": "Pause und manuelle Bedienung",
-        "description": "Legen Sie fest, wann eine Pause endet und ob eine externe Fahrt eine Pause startet.",
+        "title": "{room_name} · Allgemeine Steuerung · Pause und manuelle Bedienung",
+        "description": "Dieser Bereich ist keine ausgewählte Zusatzfunktion. Er steuert übergreifend, wann automatische Funktionen nach einem manuellen Eingriff wieder übernehmen.",
         "data": {
           "default_pause_mode": "Standardaktion für Pause",
           "pause_sun_offset_minutes": "Offset zum Sonnenereignis",
@@ -452,13 +457,13 @@
           "default_pause_mode": "Freigabe beim Sonnenereignis, nach einer Dauer oder nur manuell.",
           "pause_sun_offset_minutes": "Negative Werte beenden die Pause entsprechend vor dem Sonnenereignis.",
           "pause_duration_hours": "Nur für eine Zeitpause.",
-          "heat_during_pause": "Erlaubt Hitzeschutz bei weiter pausierter Normalautomatik.",
+          "heat_during_pause": "Erlaubt Hitzeschutz während einer Pause, aber weiterhin nur innerhalb des allgemeinen Beschattungszeitplans.",
           "external_movement_detection": "Startet nach einer bestätigten Positions- oder Lamellenfahrt außerhalb von Smart Shading eine Pause."
         }
       },
       "manage_conditions": {
-        "title": "Ausgewählte Schutzfunktion",
-        "description": "Konfigurieren Sie die Eingänge der aktuell ausgewählten Funktion. Sie ist bereits aktiviert; optionale leere Quellen werden ignoriert.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} {next_feature}",
         "data": {
           "safety_blockers": "Gefahrensensoren (optional)",
           "irradiance_sensor": "Globalstrahlungssensor",
@@ -466,7 +471,7 @@
           "cloud_cover_sensor": "Bewölkungssensor",
           "cloud_cover_maximum": "Maximale Bewölkung",
           "weather_permission": "Wetterfreigabe",
-          "glare_sensor": "Blendsensor",
+          "glare_sensor": "Externe Blendanforderung",
           "occupancy_sensor": "Anwesenheitssensor",
           "weather_logic": "Wetterbedingungen verknüpfen",
           "heat_ignores_weather": "Hitzeschutz ignoriert normale Wetterbedingungen",
@@ -482,10 +487,10 @@
           "cloud_cover_sensor": "Optionaler Bewölkungssensor.",
           "cloud_cover_maximum": "Maximaler Bewölkungsgrad für normale Beschattung.",
           "weather_permission": "Optionale Freigabe; Ein erlaubt normale Beschattung.",
-          "glare_sensor": "Optionale binäre Blendanforderung.",
+          "glare_sensor": "Optionale externe Ein/Aus-Anforderung für allgemeine Komfortbeschattung. Sie ersetzt nicht die geometrisch eingemessenen Blendschutz-Zonen.",
           "occupancy_sensor": "Optionale Raumanwesenheit.",
           "weather_logic": "Alle Wettereingänge oder mindestens einen verlangen.",
-          "heat_ignores_weather": "Der Hitzeschutz darf trotz fehlender normaler Wetterbedingungen starten.",
+          "heat_ignores_weather": "Der Hitzeschutz darf trotz fehlender normaler Wetterbedingungen starten, jedoch nie außerhalb des allgemeinen Beschattungszeitplans.",
           "heat_requires_sun": "Zum Start muss mindestens ein Raumsektor Sonne haben.",
           "comfort_requires_occupancy": "Komfort nur bei Anwesenheit verwenden.",
           "safety_behavior": "Bei aktiver Gefahr zur festgelegten Sicherheitsposition fahren oder nur normale Automatikbefehle blockieren.",
@@ -495,8 +500,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "Sicherheitsziele · {group_name}",
-        "description": "Legen Sie die Sicherheitsposition für diese Behanggruppe fest.",
+        "title": "{feature_context} · {feature_name} · Zielposition · {group_name}",
+        "description": "{feature_description} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature}",
         "data": {
           "safety_position": "Sicherheitsposition",
           "safety_tilt": "Sicherheits-Lamellenposition"
@@ -664,12 +669,12 @@
         }
       },
       "manage_layer_profile": {
-        "title": "Profileinstellungen",
-        "description": "Konfigurieren Sie Bewegung und Zielpositionen dieser Behanggruppe.",
+        "title": "{room_name} · {group_name} · Profileinstellungen",
+        "description": "Konfigurieren Sie Bewegung und alle Ziele dieser Behanggruppe. Ihre Nachtposition wird nur verwendet, wenn die Nachtfunktion des Raums aktiv ist.",
         "sections": {
           "profile_behavior": {
             "name": "Bewegungsprofil",
-            "description": "Befehlstoleranzen starten bei 5 %.",
+            "description": "Befehlstoleranzen verhindern wiederholte Fahrbefehle bei kleinen Abweichungen der Rückmeldung.",
             "data": {
               "position_tolerance": "Toleranz für Behangposition",
               "tilt_preset": "Lamellenprofil",
@@ -730,23 +735,22 @@
       },
       "cover_settings_hub": {
         "title": "Behangeinstellungen",
-        "description": "Normale Einstellungen und optionale Sonderfunktionen bleiben getrennt.",
+        "description": "Öffnen Sie Namen, Automatik- und Sicherheitseinstellungen dieses Behangs. Maximale Öffnungsgrenzen werden über die eigene optionale Raumfunktion eingerichtet.",
         "menu_options": {
           "manage_cover": "Behangeinstellungen",
-          "manage_cover_special": "Sonderfunktionen",
           "back_to_group": "Zurück zur Behanggruppe"
         }
       },
       "manage_cover_special": {
-        "title": "Sonderfunktionen",
-        "description": "Die harte Maximalöffnung ist optional. Smart Shading korrigiert nur eine erkannte Überschreitung; Sicherheitsfahrten behalten Vorrang.",
+        "title": "Maximale Öffnung · {cover_name}",
+        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Safety-Fahrten behalten Vorrang.",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung aktiv durchsetzen",
           "max_open_position": "Maximale Öffnung"
         },
         "data_description": {
-          "enforce_max_open_position": "Standardmäßig aus. Nur aktivieren, wenn dieser Behang nie oberhalb der normalen Maximalöffnung bleiben darf.",
-          "max_open_position": "Eine gemeldete Überschreitung wird einmalig korrigiert; die interne Sperrzeit verhindert wiederholte Befehle."
+          "enforce_max_open_position": "Prüft externe KNX- oder Tasterfahrten sofort und zusätzlich alle 30 Sekunden. Eine Sperrzeit verhindert Befehlsschleifen.",
+          "max_open_position": "Eine gemeldete Position oberhalb dieser Grenze wird außerhalb der engen Toleranz auf den Grenzwert zurückgeführt."
         }
       },
       "manage_cover": {
@@ -773,7 +777,6 @@
               "window_safe_state": "Sicherer Fensterzustand",
               "window_policy": "Verhalten bei unsicherem Fenster",
               "window_returns_to_automation": "Nach Schließen zur Automatik zurückkehren",
-              "max_open_position": "Maximale normale Öffnungsposition",
               "invert_position": "Behangposition invertieren",
               "invert_tilt": "Lamellenposition invertieren",
               "feedback_quality": "Qualität der Positionsrückmeldung",
@@ -786,7 +789,6 @@
               "window_safe_state": "Kontaktzustand, in dem normale Fahrten erlaubt sind.",
               "window_policy": "Alle oder nur schließende Befehle bei unsicherem Fenster blockieren.",
               "window_returns_to_automation": "Fensterbedingte Sicherheits- und Rückfahrten erzeugen keine manuelle Pause.",
-              "max_open_position": "Begrenzt normales Öffnen; ein Fenster-Sicherheitsziel darf weiter öffnen.",
               "invert_position": "Nur verwenden, wenn die Home-Assistant-Höhenskala umgekehrt ist.",
               "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet.",
               "feedback_quality": "Wählen Sie, wie zuverlässig dieser Behang Zwischen- oder Endpositionen meldet.",
@@ -860,7 +862,7 @@
         },
         "data_description": {
           "lux_sensor": "Lux-Außensensor oder richtungsbezogener Kanal einer Wetterstation für diese Fassade. Innenraumsensoren sind dafür ungeeignet.",
-          "sun_preset": "Ausgewogen nutzt 35.000/30.000 lx mit 10/30 Minuten Verzögerung. Die anderen Profile reagieren früher oder nur bei starker Sonne.",
+          "sun_preset": "Wählen Sie, wie empfindlich diese Fassade direkte Sonne bestätigen soll.",
           "sun_presence_entity": "Bestehende Entität, deren Zustand Ein direkte Sonne an dieser Fassade bedeutet."
         }
       },
@@ -895,13 +897,13 @@
         }
       },
       "protected_zones_hub": {
-        "title": "{sector_name} · Blendschutz",
+        "title": "Blendschutz",
         "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
         "menu_options": {}
       },
       "add_protected_zone": {
         "title": "{sector_name} · Schutzzone hinzufügen",
-        "description": "Wählen Sie einen einzelnen Behang und beschreiben Sie dessen Fenster sowie das zu schützende Objekt. Smart Shading berechnet daraus fortlaufend die am weitesten offene Schutzposition.",
+        "description": "Einmessung in drei Schritten: Wählen Sie den Behang dieses Fensters, messen Sie die lichte Fensteröffnung und danach den zu schützenden Bereich am Tisch oder Objekt. Verwenden Sie den kürzesten Abstand zur Fensterebene. Vor dem Speichern prüft Smart Shading alle Maße und zeigt mit dem aktuellen Sonnenstand, ob eine Berechnung möglich ist.",
         "sections": {
           "protected_zone_identity": {
             "name": "Schutzobjekt und Behang",
@@ -950,6 +952,7 @@
           },
           "protected_zone_window": {
             "name": "Fenstermaße",
+            "description": "Messen Sie die lichte, tatsächlich von Sonne durchdrungene Öffnung: Breite, Höhe und Unterkante über dem fertigen Fußboden.",
             "data": {
               "window_width_m": "Fensterbreite",
               "window_height_m": "Fensterhöhe",
@@ -967,7 +970,7 @@
           },
           "protected_zone_object": {
             "name": "Schutzobjekt relativ zum Fenster",
-            "description": "Verwenden Sie die Mitte der Objektfläche, die nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden.",
+            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Vorhänge werden symmetrisch angenommen; Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
             "data": {
               "object_distance_m": "Abstand vom Fenster zum Objekt",
               "object_center_height_m": "Objektmitte über dem Boden",
@@ -985,9 +988,35 @@
           }
         }
       },
+      "confirm_protected_zone": {
+        "title": "{sector_name} · Blendschutz · Berechnung prüfen · {zone_name}",
+        "description": "{calculation_status}\n\n{geometry_summary}\n\nAktueller Sonnenstand: {current_sun}\n\nAktuelles berechnetes Ziel: {calculated_target}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
+        "data": {
+          "confirm_protected_zone": "Schutzzone speichern"
+        },
+        "data_description": {
+          "confirm_protected_zone": "Aus speichert noch nichts und kehrt zur Einmessung zurück."
+        }
+      },
+      "initial_maximum_opening": {
+        "title": "{feature_context} · Maximale Öffnung · {cover_name}",
+        "description": "{feature_description} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature}",
+        "data": {
+          "enforce_max_open_position": "Maximale Öffnung erzwingen",
+          "max_open_position": "Maximale Öffnung"
+        },
+        "data_description": {
+          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Safety-Fahrten behalten Vorrang.",
+          "max_open_position": "Überschreitet die gemeldete Position diesen Wert außerhalb der engen Toleranz, fährt Smart Shading den Behang auf die Grenze zurück."
+        }
+      },
+      "maximum_opening_hub": {
+        "title": "Maximale Öffnungsbegrenzungen",
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Card und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+      },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
-        "description": "Bearbeiten Sie Fenster- und Objektmaße für diesen einzelnen Behang. Seine Schutzposition wird immer automatisch aus dem Sonnenstand berechnet.",
+        "description": "Bearbeiten Sie die Einmessung dieses einzelnen Behangs. Smart Shading validiert Fenster und Schutzobjekt erneut und zeigt vor dem Speichern die aktuelle Berechnung.",
         "sections": {
           "protected_zone_identity": {
             "name": "Schutzobjekt und Behang",
@@ -1129,8 +1158,8 @@
       "elevation_order": "Die vier Sonnenhöhen müssen streng aufsteigend sein.",
       "cover_already_assigned": "Mindestens eines der ausgewählten Behänge ist bereits in diesem Haus zugeordnet.",
       "select_at_least_one": "Wählen Sie mindestens einen Eintrag aus.",
-      "sun_missing": "Die Entität `sun.sun` fehlt. Prüfen Sie unter Einstellungen → System → Allgemein den Standort und die Zeitzone und stellen Sie sicher, dass die Sonnenintegration geladen ist.",
-      "sun_unavailable": "Die Entität `sun.sun` ist derzeit nicht verfügbar. Smart Shading benötigt einen gültigen Sonnenstand, bevor die Einrichtung fortgesetzt werden kann.",
+      "sun_missing": "Die Home-Assistant-Sonnenentität `sun.sun` wurde nicht gefunden. Aktivieren oder initialisieren Sie unter Einstellungen → Geräte & Dienste die native Integration „Sonne“ („Sun“) und starten Sie die Einrichtung anschließend erneut.",
+      "sun_unavailable": "Die Home-Assistant-Sonnenentität `sun.sun` ist derzeit nicht verfügbar. Prüfen Sie unter Einstellungen → Geräte & Dienste, ob die native Integration „Sonne“ („Sun“) initialisiert und geladen ist.",
       "normal_temperature_order": "Die Wiederöffnungsgrenze muss unter der normalen Beschattungsgrenze und diese unter der Hitzeschutzgrenze liegen.",
       "cannot_delete_last_sector": "Ein Raum muss mindestens einen Sonnensektor behalten. Legen Sie zuerst einen weiteren an.",
       "cannot_delete_last_layer": "Ein Sektor muss mindestens eine Behanggruppe behalten. Legen Sie zuerst eine weitere an.",
@@ -1166,7 +1195,7 @@
     "step": {
       "choose_advanced_features": {
         "title": "Zusatzfunktionen auswählen",
-        "description": "Die Grundbeschattung ist eingerichtet. Jede Auswahl aktiviert die Funktion sofort für diesen Raum; anschließend führt Sie der Assistent nacheinander durch die zugehörigen Einstellungen. Ein zweiter Aktivierungsschalter ist nicht nötig. Nicht gewählte Funktionen bleiben ausgeblendet.",
+        "description": "Wählen Sie die Zusatzfunktionen für diesen Raum. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion ist vollständig eingerichtet, sobald ihre erforderlichen Angaben gespeichert sind; sie kann später jederzeit geändert oder abgewählt werden.",
         "data": {
           "schedule": "Zeitplan verwenden",
           "temperature": "Temperatur und Hitzeschutz verwenden",
@@ -1174,6 +1203,7 @@
           "safety": "Wind-, Frost- oder Fenstersicherheit verwenden",
           "conditions": "Wetter- oder Anwesenheitssensoren verwenden",
           "glare_protection": "Blendschutz für Bereich oder Objekt verwenden",
+          "maximum_opening": "Maximale Öffnungsbegrenzung verwenden",
           "test_tools": "Test und Tagvorschau anzeigen",
           "expert_execution": "Experteneinstellungen für Fahrbefehle anzeigen"
         },
@@ -1184,21 +1214,39 @@
           "safety": "Gibt Wind-, Frost- oder Fenstersignalen Vorrang vor dem Komfortbetrieb. Bei Gefahr blockiert Smart Shading Fahrten oder fährt festgelegte sichere Positionen an.",
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
-          "test_tools": "Blendet Vorschau- und Berechnungswerkzeuge ein, mit denen Entscheidungen geprüft werden können, ohne einen Fahrbefehl auszulösen.",
+          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
+        }
+      },
+      "initial_structure_hub": {
+        "title": "Struktur für {room_name} fertigstellen",
+        "description": "Richten Sie zuerst alle Fassaden, Behanggruppen und Behänge dieses Raums ein. Sie können vorhandene Elemente öffnen oder weitere hinzufügen. Fahren Sie erst fort, wenn die Raumstruktur vollständig ist.",
+        "menu_options": {
+          "complete_initial_structure": "Raumstruktur ist vollständig – Zusatzfunktionen wählen"
+        }
+      },
+      "new_optional_feature_available": {
+        "title": "Neue Zusatzfunktion für {room_name}",
+        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
+        "data": {
+          "open_optional_features": "Zusatzfunktionen jetzt öffnen"
+        },
+        "data_description": {
+          "open_optional_features": "Ein öffnet die Funktionsauswahl dieses Raums. Aus führt zurück zur zuletzt bearbeiteten Struktur."
         }
       },
       "advanced_features_hub": {
         "title": "Funktionen und Schutz",
-        "description": "Jede ausgewählte Funktion besitzt einen eigenen Einstellungsbereich. Die Auswahl selbst aktiviert die Funktion; hier ändern Sie später nur noch deren Verhalten."
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Funktionsname und Raum bleiben auf jeder folgenden Seite sichtbar."
       },
       "glare_protection_hub": {
         "title": "Blendschutz",
         "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen."
       },
       "initial_glare_protection": {
-        "title": "Fassade für den Blendschutz wählen",
-        "description": "Wählen Sie die Fassade mit dem Fenster, vor dem der erste geschützte Bereich liegt.",
+        "title": "{feature_context} · Blendschutz · Fassade wählen",
+        "description": "{feature_description} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature}",
         "data": {
           "sector_id": "Fassade"
         },
@@ -1206,21 +1254,9 @@
           "sector_id": "Anschließend legen Sie Fenstermaße und Lage des zu schützenden Bereichs fest."
         }
       },
-      "initial_night_targets": {
-        "title": "Nachtziele · {group_name}",
-        "description": "Legen Sie die Nachtposition für diese Behanggruppe fest.",
-        "data": {
-          "night_position": "Nachtposition",
-          "night_tilt": "Nacht-Lamellenposition"
-        },
-        "data_description": {
-          "night_position": "Position während der aktiven Nachtfunktion.",
-          "night_tilt": "Lamellenposition während der aktiven Nachtfunktion."
-        }
-      },
       "initial_safety_targets": {
-        "title": "Sicherheitsziele · {group_name}",
-        "description": "Legen Sie die Sicherheitsposition für diese Behanggruppe fest.",
+        "title": "{feature_context} · {feature_name} · Zielposition · {group_name}",
+        "description": "{feature_description} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature}",
         "data": {
           "safety_position": "Sicherheitsposition",
           "safety_tilt": "Sicherheits-Lamellenposition"
@@ -1499,12 +1535,12 @@
         }
       },
       "manage_layer_profile": {
-        "title": "Profileinstellungen",
-        "description": "Konfigurieren Sie Bewegung und Zielpositionen dieser Behanggruppe.",
+        "title": "{room_name} · {group_name} · Profileinstellungen",
+        "description": "Konfigurieren Sie Bewegung und alle Ziele dieser Behanggruppe. Ihre Nachtposition wird nur verwendet, wenn die Nachtfunktion des Raums aktiv ist.",
         "sections": {
           "profile_behavior": {
             "name": "Bewegungsprofil",
-            "description": "Befehlstoleranzen starten bei 5 %.",
+            "description": "Befehlstoleranzen verhindern wiederholte Fahrbefehle bei kleinen Abweichungen der Rückmeldung.",
             "data": {
               "position_tolerance": "Toleranz für Behangposition",
               "tilt_preset": "Lamellenprofil",
@@ -1553,23 +1589,22 @@
       },
       "cover_settings_hub": {
         "title": "Behangeinstellungen",
-        "description": "Normale Einstellungen und optionale Sonderfunktionen bleiben getrennt.",
+        "description": "Öffnen Sie Namen, Automatik- und Sicherheitseinstellungen dieses Behangs. Maximale Öffnungsgrenzen werden über die eigene optionale Raumfunktion eingerichtet.",
         "menu_options": {
           "manage_cover": "Behangeinstellungen",
-          "manage_cover_special": "Sonderfunktionen",
           "back_to_group": "Zurück zur Behanggruppe"
         }
       },
       "manage_cover_special": {
-        "title": "Sonderfunktionen",
-        "description": "Die harte Maximalöffnung ist optional. Smart Shading korrigiert nur eine erkannte Überschreitung; Sicherheitsfahrten behalten Vorrang.",
+        "title": "Maximale Öffnung · {cover_name}",
+        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Safety-Fahrten behalten Vorrang.",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung aktiv durchsetzen",
           "max_open_position": "Maximale Öffnung"
         },
         "data_description": {
-          "enforce_max_open_position": "Standardmäßig aus. Nur aktivieren, wenn dieser Behang nie oberhalb der normalen Maximalöffnung bleiben darf.",
-          "max_open_position": "Eine gemeldete Überschreitung wird einmalig korrigiert; die interne Sperrzeit verhindert wiederholte Befehle."
+          "enforce_max_open_position": "Prüft externe KNX- oder Tasterfahrten sofort und zusätzlich alle 30 Sekunden. Eine Sperrzeit verhindert Befehlsschleifen.",
+          "max_open_position": "Eine gemeldete Position oberhalb dieser Grenze wird außerhalb der engen Toleranz auf den Grenzwert zurückgeführt."
         }
       },
       "manage_cover": {
@@ -1596,7 +1631,6 @@
               "window_safe_state": "Sicherer Fensterzustand",
               "window_policy": "Verhalten bei unsicherem Fenster",
               "window_returns_to_automation": "Nach Schließen zur Automatik zurückkehren",
-              "max_open_position": "Maximale normale Öffnungsposition",
               "invert_position": "Behangposition invertieren",
               "invert_tilt": "Lamellenposition invertieren",
               "feedback_quality": "Qualität der Positionsrückmeldung",
@@ -1609,7 +1643,6 @@
               "window_safe_state": "Kontaktzustand, in dem normale Fahrten erlaubt sind.",
               "window_policy": "Alle oder nur schließende Befehle bei unsicherem Fenster blockieren.",
               "window_returns_to_automation": "Fensterbedingte Sicherheits- und Rückfahrten erzeugen keine manuelle Pause.",
-              "max_open_position": "Begrenzt normales Öffnen; ein Fenster-Sicherheitsziel darf weiter öffnen.",
               "invert_position": "Nur verwenden, wenn die Home-Assistant-Höhenskala umgekehrt ist.",
               "invert_tilt": "Nur verwenden, wenn das Gerät das Gegenteil von 0 % offen und 100 % geschlossen meldet.",
               "feedback_quality": "Wählen Sie, wie zuverlässig dieser Behang Zwischen- oder Endpositionen meldet.",
@@ -1688,12 +1721,12 @@
         }
       },
       "manage_automation": {
-        "title": "Automatik",
-        "description": "Hier erscheint nur die zuvor ausgewählte Funktion. Sie ist bereits aktiv; mit Speichern übernehmen Sie direkt deren Verhalten.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nSie bearbeiten jetzt {feature_name} für {room_name}. {next_feature}",
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
-            "description": "Der Zeitplan verhindert automatische Komfortfahrten außerhalb der gewünschten Nutzungszeiten. Sicherheitsfunktionen bleiben jederzeit aktiv.",
+            "description": "Der allgemeine Beschattungszeitplan ist die Hauptfreigabe für jede automatische Tagesfunktion: normale Beschattung, Komfort, Sonnenschutz, Blendschutz und Hitzeschutz. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
               "schedule_profile": "Aktivitätsprofil",
@@ -1705,40 +1738,38 @@
               "outside_schedule_behavior": "Außerhalb des Zeitplans"
             },
             "data_description": {
-              "schedule_enabled": "Optional. Aus bedeutet, dass normale Beschattung ganzjährig und ganztägig verfügbar ist.",
+              "schedule_enabled": "Aus bedeutet, dass die Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Die Nachtfunktion bleibt davon unabhängig.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
               "day_window": "Wählen Sie ganztägig oder ein festes tägliches Zeitfenster.",
               "start_time": "Nur bei festem Zeitfenster; über Mitternacht ist möglich.",
               "end_time": "Nur bei festem Zeitfenster.",
-              "outside_schedule_behavior": "Legt die Neutralposition außerhalb der Freigabe fest; Sicherheit bleibt aktiv."
+              "outside_schedule_behavior": "Legt fest, ob Behänge außerhalb der Tagesfreigabe öffnen oder ihre aktuelle Position halten. Die Nachtfunktion und Sicherheitsbedingungen werden separat ausgewertet."
             }
           },
           "temperature_settings": {
             "name": "Temperaturen und Hitzeschutz",
-            "description": "Die Raumtemperatur ergänzt die Sonnenberechnung: Komfort reagiert früher, während Hitzeschutz bei echter Überhitzung stärker beschattet.",
+            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
             "data": {
               "indoor_temperature": "Raumtemperatursensor",
               "normal_shading_temperature": "Normale Beschattung ab",
-              "comfort_temperature": "Komfort ab",
-              "solar_temperature": "Sonnenschutz ab",
+              "comfort_temperature": "Komfortbeschattung ab",
+              "solar_temperature": "Stärkeren Sonnenschutz ab",
               "heat_temperature": "Hitzeschutz ab",
               "evening_release_time": "Spätestens freigeben um",
               "sunset_offset_minutes": "Freigabe relativ zum Sonnenuntergang",
-              "heat_outside_schedule": "Hitzeschutz außerhalb des Zeitplans aktiv halten",
-              "reopen_temperature": "Wieder öffnen unter"
+              "reopen_temperature": "Normale Beschattung zurücksetzen unter"
             },
             "data_description": {
               "indoor_temperature": "Wählen Sie den Sensor, der die Raumtemperatur liefert. Alle Temperaturstufen werden direkt in diesem Formular eingestellt.",
               "normal_shading_temperature": "Ab dieser Raumtemperatur beginnt die normale Beschattung.",
-              "comfort_temperature": "Ab dieser Raumtemperatur beginnt die Komfortstufe.",
-              "solar_temperature": "Ab dieser Raumtemperatur beginnt die stärkere Sonnenschutzstufe.",
-              "heat_temperature": "Oberhalb kann der Hitzeschutz starten; er bleibt bis zur festen Abendfreigabe aktiv.",
-              "evening_release_time": "Spätestens zu dieser Uhrzeit endet ein aktiver Hitzeschutz.",
-              "sunset_offset_minutes": "Negative Werte geben vor Sonnenuntergang frei, positive Werte danach.",
-              "heat_outside_schedule": "Hält den Überhitzungsschutz auch dann verfügbar, wenn der normale Zeitplan gerade keine Komfortbeschattung erlaubt.",
-              "reopen_temperature": "Unter diesem Wert darf die normale Beschattung wieder öffnen."
+              "comfort_temperature": "Ab dieser Raumtemperatur gilt das Komfortziel für Profile, die eine eigene Komfortposition unterstützen.",
+              "solar_temperature": "Ab dieser Raumtemperatur gilt das stärkere Sonnenschutzziel für Profile mit getrennten Stufen.",
+              "heat_temperature": "Oberhalb kann der Hitzeschutz innerhalb der Tagesfreigabe einmal pro Kalendertag starten.",
+              "evening_release_time": "Absolute späteste Grenze. Der Hitzeschutz endet früher, wenn der allgemeine Beschattungszeitplan endet oder Sonnenuntergang plus Offset erreicht ist.",
+              "sunset_offset_minutes": "Negative Werte beenden den Hitzeschutz vor Sonnenuntergang, positive Werte danach. Es gilt immer die früheste der drei Abendgrenzen.",
+              "reopen_temperature": "Fällt die Raumtemperatur darunter, endet nur die normale temperaturabhängige Beschattungsanforderung. Bei weiterhin direkter Sonne hält Smart Shading die aktuelle Position; es wird kein sofortiges Öffnen erzwungen. Hitzeschutz wird dadurch nicht zurückgesetzt."
             }
           },
           "execution_settings": {
@@ -1768,8 +1799,8 @@
         }
       },
       "manage_night": {
-        "title": "Nachtfunktion",
-        "description": "Die Nachtfunktion nutzt eigene Zielpositionen für Privatsphäre und Dunkelheit. Wählen Sie eine vorhandene Zeitsteuerung oder lassen Sie Beginn und Ende aus Sonnenuntergang und Sonnenaufgang berechnen.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nDie Nachtfunktion besitzt einen eigenen Zeitraum und bleibt auch außerhalb des allgemeinen Beschattungszeitplans verfügbar. Jede Behanggruppe verwendet die Nachtposition aus ihren eigenen Profileinstellungen. {next_feature}",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
@@ -1790,8 +1821,8 @@
         }
       },
       "manage_pause": {
-        "title": "Pause und manuelle Bedienung",
-        "description": "Legen Sie fest, wann eine Pause endet und ob eine externe Fahrt eine Pause startet.",
+        "title": "{room_name} · Pause und manuelle Bedienung",
+        "description": "Legen Sie für {room_name} fest, wann eine Pause endet und ob eine bestätigte externe Fahrt eine lokale Automatikpause startet.",
         "data": {
           "default_pause_mode": "Standardaktion für Pause",
           "pause_sun_offset_minutes": "Offset zum Sonnenereignis",
@@ -1803,13 +1834,13 @@
           "default_pause_mode": "Freigabe beim Sonnenereignis, nach einer Dauer oder nur manuell.",
           "pause_sun_offset_minutes": "Negative Werte beenden die Pause entsprechend vor dem Sonnenereignis.",
           "pause_duration_hours": "Nur für eine Zeitpause.",
-          "heat_during_pause": "Erlaubt Hitzeschutz bei weiter pausierter Normalautomatik.",
+          "heat_during_pause": "Erlaubt Hitzeschutz während einer Pause, aber weiterhin nur innerhalb des allgemeinen Beschattungszeitplans.",
           "external_movement_detection": "Startet nach einer bestätigten Positions- oder Lamellenfahrt außerhalb von Smart Shading eine Pause."
         }
       },
       "manage_conditions": {
-        "title": "Ausgewählte Schutzfunktion",
-        "description": "Konfigurieren Sie die Eingänge der aktuell ausgewählten Funktion. Sie ist bereits aktiviert; optionale leere Quellen werden ignoriert.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nSie bearbeiten jetzt die Eingänge für {feature_name}. Optionale leere Quellen werden ignoriert. {next_feature}",
         "data": {
           "safety_blockers": "Gefahrensensoren (optional)",
           "irradiance_sensor": "Globalstrahlungssensor",
@@ -1817,7 +1848,7 @@
           "cloud_cover_sensor": "Bewölkungssensor",
           "cloud_cover_maximum": "Maximale Bewölkung",
           "weather_permission": "Wetterfreigabe",
-          "glare_sensor": "Blendsensor",
+          "glare_sensor": "Externe Blendanforderung",
           "occupancy_sensor": "Anwesenheitssensor",
           "weather_logic": "Wetterbedingungen verknüpfen",
           "heat_ignores_weather": "Hitzeschutz ignoriert normale Wetterbedingungen",
@@ -1833,10 +1864,10 @@
           "cloud_cover_sensor": "Optionaler Bewölkungssensor.",
           "cloud_cover_maximum": "Maximaler Bewölkungsgrad für normale Beschattung.",
           "weather_permission": "Optionale Freigabe; Ein erlaubt normale Beschattung.",
-          "glare_sensor": "Optionale binäre Blendanforderung.",
+          "glare_sensor": "Optional. Eine externe Ein/Aus-Anforderung ergänzt den geometrischen Blendschutz; die eingemessenen Schutzzonen werden unabhängig davon berechnet.",
           "occupancy_sensor": "Optionale Raumanwesenheit.",
           "weather_logic": "Alle Wettereingänge oder mindestens einen verlangen.",
-          "heat_ignores_weather": "Der Hitzeschutz darf trotz fehlender normaler Wetterbedingungen starten.",
+          "heat_ignores_weather": "Der Hitzeschutz darf trotz fehlender normaler Wetterbedingungen starten, jedoch nie außerhalb des allgemeinen Beschattungszeitplans.",
           "heat_requires_sun": "Zum Start muss mindestens ein Raumsektor Sonne haben.",
           "comfort_requires_occupancy": "Komfort nur bei Anwesenheit verwenden.",
           "safety_behavior": "Bei aktiver Gefahr zur festgelegten Sicherheitsposition fahren oder nur normale Automatikbefehle blockieren.",
@@ -2004,7 +2035,7 @@
         },
         "data_description": {
           "lux_sensor": "Lux-Außensensor oder richtungsbezogener Kanal einer Wetterstation für diese Fassade. Innenraumsensoren sind dafür ungeeignet.",
-          "sun_preset": "Ausgewogen nutzt 35.000/30.000 lx mit 10/30 Minuten Verzögerung. Die anderen Profile reagieren früher oder nur bei starker Sonne.",
+          "sun_preset": "Wählen Sie, wie empfindlich diese Fassade direkte Sonne bestätigen soll.",
           "sun_presence_entity": "Bestehende Entität, deren Zustand Ein direkte Sonne an dieser Fassade bedeutet."
         }
       },
@@ -2039,13 +2070,13 @@
         }
       },
       "protected_zones_hub": {
-        "title": "{sector_name} · Blendschutz",
+        "title": "Blendschutz",
         "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
         "menu_options": {}
       },
       "add_protected_zone": {
         "title": "{sector_name} · Schutzzone hinzufügen",
-        "description": "Wählen Sie einen einzelnen Behang und beschreiben Sie dessen Fenster sowie das zu schützende Objekt. Smart Shading berechnet daraus fortlaufend die am weitesten offene Schutzposition.",
+        "description": "Einmessung in drei Schritten: Wählen Sie den Behang dieses Fensters, messen Sie die lichte Fensteröffnung und danach den zu schützenden Bereich am Tisch oder Objekt. Verwenden Sie den kürzesten Abstand zur Fensterebene. Vor dem Speichern prüft Smart Shading alle Maße und zeigt mit dem aktuellen Sonnenstand, ob eine Berechnung möglich ist.",
         "sections": {
           "protected_zone_identity": {
             "name": "Schutzobjekt und Behang",
@@ -2094,6 +2125,7 @@
           },
           "protected_zone_window": {
             "name": "Fenstermaße",
+            "description": "Messen Sie die lichte, tatsächlich von Sonne durchdrungene Öffnung: Breite, Höhe und Unterkante über dem fertigen Fußboden.",
             "data": {
               "window_width_m": "Fensterbreite",
               "window_height_m": "Fensterhöhe",
@@ -2111,7 +2143,7 @@
           },
           "protected_zone_object": {
             "name": "Schutzobjekt relativ zum Fenster",
-            "description": "Verwenden Sie die Mitte der Objektfläche, die nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden.",
+            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Vorhänge werden symmetrisch angenommen; Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
             "data": {
               "object_distance_m": "Abstand vom Fenster zum Objekt",
               "object_center_height_m": "Objektmitte über dem Boden",
@@ -2129,9 +2161,35 @@
           }
         }
       },
+      "confirm_protected_zone": {
+        "title": "{sector_name} · Blendschutz · Berechnung prüfen · {zone_name}",
+        "description": "{calculation_status}\n\n{geometry_summary}\n\nAktueller Sonnenstand: {current_sun}\n\nAktuelles berechnetes Ziel: {calculated_target}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
+        "data": {
+          "confirm_protected_zone": "Schutzzone speichern"
+        },
+        "data_description": {
+          "confirm_protected_zone": "Aus speichert noch nichts und kehrt zur Einmessung zurück."
+        }
+      },
+      "initial_maximum_opening": {
+        "title": "{feature_context} · Maximale Öffnung · {cover_name}",
+        "description": "{feature_description} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature}",
+        "data": {
+          "enforce_max_open_position": "Maximale Öffnung erzwingen",
+          "max_open_position": "Maximale Öffnung"
+        },
+        "data_description": {
+          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Safety-Fahrten behalten Vorrang.",
+          "max_open_position": "Überschreitet die gemeldete Position diesen Wert außerhalb der engen Toleranz, fährt Smart Shading den Behang auf die Grenze zurück."
+        }
+      },
+      "maximum_opening_hub": {
+        "title": "Maximale Öffnungsbegrenzungen",
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Card und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+      },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
-        "description": "Bearbeiten Sie Fenster- und Objektmaße für diesen einzelnen Behang. Seine Schutzposition wird immer automatisch aus dem Sonnenstand berechnet.",
+        "description": "Bearbeiten Sie die Einmessung dieses einzelnen Behangs. Smart Shading validiert Fenster und Schutzobjekt erneut und zeigt vor dem Speichern die aktuelle Berechnung.",
         "sections": {
           "protected_zone_identity": {
             "name": "Schutzobjekt und Behang",

@@ -18,6 +18,7 @@ PLATFORMS = ["sensor", "binary_sensor", "switch", "select", "number", "button"]
 
 CONF_HOUSE_NAME = "house_name"
 CONF_SUN_ENTITY = "sun_entity"
+DEFAULT_SUN_ENTITY = "sun.sun"
 CONF_ADVANCED_FEATURES = "advanced_features"
 
 # Advanced must describe customer-selected capabilities, not expose every
@@ -30,6 +31,7 @@ FEATURE_NIGHT = "night"
 FEATURE_SAFETY = "safety"
 FEATURE_CONDITIONS = "conditions"
 FEATURE_GLARE_PROTECTION = "glare_protection"
+FEATURE_MAXIMUM_OPENING = "maximum_opening"
 FEATURE_TEST_TOOLS = "test_tools"
 FEATURE_EXPERT_EXECUTION = "expert_execution"
 ADVANCED_FEATURES = (
@@ -39,6 +41,7 @@ ADVANCED_FEATURES = (
     FEATURE_SAFETY,
     FEATURE_CONDITIONS,
     FEATURE_GLARE_PROTECTION,
+    FEATURE_MAXIMUM_OPENING,
     FEATURE_TEST_TOOLS,
     FEATURE_EXPERT_EXECUTION,
 )
@@ -58,6 +61,8 @@ DEFAULT_EVALUATION_DEBOUNCE_SECONDS = 0.35
 DEFAULT_POSITION_TOLERANCE = 5.0
 DEFAULT_TILT_TOLERANCE = 5.0
 DEFAULT_COMMAND_COOLDOWN = 90
+DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS = 30
+DEFAULT_MAX_OPEN_TOLERANCE = 0.5
 DEFAULT_MOVEMENT_SECONDS = 45.0
 DEFAULT_SETTLING_SECONDS = 5.0
 DEFAULT_VERIFICATION_RETRIES = 1
@@ -114,6 +119,7 @@ MODE_IDLE = "idle"
 MODE_OPEN = "open"
 MODE_COMFORT = "comfort"
 MODE_SOLAR = "solar"
+MODE_GLARE = "glare"
 MODE_HEAT = "heat"
 MODE_NIGHT = "night"
 MODE_FINISHED = "finished"
@@ -285,11 +291,9 @@ PROFILE_DEFAULTS = {
         "adaptive_tilt": False,
         "position_tolerance": DEFAULT_POSITION_TOLERANCE,
         "open_position": 100.0,
-        "comfort_position": 60.0,
-        "solar_position": 30.0,
-        # Interior curtains default to the solar position in heat mode. A
-        # customer may choose a separate heat position directly.
-        "heat_position": 30.0,
+        "comfort_position": 50.0,
+        "solar_position": 0.0,
+        "heat_position": 0.0,
         "night_position": 0.0,
         "safety_position": 100.0,
     },
@@ -302,7 +306,7 @@ PROFILE_DEFAULTS = {
         "tilt_preset": TILT_PRESET_BALANCED,
         "open_position": 100.0,
         "open_tilt": 0.0,
-        "comfort_position": 0.0,
+        "comfort_position": 50.0,
         "comfort_tilt": 35.0,
         "solar_position": 0.0,
         "solar_tilt": 65.0,
@@ -361,7 +365,10 @@ PROFILE_TARGET_KEYS = {
     DEVICE_VERTICAL: (
         "open_position",
         "open_tilt",
+        "comfort_position",
         "comfort_tilt",
+        "solar_position",
+        "heat_position",
         "heat_tilt",
         "night_position",
         "night_tilt",
@@ -505,7 +512,6 @@ ROOM_DEFAULTS = {
     "start_time": "00:00:00",
     "end_time": "23:59:59",
     "outside_schedule_behavior": OUTSIDE_OPEN,
-    "heat_outside_schedule": True,
     "sectors": [],
 }
 

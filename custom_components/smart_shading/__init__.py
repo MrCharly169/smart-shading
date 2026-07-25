@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_EVALUATION_DEBOUNCE_SECONDS,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
+    CONF_SUN_ENTITY,
     CONF_SUN_PRESENCE_ENTITY,
     CONF_ROOMS,
     CONF_TEST_MODE,
@@ -34,10 +35,12 @@ from .const import (
     DEFAULT_SAFETY_BYPASSES_STAGGER,
     DEFAULT_STAGGER_SCOPE,
     DEFAULT_SUNSET_OFFSET_MINUTES,
+    DEFAULT_SUN_ENTITY,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
     DOMAIN,
     FEATURE_CONDITIONS,
     FEATURE_GLARE_PROTECTION,
+    FEATURE_MAXIMUM_OPENING,
     FEATURE_NIGHT,
     FEATURE_SAFETY,
     FEATURE_SCHEDULE,
@@ -102,6 +105,7 @@ async def _async_preview_day_service(hass: HomeAssistant, call) -> None:
 def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     """Add V4 defaults while preserving existing entity assignments."""
     result = deepcopy(config)
+    result[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY
     result.setdefault(CONF_ROOMS, [])
     result.setdefault(CONF_ADVANCED_MODE, False)
     result.setdefault(
@@ -134,6 +138,10 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
 
     for room in result[CONF_ROOMS]:
         room.pop("easy_temperature_gate", None)
+        # Heat protection is a daytime function and is now always gated by
+        # the room's general shading schedule. Discard the former bypass
+        # instead of silently retaining winter/off-hours activation.
+        room.pop("heat_outside_schedule", None)
         for obsolete in (
             "indoor_temperature_name",
             "display_name",
@@ -219,6 +227,22 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                 ):
                     inferred.append(FEATURE_GLARE_PROTECTION)
                 room[CONF_ADVANCED_FEATURES] = inferred
+            if (
+                any(
+                    bool(cover.get("enforce_max_open_position", False))
+                    for sector in room.get("sectors", [])
+                    if isinstance(sector, dict)
+                    for layer in sector.get("layers", [])
+                    if isinstance(layer, dict)
+                    for cover in layer.get("covers", [])
+                    if isinstance(cover, dict)
+                )
+                and FEATURE_MAXIMUM_OPENING
+                not in room[CONF_ADVANCED_FEATURES]
+            ):
+                room[CONF_ADVANCED_FEATURES].append(
+                    FEATURE_MAXIMUM_OPENING
+                )
         else:
             # Issue #79 execution controls are an Advanced-only contract.
             # Remove crafted or beta-era values as well as avoiding new
@@ -404,7 +428,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 17:
+    if entry.version >= 20:
         return True
     raw_data = dict(entry.data)
     raw_options = dict(entry.options)
@@ -428,9 +452,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     effective_source = legacy_effective_config(data_source, option_source)
     effective_source[CONF_ADVANCED_MODE] = fixed_advanced_mode
     # v4.6.2 already used entry schema 15. Schema 16 normalized that stable
-    # baseline, while schema 17 persists each Advanced room's selected
+    # baseline, schema 17 persists each Advanced room's selected
     # customer capabilities. Existing glare rules are inferred so an update
-    # never silently removes established protection.
+    # never silently removes established protection. Schema 18 removes the
+    # obsolete customer-selectable Sun entity and always uses ``sun.sun``.
+    # Schema 19 removes the former heat-outside-schedule exception because
+    # the general shading schedule now gates every daytime automation.
+    # Schema 20 promotes the hard maximum opening into an explicit selected
+    # Advanced feature while preserving every existing opt-in cover limit.
     data = _normalize_config(data_source)
     # Merge raw legacy values before adding defaults. This supports both the
     # old partial options format and the later full-snapshot format without an
@@ -455,7 +484,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, fixed_advanced_mode)
             ) if fixed_advanced_mode else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=17
+        entry, data=data, options=options, version=20
     )
     return True
 

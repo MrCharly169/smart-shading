@@ -56,9 +56,16 @@ created. It has no separate Easy/Advanced switch.
   an explicit automation turns it off.
 - **Advanced Mode** starts with the same base shading, then lets each room
   select only the optional capabilities it needs: schedules, temperatures,
-  Night, Safety, weather or occupancy conditions, glare protection, test
-  tools, and expert command settings. Unselected features do not run in the
-  background and do not add controls to the dashboard.
+  Night, Safety, weather or occupancy conditions, glare protection, maximum
+  opening limits, test tools, and expert command settings. Unselected
+  features do not run in the background and do not add controls to the
+  dashboard.
+
+Home Assistant's `sun.sun` entity is selected automatically and is no longer a
+customer-facing house setting. If it is missing or unavailable, Smart Shading
+stops sector-based setup and reports how to restore the Sun integration.
+Advanced profile choices show their concrete thresholds, delays or curve
+values directly in the profile name; Easy keeps those technical values hidden.
 
 The setup variant is fixed for the config entry. To use the other variant,
 create a new Smart Shading entry and configure it from the beginning. New
@@ -80,21 +87,52 @@ into one short debounced decision. The configured evaluation interval is only a
 recovery watchdog; it does not repeatedly resend an unchanged target.
 
 The room-status Card and diagnostic export show the selected rule, rejected
-rules, input quality, resulting cover targets, and command lifecycle. A target
+rules, input quality, resulting cover targets, protected-zone calculation and
+command lifecycle. Active glare protection is shown as its own Card state with
+the normal target, calculated zone target and final cover target. A target
 can be verified once after its expected movement time and retried only within
 the configured bound. Venetian and vertical-blind height movement is always
 completed before a delayed slat correction. A newer higher-priority target,
 especially Safety, cancels obsolete delayed work.
 
-In **Sun sector → Glare protection**, Advanced users can add a protected area
-with a measured distance, height range, optional lateral range, affected cover
-group, and a fixed target. Roller shades, screens, curtains, binary covers,
-and vertical slats can instead calculate the least restrictive protection from
-the live Sun position, window width/height, and the protected area's position.
-Venetian blinds keep their normal adaptive slat protection. Zones participate
-only in Solar shading. Incomplete geometry is shown in the trace and leaves
-ordinary Solar shading safe and unchanged. Easy Mode has neither the
-configuration nor the runtime controls for this feature.
+In **Sun sector → Glare protection**, Advanced users select one physical cover,
+measure its clear window opening, and measure the table or object area that
+must stay out of direct Sun. Before saving, the wizard validates the geometry
+and shows whether the current Sun position produces a usable calculation and
+target. Roller shades, screens, symmetrically closing curtains, binary covers,
+and vertical slats are supported; vertical-slat results are approximate.
+Exterior Venetian blinds with horizontal slats and awnings are not offered by
+the object calculator.
+
+Inside the general shading schedule, a valid protected-zone intersection can
+request glare protection even when the room is too cool for normal
+temperature-based shading. It may close a cover more than Comfort or Solar,
+but never opens farther than their target. Multiple zones choose the most
+protective target. Safety, manual control or pause, Night and Heat Protection
+remain higher priority. Missing source data holds the current position, and
+invalid geometry is shown in the Card and diagnostics instead of issuing a
+movement. Easy Mode has neither the configuration nor the runtime controls for
+this feature.
+
+Maximum opening is a separate Advanced room feature for position-controlled
+covers. It does not replace a group's normal Open target: a normal target may
+remain `100%`, while the effective target is the lower of that target and the
+cover's configured hard limit. External KNX or wall-switch feedback is checked
+immediately and a lightweight 30-second heartbeat provides recovery. A tight
+tolerance and command cooldown prevent oscillation. The hard limit remains
+active during schedules, manual pauses and room overrides; only a Safety
+movement may temporarily exceed it. The Card and diagnostics show the normal
+target, opening limit and effective target independently.
+
+The general shading schedule permits every automatic daytime function:
+ordinary shading, Comfort, Solar, glare protection and Heat Protection. Night
+uses its own source or Sun-relative period and remains independent. Heat
+Protection can start at most once per calendar day and ends at the earliest of
+the schedule end, sunset plus offset, or the configured latest evening time.
+For horizontal slats, the temperature page presents adaptive normal shading
+and stronger Heat Protection. Other position-controlled profiles can present
+separate Comfort, Solar and Heat stages; mixed rooms explain both behaviours
+directly in the form.
 
 Simulation and day preview reuse the production decision path but never call a
 cover service. They are an explicit per-room Test & Preview option, and return
@@ -106,6 +144,11 @@ shutters, screens, curtains, and awnings receive their own direction and target
 defaults; simple open/close covers use only open/close services. Changing the
 type updates the wizard, runtime, available entities, and card together and
 removes incompatible options.
+
+Every position target belongs to its physical cover group. In particular, the
+Night feature defines the room's independent active period, while each group
+keeps its own Night height and, for slatted profiles, Night slat target. This
+allows mixed curtains, shutters and blinds in one room to close differently.
 
 ## Updating
 

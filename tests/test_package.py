@@ -148,9 +148,10 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_stable_v4_6_2_and_previous_betas(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 17", flow)
-        self.assertIn("if entry.version >= 17", migration)
-        self.assertIn("version=17", migration.replace(" ", ""))
+        self.assertIn("VERSION = 20", flow)
+        self.assertIn("if entry.version >= 20", migration)
+        self.assertIn("version=20", migration.replace(" ", ""))
+        self.assertIn("result[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY", migration)
         self.assertIn("v4.6.2 already used entry schema 15", migration)
         self.assertIn("locked_advanced_mode(raw_data, raw_options)", migration)
         self.assertIn("options = editable_options(effective) if raw_options else {}", migration)
@@ -227,6 +228,11 @@ class PackageTests(unittest.TestCase):
         curtain = const.PROFILE_DEFAULTS[const.DEVICE_CURTAIN]
         self.assertNotIn("heat_close_enabled", curtain)
         self.assertEqual(curtain["heat_position"], curtain["solar_position"])
+        self.assertEqual(curtain["open_position"], 100.0)
+        self.assertEqual(curtain["comfort_position"], 50.0)
+        self.assertEqual(curtain["solar_position"], 0.0)
+        self.assertEqual(curtain["heat_position"], 0.0)
+        self.assertEqual(curtain["night_position"], 0.0)
 
         sources = "\n".join(
             (COMP / name).read_text(encoding="utf-8")
@@ -255,6 +261,17 @@ class PackageTests(unittest.TestCase):
         self.assertFalse(const.profile_uses_exterior_safety(const.DEVICE_CURTAIN))
         self.assertNotIn("safety_position", const.PROFILE_TARGET_KEYS[const.DEVICE_CURTAIN])
         self.assertNotIn("safety_tilt", const.PROFILE_TARGET_KEYS[const.DEVICE_VERTICAL])
+        self.assertEqual(
+            const.PROFILE_DEFAULTS[const.DEVICE_VERTICAL]["comfort_position"],
+            50.0,
+        )
+        for key in (
+            "comfort_position",
+            "solar_position",
+            "heat_position",
+            "night_position",
+        ):
+            self.assertIn(key, const.PROFILE_TARGET_KEYS[const.DEVICE_VERTICAL])
         self.assertNotIn(
             "night_position",
             const.profile_target_keys(const.DEVICE_ROLLER, night=False),
@@ -302,7 +319,10 @@ class PackageTests(unittest.TestCase):
     def test_sun_requirement_is_checked_and_reported(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         engine = (COMP / "engine.py").read_text(encoding="utf-8")
-        self.assertIn('self.hass.states.get("sun.sun")', flow)
+        self.assertIn(
+            "self.hass.states.get(DEFAULT_SUN_ENTITY)",
+            flow,
+        )
         self.assertIn('errors["base"] = "sun_unavailable"', flow)
         self.assertIn("_async_sync_sun_requirement_notification", engine)
 
@@ -422,7 +442,7 @@ class PackageTests(unittest.TestCase):
 
     def test_translation_files_cover_every_flow(self):
         shared_steps = {
-            "global_settings", "room_setup", "add_room", "init", "room_hub",
+            "room_setup", "add_room", "init", "room_hub",
             "structure_hub", "sector_hub", "group_hub", "cover_hub",
             "manage_room_details", "configure_outdoor_temperature",
             "manage_room_maintenance", "manage_automation", "manage_night",
@@ -430,7 +450,8 @@ class PackageTests(unittest.TestCase):
             "manage_sector_source", "configure_sector_source",
             "configure_lux_profile", "manage_sector_geometry",
             "protected_zones_hub", "add_protected_zone",
-            "manage_protected_zone", "delete_protected_zone", "manage_layer",
+            "manage_protected_zone", "confirm_protected_zone",
+            "delete_protected_zone", "manage_layer",
             "manage_cover", "add_sector_flat", "add_sector_group",
             "add_sector_covers", "add_layer_flat", "add_group_covers",
             "add_covers_flat",
@@ -519,13 +540,6 @@ class PackageTests(unittest.TestCase):
                     "data_description"
                 ]
                 self.assertTrue(fields.issubset(help_text), (language, step, group))
-            for section in ("config", "options"):
-                help_text = data[section]["step"]["global_settings"][
-                    "data_description"
-                ]
-                self.assertIn("sun_entity", help_text)
-                self.assertEqual({"sun_entity"}, set(help_text))
-                self.assertNotIn("advanced_mode", help_text)
 
     def test_every_literal_form_field_has_customer_copy(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
@@ -647,7 +661,11 @@ class PackageTests(unittest.TestCase):
             "current", "count", "entity_name", "room_name", "sector_name",
             "group_name", "cover_name", "room_count", "sector_count",
             "group_count", "cover_count", "sun_sources", "active_functions",
-            "review_warnings",
+            "review_warnings", "feature_name", "feature_context",
+            "feature_progress", "feature_description", "next_feature",
+            "zone_name", "calculation_status", "geometry_summary",
+            "current_sun", "calculated_target", "calculation_reason",
+            "new_features", "temperature_behavior",
         }
         pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
         for language in ("de", "en"):
@@ -657,7 +675,7 @@ class PackageTests(unittest.TestCase):
 
     def test_mode_names_are_customer_visible_only_at_first_choice(self):
         active_steps = {
-            "global_settings", "room_setup", "add_room", "init", "room_hub",
+            "room_setup", "add_room", "init", "room_hub",
             "structure_hub", "sector_hub", "group_hub", "cover_hub",
             "manage_room_details", "configure_outdoor_temperature",
             "manage_room_maintenance", "manage_automation", "manage_night",
@@ -665,7 +683,8 @@ class PackageTests(unittest.TestCase):
             "manage_sector_source", "configure_sector_source",
             "configure_lux_profile", "manage_sector_geometry",
             "protected_zones_hub", "add_protected_zone",
-            "manage_protected_zone", "delete_protected_zone", "manage_layer",
+            "manage_protected_zone", "confirm_protected_zone",
+            "delete_protected_zone", "manage_layer",
             "manage_cover", "add_sector_flat", "add_sector_group",
             "add_sector_covers", "add_layer_flat", "add_group_covers",
             "add_covers_flat",
@@ -772,24 +791,70 @@ class PackageTests(unittest.TestCase):
             return ast.get_source_segment(flow, node) or ""
 
         user = source("async_step_user")
-        global_settings = next(
+        wizard_mixin = next(
             node for node in tree.body
             if isinstance(node, ast.ClassDef)
             and node.name == "_SmartShadingWizardMixin"
         )
         global_method = next(
-            node for node in global_settings.body
+            node for node in wizard_mixin.body
             if isinstance(node, ast.AsyncFunctionDef)
             and node.name == "async_step_global_settings"
         )
         global_source = ast.get_source_segment(flow, global_method) or ""
         init = source("async_step_init")
         self.assertIn("self._fixed_advanced_mode = advanced", user)
-        self.assertIn("return await self.async_step_global_settings()", user)
+        self.assertIn("return await self.async_step_advanced_room_setup()", user)
+        self.assertIn("return await self.async_step_easy_room_setup()", user)
+        self.assertNotIn("async_step_global_settings", user)
+        self.assertIn(
+            "self._working[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY",
+            global_source,
+        )
         self.assertIn("return await self.async_step_init()", global_source)
         self.assertIn("async_step_advanced_room_setup", init)
         self.assertIn("async_step_easy_room_setup", init)
         self.assertNotIn("CONF_ADVANCED_MODE", source("async_step_add_room"))
+
+    def test_profile_values_are_advanced_only_and_not_help_text(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'key in {"sun_preset", "tilt_preset", "schedule_profile"}',
+            flow,
+        )
+        self.assertIn("and self.advanced_mode", flow)
+        self.assertIn("for preset, values in SUN_PRESETS.items()", flow)
+        self.assertIn("for preset, curve in TILT_CURVE_PRESETS.items()", flow)
+
+        for language in ("de", "en"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for selector_key in ("sun_preset", "tilt_preset"):
+                easy_labels = data["selector"][selector_key]["options"].values()
+                self.assertFalse(
+                    any(re.search(r"\d", label) for label in easy_labels),
+                    (language, selector_key),
+                )
+            for section in ("config", "options"):
+                explanation = data[section]["step"][
+                    "configure_sector_source"
+                ]["data_description"]["sun_preset"]
+                self.assertNotRegex(explanation, r"\d")
+
+    def test_house_settings_are_not_customer_reachable(self):
+        flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
+        self.assertNotIn('menu_options["global_settings"]', flow)
+        self.assertNotIn(
+            "return await self.async_step_global_settings()",
+            flow,
+        )
+        self.assertIn(
+            "self._working[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY",
+            flow,
+        )
 
     def test_removed_noop_heat_fields_cannot_return(self):
         paths = [

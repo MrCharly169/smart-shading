@@ -1,5 +1,56 @@
 # Development
 
+## Windows live-development environment
+
+The repository includes a persistent Docker Compose environment for Windows
+with Docker Desktop's WSL 2 backend. It is separate from the disposable E2E
+laboratory and never contacts a production Home Assistant instance.
+
+Prerequisites:
+
+- Windows 11 (or a supported Windows 10 release) with WSL 2;
+- Docker Desktop using Linux containers and the WSL 2 backend.
+
+From PowerShell in the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 start
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 logs
+```
+
+Open `http://127.0.0.1:8123`, create the disposable Home Assistant owner, and
+add Smart Shading under **Settings -> Devices & services**. The E2E fixture
+provides virtual covers and sensors, so no real KNX, MQTT, HACS or hardware is
+used.
+
+The integration and fixture source directories are mounted read-only into the
+container. Frontend changes are therefore available immediately after a hard
+browser refresh. For Python, translation, manifest or service-schema changes,
+run the watcher in a second PowerShell window:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 watch
+```
+
+The watcher restarts only the disposable Home Assistant container. Persistent
+Home Assistant state is kept below the ignored `.dev/ha-config/` directory.
+Useful commands are:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 status
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 restart
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 stop
+```
+
+Override the default port or image for one session with `HA_DEV_PORT` and
+`HA_DEV_IMAGE`, for example:
+
+```powershell
+$env:HA_DEV_PORT = "18123"
+$env:HA_DEV_IMAGE = "ghcr.io/home-assistant/home-assistant:beta"
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 start
+```
+
 ## Local validation
 
 Run from the repository root:

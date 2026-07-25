@@ -4,7 +4,12 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
 
-from .const import CARD_RESOURCE
+from .const import (
+    CARD_RESOURCE,
+    DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS,
+    DEFAULT_MAX_OPEN_TOLERANCE,
+    DEFAULT_SUN_ENTITY,
+)
 from .entity import SmartShadingEntity, localized
 
 
@@ -37,6 +42,7 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
             "safety",
             "night",
             "heat",
+            "glare",
             "solar",
             "comfort",
             "paused",
@@ -94,6 +100,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
         return {
             "heat": "mdi:shield-sun",
             "night": "mdi:weather-night",
+            "glare": "mdi:shield-sun-outline",
             "solar": "mdi:weather-sunny-alert",
             "comfort": "mdi:sun-angle",
             "safety": "mdi:shield-alert",
@@ -112,6 +119,48 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "reason": self.runtime.reason,
                 "active_sectors": self.runtime.active_sectors,
                 "targets": self.runtime.targets,
+                "protected_zone_calculations": [
+                    {
+                        "cover_entity": target.get("entity_id"),
+                        "cover_name": target.get("name"),
+                        "ordinary_target": target.get("ordinary_target"),
+                        "final_target": target.get("final_target"),
+                        "zones": target.get(
+                            "protected_zone_calculations", []
+                        ),
+                    }
+                    for target in self.runtime.targets
+                    if target.get("protected_zone_calculations")
+                ],
+                "maximum_opening_calculations": [
+                    {
+                        "cover_entity": target.get("entity_id"),
+                        "cover_name": target.get("name"),
+                        "normal_target": target.get("ordinary_position"),
+                        "opening_limit": target.get(
+                            "maximum_opening", {}
+                        ).get("limit"),
+                        "effective_target": target.get(
+                            "maximum_opening", {}
+                        ).get("effective_position"),
+                        "current_position": target.get(
+                            "maximum_opening", {}
+                        ).get("current_position"),
+                        "constrained": target.get(
+                            "maximum_opening", {}
+                        ).get("constrained"),
+                        "violation": target.get(
+                            "maximum_opening", {}
+                        ).get("violation"),
+                    }
+                    for target in self.runtime.targets
+                    if target.get("maximum_opening", {}).get("enabled")
+                ],
+                "maximum_opening_monitor": {
+                    "feedback_check": "immediate_on_cover_state_change",
+                    "heartbeat_seconds": DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS,
+                    "tolerance_percent": DEFAULT_MAX_OPEN_TOLERANCE,
+                },
                 "last_evaluation": self.runtime.last_evaluation,
                 "last_command": self.runtime.last_command,
                 "sent_commands": self.runtime.sent_commands,
@@ -234,7 +283,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "night_evening_transition_minutes": room.get(
                     "night_evening_transition_minutes", 0
                 ),
-                "sun_entity": self.engine.config.get("sun_entity", "sun.sun"),
+                "sun_entity": DEFAULT_SUN_ENTITY,
                 "evaluation_interval_seconds": self.engine.config.get("evaluation_interval", 1200),
                 "temperature_settings": {
                     "normal_shading_temperature": self.engine.room_value(
@@ -281,6 +330,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
         else:
             for key in (
                 "targets",
+                "protected_zone_calculations",
                 "heat_active",
                 "heat_phase",
                 "finished_today",
@@ -306,6 +356,8 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "night_morning_transition_minutes",
                 "night_evening_transition_minutes",
                 "temperature_settings",
+                "maximum_opening_calculations",
+                "maximum_opening_monitor",
                 "cover_pauses",
                 # Decision traces, simulation results, command feedback and
                 # diagnostics are deliberately an Advanced Mode contract.
@@ -427,7 +479,7 @@ class SectorStatusSensor(SmartShadingEntity, SensorEntity):
         attrs = super().extra_state_attributes
         sector = self.engine.sector_config(self.sector_id)
         room = self.engine.room_config(self.room_id)
-        sun_entity = self.engine.config.get("sun_entity", "sun.sun")
+        sun_entity = DEFAULT_SUN_ENTITY
         sun = self.engine.hass.states.get(sun_entity)
         attrs.update(
             {

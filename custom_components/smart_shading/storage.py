@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 
 from .const import (
@@ -13,6 +15,8 @@ from .const import (
     STORAGE_VERSION,
 )
 from .logic import migrate_slat_overrides
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RuntimeStore:
@@ -40,7 +44,18 @@ class RuntimeStore:
         }
 
     async def async_load(self) -> None:
-        loaded = await self._store.async_load()
+        try:
+            loaded = await self._store.async_load()
+        except HomeAssistantError as err:
+            # Runtime data is reconstructable. A transient or corrupt runtime
+            # file must not prevent the customer's whole config entry from
+            # loading after a Home Assistant restart.
+            _LOGGER.warning(
+                "Could not load Smart Shading runtime state; continuing with "
+                "safe defaults: %s",
+                err,
+            )
+            loaded = None
         if isinstance(loaded, dict):
             self.data.update(loaded)
             schema = int(self.data.get("runtime_schema", 1))

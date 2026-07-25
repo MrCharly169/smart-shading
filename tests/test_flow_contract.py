@@ -371,7 +371,10 @@ class WizardRouteContractTests(unittest.TestCase):
         user_calls = _async_step_calls(
             _method(self.config_flow, "async_step_user")
         )
-        self.assertEqual(user_calls, {"async_step_global_settings"})
+        self.assertEqual(
+            user_calls,
+            {"async_step_easy_room_setup", "async_step_advanced_room_setup"},
+        )
 
         init_calls = _async_step_calls(
             _method(self.config_flow, "async_step_init")
@@ -495,6 +498,13 @@ class WizardRouteContractTests(unittest.TestCase):
                 ) or ""
                 self.assertIn("if not self.advanced_mode", method_source)
                 self.assertIn("async_step_sector_hub", method_source)
+        self.assertIn("async_step_confirm_protected_zone", options_methods)
+        self.assertIn(
+            ("SmartShadingOptionsFlow", "async_step_confirm_protected_zone"),
+            _qualified_attribute_calls(
+                _method(self.config_flow, "async_step_confirm_protected_zone")
+            ),
+        )
 
         zones_source = ast.get_source_segment(
             source,
@@ -557,6 +567,8 @@ class WizardRouteContractTests(unittest.TestCase):
             source, _method(self.options_flow, "async_step_delete_protected_zone")
         ) or ""
         self.assertIn('zone_values["id"] = _new_id', add_source)
+        self.assertIn("_pending_protected_zone", add_source)
+        self.assertIn("async_step_confirm_protected_zone", add_source)
         self.assertIn("confirm_delete_protected_zone", delete_source)
 
     def test_advanced_execution_controls_stay_in_room_and_cover_forms(self):
@@ -641,6 +653,80 @@ class WizardRouteContractTests(unittest.TestCase):
             ast.get_source_segment(source, add_covers) or "",
         )
 
+    def test_initial_advanced_room_structure_finishes_before_features(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        structure_hub = ast.get_source_segment(
+            source, _method(self.mixin, "async_step_structure_hub")
+        ) or ""
+        commit_sector = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_commit_pending_sector"),
+        ) or ""
+        complete_structure = ast.get_source_segment(
+            source,
+            _method(self.mixin, "async_step_complete_initial_structure"),
+        ) or ""
+        initial_structure_handler = ast.get_source_segment(
+            source,
+            _method(self.mixin, "async_step_initial_structure_hub"),
+        ) or ""
+
+        self.assertIn('step_id="initial_structure_hub"', structure_hub)
+        self.assertIn('"complete_initial_structure"', structure_hub)
+        self.assertIn(
+            "async_step_structure_hub", commit_sector
+        )
+        self.assertIn(
+            "async_step_choose_advanced_features", complete_structure
+        )
+        self.assertIn(
+            "async_step_structure_hub", initial_structure_handler
+        )
+
+    def test_cover_profiles_unlock_only_supported_optional_features(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        choose = ast.get_source_segment(
+            source,
+            _method(self.mixin, "async_step_choose_advanced_features"),
+        ) or ""
+        discovery = ast.get_source_segment(
+            source,
+            _method(self.mixin, "_finish_structure_change"),
+        ) or ""
+        maximum = ast.get_source_segment(
+            source,
+            _method(self.mixin, "async_step_initial_maximum_opening"),
+        ) or ""
+
+        self.assertIn("_room_supports_glare_protection", choose)
+        self.assertIn("_room_supports_maximum_opening", choose)
+        self.assertIn("newly_available", discovery)
+        self.assertIn(
+            "async_step_new_optional_feature_available", discovery
+        )
+        self.assertIn("enforce_max_open_position", maximum)
+        self.assertIn("max_open_position", maximum)
+
+    def test_temperature_copy_is_derived_from_room_profiles(self):
+        source = FLOW_PATH.read_text(encoding="utf-8")
+        helper = ast.get_source_segment(
+            source,
+            next(
+                node
+                for node in self.mixin.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_temperature_behavior_text"
+            ),
+        ) or ""
+        automation = ast.get_source_segment(
+            source,
+            _method(self.options_flow, "async_step_manage_automation"),
+        ) or ""
+
+        self.assertIn("DEVICE_VENETIAN", helper)
+        self.assertIn("has_other_profiles", helper)
+        self.assertIn('"temperature_behavior"', automation)
+
     def test_advanced_creation_configures_only_selected_features_in_order(self):
         compact_calls = _async_step_calls(
             _method(self.config_flow, "async_step_compact_cover_details")
@@ -671,6 +757,8 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn('room["schedule_enabled"] = True', chooser)
         self.assertIn('room["night_enabled"] = True', chooser)
         self.assertIn("_start_initial_feature_sequence", chooser)
+        self.assertIn("newly_enabled", chooser)
+        self.assertIn("self._queued_feature_setup = newly_enabled", chooser)
 
         night_source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
@@ -680,8 +768,8 @@ class WizardRouteContractTests(unittest.TestCase):
             FLOW_PATH.read_text(encoding="utf-8"),
             _method(self.options_flow, "async_step_manage_conditions"),
         ) or ""
-        self.assertIn("async_step_initial_night_targets", night_source)
-        self.assertIn('"complete_initial_feature"', night_source)
+        self.assertNotIn("async_step_initial_night_targets", night_source)
+        self.assertIn("_finish_feature_step", night_source)
         self.assertNotIn('vol.Required(\n                "night_enabled"', night_source)
         self.assertIn(
             '_optional_marker(\n                    "night_entity"',
@@ -692,6 +780,12 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn("for key in target_keys", conditions_source)
         self.assertNotIn("async_step_initial_safety_targets", conditions_source)
         self.assertIn("_complete_initial_feature", conditions_source)
+
+        profile_source = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.options_flow, "async_step_manage_layer_profile"),
+        ) or ""
+        self.assertIn("night=True", profile_source)
 
         initial_glare_source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),
@@ -726,17 +820,13 @@ class WizardRouteContractTests(unittest.TestCase):
             "outside_schedule_behavior",
             "indoor_temperature",
             "heat_temperature",
-            "heat_outside_schedule",
         ):
             with self.subTest(field=field):
                 self.assertIn(f'"{field}"', source)
         self.assertIn(
             'sections[vol.Required("temperature_settings")]', source
         )
-        self.assertGreater(
-            source.index('"heat_outside_schedule"'),
-            source.index("temperatures: dict[Any, Any]"),
-        )
+        self.assertNotIn('"heat_outside_schedule"', source)
 
     def test_dynamic_choices_use_focused_follow_up_steps(self):
         source = FLOW_PATH.read_text(encoding="utf-8")
@@ -837,15 +927,16 @@ class WizardRouteContractTests(unittest.TestCase):
         )
         self.assertNotIn("async_show_form", _attribute_calls(add_room))
 
-    def test_global_settings_schema_has_no_mode_selector(self):
+    def test_retired_global_settings_is_only_a_safe_redirect(self):
         global_settings = _method(self.mixin, "async_step_global_settings")
-        self.assertNotIn("CONF_ADVANCED_MODE", _vol_schema_names(global_settings))
+        self.assertEqual(set(), _vol_schema_names(global_settings))
 
         source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"), global_settings
         )
         self.assertIsNotNone(source)
-        self.assertIn("values.pop(CONF_ADVANCED_MODE", source)
+        self.assertIn("DEFAULT_SUN_ENTITY", source)
+        self.assertIn("return await self.async_step_init()", source)
 
     def test_options_are_saved_without_the_immutable_mode(self):
         finish = _method(self.options_flow, "async_step_finish")

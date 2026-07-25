@@ -25,6 +25,16 @@ NETWORK_CREATED=0
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 
+docker_host_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+DOCKER_CONFIG_DIR="$(docker_host_path "${CONFIG_DIR}")"
+
 mkdir -p "${CONFIG_DIR}/custom_components" "${PACKAGE_DIR}" "${ARTIFACT_DIR}"
 for artifact_name in \
   configuration.yaml container-inspect.json container.log home-assistant.log \
@@ -46,7 +56,7 @@ collect_artifacts() {
         chown -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
     else
       docker run --rm --entrypoint chown \
-        -v "${CONFIG_DIR}:/config" \
+        -v "${DOCKER_CONFIG_DIR}:/config" \
         "${HA_IMAGE}" -R "${HOST_UID}:${HOST_GID}" /config >/dev/null 2>&1
     fi
     docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1
@@ -110,7 +120,7 @@ docker run -d \
   --tmpfs /run:rw,exec,nosuid,size=64m \
   --tmpfs /tmp \
   -p "127.0.0.1:${HA_PORT}:8123" \
-  -v "${CONFIG_DIR}:/config" \
+  -v "${DOCKER_CONFIG_DIR}:/config" \
   "${HA_IMAGE}" >/dev/null
 CONTAINER_STARTED=1
 CONTAINER_RUNNING=1
@@ -119,7 +129,7 @@ python3 "${ROOT_DIR}/scripts/ha_e2e/run_scenarios.py" \
   --base-url "${BASE_URL}" \
   --phase bootstrap \
   --bootstrap-mode "${BOOTSTRAP_MODE}" \
-  --upgrade-baseline-version "${UPGRADE_BASELINE_VERSION}" \
+  "--upgrade-baseline-version=${UPGRADE_BASELINE_VERSION}" \
   --scenario "${SCENARIO}" \
   --state-file "${STATE_FILE}" \
   --output-dir "${ARTIFACT_DIR}" 2>&1 | tee -a "${ARTIFACT_DIR}/test-runner.log"

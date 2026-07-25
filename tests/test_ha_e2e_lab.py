@@ -170,7 +170,6 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                 "temperature_settings",
                 "indoor_temperature",
                 "heat_temperature",
-                "heat_outside_schedule",
             },
             "manage_night": {
                 "night_source",
@@ -427,7 +426,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("entity IDs disappeared during upgrade", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)
         self.assertIn(
-            '--upgrade-baseline-version "${UPGRADE_BASELINE_VERSION}"',
+            '"--upgrade-baseline-version=${UPGRADE_BASELINE_VERSION}"',
             shell,
         )
         self.assertIn("wait_for_config_entries.py", shell)
@@ -579,6 +578,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                 "protected_zones_hub",
                 "add_protected_zone",
                 "manage_protected_zone",
+                "confirm_protected_zone",
                 "delete_protected_zone",
             }.issubset(coverage["all_surfaces"])
         )

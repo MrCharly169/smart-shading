@@ -3,6 +3,93 @@
 ## Unreleased
 
 
+## 2026.7.2b1 - 2026-07-25
+
+### Setup clarity
+
+- explain the Easy and Advanced setup choice in enough detail for customers to
+  choose the right mode before creating their first room
+- show concrete Lux, slat-curve and schedule preset values directly in
+  Advanced profile names while keeping Easy profile choices free of technical
+  values
+- remove the obsolete House Settings step and automatically use Home
+  Assistant's required `sun.sun` entity, including migration of existing
+  entries and an error that points directly to Home Assistant's native Sun
+  integration when the entity is missing or unavailable
+- complete every facade, cover group and cover in a new Advanced room before
+  optional features are offered; when a later cover profile unlocks glare
+  protection or a maximum-opening limit, show that newly available feature
+  once in the editing flow
+- after any later feature selection, open only the newly enabled feature
+  setup pages in sequence instead of returning to the menu of already active
+  features
+- identify the current room, optional feature, setup progress and following
+  feature on every sequential Advanced setup page instead of referring to an
+  unclear “selected feature” or a nonexistent second enable switch
+- guide object glare setup through physical window/object measurements and a
+  mandatory pre-save calculation check that reports invalid geometry, current
+  Sun input, calculation status and the resulting cover target
+
+### Daytime automation and protection
+
+- make the general shading schedule the single permission for normal shading,
+  Comfort, Solar, calculated glare and Heat Protection; Night keeps its own
+  independent period and can continue year-round
+- remove the former Heat-outside-schedule exception and migrate its stored
+  value away
+- latch Heat Protection to one cycle per calendar day and release it at the
+  earliest of schedule end, sunset plus offset, or the configured absolute
+  latest evening time
+- clarify that the reopen threshold resets only normal temperature shading;
+  it neither resets Heat Protection nor forces an immediate opening while
+  direct Sun continues
+- make calculated protected zones an independent glare decision that can start
+  without a temperature stage, strengthen but never weaken an ordinary target,
+  and remain below Safety, manual/pause, Night and Heat priorities
+- expose active glare mode plus per-cover ordinary, zone and final targets,
+  calculation geometry and failure reasons in the room Card and diagnostics
+- describe the available temperature stages from the room's actual cover
+  profiles: horizontal slats use adaptive normal shading plus Heat, while
+  other position covers can use Comfort, Solar and Heat
+- make the cover-group profile the single owner of its Night position and
+  Night slat target; the room Night feature now configures only its independent
+  time source and handover, so mixed cover types can keep different targets
+- use new logical height defaults for newly created interior curtains and
+  vertical blinds: Open 100%, Comfort 50%, Solar 0%, Heat 0% and Night 0%;
+  existing customer targets remain untouched
+- add maximum opening as its own Advanced optional feature. Selected covers
+  are corrected immediately after external feedback and by a lightweight
+  30-second heartbeat, with a tight tolerance, command-loop cooldown and
+  Safety as the only movement override; Card and diagnostics expose normal
+  target, limit and effective target separately
+
+### Setup and runtime reliability
+
+- make the Advanced structure review a valid Home Assistant flow step so a
+  fresh real installation can complete the structure-first wizard without an
+  HTTP 500 error
+- keep the config entry loadable with safe reconstructed runtime defaults when
+  Home Assistant cannot read the nonessential runtime-state file during a
+  restart
+- bind all Card actions once at the Shadow Root so Details, Pause, entity
+  dialogs and the Night shortcut remain interactive after dynamic Card renders
+- make the isolated Docker UAT runner work from Windows Git Bash paths and keep
+  its feature-transition assertions aligned with the direct setup queue
+- re-evaluate a cover again on delayed movement feedback after its window
+  contact has already closed, so a late opening is reversed immediately
+  instead of waiting for the 20-minute recovery watchdog
+- let every newer complete room evaluation replace an obsolete in-flight
+  Safety, Night, Heat, Solar or schedule command and resend the changed target
+  even before delayed actuator feedback has left the new target position
+- make Safety's hold-only behavior cancel pre-existing queued axes, staggered
+  cover moves and verification retries instead of merely blocking new work
+- treat a missing, unknown or unavailable configured Wind/Frost input as a
+  fail-safe automation hold rather than as "danger off"; a valid `off` state
+  releases the hold immediately while manual control remains available
+- refresh the room decision immediately when an external manual lock becomes
+  active as well as when it is released
+
+
 ## 2026.7.1 - 2026-07-23
 
 ### Verified Docker UAT zero point

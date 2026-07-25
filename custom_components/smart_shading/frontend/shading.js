@@ -77,9 +77,36 @@ const targetTracePayloads = (value) => asArray(asRecord(value).target_decisions)
   .filter(({ trace }) => Object.keys(trace).length);
 const protectedZonePayloads = (value) => [
   ...asArray(tracePayload(value).protected_zones),
-  ...targetTracePayloads(value).flatMap(({ scope, trace }) => asArray(trace.protected_zones)
-    .map((zone) => ({ ...asRecord(zone), layer_name: scope.layer_name || scope.layer_id || "" }))),
+  ...targetTracePayloads(value).flatMap(({ scope, trace }) => [
+    ...asArray(trace.protected_zones)
+      .map((zone) => ({ ...asRecord(zone), layer_name: scope.layer_name || scope.layer_id || "" })),
+    ...asArray(scope.covers).flatMap((rawCover) => {
+      const cover = asRecord(rawCover);
+      return asArray(tracePayload(cover.command).protected_zones).map((zone) => ({
+        ...asRecord(zone),
+        layer_name: scope.layer_name || scope.layer_id || "",
+        cover_entity: cover.entity_id || cover.cover_id || "",
+      }));
+    }),
+  ]),
 ];
+const protectedZoneCalculationPayloads = (attrs) => asArray(asRecord(attrs).targets)
+  .flatMap((rawTarget) => {
+    const target = asRecord(rawTarget);
+    return asArray(target.protected_zone_calculations).map((rawZone) => ({
+      ...asRecord(rawZone),
+      cover_name: target.name || target.entity_id || "",
+      cover_entity: target.entity_id || "",
+      layer_name: target.layer || target.layer_id || "",
+      ordinary_target: target.ordinary_target || null,
+      final_target: target.final_target || {
+        position: target.position,
+        tilt: target.tilt,
+      },
+      decision_mode: target.decision_mode || target.mode || "",
+      applied: asArray(target.protected_zone_applied_ids).includes(asRecord(rawZone).zone_id),
+    }));
+  });
 const previewPayload = (value) => {
   const record = asRecord(value);
   const nested = asRecord(record.preview);
@@ -300,6 +327,12 @@ class SmartShadingV4Dialog extends HTMLElement {
       command: "Befehlsausgang",
       inputQuality: "Datenqualität",
       protectedZones: "Geschützte Zonen",
+      currentCalculation: "Aktuelle Berechnung",
+      ordinaryTarget: "Normales Ziel",
+      zoneTarget: "Schutzziel",
+      finalTarget: "Endgültiges Ziel",
+      calculationReady: "Berechnung bereit",
+      calculationUnavailable: "Keine gültige Berechnung",
       noTrace: "Noch keine Entscheidungsdaten vorhanden.",
       noProtectedZones: "Keine geschützten Zonen ausgewertet.",
       simulation: "Simulation",
@@ -377,6 +410,12 @@ class SmartShadingV4Dialog extends HTMLElement {
       command: "Command outcome",
       inputQuality: "Input quality",
       protectedZones: "Protected zones",
+      currentCalculation: "Current calculation",
+      ordinaryTarget: "Ordinary target",
+      zoneTarget: "Protected target",
+      finalTarget: "Final target",
+      calculationReady: "Calculation ready",
+      calculationUnavailable: "No valid calculation",
       noTrace: "No decision data is available yet.",
       noProtectedZones: "No protected zones were evaluated.",
       simulation: "Simulation",
@@ -412,12 +451,12 @@ class SmartShadingV4Dialog extends HTMLElement {
       return de ? "Eingefahren" : "Retracted";
     }
     const values = de ? {
-      safety: "Safety", heat: "Heat Protection", solar: "Sonnenschutz",
+      safety: "Safety", heat: "Heat Protection", glare: "Blendschutz", solar: "Sonnenschutz",
       comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
       disabled: "Master aktiv", finished: "Für heute beendet",
       night: "Nacht",
     } : {
-      safety: "Safety", heat: "Heat protection", solar: "Solar shading",
+      safety: "Safety", heat: "Heat protection", glare: "Glare protection", solar: "Solar shading",
       comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready",
       disabled: "Master active", finished: "Finished today",
       night: "Night",
@@ -470,7 +509,7 @@ class SmartShadingV4Dialog extends HTMLElement {
     const labels = de ? {
       safety: "Safety", manual_master_override: "Manuelle Sperre", room_pause: "Raumpause",
       local_cover_pause: "Lokale Behangpause", night_source_hold: "Nachtquelle hält", schedule_hold: "Zeitplan hält", night: "Nachtfunktion", heat_protection: "Heat Protection",
-      input_quality_hold: "Halten wegen Eingabequalität", solar: "Sonnenschutz", comfort: "Komfort", open: "Öffnen", idle: "Halten",
+      input_quality_hold: "Halten wegen Eingabequalität", glare_protection: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", open: "Öffnen", idle: "Halten",
       planned: "Geplant", queued: "Warteschlange", sent: "Gesendet", suppressed: "Unterdrückt", blocked: "Blockiert",
       target_reached: "Ziel erreicht", target_not_reached: "Ziel nicht erreicht", failed: "Fehlgeschlagen", cancelled: "Abgebrochen",
       not_planned: "Noch nicht geplant", simulated: "Simuliert", valid: "Gültig", stale: "Veraltet",
@@ -508,7 +547,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       cover_target_verification: "Behangziel wird geprüft", target_confirmed_by_trusted_feedback: "Ziel durch verlässliche Rückmeldung bestätigt",
       cover_removed_before_execution: "Behang vor Ausführung entfernt", cover_entity_missing: "Behang-Entität fehlt", cover_service_failed: "Behang-Service fehlgeschlagen",
       command_ownership_released: "Automatisierungsbesitz freigegeben", position_control_unsupported: "Positionssteuerung nicht unterstützt", tilt_control_unsupported: "Lamellensteuerung nicht unterstützt",
-      target_already_active: "Ziel ist bereits aktiv", higher_priority_lifecycle_active: "Höherprioritärer Ablauf aktiv",
+      target_already_active: "Ziel ist bereits aktiv", higher_priority_lifecycle_active: "Höherprioritärer Ablauf aktiv", authoritative_replacement: "Veraltetes Ziel durch aktuelle Auswertung ersetzt", safety_source_unavailable_hold: "Sicherheitssensor nicht verfügbar; automatische Fahrten angehalten",
       replaced_by_newer_target: "Durch neueres Ziel ersetzt", target_within_tolerance: "Ziel innerhalb der Toleranz",
       automatic_reverse_not_allowed: "Automatische Rückfahrt nicht erlaubt", target_planned: "Ziel geplant", safety_replacement: "Safety ersetzt laufendes Ziel",
       target_confirmed_at_deadline: "Ziel zum Prüftermin bestätigt", feedback_not_at_target_after_retry_limit: "Ziel nach Wiederholungsgrenze nicht erreicht",
@@ -538,10 +577,12 @@ class SmartShadingV4Dialog extends HTMLElement {
       no_protected_zone_hit: "Keine Zone getroffen",
       protected_zone_target_adjusted: "Ziel durch Schutzzone angepasst",
       protected_zone_hit_no_stricter_target: "Schutzzone ohne strengeres Ziel",
+      protected_zone_inactive: "Keine aktive Schutzzone",
+      glare_blocked_by_input_quality: "Blendschutz wegen fehlender Sonnenwerte gehalten",
     } : {
       safety: "Safety", manual_master_override: "Manual Override", room_pause: "Room pause",
       local_cover_pause: "Local cover pause", night_source_hold: "Night source hold", schedule_hold: "Schedule hold", night: "Night Mode", heat_protection: "Heat protection",
-      input_quality_hold: "Hold for input quality", solar: "Solar shading", comfort: "Comfort", open: "Open", idle: "Hold",
+      input_quality_hold: "Hold for input quality", glare_protection: "Glare protection", solar: "Solar shading", comfort: "Comfort", open: "Open", idle: "Hold",
       planned: "Planned", queued: "Queued", sent: "Sent", suppressed: "Suppressed", blocked: "Blocked",
       target_reached: "Target reached", target_not_reached: "Target not reached", failed: "Failed", cancelled: "Cancelled",
       not_planned: "Not planned", simulated: "Simulated", valid: "Valid", stale: "Stale",
@@ -579,7 +620,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       cover_target_verification: "Cover target verification", target_confirmed_by_trusted_feedback: "Target confirmed by trusted feedback",
       cover_removed_before_execution: "Cover removed before execution", cover_entity_missing: "Cover entity is missing", cover_service_failed: "Cover service failed",
       command_ownership_released: "Automation ownership released", position_control_unsupported: "Position control is unsupported", tilt_control_unsupported: "Tilt control is unsupported",
-      target_already_active: "Target is already active", higher_priority_lifecycle_active: "Higher-priority lifecycle active",
+      target_already_active: "Target is already active", higher_priority_lifecycle_active: "Higher-priority lifecycle active", authoritative_replacement: "Obsolete target replaced by current evaluation", safety_source_unavailable_hold: "Safety sensor unavailable; automatic movements held",
       replaced_by_newer_target: "Replaced by newer target", target_within_tolerance: "Target within tolerance",
       automatic_reverse_not_allowed: "Automatic reverse is not allowed", target_planned: "Target planned", safety_replacement: "Safety replaced active target",
       target_confirmed_at_deadline: "Target confirmed at deadline", feedback_not_at_target_after_retry_limit: "Target not reached after retry limit",
@@ -609,6 +650,8 @@ class SmartShadingV4Dialog extends HTMLElement {
       no_protected_zone_hit: "No zone hit",
       protected_zone_target_adjusted: "Target adjusted by protected zone",
       protected_zone_hit_no_stricter_target: "Protected zone had no stricter target",
+      protected_zone_inactive: "No active protected zone",
+      glare_blocked_by_input_quality: "Glare protection held because sun data is unavailable",
     };
     const key = String(value || "").trim();
     if (key.startsWith("lower_priority_than_")) {
@@ -677,7 +720,10 @@ class SmartShadingV4Dialog extends HTMLElement {
     });
     const snapshot = asRecord(trace.input_snapshot);
     const inputs = Object.entries(asRecord(snapshot.inputs));
-    const zones = protectedZonePayloads(attrs.decision_trace);
+    const calculatedZones = protectedZoneCalculationPayloads(attrs);
+    const zones = calculatedZones.length
+      ? calculatedZones
+      : protectedZonePayloads(attrs.decision_trace);
     const simulate = this._control("simulate");
     const previewButton = this._control("preview_day");
     const simulationResults = simulationResultPayloads(attrs.simulation_trace).map(({ scope, result, trace: resultTrace }, index) => {
@@ -753,10 +799,32 @@ class SmartShadingV4Dialog extends HTMLElement {
     const zoneHtml = zones.length ? zones.map((raw) => {
       const zone = asRecord(raw);
       const status = String(zone.status || "inactive");
+      const details = asRecord(zone.details);
+      const projected = asArray(
+        zone.projected_height_range_m || details.projected_height_range_m
+      );
+      const calculation = String(details.calculation || "").trim();
+      const calculatedPosition = asNumber(details.calculated_position, null);
+      const calculatedTilt = asNumber(details.calculated_tilt, null);
+      const calculationParts = [
+        calculation ? humanizeToken(calculation) : "",
+        projected.length === 2
+          ? `${projected.map((value) => Number(value).toFixed(2)).join("–")} m`
+          : "",
+        asNumber(details.relative_azimuth_degrees, null) != null
+          ? `${Math.round(Number(details.relative_azimuth_degrees))}°`
+          : "",
+      ].filter(Boolean);
+      const zoneTarget = zone.target || (
+        calculatedPosition != null || calculatedTilt != null
+          ? { position: calculatedPosition, tilt: calculatedTilt }
+          : null
+      );
       return `<div class="trace-item">
-        <strong>${htmlEscape(`${cleanDisplayName(zone.name, humanizeToken(zone.zone_id, L.protectedZones))}${zone.layer_name ? ` · ${zone.layer_name}` : ""}`)}</strong>
+        <strong>${htmlEscape(`${cleanDisplayName(zone.name, humanizeToken(zone.zone_id, L.protectedZones))}${zone.cover_name ? ` · ${zone.cover_name}` : zone.layer_name ? ` · ${zone.layer_name}` : ""}`)}</strong>
         <span class="trace-status ${status === "hit" ? "ok" : "warn"}">${htmlEscape(this._traceText(status))}</span>
-        <small>${htmlEscape(this._traceText(zone.reason_code))}${zone.target ? ` · ${htmlEscape(this._traceTarget(zone.target, L))}` : ""}</small>
+        <small>${htmlEscape(this._traceText(zone.reason_code))}${calculationParts.length ? ` · ${htmlEscape(calculationParts.join(" · "))}` : ""}</small>
+        <small data-zone-targets>${htmlEscape(`${L.ordinaryTarget}: ${this._traceTarget(zone.ordinary_target, L)} · ${L.zoneTarget}: ${this._traceTarget(zoneTarget, L)} · ${L.finalTarget}: ${this._traceTarget(zone.final_target, L)}`)}</small>
       </div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noProtectedZones)}</div>`;
     const simulationHtml = simulationResults.length ? `<div class="trace-list" data-simulation-results>${simulationResults.map((simulated) => `<div class="trace-item" data-simulation-result>
@@ -821,7 +889,7 @@ class SmartShadingV4Dialog extends HTMLElement {
           <section data-input-quality><h3>${htmlEscape(L.inputQuality)}</h3><div class="trace-list">${inputHtml}</div></section>
           <section data-command-results><h3>${htmlEscape(L.command)}</h3><div class="trace-list">${commandHtml}</div></section>
           <section data-rejected-candidates><h3>${htmlEscape(L.rejected)}</h3><div class="trace-list">${rejectedHtml}</div></section>
-          <section data-protected-zones><h3>${htmlEscape(L.protectedZones)}</h3><div class="trace-list">${zoneHtml}</div></section>
+          <section data-protected-zones><h3>${htmlEscape(`${L.protectedZones} · ${L.currentCalculation}`)}</h3><div class="trace-list">${zoneHtml}</div></section>
         </div>
       </section>`;
   }
@@ -973,6 +1041,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         ? asNumber(state?.attributes?.current_tilt_position, null)
         : null;
       const target = targetByEntity.get(cover.entity) || {};
+      const openingLimit = target.maximum_opening || {};
       const localPause = coverPauseByEntity.get(cover.entity) || {};
       const suppressionText = asArray(target.suppressed).map((item) => this._suppressionText(item));
       return `
@@ -983,6 +1052,7 @@ class SmartShadingV4Dialog extends HTMLElement {
             <span>${L.tilt}: ${currentTilt == null ? "–" : `${Math.round(currentTilt)}%`}</span>
             <span>${L.target}: ${target.position == null ? "–" : `${Math.round(Number(target.position))}%`}${target.tilt == null ? "" : ` / ${Math.round(Number(target.tilt))}%`}</span>
           </div>
+          ${openingLimit.enabled ? `<div class="muted">${htmlEscape(`${L.normalTarget}: ${Math.round(Number(target.ordinary_position))}% · ${L.openingLimit}: ${Math.round(Number(openingLimit.limit))}% · ${L.effectiveTarget}: ${Math.round(Number(openingLimit.effective_position))}%`)}</div>` : ""}
           ${localPause.active ? `<div class="warning">${htmlEscape(L.pauseUntil)} ${htmlEscape(this._formatDate(localPause.until))}</div>` : ""}
           ${suppressionText.length ? `<div class="warning">${htmlEscape(suppressionText.join(" · "))}</div>` : ""}
         </div>`;
@@ -1134,6 +1204,36 @@ class SmartShadingV4Card extends HTMLElement {
     this._forceRender = false;
     this._renderCount = 0;
     this._lastRenderSignature = "";
+    this.shadowRoot?.addEventListener?.("click", (event) => {
+      const element = event.target?.closest?.(
+        "[data-more],[data-night-source],[data-press],[data-advanced]",
+      );
+      if (!element) return;
+      if (element.dataset.more) {
+        event.stopPropagation?.();
+        this._more(element.dataset.more);
+        return;
+      }
+      if (element.dataset.nightSource) {
+        event.stopPropagation?.();
+        this._openNightSource(element.dataset.nightSource);
+        return;
+      }
+      if (element.dataset.press) {
+        this._callEntity(element.dataset.press);
+        return;
+      }
+      if (Object.hasOwn(element.dataset, "advanced")) {
+        const roomState = this._resolvedRoomState();
+        if (roomState) {
+          this._openAdvanced(
+            roomState,
+            this._controls(roomState),
+            element,
+          );
+        }
+      }
+    });
   }
 
   static getStubConfig() {
@@ -1243,8 +1343,9 @@ class SmartShadingV4Card extends HTMLElement {
     return de ? {
       title: "Shading", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
-      safety: "Safety", heat: "Heat", night: "Nacht", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
+      safety: "Safety", heat: "Heat", night: "Nacht", glare: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
       retracted: "Eingefahren",
+      normalTarget: "Normales Ziel", openingLimit: "Öffnungsgrenze", effectiveTarget: "Effektives Ziel",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Details",
       pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
@@ -1259,8 +1360,9 @@ class SmartShadingV4Card extends HTMLElement {
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
-      safety: "Safety", heat: "Heat", night: "Night", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
+      safety: "Safety", heat: "Heat", night: "Night", glare: "Glare protection", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
       retracted: "Retracted",
+      normalTarget: "Normal target", openingLimit: "Opening limit", effectiveTarget: "Effective target",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
       blocked: "Blocked", pauseUntil: "Paused until", schedule: "Schedule inactive", sunMissing: "Sun entity missing", advanced: "Details",
       pause: "Pause", resume: "Resume", evaluate: "Evaluate again", copy: "Copy card YAML", copied: "Copied",
@@ -1329,6 +1431,7 @@ class SmartShadingV4Card extends HTMLElement {
     return ({
       safety: ["mdi:shield-alert", L.safety, "danger"], heat: ["mdi:shield-sun", L.heat, "heat"],
       night: ["mdi:weather-night", L.night, "night"],
+      glare: ["mdi:shield-sun-outline", L.glare, "glare"],
       solar: ["mdi:weather-sunny-alert", L.solar, "solar"], comfort: ["mdi:sun-angle", L.comfort, "comfort"],
       paused: ["mdi:pause-circle", L.paused, "paused"], disabled: ["mdi:power", L.disabled, "disabled"],
       finished: ["mdi:calendar-check", L.finished, "done"], open: ["mdi:blinds-open", L.open, "open"],
@@ -1341,6 +1444,7 @@ class SmartShadingV4Card extends HTMLElement {
     const mode = roomState.state;
     if (mode === "safety") return localizedReason(attrs.reason, this._hass?.language, L.safety);
     if (mode === "heat") return localizedReason(attrs.reason, this._hass?.language, L.heat);
+    if (mode === "glare") return localizedReason(attrs.reason, this._hass?.language, L.glare);
     if (mode === "paused") return attrs.pause_until ? `${L.pauseUntil} ${this._formatDate(attrs.pause_until)}` : L.paused;
     if (mode === "disabled") return L.disabled;
     if (attrs.schedule_active === false) return localizedReason(attrs.schedule_reason, this._hass?.language, L.schedule);
@@ -1482,7 +1586,7 @@ class SmartShadingV4Card extends HTMLElement {
           ? `${L.night} · ${L.scheduleContext}`
           : mode === "safety"
             ? `${L.safety} · ${L.blocked}`
-            : advancedMode && ["solar", "comfort"].includes(mode) && activeSectorNames.length
+            : advancedMode && ["glare", "solar", "comfort"].includes(mode) && activeSectorNames.length
               ? `${modeLabel} · ${activeSectorNames.join(", ")}`
               : modeLabel;
     const roomName = cleanDisplayName(attrs.name || room.name, L.room);
@@ -1591,6 +1695,7 @@ class SmartShadingV4Card extends HTMLElement {
       const locked = cover.lock && this._state(cover.lock)?.state === "on";
       const unsafe = cover.window && this._state(cover.window)?.state !== (cover.window_safe_state || "on");
       const target = targetByEntity.get(cover.entity) || {};
+      const openingLimit = target.maximum_opening || {};
       const localPause = coverPauseByEntity.get(cover.entity) || {};
       const locallyPaused = Boolean(localPause.active);
       const roomPaused = attrs.pause_mode && attrs.pause_mode !== "auto";
@@ -1604,7 +1709,7 @@ class SmartShadingV4Card extends HTMLElement {
         </button>
         <div class="bar ${position == null ? "unknown" : ""}">${position == null ? "" : `<i style="width:${position}%"></i>`}</div>
         ${tilt == null ? "" : `<div class="bar tilt"><i style="width:${clamp(tilt, 0, 100)}%"></i></div>`}
-        ${advancedMode && target.position != null ? `<div class="target-line">${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}</div>` : ""}
+        ${advancedMode && target.position != null ? `<div class="target-line">${openingLimit.enabled ? `${L.normalTarget} ${Math.round(Number(target.ordinary_position))}% · ${L.openingLimit} ${Math.round(Number(openingLimit.limit))}% · ${L.effectiveTarget} ${Math.round(Number(openingLimit.effective_position))}%` : `${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}`}</div>` : ""}
       </div>`;
     }).join("");
 
@@ -1665,7 +1770,7 @@ class SmartShadingV4Card extends HTMLElement {
         *{box-sizing:border-box;min-width:0}
         ha-card{display:block;width:100%;max-width:100%;min-width:0;overflow:hidden;border-radius:22px;border:1px solid rgba(255,255,255,.09);box-shadow:none;background:var(--ha-card-background,var(--card-background-color,#202020));color:var(--primary-text-color,#fff)}
         ha-card.danger{background:linear-gradient(135deg,rgba(255,67,57,.27),rgba(30,27,27,.96))} ha-card.heat{background:linear-gradient(135deg,rgba(255,94,65,.23),rgba(29,27,27,.96))}
-        ha-card.solar{background:linear-gradient(135deg,rgba(255,154,65,.18),rgba(30,29,27,.97))} ha-card.comfort{background:linear-gradient(135deg,rgba(80,200,115,.16),rgba(24,34,28,.97))}
+        ha-card.glare{background:linear-gradient(135deg,rgba(255,197,61,.22),rgba(31,29,23,.97))} ha-card.solar{background:linear-gradient(135deg,rgba(255,154,65,.18),rgba(30,29,27,.97))} ha-card.comfort{background:linear-gradient(135deg,rgba(80,200,115,.16),rgba(24,34,28,.97))}
         ha-card.temp-ok.open,ha-card.temp-ok.idle{background:linear-gradient(135deg,rgba(55,190,105,.13),rgba(25,32,28,.97))} ha-card.temp-warm.open,ha-card.temp-warm.idle{background:linear-gradient(135deg,rgba(255,164,65,.14),rgba(33,29,25,.97))} ha-card.temp-hot{background:linear-gradient(135deg,rgba(255,74,56,.24),rgba(35,25,25,.97))}
         ha-card.paused,ha-card.muted{background:linear-gradient(135deg,rgba(80,120,190,.18),rgba(24,28,36,.97))} ha-card.disabled,ha-card.master:not(.danger):not(.heat){background:linear-gradient(135deg,rgba(185,55,55,.28),rgba(38,22,22,.98))} ha-card.manual:not(.paused):not(.disabled):not(.danger):not(.heat){background:linear-gradient(135deg,rgba(190,62,54,.20),rgba(37,24,24,.97))}
         .icon-box{--icon-box-size:18px;--icon-size:16px;width:var(--icon-box-size);height:var(--icon-box-size);min-width:var(--icon-box-size);flex:0 0 var(--icon-box-size);display:grid;place-items:center;align-content:center;justify-content:center;align-self:center;justify-self:center;vertical-align:middle;line-height:0;margin:0;padding:0;overflow:visible;transform-origin:center}.icon-box>ha-icon{display:grid;place-items:center;width:var(--icon-size);height:var(--icon-size);min-width:var(--icon-size);max-width:var(--icon-size);--mdc-icon-size:var(--icon-size);line-height:0;margin:0;padding:0;transform:none;position:static}.mode-icon{--icon-box-size:16px;--icon-size:14px}.chip-icon{--icon-box-size:14px;--icon-size:12px}.sector-icon{--icon-box-size:18px;--icon-size:14px;opacity:.7}.cover-icon{--icon-box-size:14px;--icon-size:12px}.action-icon{--icon-box-size:18px;--icon-size:16px}.advanced-icon{--icon-box-size:17px;--icon-size:15px}.easy-status-icon{--icon-box-size:18px;--icon-size:16px}.easy-sun-icon{--icon-box-size:30px;--icon-size:23px}.easy-cover-icon{--icon-box-size:24px;--icon-size:18px}
@@ -1730,10 +1835,6 @@ class SmartShadingV4Card extends HTMLElement {
         </div>
       </ha-card>`}`;
 
-    this.shadowRoot.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); this._more(element.dataset.more); }));
-    this.shadowRoot.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", (event) => { event.stopPropagation(); this._openNightSource(element.dataset.nightSource); }));
-    this.shadowRoot.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
-    this.shadowRoot.querySelector?.("[data-advanced]")?.addEventListener("click", (event) => this._openAdvanced(roomState, controls, event.currentTarget));
   }
 
   _messageCard(message) {

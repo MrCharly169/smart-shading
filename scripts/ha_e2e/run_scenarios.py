@@ -417,7 +417,7 @@ def submit_options_flow(
 
 
 def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
-    """Create an Easy entry through the current schema-16 guided flow."""
+    """Create an Easy entry through the current guided flow."""
     setup = scenario["setup"]
     result = api.post(
         "/api/config/config_entries/flow",
@@ -432,13 +432,6 @@ def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
             "house_name": setup["house_name"],
             "setup_type": "simple",
         },
-    )
-    expect_step(result, "global_settings")
-    result = submit_flow(
-        api,
-        flow_id,
-        "global_settings",
-        {"sun_entity": "sun.sun"},
     )
     expect_step(result, "room_setup")
     result = submit_flow(
@@ -579,13 +572,6 @@ def create_advanced_entry(
             "house_name": setup["house_name"],
             "setup_type": "complete",
         },
-    )
-    expect_step(result, "global_settings")
-    result = submit_flow(
-        api,
-        flow_id,
-        "global_settings",
-        {"sun_entity": "sun.sun"},
     )
     expect_step(result, "room_setup")
     room_details = {
@@ -764,7 +750,6 @@ def create_advanced_entry(
                     "start_time": "06:00:00",
                     "end_time": "22:00:00",
                     "outside_schedule_behavior": "open",
-                    "heat_outside_schedule": True,
                 },
                 "temperature_settings": temperature_settings,
             },
@@ -803,6 +788,13 @@ def create_advanced_entry(
         )
         CAPTURE_INITIAL_ADVANCED_WIZARD = False
         return _created_entry_id(api, result, setup["house_name"])
+    expect_step(result, "initial_structure_hub")
+    result = submit_flow(
+        api,
+        flow_id,
+        "initial_structure_hub",
+        {"next_step_id": "complete_initial_structure"},
+    )
     expect_step(result, "choose_advanced_features")
     result = submit_flow(
         api,
@@ -814,6 +806,7 @@ def create_advanced_entry(
             "night": not legacy_compatible,
             "safety": not legacy_compatible,
             "conditions": True,
+            "maximum_opening": True,
             "test_tools": not legacy_compatible and include_test_tools,
             "expert_execution": not legacy_compatible,
         },
@@ -846,7 +839,6 @@ def create_advanced_entry(
                 "heat_temperature": 27,
                 "evening_release_time": "18:00:00",
                 "sunset_offset_minutes": 0,
-                "heat_outside_schedule": True,
                 "normal_shading_temperature": 23.5,
                 "reopen_temperature": 22,
             }
@@ -876,13 +868,6 @@ def create_advanced_entry(
             "night_evening_transition_minutes": 0,
         },
     )
-    expect_step(result, "initial_night_targets")
-    result = submit_flow(
-        api,
-        flow_id,
-        "initial_night_targets",
-        {"night_position": 0, "night_tilt": 100},
-    )
     expect_step(result, "manage_conditions")
     result = submit_flow(
         api,
@@ -909,6 +894,16 @@ def create_advanced_entry(
         "heat_ignores_weather": True,
     }
     result = submit_flow(api, flow_id, "manage_conditions", condition_sources)
+    expect_step(result, "initial_maximum_opening")
+    result = submit_flow(
+        api,
+        flow_id,
+        "initial_maximum_opening",
+        {
+            "enforce_max_open_position": True,
+            "max_open_position": 90,
+        },
+    )
     expect_step(result, "manage_automation")
     result = submit_flow(
         api,
@@ -1226,13 +1221,6 @@ def assert_existing_room_night_transition(
             ),
         ),
     )
-    expect_step(result, "advanced_features_hub")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "advanced_features_hub",
-        {"next_step_id": "manage_night"},
-    )
     expect_step(result, "manage_night")
     night_values = {
         "night_source": "sun",
@@ -1337,13 +1325,6 @@ def assert_existing_room_schedule_transition(
             ),
         ),
     )
-    expect_step(result, "advanced_features_hub")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "advanced_features_hub",
-        {"next_step_id": "manage_schedule"},
-    )
     expect_step(result, "manage_automation")
     schedule_values = {
         "schedule_profile": "custom",
@@ -1412,14 +1393,14 @@ def assert_existing_cover_limit_transition(
         "manage_cover_special",
         {"enforce_max_open_position": False},
     )
-    expect_step(result, "cover_settings_hub")
+    expect_step(result, "maximum_opening_hub")
     result = submit_options_flow(
         api,
         flow_id,
-        "cover_settings_hub",
-        {"next_step_id": "back_to_group"},
+        "maximum_opening_hub",
+        {"next_step_id": "back_to_room"},
     )
-    save_options_from_group_hub(api, flow_id, result)
+    save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
     if current_cover().get("enforce_max_open_position") is not False:
         raise AssertionError(
@@ -1434,23 +1415,16 @@ def assert_existing_cover_limit_transition(
         api,
         flow_id,
         "manage_cover_special",
-        {"enforce_max_open_position": True},
-    )
-    expect_step(result, "manage_cover_special")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "manage_cover_special",
         {"enforce_max_open_position": True, "max_open_position": 85},
     )
-    expect_step(result, "cover_settings_hub")
+    expect_step(result, "maximum_opening_hub")
     result = submit_options_flow(
         api,
         flow_id,
-        "cover_settings_hub",
-        {"next_step_id": "back_to_group"},
+        "maximum_opening_hub",
+        {"next_step_id": "back_to_room"},
     )
-    save_options_from_group_hub(api, flow_id, result)
+    save_options_from_room_hub(api, flow_id, result)
     reload_entry(api, entry_id)
     cover = current_cover()
     if not cover.get("enforce_max_open_position") or float(
@@ -1516,6 +1490,16 @@ def add_advanced_group_through_options(
             } else {}),
         },
     )
+    if result.get("step_id") == "new_optional_feature_available":
+        LIVE_WIZARD_TRANSITIONS.add(
+            "existing_room.new_cover_profile.optional_feature_discovery"
+        )
+        result = submit_options_flow(
+            api,
+            flow_id,
+            "new_optional_feature_available",
+            {"open_optional_features": False},
+        )
     save_options_from_group_hub(api, flow_id, result)
     wait_for_entry_loaded(api, entry_id)
     explore_options_surfaces(api, entry_id)
@@ -1543,37 +1527,30 @@ def assert_calculated_glare_zone_flow(
             ),
         ),
     )
-    expect_step(result, "advanced_features_hub")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "advanced_features_hub",
-        {"next_step_id": "glare_protection_hub"},
-    )
-    expect_step(result, "glare_protection_hub")
-    sector_choice = next(
-        option
-        for option in _menu_options(result)
-        if option != "back_to_room"
-    )
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "glare_protection_hub",
-        {"next_step_id": sector_choice},
-    )
-    expect_step(result, "protected_zones_hub")
-    add_choice = next(
-        option
-        for option in _menu_options(result)
-        if option != "back_to_sector"
-    )
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "protected_zones_hub",
-        {"next_step_id": add_choice},
-    )
+    if result.get("step_id") == "glare_protection_hub":
+        sector_choice = next(
+            option
+            for option in _menu_options(result)
+            if option != "back_to_room"
+        )
+        result = submit_options_flow(
+            api,
+            flow_id,
+            "glare_protection_hub",
+            {"next_step_id": sector_choice},
+        )
+        expect_step(result, "protected_zones_hub")
+        add_choice = next(
+            option
+            for option in _menu_options(result)
+            if option != "back_to_sector"
+        )
+        result = submit_options_flow(
+            api,
+            flow_id,
+            "protected_zones_hub",
+            {"next_step_id": add_choice},
+        )
     expect_step(result, "add_protected_zone")
     fields = _schema_fields(result.get("data_schema", []))
     for required in (
@@ -1618,11 +1595,39 @@ def assert_calculated_glare_zone_flow(
     result = submit_options_flow(
         api, flow_id, "add_protected_zone", zone_payload
     )
+    expect_step(result, "confirm_protected_zone")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "confirm_protected_zone",
+        {"confirm_protected_zone": True},
+    )
+    if result.get("step_id") == "room_hub":
+        save_options_from_room_hub(api, flow_id, result)
+        reload_entry(api, entry_id)
+        flow_id, result = replay_advanced_feature(
+            api,
+            entry_id,
+            "glare_protection_hub",
+            "glare_protection_hub",
+        )
+        sector_choice = next(
+            option
+            for option in _menu_options(result)
+            if option != "back_to_room"
+        )
+        result = submit_options_flow(
+            api,
+            flow_id,
+            "glare_protection_hub",
+            {"next_step_id": sector_choice},
+        )
     expect_step(result, "protected_zones_hub")
     zone_choice = next(
         option
-        for option in _menu_options(result)
-        if option not in {"back_to_sector", add_choice}
+        for option, label in result.get("menu_options", {}).items()
+        if option != "back_to_sector"
+        and not str(label).lstrip().startswith("+")
     )
     result = submit_options_flow(
         api,
@@ -1638,6 +1643,13 @@ def assert_calculated_glare_zone_flow(
     }
     result = submit_options_flow(
         api, flow_id, "manage_protected_zone", edit_payload
+    )
+    expect_step(result, "confirm_protected_zone")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "confirm_protected_zone",
+        {"confirm_protected_zone": True},
     )
     expect_step(result, "protected_zones_hub")
     for step_id, choice, expected in (

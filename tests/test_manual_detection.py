@@ -798,8 +798,78 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
             [
                 "critical_state:binary_sensor.window",
                 "critical_state:binary_sensor.window",
+                "event:window_recovery_feedback:cover.one",
+                "event:window_recovery_feedback:cover.one",
             ],
         )
+
+    async def test_late_opening_feedback_after_window_close_reapplies_solar_target(self):
+        self._configure_window_return()
+        observed_at = datetime.now(timezone.utc)
+        self.hass.states.values["sun.sun"] = FakeState(
+            "above_horizon",
+            last_updated=observed_at,
+            azimuth=180,
+            elevation=35,
+            next_rising=(observed_at + timedelta(days=1)).isoformat(),
+            next_setting=(observed_at + timedelta(hours=2)).isoformat(),
+        )
+        self.hass.states.values["sensor.lux"] = FakeState(
+            "40000",
+            last_updated=observed_at,
+            unit_of_measurement="lx",
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        shaded = FakeState(
+            "closed",
+            current_position=0,
+            current_tilt_position=65,
+            supported_features=132,
+        )
+        self.hass.states.values["cover.one"] = shaded
+        await self.engine.async_evaluate_all("prime_solar_target")
+        self.assertEqual(
+            self.engine.rooms["room"].mode,
+            "solar",
+            self.engine.rooms["room"].reason,
+        )
+
+        # The contact closes again while feedback still reports the previous,
+        # already shaded position.  Its immediate evaluation therefore has no
+        # physical correction to send yet.
+        await self._window_transition("on", "off")
+        await self._window_transition("off", "on")
+        self.hass.services.calls.clear()
+
+        # The actuator's delayed opening feedback arrives only after the
+        # contact is safe.  This event must trigger a new target calculation
+        # and reverse the movement without the 20-minute watchdog.
+        late_opening = FakeState(
+            "opening",
+            current_position=30,
+            current_tilt_position=65,
+            supported_features=132,
+        )
+        self.hass.states.values["cover.one"] = late_opening
+        await self.engine._async_state_changed(
+            FakeEvent("cover.one", shaded, late_opening)
+        )
+
+        corrections = [
+            call
+            for call in self.hass.services.calls
+            if call[0:2] == ("cover", "set_cover_position")
+        ]
+        self.assertTrue(
+            corrections,
+            (
+                self.hass.services.calls,
+                self.engine.command_planner.export_ledger(),
+                self.engine.rooms["room"].targets,
+            ),
+        )
+        self.assertEqual(corrections[-1][2]["position"], 0)
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
 
     async def test_manual_detection_resumes_after_window_recovery_settles(self):
         self._configure_window_return()

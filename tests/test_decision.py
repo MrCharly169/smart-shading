@@ -32,6 +32,7 @@ DecisionResolver = decision.DecisionResolver
 InputKind = decision.InputKind
 InputSnapshot = decision.InputSnapshot
 MODE_DISABLED = decision.MODE_DISABLED
+MODE_GLARE = decision.MODE_GLARE
 MODE_HEAT = decision.MODE_HEAT
 MODE_IDLE = decision.MODE_IDLE
 MODE_NIGHT = decision.MODE_NIGHT
@@ -112,11 +113,21 @@ class DecisionPriorityTests(unittest.TestCase):
             (
                 {
                     "manual_override_active": True,
+                    "safety_source_hold_active": True,
                     "night_active": True,
                     "heat_active": True,
                     "solar_active": True,
                 },
                 MODE_DISABLED,
+            ),
+            (
+                {
+                    "safety_source_hold_active": True,
+                    "night_active": True,
+                    "heat_active": True,
+                    "solar_active": True,
+                },
+                MODE_IDLE,
             ),
             (
                 {
@@ -346,6 +357,60 @@ class ProtectedZoneTests(unittest.TestCase):
         adjustment = apply_protected_zones(Target(position=70, tilt=35), (evaluation,))
         self.assertEqual(adjustment.target, Target(position=30, tilt=80, details={"protected_zone_hit_ids": ("tv",)}))
         self.assertEqual(adjustment.applied_zone_ids, ("tv",))
+
+    def test_glare_can_trigger_without_a_temperature_shading_stage(self):
+        result = DecisionPipeline().evaluate(
+            base_context(
+                glare_allowed=True,
+                sun_geometry=self.geometry,
+                protected_zones=(self._zone(),),
+            )
+        )
+
+        self.assertEqual(result.mode, MODE_GLARE)
+        self.assertEqual(result.target.position, 30)
+        self.assertEqual(result.target.tilt, 80)
+        self.assertEqual(
+            result.trace.winner.reason_code,
+            "protected_zone_target_adjusted",
+        )
+
+    def test_glare_never_weakens_an_already_stricter_solar_target(self):
+        result = DecisionPipeline().evaluate(
+            base_context(
+                targets={
+                    MODE_SAFETY: Target(position=100, tilt=0),
+                    MODE_NIGHT: Target(position=0, tilt=100),
+                    MODE_HEAT: Target(position=0, tilt=100),
+                    MODE_SOLAR: Target(position=20, tilt=90),
+                    MODE_OPEN: Target(position=100, tilt=0),
+                },
+                solar_active=True,
+                glare_allowed=True,
+                sun_geometry=self.geometry,
+                protected_zones=(self._zone(),),
+            )
+        )
+
+        self.assertEqual(result.mode, MODE_SOLAR)
+        self.assertEqual(result.target.position, 20)
+        self.assertEqual(result.target.tilt, 90)
+
+    def test_schedule_hold_and_heat_keep_priority_over_glare(self):
+        glare_context = {
+            "glare_allowed": True,
+            "sun_geometry": self.geometry,
+            "protected_zones": (self._zone(),),
+        }
+        held = DecisionPipeline().evaluate(
+            base_context(schedule_hold_active=True, **glare_context)
+        )
+        heated = DecisionPipeline().evaluate(
+            base_context(heat_active=True, **glare_context)
+        )
+
+        self.assertEqual(held.mode, MODE_IDLE)
+        self.assertEqual(heated.mode, MODE_HEAT)
 
     def test_zone_can_be_constructed_from_persisted_wizard_values(self):
         zone = ProtectedZone.from_config(

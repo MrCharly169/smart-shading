@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from homeassistant.components.diagnostics import async_redact_data
 
-from .const import VERSION
+from .const import (
+    DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS,
+    DEFAULT_MAX_OPEN_TOLERANCE,
+    VERSION,
+)
 
 
 def _state_snapshot(hass, entity_id: str) -> dict | None:
@@ -37,7 +41,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "configuration": async_redact_data(engine.config, []),
         "diagnostic_level": engine.diagnostic_level,
         "diagnostic_journal": engine.recent_diagnostics(limit=500),
-        "schema_version": 6,
+        "schema_version": 8,
         "integration_version": VERSION,
         "evaluation_interval_seconds": engine.config.get("evaluation_interval", 1200),
         "evaluation_debounce_seconds": engine.config.get(
@@ -46,6 +50,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "decision_runtime": {
             "event_driven": True,
             "watchdog_interval_seconds": engine.config.get("evaluation_interval", 1200),
+            "maximum_opening_feedback_check": (
+                "immediate_on_cover_state_change"
+            ),
+            "maximum_opening_heartbeat_seconds": (
+                DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS
+            ),
+            "maximum_opening_tolerance_percent": (
+                DEFAULT_MAX_OPEN_TOLERANCE
+            ),
             "command_ledger": command_ledger if advanced else {},
             "queued_commands": queued_commands if advanced else [],
         },
@@ -60,6 +73,43 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "reason": runtime.reason,
                 "active_sectors": runtime.active_sectors,
                 "targets": runtime.targets,
+                "protected_zone_calculations": [
+                    {
+                        "cover_entity": target.get("entity_id"),
+                        "cover_name": target.get("name"),
+                        "ordinary_target": target.get("ordinary_target"),
+                        "final_target": target.get("final_target"),
+                        "zones": target.get(
+                            "protected_zone_calculations", []
+                        ),
+                    }
+                    for target in runtime.targets
+                    if target.get("protected_zone_calculations")
+                ],
+                "maximum_opening_calculations": [
+                    {
+                        "cover_entity": target.get("entity_id"),
+                        "cover_name": target.get("name"),
+                        "normal_target": target.get("ordinary_position"),
+                        "opening_limit": target.get(
+                            "maximum_opening", {}
+                        ).get("limit"),
+                        "effective_target": target.get(
+                            "maximum_opening", {}
+                        ).get("effective_position"),
+                        "current_position": target.get(
+                            "maximum_opening", {}
+                        ).get("current_position"),
+                        "constrained": target.get(
+                            "maximum_opening", {}
+                        ).get("constrained"),
+                        "violation": target.get(
+                            "maximum_opening", {}
+                        ).get("violation"),
+                    }
+                    for target in runtime.targets
+                    if target.get("maximum_opening", {}).get("enabled")
+                ],
                 "last_evaluation": runtime.last_evaluation,
                 "last_command": runtime.last_command,
                 "sent_commands": runtime.sent_commands,

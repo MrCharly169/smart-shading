@@ -20,10 +20,10 @@ DYNAMIC_SURFACES = {
     "room_setup",
     "add_room",
     "structure_hub",
+    "maximum_opening_hub",
     "sector_hub",
     "protected_zones_hub",
     "group_hub",
-    "initial_night_targets",
     "initial_safety_targets",
 }
 

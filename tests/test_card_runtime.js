@@ -15,6 +15,15 @@ class FakeElement extends FakeNode {
   set innerHTML(value) { this._innerHTML = String(value || ""); this._queryCache.clear(); }
   get innerHTML() { return this._innerHTML; }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+  closest(selector) {
+    for (const candidate of String(selector).split(",")) {
+      const attribute = candidate.trim().match(/^\[data-([a-z-]+)\]$/)?.[1];
+      if (!attribute) continue;
+      const key = attribute.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      if (Object.hasOwn(this.dataset, key)) return this;
+    }
+    return null;
+  }
   querySelectorAll(selector) {
     if (this._queryCache.has(selector)) return this._queryCache.get(selector);
     const attribute = selector.match(/^\[data-([a-z-]+)\]$/)?.[1];
@@ -38,8 +47,8 @@ class FakeElement extends FakeNode {
     return nodes;
   }
 }
-class FakeShadowRoot {
-  constructor() { this._innerHTML = ""; this._dialog = null; this._main = null; this.activeElement = null; this.writeCount = 0; }
+class FakeShadowRoot extends FakeNode {
+  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this.activeElement = null; this.writeCount = 0; }
   set innerHTML(value) {
     this._innerHTML = String(value || "");
     this.writeCount += 1;
@@ -376,6 +385,48 @@ const safetyMarkup = safetyCard.shadowRoot.innerHTML.slice(safetyCard.shadowRoot
 if (safetyMarkup.includes("sector-card active") || safetyMarkup.includes('class="sun-dot calm-pulse"')) throw new Error("Geometry, Safety, or Heat falsely activated confirmed-sun visuals");
 if (!safetyMarkup.includes("Safety · Blockiert") || safetyMarkup.includes("Safety · stale sector")) throw new Error("Advanced mode label leaked stale active sectors");
 
+const glareStatus = JSON.parse(JSON.stringify(roomStatus));
+glareStatus.entity_id = "sensor.glare_room_status";
+glareStatus.state = "glare";
+glareStatus.attributes.reason = "Direct sun reaches a configured protected area";
+glareStatus.attributes.targets[0] = {
+  ...glareStatus.attributes.targets[0],
+  decision_mode: "glare",
+  ordinary_target: { position: 65 },
+  final_target: { position: 28 },
+  position: 28,
+  protected_zone_applied_ids: ["desk"],
+  protected_zone_calculations: [{
+    zone_id: "desk",
+    name: "Schreibtisch",
+    status: "hit",
+    reason_code: "protected_zone_direct_sun_hit",
+    target: { position: 28 },
+    details: {
+      calculation: "top_down",
+      relative_azimuth_degrees: 15,
+      projected_height_range_m: [0.35, 0.92],
+    },
+  }],
+};
+hass.states[glareStatus.entity_id] = glareStatus;
+const glareCard = new Card();
+glareCard.setConfig({ entity: glareStatus.entity_id });
+glareCard.hass = hass;
+const glareMarkup = glareCard.shadowRoot.innerHTML.slice(glareCard.shadowRoot.innerHTML.indexOf("</style>") + 8);
+if (!glareMarkup.includes("Blendschutz") || !glareMarkup.includes("Schutzzone")) throw new Error("Active glare protection was not explicit on the Advanced card");
+const glareDialog = new Dialog();
+glareDialog._hass = hass;
+glareDialog._roomState = glareStatus;
+glareDialog._controls = card._controls(glareStatus);
+glareDialog._render();
+if (!glareDialog.shadowRoot.innerHTML.includes("Aktuelle Berechnung")
+  || !glareDialog.shadowRoot.innerHTML.includes("Normales Ziel")
+  || !glareDialog.shadowRoot.innerHTML.includes("Schutzziel")
+  || !glareDialog.shadowRoot.innerHTML.includes("Endgültiges Ziel")
+  || !glareDialog.shadowRoot.innerHTML.includes("Schreibtisch")
+  || !glareDialog.shadowRoot.innerHTML.includes("28%")) throw new Error("Glare diagnostics did not show the calculation, ordinary target, zone target, and final target");
+
 const unknownCoverState = hass.states["cover.internal_identifier"];
 hass.states["cover.internal_identifier"] = { entity_id: "cover.internal_identifier", state: "unknown", attributes: { friendly_name: "Technischer Name" } };
 const unknownCard = new Card();
@@ -407,7 +458,11 @@ const noControlMarkup = noControlCard.shadowRoot.innerHTML.slice(noControlCard.s
 if (noControlMarkup.includes('data-press=""')) throw new Error("Missing control entities produced clickable no-op buttons");
 if (!noControlMarkup.includes("data-advanced")) throw new Error("Advanced view disappeared when optional controls were missing");
 
-card._openAdvanced(roomStatus, card._controls(roomStatus));
+const advancedButton = new FakeElement();
+advancedButton.dataset.advanced = "";
+const delegatedClick = card.shadowRoot.listeners.get("click");
+if (!delegatedClick) throw new Error("Card did not register its stable delegated click handler");
+delegatedClick({ target: advancedButton, stopPropagation() {} });
 if (!body.children.length) throw new Error("Advanced dialog was not appended to document.body");
 const dialog = body.children[0];
 if (!dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog did not render");

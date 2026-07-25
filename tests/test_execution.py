@@ -64,6 +64,7 @@ class CommandPlannerTests(unittest.TestCase):
         room_id: str = "study",
         constraints: tuple[str, ...] = (),
         allow_automatic_reverse: bool = True,
+        authoritative_replacement: bool = False,
     ) -> CommandRequest:
         return CommandRequest(
             cover_id=cover_id,
@@ -87,6 +88,7 @@ class CommandPlannerTests(unittest.TestCase):
             stagger_scope=stagger_scope,
             safety=safety,
             allow_automatic_reverse=allow_automatic_reverse,
+            authoritative_replacement=authoritative_replacement,
         )
 
     def test_persisted_ledger_keeps_ownership_context_targets_and_deadline(self):
@@ -406,6 +408,65 @@ class CommandPlannerTests(unittest.TestCase):
         self.assertEqual(high.steps[0].target, 50)
         self.assertEqual([step.step_id for step in high.cancelled_steps], [step.step_id for step in low.steps])
         self.assertEqual([step.target for step in self.planner.pending_steps], [50])
+
+    def test_older_high_priority_motion_cannot_block_authoritative_recovery(self):
+        safety = self.planner.plan(
+            self.request(
+                position=100,
+                current_position=0,
+                rule="safety",
+                priority=700,
+                safety=True,
+            )
+        )
+        self.planner.take_due()
+
+        recovery = self.planner.plan(
+            self.request(
+                position=0,
+                # Feedback has not reacted to Safety yet and therefore looks
+                # as if no recovery movement were necessary.
+                current_position=0,
+                rule="solar",
+                priority=300,
+                authoritative_replacement=True,
+            )
+        )
+
+        self.assertEqual(safety.status, CommandResult.PLANNED)
+        self.assertEqual(recovery.status, CommandResult.PLANNED)
+        self.assertEqual(recovery.reason_code, "authoritative_replacement")
+        self.assertEqual([step.axis for step in recovery.steps], ["position"])
+        self.assertEqual(recovery.steps[0].target, 0)
+        self.assertEqual(
+            self.planner.ledger_entry("cover.study").lifecycle_id,
+            recovery.ledger.lifecycle_id,
+        )
+
+    def test_lower_priority_request_still_needs_explicit_authority(self):
+        self.planner.plan(
+            self.request(
+                position=100,
+                current_position=0,
+                rule="safety",
+                priority=700,
+                safety=True,
+            )
+        )
+        blocked = self.planner.plan(
+            self.request(
+                position=0,
+                current_position=0,
+                rule="solar",
+                priority=300,
+            )
+        )
+
+        self.assertEqual(blocked.status, CommandResult.BLOCKED)
+        self.assertEqual(
+            blocked.reason_code,
+            "higher_priority_lifecycle_active",
+        )
 
     def test_unchanged_active_target_is_suppressed_without_duplicate_steps(self):
         first = self.planner.plan(self.request())

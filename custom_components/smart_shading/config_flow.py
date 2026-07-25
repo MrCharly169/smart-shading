@@ -47,6 +47,7 @@ from .const import (
     DEFAULT_STAGGER_SECONDS,
     DEFAULT_STAGGER_SCOPE,
     DEFAULT_SUNSET_OFFSET_MINUTES,
+    DEFAULT_SUN_ENTITY,
     DEFAULT_TILT_TOLERANCE,
     DEFAULT_VERIFICATION_RETRIES,
     DEFAULT_WINDOW_RETURNS_TO_AUTOMATION,
@@ -67,6 +68,7 @@ from .const import (
     FEATURE_CONDITIONS,
     FEATURE_EXPERT_EXECUTION,
     FEATURE_GLARE_PROTECTION,
+    FEATURE_MAXIMUM_OPENING,
     FEATURE_NIGHT,
     FEATURE_SAFETY,
     FEATURE_SCHEDULE,
@@ -119,6 +121,14 @@ from .flow_contract import (
     sun_source_for_sector,
     working_config,
 )
+from .decision import (
+    ProtectedZone,
+    ProtectedZoneStatus,
+    SunGeometry,
+    evaluate_protected_zone,
+    validate_protected_zone,
+)
+from .logic import azimuth_inside, parse_numeric_value
 from .options_navigation import (
     build_cover_routes,
     build_group_routes,
@@ -466,6 +476,106 @@ class _SmartShadingWizardMixin:
             if isinstance(layer, dict)
         )
 
+    def _room_supports_maximum_opening(
+        self, room: dict[str, Any] | None = None
+    ) -> bool:
+        """Return whether at least one configured cover supports a position."""
+        selected_room = room or self.room()
+        return any(
+            profile_supports_position(str(layer.get("profile") or ""))
+            and any(
+                str(cover.get("entity") or "").strip()
+                for cover in layer.get("covers", [])
+                if isinstance(cover, dict)
+            )
+            for sector in selected_room.get("sectors", [])
+            if isinstance(sector, dict)
+            for layer in sector.get("layers", [])
+            if isinstance(layer, dict)
+        )
+
+    def _available_optional_features(
+        self, room: dict[str, Any] | None = None
+    ) -> set[str]:
+        """Return optional features made possible by the current structure."""
+        selected_room = room or self.room()
+        available: set[str] = set()
+        if self._room_supports_glare_protection(selected_room):
+            available.add(FEATURE_GLARE_PROTECTION)
+        if self._room_supports_maximum_opening(selected_room):
+            available.add(FEATURE_MAXIMUM_OPENING)
+        return available
+
+    def _remember_optional_feature_availability(self) -> None:
+        """Capture capabilities before one atomic structure change."""
+        if self.advanced_mode and not getattr(self, "_initial_setup", False):
+            self._features_before_structure_change = (
+                self._available_optional_features()
+            )
+
+    async def _finish_structure_change(
+        self, *, fallback: str
+    ) -> ConfigFlowResult:
+        """Show a one-time discovery page for newly possible features."""
+        before = getattr(self, "_features_before_structure_change", None)
+        self._features_before_structure_change = None
+        if (
+            self.advanced_mode
+            and not getattr(self, "_initial_setup", False)
+            and isinstance(before, set)
+        ):
+            selected = self._advanced_features()
+            newly_available = sorted(
+                self._available_optional_features() - before - selected
+            )
+            if newly_available:
+                labels = self._feature_labels()
+                self._new_available_features = newly_available
+                self._new_feature_return_step = fallback
+                self._new_available_feature_labels = ", ".join(
+                    labels.get(feature, feature)
+                    for feature in newly_available
+                )
+                return await self.async_step_new_optional_feature_available()
+        return await getattr(self, f"async_step_{fallback}")()
+
+    async def async_step_new_optional_feature_available(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Explain a capability unlocked by a newly added cover profile."""
+        if user_input is not None:
+            open_features = bool(
+                user_input.get("open_optional_features", False)
+            )
+            return_step = str(
+                getattr(self, "_new_feature_return_step", None) or "room_hub"
+            )
+            self._new_feature_return_step = None
+            self._new_available_features = []
+            if open_features:
+                return await self.async_step_choose_advanced_features()
+            return await getattr(self, f"async_step_{return_step}")()
+        return self.async_show_form(
+            step_id="new_optional_feature_available",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "open_optional_features", default=True
+                    ): selector.BooleanSelector()
+                }
+            ),
+            description_placeholders={
+                **self._option_placeholders(),
+                "new_features": str(
+                    getattr(
+                        self,
+                        "_new_available_feature_labels",
+                        "",
+                    )
+                ),
+            },
+        )
+
     def _feature_labels(self) -> dict[str, str]:
         """Keep the menu customer-facing even before a translation reload."""
         if self._is_german():
@@ -476,6 +586,7 @@ class _SmartShadingWizardMixin:
                 FEATURE_SAFETY: "Sicherheit für Wind, Frost und Fenster",
                 FEATURE_CONDITIONS: "Wetter & Anwesenheit",
                 FEATURE_GLARE_PROTECTION: "Blendschutz für Bereich oder Objekt",
+                FEATURE_MAXIMUM_OPENING: "Maximale Öffnungsbegrenzung",
                 FEATURE_TEST_TOOLS: "Test & Vorschau",
                 FEATURE_EXPERT_EXECUTION: "Experteneinstellungen für Fahrbefehle",
             }
@@ -486,12 +597,142 @@ class _SmartShadingWizardMixin:
             FEATURE_SAFETY: "Wind, frost and window safety",
             FEATURE_CONDITIONS: "Weather & occupancy",
             FEATURE_GLARE_PROTECTION: "Glare protection for an area or object",
+            FEATURE_MAXIMUM_OPENING: "Maximum opening limit",
             FEATURE_TEST_TOOLS: "Test & preview",
             FEATURE_EXPERT_EXECUTION: "Expert command settings",
         }
 
+    def _feature_context_placeholders(
+        self, feature: str
+    ) -> dict[str, str]:
+        """Identify the current feature and its place in initial setup."""
+        german = self._is_german()
+        labels = self._feature_labels()
+        descriptions_de = {
+            FEATURE_SCHEDULE: (
+                "Der allgemeine Beschattungszeitplan gibt alle automatischen "
+                "Tagesfunktionen frei. Die Nachtfunktion arbeitet unabhängig."
+            ),
+            FEATURE_TEMPERATURE: (
+                "Temperaturstufen wirken nur im allgemeinen "
+                "Beschattungszeitplan. Hitzeschutz startet höchstens einmal "
+                "pro Tag und endet an der frühesten Abendfreigabe."
+            ),
+            FEATURE_NIGHT: (
+                "Die Nachtfunktion besitzt einen eigenen Zeitraum und kann "
+                "dadurch ganzjährig unabhängig vom Beschattungszeitplan arbeiten."
+            ),
+            FEATURE_SAFETY: (
+                "Sicherheitsquellen verhindern unsichere Bewegungen oder "
+                "fordern die festgelegte sichere Position an."
+            ),
+            FEATURE_CONDITIONS: (
+                "Optionale Wetter- und Anwesenheitsquellen ergänzen die "
+                "Tagesautomatik. Leere Quellen haben keine Wirkung."
+            ),
+            FEATURE_GLARE_PROTECTION: (
+                "Der Blendschutz berechnet für einen einzelnen Behang die "
+                "offenste Position, die den eingemessenen Bereich vor direkter Sonne schützt."
+            ),
+            FEATURE_MAXIMUM_OPENING: (
+                "Die harte Öffnungsgrenze korrigiert auch externe Fahrten "
+                "oberhalb des Grenzwerts. Nur Sicherheitsfahrten haben Vorrang."
+            ),
+            FEATURE_TEST_TOOLS: (
+                "Vorschau und Simulation erklären Entscheidungen, bewegen "
+                "aber niemals einen Behang."
+            ),
+            FEATURE_EXPERT_EXECUTION: (
+                "Diese technischen Einstellungen verändern Fahrabstände und "
+                "Zielprüfung, aktivieren aber keine zusätzliche Beschattungsfunktion."
+            ),
+        }
+        descriptions_en = {
+            FEATURE_SCHEDULE: (
+                "The general shading schedule enables every automatic daytime "
+                "function. Night Mode operates independently."
+            ),
+            FEATURE_TEMPERATURE: (
+                "Temperature stages operate only inside the general shading "
+                "schedule. Heat protection starts at most once per day and "
+                "ends at the earliest evening release."
+            ),
+            FEATURE_NIGHT: (
+                "Night Mode has its own time source and can therefore operate "
+                "year-round independently of the shading schedule."
+            ),
+            FEATURE_SAFETY: (
+                "Safety sources prevent unsafe movement or request the "
+                "configured safe position."
+            ),
+            FEATURE_CONDITIONS: (
+                "Optional weather and occupancy sources complement daytime "
+                "automation. Empty sources have no effect."
+            ),
+            FEATURE_GLARE_PROTECTION: (
+                "Glare protection calculates the most open safe target for "
+                "one physical cover and one measured protected area."
+            ),
+            FEATURE_MAXIMUM_OPENING: (
+                "The hard opening limit also corrects external movement above "
+                "the configured maximum. Only safety movement has priority."
+            ),
+            FEATURE_TEST_TOOLS: (
+                "Preview and simulation explain decisions but never move a cover."
+            ),
+            FEATURE_EXPERT_EXECUTION: (
+                "These technical settings control command spacing and target "
+                "verification; they do not enable another shading function."
+            ),
+        }
+        queue = self._initial_feature_queue()
+        index = int(getattr(self, "_initial_feature_index", 0))
+        initial = bool(getattr(self, "_initial_setup", False) and feature in queue)
+        context = (
+            (
+                f"Zusatzfunktion {index + 1} von {len(queue)}"
+                if german
+                else f"Additional feature {index + 1} of {len(queue)}"
+            )
+            if initial
+            else ("Einstellungen" if german else "Settings")
+        )
+        next_label = (
+            labels.get(queue[index + 1], queue[index + 1])
+            if initial and index + 1 < len(queue)
+            else ""
+        )
+        next_text = (
+            (
+                f"Als Nächstes: {next_label}."
+                if german
+                else f"Next: {next_label}."
+            )
+            if next_label
+            else (
+                "Danach wird die Raumeinrichtung abgeschlossen."
+                if initial and german
+                else "The room setup will be completed afterwards."
+                if initial
+                else ""
+            )
+        )
+        return {
+            **self._option_placeholders(),
+            "feature_name": labels.get(feature, feature),
+            "feature_context": context,
+            "feature_progress": context,
+            "feature_description": (
+                descriptions_de if german else descriptions_en
+            ).get(feature, ""),
+            "next_feature": next_text,
+        }
+
     def _initial_feature_queue(self) -> list[str]:
         """Return selected features in the order customers configure them."""
+        queued = getattr(self, "_queued_feature_setup", None)
+        if isinstance(queued, list):
+            return list(queued)
         selected = self._advanced_features()
         return [
             feature
@@ -530,6 +771,7 @@ class _SmartShadingWizardMixin:
         queue = self._initial_feature_queue()
         index = int(getattr(self, "_initial_feature_index", 0))
         if index >= len(queue):
+            self._queued_feature_setup = None
             return await self.async_step_after_room()
         feature = queue[index]
         handlers = {
@@ -539,6 +781,7 @@ class _SmartShadingWizardMixin:
             FEATURE_SAFETY: "manage_safety",
             FEATURE_CONDITIONS: "manage_weather_conditions",
             FEATURE_GLARE_PROTECTION: "initial_glare_protection",
+            FEATURE_MAXIMUM_OPENING: "initial_maximum_opening",
             FEATURE_EXPERT_EXECUTION: "manage_execution",
         }
         handler = handlers.get(feature)
@@ -573,6 +816,10 @@ class _SmartShadingWizardMixin:
             menu_options["glare_protection_hub"] = labels[
                 FEATURE_GLARE_PROTECTION
             ]
+        if FEATURE_MAXIMUM_OPENING in selected:
+            menu_options["maximum_opening_hub"] = labels[
+                FEATURE_MAXIMUM_OPENING
+            ]
         if FEATURE_EXPERT_EXECUTION in selected:
             menu_options["manage_execution"] = labels[
                 FEATURE_EXPERT_EXECUTION
@@ -599,7 +846,9 @@ class _SmartShadingWizardMixin:
         room = self.room()
         selected = self._advanced_features(room)
         glare_available = self._room_supports_glare_protection(room)
+        maximum_opening_available = self._room_supports_maximum_opening(room)
         if user_input is not None:
+            previously_selected = set(selected)
             selected_features = [
                 feature
                 for feature in ADVANCED_FEATURES
@@ -607,6 +856,10 @@ class _SmartShadingWizardMixin:
                 and (
                     feature != FEATURE_GLARE_PROTECTION
                     or glare_available
+                )
+                and (
+                    feature != FEATURE_MAXIMUM_OPENING
+                    or maximum_opening_available
                 )
             ]
             room[CONF_ADVANCED_FEATURES] = selected_features
@@ -636,9 +889,28 @@ class _SmartShadingWizardMixin:
                     "glare_sensor",
                 ):
                     room[key] = ""
+            if FEATURE_MAXIMUM_OPENING not in selected_set:
+                for sector in room.get("sectors", []):
+                    for layer in sector.get("layers", []):
+                        for cover in layer.get("covers", []):
+                            cover["enforce_max_open_position"] = False
             # These tools create entities, so an Options-flow save/reload is
             # required before Home Assistant can add or remove them.
             if getattr(self, "_initial_setup", False):
+                return await self._start_initial_feature_sequence()
+            newly_enabled = [
+                feature
+                for feature in ADVANCED_FEATURES
+                if feature in selected_set
+                and feature not in previously_selected
+                and feature != FEATURE_TEST_TOOLS
+            ]
+            if newly_enabled:
+                # A later feature selection is a setup request, not merely a
+                # visibility toggle. Guide the customer through only the
+                # newly enabled features before returning to the room.
+                self._queued_feature_setup = newly_enabled
+                self._initial_setup = True
                 return await self._start_initial_feature_sequence()
             return await self.async_step_advanced_features_hub()
         fields = {
@@ -647,6 +919,11 @@ class _SmartShadingWizardMixin:
             if (
                 feature != FEATURE_GLARE_PROTECTION
                 or glare_available
+                or feature in selected
+            )
+            and (
+                feature != FEATURE_MAXIMUM_OPENING
+                or maximum_opening_available
                 or feature in selected
             )
         }
@@ -665,7 +942,71 @@ class _SmartShadingWizardMixin:
         return {option: labels.get(option, option.replace("_", " ").title()) for option in options}
 
     def _choice(self, options: list[str], key: str, *, multiple: bool = False):
+        if (
+            key in {"sun_preset", "tilt_preset", "schedule_profile"}
+            and self.advanced_mode
+            and not multiple
+        ):
+            profile_labels = self._advanced_profile_labels(key)
+            if profile_labels:
+                return selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {
+                                "value": str(option),
+                                "label": profile_labels.get(
+                                    str(option), str(option)
+                                ),
+                            }
+                            for option in options
+                        ],
+                        mode="dropdown",
+                    )
+                )
         return _select(options, key, multiple=multiple)
+
+    def _advanced_profile_labels(self, key: str) -> dict[str, str]:
+        """Expose concrete preset values in Advanced choices, never in Easy."""
+        german = self._is_german()
+        base = SELECT_LABELS_DE if german else SELECT_LABELS_EN
+        if key == "sun_preset":
+            labels = dict(base[key])
+            for preset, values in SUN_PRESETS.items():
+                on_lux = int(values["sun_on_lux"])
+                off_lux = int(values["sun_off_lux"])
+                on_delay = values["sun_on_delay"]
+                off_delay = values["sun_off_delay"]
+                lux = f"{on_lux:,}/{off_lux:,}"
+                if german:
+                    lux = lux.replace(",", ".")
+                labels[preset] = (
+                    f"{labels[preset]} · {lux} lx · "
+                    f"{on_delay:g}/{off_delay:g} min"
+                )
+            return labels
+        if key == "tilt_preset":
+            labels = dict(base[key])
+            for preset, curve in TILT_CURVE_PRESETS.items():
+                values = " · ".join(
+                    f"{point['elevation']:g}°/{point['tilt']:g}%"
+                    for point in curve
+                )
+                labels[preset] = f"{labels[preset]} · {values}"
+            return labels
+        if key == "schedule_profile":
+            labels = dict(base[key])
+            labels[SCHEDULE_YEAR_ROUND] = (
+                "Ganzjährig · Januar–Dezember · Montag–Sonntag"
+                if german
+                else "All year · January–December · Monday–Sunday"
+            )
+            labels[SCHEDULE_SUMMER] = (
+                "Sommersaison · Mai–September · Montag–Sonntag"
+                if german
+                else "Summer season · May–September · Monday–Sunday"
+            )
+            return labels
+        return {}
 
     def _form_schema(
         self,
@@ -1046,6 +1387,187 @@ class _SmartShadingWizardMixin:
         }
         return result, errors
 
+    def _protected_zone_preview(
+        self, zone_values: dict[str, Any]
+    ) -> dict[str, str]:
+        """Return a customer-readable live calculation check for one zone."""
+        german = self._is_german()
+        sector = self.sector()
+        candidate = {
+            "id": str(zone_values.get("id") or "preview"),
+            **zone_values,
+        }
+        zone = ProtectedZone.from_config(
+            candidate, sector_id=str(sector.get("id") or "")
+        )
+        validation = validate_protected_zone(zone)
+        sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
+        azimuth = parse_numeric_value(
+            sun.attributes.get("azimuth") if sun else None
+        )
+        elevation = parse_numeric_value(
+            sun.attributes.get("elevation") if sun else None
+        )
+        start = parse_numeric_value(sector.get("azimuth_start"))
+        end = parse_numeric_value(sector.get("azimuth_end"))
+        minimum = parse_numeric_value(sector.get("elevation_min")) or 0.0
+        geometry_active = bool(
+            sun
+            and sun.state == "above_horizon"
+            and azimuth is not None
+            and elevation is not None
+            and start is not None
+            and end is not None
+            and azimuth_inside(azimuth, start, end)
+            and elevation >= minimum
+        )
+        source = sun_source_for_sector(sector, advanced=True)
+        confirmed = geometry_active
+        if source == "external":
+            entity_id = str(sector.get(CONF_SUN_PRESENCE_ENTITY) or "")
+            confirmed = bool(
+                geometry_active
+                and entity_id
+                and self.hass.states.is_state(entity_id, "on")
+            )
+        elif source == "lux":
+            entity_id = str(sector.get("lux_sensor") or "")
+            state = self.hass.states.get(entity_id) if entity_id else None
+            lux = parse_numeric_value(state.state if state else None)
+            threshold = max(
+                float(sector.get("sun_on_lux", 35000)),
+                float(sector.get("sun_off_lux", 30000)),
+            )
+            confirmed = bool(
+                geometry_active and lux is not None and lux >= threshold
+            )
+        facade = None
+        explicit_facade = parse_numeric_value(sector.get("facade_azimuth"))
+        if explicit_facade is not None:
+            facade = explicit_facade % 360.0
+        elif start is not None and end is not None:
+            facade = (start + ((end - start) % 360.0) / 2.0) % 360.0
+        geometry = SunGeometry(
+            elevation_degrees=elevation,
+            azimuth_degrees=azimuth,
+            facade_azimuth_degrees=facade,
+            window_lower_height_m=zone_values.get(
+                "window_sill_height_m", 0.0
+            ),
+            window_upper_height_m=float(
+                zone_values.get("window_sill_height_m", 0.0)
+            )
+            + float(zone_values.get("window_height_m", 0.0)),
+            direct_sun=confirmed,
+        )
+        evaluation = evaluate_protected_zone(
+            zone,
+            geometry,
+            sector_id=str(sector.get("id") or ""),
+            cover_entity=str(zone_values.get("cover_entity") or ""),
+        )
+
+        if validation.status is not ProtectedZoneStatus.VALID:
+            status = (
+                "Berechnung nicht möglich"
+                if german
+                else "Calculation is not possible"
+            )
+        elif evaluation.status is ProtectedZoneStatus.HIT:
+            status = (
+                "Berechnung möglich · Schutzzone wird aktuell getroffen"
+                if german
+                else "Calculation ready · protected zone is currently hit"
+            )
+        else:
+            status = (
+                "Berechnung möglich · aktuell kein direkter Treffer"
+                if german
+                else "Calculation ready · no direct hit right now"
+            )
+        target_parts: list[str] = []
+        if evaluation.target is not None:
+            if evaluation.target.position is not None:
+                target_parts.append(
+                    (
+                        "Position"
+                        if german
+                        else "Position"
+                    )
+                    + f" {evaluation.target.position:.0f} %"
+                )
+            if evaluation.target.tilt is not None:
+                target_parts.append(
+                    ("Lamelle" if german else "Tilt")
+                    + f" {evaluation.target.tilt:.0f} %"
+                )
+        target = (
+            " · ".join(target_parts)
+            if target_parts
+            else (
+                "Kein aktuelles Fahrziel; die Zone wird bei passendem Sonnenstand neu berechnet."
+                if german
+                else "No current movement target; the zone is recalculated when the sun reaches it."
+            )
+        )
+        sun_summary = (
+            (
+                f"Azimut {azimuth:.0f}° · Höhe {elevation:.0f}° · "
+                + (
+                    "direkte Sonne bestätigt"
+                    if confirmed
+                    else "keine bestätigte direkte Sonne"
+                )
+            )
+            if german and azimuth is not None and elevation is not None
+            else (
+                f"Azimuth {azimuth:.0f}° · elevation {elevation:.0f}° · "
+                + (
+                    "direct sun confirmed"
+                    if confirmed
+                    else "no confirmed direct sun"
+                )
+            )
+            if azimuth is not None and elevation is not None
+            else (
+                "Aktuelle Sonnenwerte nicht verfügbar"
+                if german
+                else "Current sun values are unavailable"
+            )
+        )
+        geometry_summary = (
+            (
+                "Fenster "
+                f"{float(zone_values['window_width_m']):.2f} × "
+                f"{float(zone_values['window_height_m']):.2f} m ab "
+                f"{float(zone_values['window_sill_height_m']):.2f} m · "
+                "Objekt "
+                f"{float(zone_values['object_distance_m']):.2f} m entfernt, "
+                f"{float(zone_values['object_width_m']):.2f} × "
+                f"{float(zone_values['object_height_m']):.2f} m"
+            )
+            if german
+            else (
+                "Window "
+                f"{float(zone_values['window_width_m']):.2f} × "
+                f"{float(zone_values['window_height_m']):.2f} m from "
+                f"{float(zone_values['window_sill_height_m']):.2f} m · "
+                "object "
+                f"{float(zone_values['object_distance_m']):.2f} m away, "
+                f"{float(zone_values['object_width_m']):.2f} × "
+                f"{float(zone_values['object_height_m']):.2f} m"
+            )
+        )
+        return {
+            **self._option_placeholders(),
+            "zone_name": str(zone_values.get("name") or ""),
+            "calculation_status": status,
+            "calculation_reason": str(evaluation.reason_code),
+            "calculated_target": target,
+            "current_sun": sun_summary,
+            "geometry_summary": geometry_summary,
+        }
+
     def all_cover_entities(self) -> set[str]:
         return {
             cover["entity"]
@@ -1066,6 +1588,54 @@ class _SmartShadingWizardMixin:
     def _venetian_only(self, room: dict[str, Any] | None = None) -> bool:
         profiles = self._room_profiles(room)
         return not profiles or profiles == {DEVICE_VENETIAN}
+
+    def _temperature_behavior_text(
+        self, room: dict[str, Any] | None = None
+    ) -> str:
+        """Explain the actual temperature stages for this room's profiles."""
+        profiles = self._room_profiles(room)
+        has_venetian = DEVICE_VENETIAN in profiles
+        has_other_profiles = bool(profiles - {DEVICE_VENETIAN})
+        if self._is_german():
+            if has_venetian and not has_other_profiles:
+                return (
+                    "Dieser Raum enthält nur horizontale Lamellen. Sie nutzen "
+                    "eine sonnenstandsabhängige adaptive Normalbeschattung und "
+                    "eine separate, stärkere Hitzeschutzstufe."
+                )
+            if has_venetian and has_other_profiles:
+                return (
+                    "Positionsbehänge wie Rollläden, Screens oder Vorhänge "
+                    "wechseln zwischen Komfortbeschattung, stärkerem "
+                    "Sonnenschutz und Hitzeschutz. Horizontale Lamellen fassen "
+                    "Komfort- und Sonnenschutz zur adaptiven Normalbeschattung "
+                    "zusammen und nutzen zusätzlich die stärkere "
+                    "Hitzeschutzstufe."
+                )
+            return (
+                "Die Behänge dieses Raums wechseln – soweit ihr Profil die "
+                "Positionen unterstützt – zwischen leichter "
+                "Komfortbeschattung, stärkerem Sonnenschutz und Hitzeschutz."
+            )
+        if has_venetian and not has_other_profiles:
+            return (
+                "This room contains only horizontal slats. They use one "
+                "sun-position-dependent adaptive normal shading stage and a "
+                "separate, stronger heat-protection stage."
+            )
+        if has_venetian and has_other_profiles:
+            return (
+                "Position-controlled covers such as rollers, screens or "
+                "curtains move between comfort shading, stronger solar "
+                "protection and heat protection. Horizontal slats combine "
+                "comfort and solar protection into adaptive normal shading "
+                "and add the stronger heat-protection stage."
+            )
+        return (
+            "The covers in this room move, where supported by their profile, "
+            "between light comfort shading, stronger solar protection and "
+            "heat protection."
+        )
 
     def _strip_easy_issue79_execution_fields(self) -> None:
         """Keep Advanced execution policies out of an Easy saved snapshot."""
@@ -1129,33 +1699,9 @@ class _SmartShadingWizardMixin:
     async def async_step_global_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            values = dict(user_input)
-            # The setup variant belongs to entry data and is intentionally not
-            # editable here.  Discarding a crafted/stale value is defense in
-            # depth for beta entries and cached browser forms.
-            values.pop(CONF_ADVANCED_MODE, None)
-            if not errors:
-                self._working.update(values)
-                self._working[CONF_ADVANCED_MODE] = self.advanced_mode
-                return await self.async_step_init()
-        fields: dict[Any, Any] = {
-            vol.Required(CONF_SUN_ENTITY): _entity("sun"),
-        }
-        suggested = dict(self._working)
-        return self.async_show_form(
-            step_id="global_settings",
-            data_schema=self._form_schema(
-                self.add_suggested_values_to_schema(
-                    vol.Schema(fields), _nonempty_suggestions(suggested)
-                ),
-                user_input,
-                errors,
-            ),
-            errors=errors,
-            description_placeholders={"card_resource": CARD_RESOURCE},
-        )
+        """Redirect stale forms after making Home Assistant Sun automatic."""
+        self._working[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY
+        return await self.async_step_init()
 
     async def async_step_diagnostics_settings(
         self, user_input: dict[str, Any] | None = None
@@ -1268,12 +1814,60 @@ class _SmartShadingWizardMixin:
         self._layer_id = None
         self._cover_index = None
         self._zone_id = None
+        if getattr(self, "_initial_setup", False) and self.advanced_mode:
+            menu_options: dict[str, str] = {}
+            for route in build_structure_routes(
+                self.room(), german=self._is_german()
+            ):
+                context = {
+                    key: route[key]
+                    for key in (
+                        "room_id",
+                        "sector_id",
+                        "layer_id",
+                        "cover_index",
+                        "cover_entity",
+                        "zone_id",
+                        "placement",
+                    )
+                    if key in route
+                }
+                self._add_option_route(
+                    menu_options,
+                    str(route["label"]),
+                    str(route["action"]),
+                    **context,
+                )
+            menu_options["complete_initial_structure"] = (
+                "Raumstruktur abschließen und Zusatzfunktionen auswählen"
+                if self._is_german()
+                else "Complete room structure and choose optional features"
+            )
+            return self.async_show_menu(
+                step_id="initial_structure_hub",
+                menu_options=menu_options,
+                description_placeholders=self._option_placeholders(),
+            )
         return self._room_object_menu(
             build_structure_routes(self.room(), german=self._is_german()),
             step_id="structure_hub",
             back_action="back_to_room",
             back_label="back_to_room",
         )
+
+    async def async_step_initial_structure_hub(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Keep the initial structure menu a valid Home Assistant flow step."""
+        return await self.async_step_structure_hub(user_input)
+
+    async def async_step_complete_initial_structure(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Enter optional features only after the customer finishes structure."""
+        if not getattr(self, "_initial_setup", False) or not self.advanced_mode:
+            return await self.async_step_room_hub()
+        return await self.async_step_choose_advanced_features()
 
     async def async_step_sector_hub(self, user_input=None) -> ConfigFlowResult:
         self._layer_id = None
@@ -1403,6 +1997,124 @@ class _SmartShadingWizardMixin:
         self._after_protected_zone_step = "complete_initial_feature"
         return await self.async_step_add_protected_zone()
 
+    def _maximum_opening_covers(self) -> list[dict[str, Any]]:
+        """Return stable context for every position-capable cover in a room."""
+        result: list[dict[str, Any]] = []
+        for sector in self.room().get("sectors", []):
+            for layer in sector.get("layers", []):
+                if not profile_supports_position(
+                    str(layer.get("profile") or "")
+                ):
+                    continue
+                for cover_index, cover in enumerate(layer.get("covers", [])):
+                    if not str(cover.get("entity") or "").strip():
+                        continue
+                    result.append(
+                        {
+                            "sector": sector,
+                            "layer": layer,
+                            "cover": cover,
+                            "cover_index": cover_index,
+                        }
+                    )
+        return result
+
+    async def async_step_initial_maximum_opening(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure the hard opening limit for each eligible cover."""
+        covers = self._maximum_opening_covers()
+        index = int(getattr(self, "_initial_maximum_cover_index", 0))
+        if not covers or index >= len(covers):
+            self._initial_maximum_cover_index = 0
+            self._cover_index = None
+            self._layer_id = None
+            self._sector_id = None
+            return await self._complete_initial_feature()
+        context = covers[index]
+        self._sector_id = str(context["sector"]["id"])
+        self._layer_id = str(context["layer"]["id"])
+        self._cover_index = int(context["cover_index"])
+        cover = context["cover"]
+        if user_input is not None:
+            cover["enforce_max_open_position"] = bool(
+                user_input.get("enforce_max_open_position", False)
+            )
+            cover["max_open_position"] = float(
+                user_input.get(
+                    "max_open_position",
+                    cover.get("max_open_position", 100.0),
+                )
+            )
+            self._initial_maximum_cover_index = index + 1
+            return await self.async_step_initial_maximum_opening()
+        return self.async_show_form(
+            step_id="initial_maximum_opening",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "enforce_max_open_position",
+                        default=cover.get(
+                            "enforce_max_open_position", False
+                        ),
+                    ): selector.BooleanSelector(),
+                    vol.Required(
+                        "max_open_position",
+                        default=cover.get("max_open_position", 100.0),
+                    ): _number(0, 100, 1, "%"),
+                }
+            ),
+            description_placeholders={
+                **self._feature_context_placeholders(
+                    FEATURE_MAXIMUM_OPENING
+                ),
+                **self._option_placeholders(),
+                "current": str(index + 1),
+                "count": str(len(covers)),
+            },
+        )
+
+    async def async_step_maximum_opening_hub(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """List every eligible cover under the selected room feature."""
+        routes: list[dict[str, Any]] = []
+        for context in self._maximum_opening_covers():
+            cover = context["cover"]
+            enabled = bool(cover.get("enforce_max_open_position", False))
+            limit = float(cover.get("max_open_position", 100.0))
+            state = (
+                f"{limit:g} %"
+                if enabled
+                else ("Aus" if self._is_german() else "Off")
+            )
+            routes.append(
+                {
+                    "label": (
+                        f"{cover.get('name') or cover.get('entity')} · {state}"
+                    ),
+                    "action": "manage_maximum_opening_cover",
+                    "room_id": self.room()["id"],
+                    "sector_id": context["sector"]["id"],
+                    "layer_id": context["layer"]["id"],
+                    "cover_index": context["cover_index"],
+                    "cover_entity": cover.get("entity"),
+                }
+            )
+        return self._room_object_menu(
+            routes,
+            step_id="maximum_opening_hub",
+            back_action="back_to_room",
+            back_label="back_to_room",
+        )
+
+    async def async_step_manage_maximum_opening_cover(
+        self, user_input=None
+    ) -> ConfigFlowResult:
+        """Edit one cover limit and return to the dedicated feature page."""
+        self._special_return_step = "maximum_opening_hub"
+        return await self.async_step_manage_cover_special(user_input)
+
     async def async_step_group_hub(self, user_input=None) -> ConfigFlowResult:
         self._cover_index = None
         return self._room_object_menu(
@@ -1442,7 +2154,6 @@ class _SmartShadingWizardMixin:
             step_id="cover_settings_hub",
             menu_options={
                 "manage_cover": labels["details"],
-                "manage_cover_special": labels["special"],
                 "back_to_group": labels["back"],
             },
         )
@@ -1608,13 +2319,13 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 17
+    VERSION = 20
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
-        sun_state = self.hass.states.get("sun.sun")
+        sun_state = self.hass.states.get(DEFAULT_SUN_ENTITY)
         if user_input is not None:
             if sun_state is None:
                 errors["base"] = "sun_missing"
@@ -1627,7 +2338,7 @@ class SmartShadingConfigFlow(
                 self._fixed_advanced_mode = advanced
                 self._working = {
                     CONF_HOUSE_NAME: user_input[CONF_HOUSE_NAME],
-                    CONF_SUN_ENTITY: "sun.sun",
+                    CONF_SUN_ENTITY: DEFAULT_SUN_ENTITY,
                     CONF_DIAGNOSTIC_LEVEL: "off",
                     CONF_ADVANCED_MODE: advanced,
                     CONF_EVALUATION_INTERVAL: DEFAULT_EVALUATION_INTERVAL,
@@ -1650,17 +2361,21 @@ class SmartShadingConfigFlow(
                 self._after_layer_profile_step = None
                 self._special_return_step = None
                 self._initial_special_cover_index = 0
+                self._initial_maximum_cover_index = 0
                 self._initial_function_layer_index = 0
                 self._initial_feature_index = 0
+                self._queued_feature_setup = None
                 self._night_just_enabled = False
                 self._automation_feature_scope = None
                 self._conditions_feature_scope = None
                 self._after_protected_zone_step = None
-                self._night_targets_next_step = "manage_pause"
                 self._pending_sector = None
                 self._pending_layer = None
+                self._option_routes = {}
                 self._initial_setup = True
-                return await self.async_step_global_settings()
+                if advanced:
+                    return await self.async_step_advanced_room_setup()
+                return await self.async_step_easy_room_setup()
         current_sun_state = "missing" if sun_state is None else sun_state.state
         return self.async_show_form(
             step_id="user",
@@ -1749,7 +2464,7 @@ class SmartShadingConfigFlow(
     async def async_step_room_setup(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the first-room form rendered after house settings."""
+        """Handle the first-room form rendered after the setup choice."""
         return await self._async_step_room_setup(user_input)
 
     async def async_step_init(
@@ -1763,7 +2478,7 @@ class SmartShadingConfigFlow(
         if not hasattr(self, "_option_routes"):
             self._option_routes = {}
         labels = self._menu(
-            ["add_room", "global_settings", "diagnostics_settings", "finish"]
+            ["add_room", "diagnostics_settings", "finish"]
         )
         menu_options: dict[str, str] = {"add_room": labels["add_room"]}
         for route in build_main_room_routes(self.rooms, german=self._is_german()):
@@ -1773,7 +2488,6 @@ class SmartShadingConfigFlow(
                 str(route["action"]),
                 room_id=route["room_id"],
             )
-        menu_options["global_settings"] = labels["global_settings"]
         if self.advanced_mode:
             menu_options["diagnostics_settings"] = labels[
                 "diagnostics_settings"
@@ -1839,11 +2553,6 @@ class SmartShadingConfigFlow(
             self, **kwargs
         )
 
-    async def async_step_initial_night_targets(self, user_input=None):
-        return await SmartShadingOptionsFlow.async_step_initial_night_targets(
-            self, user_input
-        )
-
     async def async_step_manage_pause(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_pause(self, user_input)
 
@@ -1900,6 +2609,11 @@ class SmartShadingConfigFlow(
 
     async def async_step_manage_protected_zone(self, user_input=None):
         return await SmartShadingOptionsFlow.async_step_manage_protected_zone(
+            self, user_input
+        )
+
+    async def async_step_confirm_protected_zone(self, user_input=None):
+        return await SmartShadingOptionsFlow.async_step_confirm_protected_zone(
             self, user_input
         )
 
@@ -2001,6 +2715,10 @@ class SmartShadingConfigFlow(
             self._pending_cover_return_step = None
             self._pending_cover_short_offset = 0
             if return_step:
+                if return_step == "group_hub":
+                    return await self._finish_structure_change(
+                        fallback=return_step
+                    )
                 return await getattr(self, f"async_step_{return_step}")()
             if getattr(self, "_initial_setup", False) and self.advanced_mode:
                 return await self.async_step_choose_advanced_features()
@@ -2283,6 +3001,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             )
             self._working.setdefault(CONF_ROOMS, [])
             self._working[CONF_ADVANCED_MODE] = self._fixed_advanced_mode
+            self._working[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY
             self._working.setdefault(
                 CONF_DIAGNOSTIC_LEVEL,
                 "events" if self._working.get(CONF_TEST_MODE, False) else "off",
@@ -2306,13 +3025,14 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._after_layer_profile_step = None
             self._special_return_step = None
             self._initial_special_cover_index = 0
+            self._initial_maximum_cover_index = 0
             self._initial_function_layer_index = 0
             self._initial_feature_index = 0
+            self._queued_feature_setup = None
             self._night_just_enabled = False
             self._automation_feature_scope = None
             self._conditions_feature_scope = None
             self._after_protected_zone_step = None
-            self._night_targets_next_step = "manage_pause"
             self._pending_sector = None
             self._pending_layer = None
             self._option_routes = {}
@@ -2320,7 +3040,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         labels = self._menu(
             [
                 "add_room",
-                "global_settings",
                 "diagnostics_settings",
                 "save_changes",
             ]
@@ -2335,7 +3054,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 str(route["action"]),
                 room_id=route["room_id"],
             )
-        menu_options["global_settings"] = labels["global_settings"]
         if self.advanced_mode:
             menu_options["diagnostics_settings"] = labels[
                 "diagnostics_settings"
@@ -2669,10 +3387,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                                 DEFAULT_SUNSET_OFFSET_MINUTES,
                             ),
                         ): _number(-120, 120, 5, "min"),
-                        vol.Required(
-                            "heat_outside_schedule",
-                            default=room.get("heat_outside_schedule", True),
-                        ): selector.BooleanSelector(),
                     }
                 )
             if configure_temperature and self._venetian_only(room):
@@ -2756,13 +3470,21 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 ),
                 {"collapsed": True},
             )
+        description_placeholders = self._feature_context_placeholders(
+            scope or FEATURE_SCHEDULE
+        )
+        description_placeholders["temperature_behavior"] = (
+            self._temperature_behavior_text(room)
+            if temperature_selected
+            else ""
+        )
         return self.async_show_form(
             step_id="manage_automation",
             data_schema=self._form_schema(
                 vol.Schema(sections), user_input, errors
             ),
             errors=errors,
-            description_placeholders=self._option_placeholders(),
+            description_placeholders=description_placeholders,
         )
 
     async def async_step_manage_night(
@@ -2800,14 +3522,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             if not errors:
                 room.update(values)
                 room["night_enabled"] = True
-                if getattr(self, "_initial_setup", False):
-                    self._initial_function_layer_index = 0
-                    self._night_targets_next_step = (
-                        "complete_initial_feature"
-                    )
-                    return await self.async_step_initial_night_targets()
                 self._night_just_enabled = False
-                return await self.async_step_room_hub()
+                return await self._finish_feature_step()
         night: dict[Any, Any] = {
             vol.Required("night_source", default=current_source): self._choice(
                 ["entity", "sun"], "night_source"
@@ -2840,7 +3556,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 vol.Schema(night), user_input, errors
             ),
             errors=errors,
-            description_placeholders=self._option_placeholders(),
+            description_placeholders=self._feature_context_placeholders(
+                FEATURE_NIGHT
+            ),
         )
 
     def _layers_with_function_targets(
@@ -2877,8 +3595,6 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         index = int(getattr(self, "_initial_function_layer_index", 0))
         if index >= len(layers):
             self._initial_function_layer_index = 0
-            if prefix == "night_":
-                self._night_targets_next_step = "manage_pause"
             return await getattr(self, f"async_step_{next_step}")()
         sector, layer, keys = layers[index]
         self._sector_id = str(sector["id"])
@@ -2907,20 +3623,9 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         return self.async_show_form(
             step_id=step_id,
             data_schema=vol.Schema(fields),
-            description_placeholders=self._option_placeholders(),
-        )
-
-    async def async_step_initial_night_targets(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Offer Night targets only after the customer enables Night."""
-        return await self._async_step_initial_function_targets(
-            prefix="night_",
-            step_id="initial_night_targets",
-            next_step=getattr(
-                self, "_night_targets_next_step", "manage_pause"
+            description_placeholders=self._feature_context_placeholders(
+                FEATURE_NIGHT if prefix == "night_" else FEATURE_SAFETY
             ),
-            user_input=user_input,
         )
 
     async def async_step_manage_pause(
@@ -3168,7 +3873,13 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 vol.Schema(fields), user_input, errors
             ),
             errors=errors,
-            description_placeholders=self._option_placeholders(),
+            description_placeholders=self._feature_context_placeholders(
+                scope or (
+                    FEATURE_SAFETY
+                    if configure_safety
+                    else FEATURE_CONDITIONS
+                )
+            ),
         )
 
     async def async_step_initial_safety_targets(
@@ -3744,20 +4455,24 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             zone_values, errors = self._validated_protected_zone_values(values)
             if not errors and zone_values is not None:
                 zone_values["id"] = _new_id(zone_values["name"])
-                self.protected_zones().append(zone_values)
-                self._zone_id = str(zone_values["id"])
-                if getattr(self, "_after_protected_zone_step", None):
-                    return await self._go_to_saved_step(
-                        "_after_protected_zone_step",
-                        fallback="protected_zones_hub",
-                    )
-                return await self.async_step_protected_zones_hub()
+                self._pending_protected_zone = {
+                    "action": "add",
+                    "values": zone_values,
+                }
+                return await self.async_step_confirm_protected_zone()
+        pending = getattr(self, "_pending_protected_zone", None)
+        seed = (
+            dict(pending.get("values", {}))
+            if isinstance(pending, dict)
+            and pending.get("action") == "add"
+            else {}
+        )
         return self.async_show_form(
             step_id="add_protected_zone",
             data_schema=self._form_schema(
                 vol.Schema(
                     self._protected_zone_form_sections(
-                        {}, include_maintenance=False
+                        seed, include_maintenance=False
                     )
                 ),
                 user_input,
@@ -3777,6 +4492,14 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             zone = self.protected_zone()
         except StopIteration:
             return await self.async_step_protected_zones_hub()
+        pending = getattr(self, "_pending_protected_zone", None)
+        form_zone = (
+            dict(pending.get("values", {}))
+            if isinstance(pending, dict)
+            and pending.get("action") == "manage"
+            and isinstance(pending.get("values"), dict)
+            else zone
+        )
         errors: dict[str, str] = {}
         if user_input is not None:
             values = _flatten_sections(user_input)
@@ -3785,15 +4508,17 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             zone_values, errors = self._validated_protected_zone_values(values)
             if not errors and zone_values is not None:
                 zone_id = str(zone["id"])
-                zone.clear()
-                zone.update({"id": zone_id, **zone_values})
-                return await self.async_step_protected_zones_hub()
+                self._pending_protected_zone = {
+                    "action": "manage",
+                    "values": {"id": zone_id, **zone_values},
+                }
+                return await self.async_step_confirm_protected_zone()
         return self.async_show_form(
             step_id="manage_protected_zone",
             data_schema=self._form_schema(
                 vol.Schema(
                     self._protected_zone_form_sections(
-                        zone, include_maintenance=True
+                        form_zone, include_maintenance=True
                     )
                 ),
                 user_input,
@@ -3801,6 +4526,56 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             ),
             errors=errors,
             description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_confirm_protected_zone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show a calculation check before a protected zone is persisted."""
+        pending = getattr(self, "_pending_protected_zone", None)
+        if not isinstance(pending, dict) or not isinstance(
+            pending.get("values"), dict
+        ):
+            return await self.async_step_protected_zones_hub()
+        values = dict(pending["values"])
+        action = str(pending.get("action") or "")
+        if user_input is not None:
+            if not user_input.get("confirm_protected_zone", True):
+                return (
+                    await self.async_step_manage_protected_zone()
+                    if action == "manage"
+                    else await self.async_step_add_protected_zone()
+                )
+            if action == "manage":
+                try:
+                    zone = self.protected_zone()
+                except StopIteration:
+                    self._pending_protected_zone = None
+                    return await self.async_step_protected_zones_hub()
+                zone.clear()
+                zone.update(values)
+            else:
+                self.protected_zones().append(values)
+                self._zone_id = str(values["id"])
+            self._pending_protected_zone = None
+            if action == "add" and getattr(
+                self, "_after_protected_zone_step", None
+            ):
+                return await self._go_to_saved_step(
+                    "_after_protected_zone_step",
+                    fallback="protected_zones_hub",
+                )
+            return await self.async_step_protected_zones_hub()
+        return self.async_show_form(
+            step_id="confirm_protected_zone",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "confirm_protected_zone", default=True
+                    ): selector.BooleanSelector()
+                }
+            ),
+            description_placeholders=self._protected_zone_preview(values),
         )
 
     async def async_step_delete_protected_zone(
@@ -3832,9 +4607,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                         "confirm_delete_protected_zone", default=False
                     ): selector.BooleanSelector()
                 }
-            ),
-            description_placeholders=self._option_placeholders(),
-        )
+                ),
+                description_placeholders=self._feature_context_placeholders(
+                    FEATURE_GLARE_PROTECTION
+                ),
+            )
 
     async def async_step_add_sector_flat(
         self, user_input: dict[str, Any] | None = None
@@ -3851,6 +4628,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             ):
                 errors["base"] = "option_not_available"
             else:
+                self._remember_optional_feature_availability()
                 sector = self._direction_defaults(direction)
                 sector.update(
                     {
@@ -4014,12 +4792,12 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         self._pending_layer = None
         if getattr(self, "_initial_setup", False):
             if self.advanced_mode:
-                # The room structure is complete.  Do not march every new
-                # customer through every Advanced subsystem; let them choose
-                # the functions that are useful before exposing any setup.
-                return await self.async_step_choose_advanced_features()
+                # One complete sector does not imply a complete room. Let the
+                # customer add every sector, group and cover before optional
+                # features are selected for that full structure.
+                return await self.async_step_structure_hub()
             return await self.async_step_after_room()
-        return await self.async_step_sector_hub()
+        return await self._finish_structure_change(fallback="sector_hub")
 
     async def async_step_manage_layer(
         self, user_input: dict[str, Any] | None = None
@@ -4180,7 +4958,10 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 for key in profile_target_keys(
                     profile,
                     indoor_temperature=has_indoor_temperature,
-                    night=bool(self.room().get("night_enabled", False)),
+                    # Night targets belong to the physical group profile,
+                    # regardless of whether the room-level Night feature is
+                    # already enabled.
+                    night=True,
                     safety=bool(self.room().get("safety_blockers")),
                 ):
                     if key in values:
@@ -4259,7 +5040,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 for key in profile_target_keys(
                     profile,
                     indoor_temperature=has_indoor_temperature,
-                    night=bool(self.room().get("night_enabled", False)),
+                    night=True,
                     safety=bool(self.room().get("safety_blockers")),
                 )
             }
@@ -4287,6 +5068,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         errors: dict[str, str] = {}
         if user_input is not None:
             values = _flatten_sections(user_input)
+            self._remember_optional_feature_availability()
             profile = str(values.get("profile", DEVICE_VENETIAN))
             default_name = (
                 "Behanggruppe" if self._is_german() else "Cover group"
@@ -4365,7 +5147,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             return await self.async_step_add_group_covers()
         self.sector().setdefault("layers", []).append(layer)
         self._pending_layer = None
-        return await self.async_step_group_hub()
+        return await self._finish_structure_change(fallback="group_hub")
 
     async def async_step_manage_cover(
         self, user_input: dict[str, Any] | None = None
@@ -4471,7 +5253,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         """Configure opt-in cover behavior that may override manual movement."""
         cover = self.layer().get("covers", [])[self._cover_index]
         profile = str(self.layer().get("profile", DEVICE_VENETIAN))
-        if not self.advanced_mode or not profile_supports_position(profile):
+        if (
+            not self.advanced_mode
+            or not self._feature_enabled(FEATURE_MAXIMUM_OPENING)
+            or not profile_supports_position(profile)
+        ):
             return await self._go_to_saved_step(
                 "_special_return_step", fallback="cover_settings_hub"
             )
@@ -4483,9 +5269,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 user_input.get("enforce_max_open_position", False)
             )
             cover["enforce_max_open_position"] = enabled
-            if enabled and not current_enabled:
-                return await self.async_step_manage_cover_special()
-            if enabled and "max_open_position" in user_input:
+            if "max_open_position" in user_input:
                 cover["max_open_position"] = float(
                     user_input["max_open_position"]
                 )
@@ -4495,15 +5279,12 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         fields: dict[Any, Any] = {
             vol.Required(
                 "enforce_max_open_position", default=current_enabled
-            ): selector.BooleanSelector()
+            ): selector.BooleanSelector(),
+            vol.Required(
+                "max_open_position",
+                default=cover.get("max_open_position", 100.0),
+            ): _number(0, 100, 1, "%"),
         }
-        if current_enabled:
-            fields[
-                vol.Required(
-                    "max_open_position",
-                    default=cover.get("max_open_position", 100.0),
-                )
-            ] = _number(0, 100, 1, "%")
         return self.async_show_form(
             step_id="manage_cover_special",
             data_schema=vol.Schema(fields),
@@ -4544,6 +5325,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             elif not entities:
                 errors["base"] = "select_at_least_one"
             else:
+                self._remember_optional_feature_availability()
                 existing_count = len(self.layer().get("covers", []))
                 self._pending_cover_entities = entities
                 self._pending_cover_index = 0

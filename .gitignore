@@ -1,10 +1,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.venv/
 .coverage
 htmlcov/
 dist/
 artifacts/
+.dev/
+.test-runtime/
 e2e/ui/node_modules/
 e2e/ui/test-results/
 e2e/ui/playwright-report/

@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Choose setup type",
-        "description": "Smart Shading moves covers only when the sun reaches their facade and the selected sun source confirms it. Easy uses a short setup with safe profile defaults. Advanced adds schedules, temperature stages, Night, pauses, safety and individual targets. Safety functions and manual control always take priority.",
+        "description": "Smart Shading controls each cover only when the sun reaches its facade and the selected sun source confirms active sunlight. Choose Easy for a quick setup with tested, safe defaults: select the covers, facade directions and sun source, and Smart Shading handles the technical settings automatically. Choose Advanced for individual control with schedules, temperature-based heat protection, Night positions, glare protection, pauses, safety sensors, protected zones, custom targets and expert execution settings. In both modes, safety functions and manual cover control always take priority over automatic shading.",
         "data": {
           "house_name": "House or area name",
           "setup_type": "Setup type"
@@ -88,7 +88,7 @@
       },
       "choose_advanced_features": {
         "title": "Choose optional features",
-        "description": "Base shading is ready. Every selection activates that feature for this room immediately, then the wizard opens its settings one after another. There is no second enable switch. Unselected features stay hidden.",
+        "description": "Choose the additional features for this room. The wizard will then guide you through every selected feature in order. A feature is fully configured after its required values are saved; it can be changed or deselected later.",
         "data": {
           "schedule": "Use a schedule",
           "temperature": "Use temperature and heat protection",
@@ -96,6 +96,7 @@
           "safety": "Use wind, frost or window safety",
           "conditions": "Use weather or occupancy sensors",
           "glare_protection": "Use glare protection for an area or object",
+          "maximum_opening": "Use a maximum opening limit",
           "test_tools": "Show test and day preview tools",
           "expert_execution": "Show expert command settings"
         },
@@ -106,21 +107,39 @@
           "safety": "Gives wind, frost or window signals priority over comfort. When danger is reported, Smart Shading blocks movement or moves to configured safe targets.",
           "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
           "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
-          "test_tools": "Shows preview and calculation tools for checking decisions without sending a movement command.",
+          "maximum_opening": "Keeps selected position-controlled covers below a hard opening limit, including after an external KNX or wall-switch movement. Feedback is checked immediately and every 30 seconds; Safety keeps priority.",
+          "test_tools": "Creates preview and diagnostic tools after saving and reloading. It has no separate setup step, and test runs never move covers.",
           "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
+        }
+      },
+      "initial_structure_hub": {
+        "title": "Complete the structure for {room_name}",
+        "description": "Set up every facade, cover group and cover belonging to this room before choosing optional features. You can open an existing item or add another one. Continue only when the room structure is complete.",
+        "menu_options": {
+          "complete_initial_structure": "Room structure is complete – choose optional features"
+        }
+      },
+      "new_optional_feature_available": {
+        "title": "New optional feature for {room_name}",
+        "description": "The newly added cover makes this optional feature available: {new_features}. You can configure it now or continue with the room structure.",
+        "data": {
+          "open_optional_features": "Open optional features now"
+        },
+        "data_description": {
+          "open_optional_features": "On opens the feature selection for this room. Off returns to the structure you were editing."
         }
       },
       "advanced_features_hub": {
         "title": "Features and protection",
-        "description": "Every selected feature has its own settings area. Selecting it already activates the feature; use this menu later only to adjust its behaviour."
+        "description": "Open the feature whose setup you want to inspect or change. The room and feature name remain visible on every following page."
       },
       "glare_protection_hub": {
         "title": "Glare protection",
         "description": "Open the facade whose protected areas should be configured or changed."
       },
       "initial_glare_protection": {
-        "title": "Choose a facade for glare protection",
-        "description": "Choose the facade containing the window in front of the first area you want to protect.",
+        "title": "{feature_context} · Glare protection · Choose facade",
+        "description": "{feature_description} Choose the facade containing the window in front of the first protected area. {next_feature}",
         "data": {
           "sector_id": "Facade"
         },
@@ -222,7 +241,7 @@
       },
       "init": {
         "title": "Manage Smart Shading",
-        "description": "Add or open a room, adjust house settings, or review the setup.",
+        "description": "Add or open a room, configure optional functions, or review the setup.",
         "menu_options": {
           "add_room": "Add room",
           "global_settings": "House settings",
@@ -340,12 +359,12 @@
         }
       },
       "manage_automation": {
-        "title": "Automation",
-        "description": "Only the previously selected feature appears here. It is already active; saving applies its behaviour directly.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} {next_feature}",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "The schedule prevents automatic comfort movements outside the times when the room is in use. Safety functions remain active at all times.",
+            "description": "The general shading schedule enables every automatic daytime function: adaptive shading, Comfort, Solar, glare protection and heat protection. Night Mode uses its own independent period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -357,40 +376,38 @@
               "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
-              "schedule_enabled": "Optional. When off, normal shading is available all year and all day.",
+              "schedule_enabled": "When off, every automatic daytime function is available all year and all day. Night remains independent.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies."
+              "outside_schedule_behavior": "Outside the permitted period, covers open or hold their current position. Independent Night Mode and safety constraints keep priority."
             }
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Room temperature complements the sun calculation: Comfort reacts earlier, while heat protection shades more strongly when the room is actually overheating.",
+            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
-              "comfort_temperature": "Comfort from",
-              "solar_temperature": "Solar from",
+              "comfort_temperature": "Light comfort shading from",
+              "solar_temperature": "Strong solar protection from",
               "heat_temperature": "Heat protection from",
               "evening_release_time": "Release no later than",
               "sunset_offset_minutes": "Release relative to sunset",
-              "heat_outside_schedule": "Keep heat protection active outside the schedule",
-              "reopen_temperature": "Reopen below"
+              "reopen_temperature": "Reset normal shading below"
             },
             "data_description": {
               "indoor_temperature": "Select the sensor that provides the room temperature. All temperature stages are configured in this same form.",
               "normal_shading_temperature": "Normal shading starts above this indoor temperature.",
-              "comfort_temperature": "The Comfort stage starts above this indoor temperature.",
-              "solar_temperature": "The stronger solar-protection stage starts above this indoor temperature.",
-              "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
-              "evening_release_time": "Active heat protection ends no later than this time.",
-              "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
-              "heat_outside_schedule": "Keeps overheating protection available even while the normal schedule does not allow comfort shading.",
-              "reopen_temperature": "Below this value, normal shading may reopen."
+              "comfort_temperature": "Above this temperature, the light Comfort target applies when the cover profile supports a separate Comfort stage.",
+              "solar_temperature": "Above this temperature, the stronger Solar target applies when the cover profile supports distinct stages.",
+              "heat_temperature": "Above this value, heat protection may start once per day while the general shading schedule is active.",
+              "evening_release_time": "The daily heat cycle ends no later than this time. An earlier schedule end or sunset release ends it first.",
+              "sunset_offset_minutes": "Negative values release before sunset and positive values afterwards. The earliest release always wins.",
+              "reopen_temperature": "Applies only to normal temperature-based shading, not heat protection. Below this value the normal shading request ends; while direct sun remains, the current position is held instead of forcing an immediate opening."
             }
           },
           "execution_settings": {
@@ -420,8 +437,8 @@
         }
       },
       "manage_night": {
-        "title": "Night function",
-        "description": "The Night function uses dedicated targets for privacy and darkness. Choose an existing time source or calculate the period from sunset and sunrise.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} Choose a dedicated time source or sunset-to-sunrise offsets. Night positions belong to each cover group's profile settings. {next_feature}",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -441,21 +458,9 @@
           "night_evening_transition_minutes": "Smooth handover before the night function takes control."
         }
       },
-      "initial_night_targets": {
-        "title": "Night targets · {group_name}",
-        "description": "Set the night position for this cover group.",
-        "data": {
-          "night_position": "Night position",
-          "night_tilt": "Night slat position"
-        },
-        "data_description": {
-          "night_position": "Position used while the Night function is active.",
-          "night_tilt": "Slat position used while the Night function is active."
-        }
-      },
       "manage_pause": {
-        "title": "Pause and manual control",
-        "description": "Choose when a pause ends and whether external movement starts one.",
+        "title": "{room_name} · General control · Pause and manual control",
+        "description": "This area is not a selected additional feature. It controls when automatic functions resume after a manual intervention.",
         "data": {
           "default_pause_mode": "Default pause action",
           "pause_sun_offset_minutes": "Sun-event offset",
@@ -467,13 +472,13 @@
           "default_pause_mode": "Release at the selected sun event, after a duration, or only manually.",
           "pause_sun_offset_minutes": "Negative values release before the selected sun event.",
           "pause_duration_hours": "Used only for a timed pause.",
-          "heat_during_pause": "Allows heat protection while normal automation remains paused.",
+          "heat_during_pause": "Allows heat protection during a pause, but still only inside the general shading schedule.",
           "external_movement_detection": "Starts a pause after confirmed position or slat movement outside Smart Shading."
         }
       },
       "manage_conditions": {
-        "title": "Selected protection feature",
-        "description": "Configure the inputs for the feature currently being edited. It is already active; optional empty sources are ignored.",
+        "title": "{room_name} · {feature_name}",
+        "description": "{feature_context}. {feature_description} {next_feature}",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -481,7 +486,7 @@
           "cloud_cover_sensor": "Cloud cover sensor",
           "cloud_cover_maximum": "Maximum cloud cover",
           "weather_permission": "Weather permission",
-          "glare_sensor": "Glare sensor",
+          "glare_sensor": "External glare request",
           "occupancy_sensor": "Occupancy sensor",
           "weather_logic": "Combine weather inputs",
           "heat_ignores_weather": "Heat ignores normal weather conditions",
@@ -497,10 +502,10 @@
           "cloud_cover_sensor": "Optional cloud percentage sensor.",
           "cloud_cover_maximum": "Normal shading requires cloud cover at or below this value.",
           "weather_permission": "Optional binary permission; on allows normal shading.",
-          "glare_sensor": "Optional binary glare request.",
+          "glare_sensor": "Optional external on/off request for general Comfort shading. It does not replace geometrically measured glare-protection zones.",
           "occupancy_sensor": "Optional room occupancy input.",
           "weather_logic": "Require all configured weather inputs or any one of them.",
-          "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
+          "heat_ignores_weather": "Lets heat protection start when normal weather conditions fail, but never outside the general shading schedule.",
           "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
           "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
           "safety_behavior": "Move to the configured safe target or only block normal automatic commands while danger is active.",
@@ -510,8 +515,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "Safety targets · {group_name}",
-        "description": "Set the safety position for this cover group.",
+        "title": "{feature_context} · {feature_name} · Target position · {group_name}",
+        "description": "{feature_description} Set the safety position for this cover group now. {next_feature}",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -600,7 +605,7 @@
         },
         "data_description": {
           "lux_sensor": "Outdoor Lux sensor or directional weather-station channel for this facade. Indoor sensors are unsuitable for this purpose.",
-          "sun_preset": "Balanced uses 35,000/30,000 lx with 10/30 minute delays. The other profiles react earlier or only to strong sunlight.",
+          "sun_preset": "Select how readily this facade should confirm direct sunlight.",
           "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
         }
       },
@@ -635,13 +640,13 @@
         }
       },
       "protected_zones_hub": {
-        "title": "{sector_name} · Glare protection",
+        "title": "Glare protection",
         "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
         "menu_options": {}
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
-        "description": "Choose one physical cover, then describe its window and the object that should stay out of direct sun. Smart Shading continuously calculates the least restrictive protective position.",
+        "description": "Measure in three steps: choose the cover for this window, measure the clear window opening, then measure the protected area on the table or object. Use the shortest distance from the window plane. Before saving, Smart Shading validates every measurement and uses the current sun position to show whether a calculation is possible.",
         "sections": {
           "protected_zone_identity": {
             "name": "Protected object and cover",
@@ -690,6 +695,7 @@
           },
           "protected_zone_window": {
             "name": "Window dimensions",
+            "description": "Measure the clear opening through which sunlight actually enters: width, height and lower edge above the finished floor.",
             "data": {
               "window_width_m": "Window width",
               "window_height_m": "Window height",
@@ -707,7 +713,7 @@
           },
           "protected_zone_object": {
             "name": "Protected object relative to the window",
-            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. Curtains are assumed to close symmetrically and vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
             "data": {
               "object_distance_m": "Distance from window to object",
               "object_center_height_m": "Object centre above floor",
@@ -725,9 +731,35 @@
           }
         }
       },
+      "confirm_protected_zone": {
+        "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
+        "description": "{calculation_status}\n\n{geometry_summary}\n\nCurrent sun position: {current_sun}\n\nCurrently calculated target: {calculated_target}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "data": {
+          "confirm_protected_zone": "Save protected zone"
+        },
+        "data_description": {
+          "confirm_protected_zone": "Off saves nothing yet and returns to measurement."
+        }
+      },
+      "initial_maximum_opening": {
+        "title": "{feature_context} · Maximum opening · {cover_name}",
+        "description": "{feature_description} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature}",
+        "data": {
+          "enforce_max_open_position": "Enforce a maximum opening",
+          "max_open_position": "Maximum opening"
+        },
+        "data_description": {
+          "enforce_max_open_position": "Checks external movement feedback immediately and again every 30 seconds. Safety movement keeps priority.",
+          "max_open_position": "If the reported position exceeds this value by more than the tight tolerance, Smart Shading returns the cover to this limit."
+        }
+      },
+      "maximum_opening_hub": {
+        "title": "Maximum opening limits",
+        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately."
+      },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
-        "description": "Edit the window and protected-object measurements for this one physical cover. Its position is always calculated automatically from the sun.",
+        "description": "Edit the measurement for this individual cover. Smart Shading validates the window and protected object again and shows the current calculation before saving.",
         "sections": {
           "protected_zone_identity": {
             "name": "Protected object and cover",
@@ -961,12 +993,12 @@
         }
       },
       "manage_layer_profile": {
-        "title": "Profile settings",
-        "description": "Configure movement and target positions for this cover group.",
+        "title": "{room_name} · {group_name} · Profile settings",
+        "description": "Configure movement and all targets owned by this cover group. Its Night position is used only when the room's Night feature is active.",
         "sections": {
           "profile_behavior": {
             "name": "Movement profile",
-            "description": "Command tolerances default to 5%.",
+            "description": "Command tolerances prevent repeated movement commands for small feedback deviations.",
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
@@ -1027,23 +1059,22 @@
       },
       "cover_settings_hub": {
         "title": "Cover settings",
-        "description": "Normal settings and optional special functions are kept separate.",
+        "description": "Open this cover's identity, automation and safety settings. Maximum opening limits are configured through their own optional room feature.",
         "menu_options": {
           "manage_cover": "Cover settings",
-          "manage_cover_special": "Special functions",
           "back_to_group": "Back to cover group"
         }
       },
       "manage_cover_special": {
-        "title": "Special functions",
-        "description": "Hard maximum opening is optional. When enabled, Smart Shading corrects only a detected violation; safety movement keeps priority.",
+        "title": "Maximum opening · {cover_name}",
+        "description": "This separate protection feature applies a hard opening limit to the selected cover. The normal target and opening limit remain separate; Safety movement keeps priority.",
         "data": {
           "enforce_max_open_position": "Actively enforce maximum opening",
           "max_open_position": "Maximum opening"
         },
         "data_description": {
-          "enforce_max_open_position": "Disabled by default. Enable only when this cover must never remain above the configured normal maximum.",
-          "max_open_position": "A reported opening above this value is corrected once, with cooldown protection against repeated commands."
+          "enforce_max_open_position": "Checks external KNX or wall-switch movements immediately and every 30 seconds. A cooldown prevents command loops.",
+          "max_open_position": "A reported position above this limit and outside the tight tolerance is returned to the limit."
         }
       },
       "manage_cover": {
@@ -1070,7 +1101,6 @@
               "window_safe_state": "Safe window state",
               "window_policy": "Behavior while unsafe",
               "window_returns_to_automation": "Return to automation after closing",
-              "max_open_position": "Maximum normal open position",
               "invert_position": "Invert cover position",
               "invert_tilt": "Invert slat position",
               "feedback_quality": "Position feedback quality",
@@ -1083,7 +1113,6 @@
               "window_safe_state": "The contact state in which normal movement is allowed.",
               "window_policy": "Block every command or only commands that close while unsafe.",
               "window_returns_to_automation": "Window-triggered safety and return movements do not create a manual pause.",
-              "max_open_position": "Limits normal opening, while an unsafe-window target may still open further.",
               "invert_position": "Use only when this entity exposes the opposite Home Assistant height scale.",
               "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed.",
               "feedback_quality": "Choose how reliably this cover reports intermediate or final positions.",
@@ -1129,8 +1158,8 @@
       "elevation_order": "The four sun elevations must be strictly increasing.",
       "cover_already_assigned": "At least one selected cover is already assigned within this house.",
       "select_at_least_one": "Select at least one item.",
-      "sun_missing": "The `sun.sun` entity is missing. Check location and time zone under Settings → System → General and make sure the Sun integration is loaded.",
-      "sun_unavailable": "The `sun.sun` entity is currently unavailable. Smart Shading needs a valid sun position before setup can continue.",
+      "sun_missing": "The Home Assistant sun entity `sun.sun` was not found. Enable or initialize the native Sun integration under Settings → Devices & services, then start setup again.",
+      "sun_unavailable": "The Home Assistant sun entity `sun.sun` is currently unavailable. Under Settings → Devices & services, verify that the native Sun integration is initialized and loaded.",
       "normal_temperature_order": "Required order: reopen < normal shading < heat protection.",
       "cannot_delete_last_sector": "A room must keep at least one sun sector. Add another sector first.",
       "cannot_delete_last_layer": "A sector must keep at least one cover group. Add another group first.",
@@ -1166,7 +1195,7 @@
     "step": {
       "choose_advanced_features": {
         "title": "Choose optional features",
-        "description": "Base shading is ready. Every selection activates that feature for this room immediately, then the wizard opens its settings one after another. There is no second enable switch. Unselected features stay hidden.",
+        "description": "Choose the additional features for this room. The wizard will then guide you through every selected feature in order. A feature is fully configured after its required values are saved; it can be changed or deselected later.",
         "data": {
           "schedule": "Use a schedule",
           "temperature": "Use temperature and heat protection",
@@ -1174,6 +1203,7 @@
           "safety": "Use wind, frost or window safety",
           "conditions": "Use weather or occupancy sensors",
           "glare_protection": "Use glare protection for an area or object",
+          "maximum_opening": "Use a maximum opening limit",
           "test_tools": "Show test and day preview tools",
           "expert_execution": "Show expert command settings"
         },
@@ -1184,21 +1214,39 @@
           "safety": "Gives wind, frost or window signals priority over comfort. When danger is reported, Smart Shading blocks movement or moves to configured safe targets.",
           "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
           "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
-          "test_tools": "Shows preview and calculation tools for checking decisions without sending a movement command.",
+          "maximum_opening": "Keeps selected position-controlled covers below a hard opening limit, including after an external KNX or wall-switch movement. Feedback is checked immediately and every 30 seconds; Safety keeps priority.",
+          "test_tools": "Creates preview and diagnostic tools after saving and reloading. It has no separate setup step, and test runs never move covers.",
           "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
+        }
+      },
+      "initial_structure_hub": {
+        "title": "Complete the structure for {room_name}",
+        "description": "Set up every facade, cover group and cover belonging to this room before choosing optional features. You can open an existing item or add another one. Continue only when the room structure is complete.",
+        "menu_options": {
+          "complete_initial_structure": "Room structure is complete – choose optional features"
+        }
+      },
+      "new_optional_feature_available": {
+        "title": "New optional feature for {room_name}",
+        "description": "The newly added cover makes this optional feature available: {new_features}. You can configure it now or continue with the room structure.",
+        "data": {
+          "open_optional_features": "Open optional features now"
+        },
+        "data_description": {
+          "open_optional_features": "On opens the feature selection for this room. Off returns to the structure you were editing."
         }
       },
       "advanced_features_hub": {
         "title": "Features and protection",
-        "description": "Every selected feature has its own settings area. Selecting it already activates the feature; use this menu later only to adjust its behaviour."
+        "description": "Open the feature whose setup you want to inspect or change. The room and feature name remain visible on every following page."
       },
       "glare_protection_hub": {
         "title": "Glare protection",
         "description": "Open the facade whose protected areas should be configured or changed."
       },
       "initial_glare_protection": {
-        "title": "Choose a facade for glare protection",
-        "description": "Choose the facade containing the window in front of the first area you want to protect.",
+        "title": "{feature_context} · Glare protection · Choose facade",
+        "description": "{feature_description} Choose the facade containing the window in front of the first protected area. {next_feature}",
         "data": {
           "sector_id": "Facade"
         },
@@ -1206,21 +1254,9 @@
           "sector_id": "Next you will enter the window dimensions and the position of the protected area."
         }
       },
-      "initial_night_targets": {
-        "title": "Night targets · {group_name}",
-        "description": "Set the night position for this cover group.",
-        "data": {
-          "night_position": "Night position",
-          "night_tilt": "Night slat position"
-        },
-        "data_description": {
-          "night_position": "Position used while the Night function is active.",
-          "night_tilt": "Slat position used while the Night function is active."
-        }
-      },
       "initial_safety_targets": {
-        "title": "Safety targets · {group_name}",
-        "description": "Set the safety position for this cover group.",
+        "title": "{feature_context} · {feature_name} · Target position · {group_name}",
+        "description": "{feature_description} Set the safety position for this cover group now. {next_feature}",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -1514,12 +1550,12 @@
         }
       },
       "manage_layer_profile": {
-        "title": "Profile settings",
-        "description": "Configure movement and target positions for this cover group.",
+        "title": "{room_name} · {group_name} · Profile settings",
+        "description": "Configure movement and all targets owned by this cover group. Its Night position is used only when the room's Night feature is active.",
         "sections": {
           "profile_behavior": {
             "name": "Movement profile",
-            "description": "Command tolerances default to 5%.",
+            "description": "Command tolerances prevent repeated movement commands for small feedback deviations.",
             "data": {
               "position_tolerance": "Cover position tolerance",
               "tilt_preset": "Slat profile",
@@ -1568,23 +1604,22 @@
       },
       "cover_settings_hub": {
         "title": "Cover settings",
-        "description": "Normal settings and optional special functions are kept separate.",
+        "description": "Open this cover's identity, automation and safety settings. Maximum opening limits are configured through their own optional room feature.",
         "menu_options": {
           "manage_cover": "Cover settings",
-          "manage_cover_special": "Special functions",
           "back_to_group": "Back to cover group"
         }
       },
       "manage_cover_special": {
-        "title": "Special functions",
-        "description": "Hard maximum opening is optional. Smart Shading corrects only a detected violation; safety movement keeps priority.",
+        "title": "Maximum opening · {cover_name}",
+        "description": "This separate protection feature applies a hard opening limit to the selected cover. The normal target and opening limit remain separate; Safety movement keeps priority.",
         "data": {
           "enforce_max_open_position": "Actively enforce maximum opening",
           "max_open_position": "Maximum opening"
         },
         "data_description": {
-          "enforce_max_open_position": "Disabled by default. Enable only when this cover must never remain above the configured normal maximum.",
-          "max_open_position": "A reported opening above this value is corrected once, with cooldown protection against repeated commands."
+          "enforce_max_open_position": "Checks external KNX or wall-switch movements immediately and every 30 seconds. A cooldown prevents command loops.",
+          "max_open_position": "A reported position above this limit and outside the tight tolerance is returned to the limit."
         }
       },
       "manage_cover": {
@@ -1611,7 +1646,6 @@
               "window_safe_state": "Safe window state",
               "window_policy": "Behavior while unsafe",
               "window_returns_to_automation": "Return to automation after closing",
-              "max_open_position": "Maximum normal open position",
               "invert_position": "Invert cover position",
               "invert_tilt": "Invert slat position",
               "feedback_quality": "Position feedback quality",
@@ -1624,7 +1658,6 @@
               "window_safe_state": "The contact state in which normal movement is allowed.",
               "window_policy": "Block every command or only commands that close while unsafe.",
               "window_returns_to_automation": "Window-triggered safety and return movements do not create a manual pause.",
-              "max_open_position": "Limits normal opening, while an unsafe-window target may still open further.",
               "invert_position": "Use only when this entity exposes the opposite Home Assistant height scale.",
               "invert_tilt": "Use only when the device reports the opposite of 0% open and 100% closed.",
               "feedback_quality": "Choose how reliably this cover reports intermediate or final positions.",
@@ -1703,12 +1736,12 @@
         }
       },
       "manage_automation": {
-        "title": "Automation",
-        "description": "Only the previously selected feature appears here. It is already active; saving applies its behaviour directly.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nYou are now editing {feature_name} for {room_name}. {next_feature}",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "The schedule prevents automatic comfort movements outside the times when the room is in use. Safety functions remain active at all times.",
+            "description": "The general shading schedule is the master permission for every daytime automatic function: normal shading, Comfort, Solar, glare protection and heat protection. Night uses its own period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -1720,40 +1753,38 @@
               "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
-              "schedule_enabled": "Optional. When off, normal shading is available all year and all day.",
+              "schedule_enabled": "When off, daytime functions are available all year and all day. Night remains independent.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Defines the neutral position outside permitted times; safety still applies."
+              "outside_schedule_behavior": "Choose whether covers open or hold their current position outside daytime permission. Night and safety conditions are evaluated separately."
             }
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Room temperature complements the sun calculation: Comfort reacts earlier, while heat protection shades more strongly when the room is actually overheating.",
+            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
-              "comfort_temperature": "Comfort from",
-              "solar_temperature": "Solar from",
+              "comfort_temperature": "Comfort shading from",
+              "solar_temperature": "Stronger solar protection from",
               "heat_temperature": "Heat protection from",
               "evening_release_time": "Release no later than",
               "sunset_offset_minutes": "Release relative to sunset",
-              "heat_outside_schedule": "Keep heat protection active outside the schedule",
-              "reopen_temperature": "Reopen below"
+              "reopen_temperature": "Reset normal shading below"
             },
             "data_description": {
               "indoor_temperature": "Select the sensor that provides the room temperature. All temperature stages are configured in this same form.",
               "normal_shading_temperature": "Normal shading starts above this indoor temperature.",
-              "comfort_temperature": "The Comfort stage starts above this indoor temperature.",
-              "solar_temperature": "The stronger solar-protection stage starts above this indoor temperature.",
-              "heat_temperature": "Heat protection may start above this indoor temperature and remains active until the fixed evening release.",
-              "evening_release_time": "Active heat protection ends no later than this time.",
-              "sunset_offset_minutes": "Negative values release before sunset; positive values release afterwards.",
-              "heat_outside_schedule": "Keeps overheating protection available even while the normal schedule does not allow comfort shading.",
-              "reopen_temperature": "Below this value, normal shading may reopen."
+              "comfort_temperature": "Above this temperature, profiles with a separate Comfort position use their Comfort target.",
+              "solar_temperature": "Above this temperature, profiles with distinct stages use the stronger Solar target.",
+              "heat_temperature": "Above this temperature, heat protection can start inside daytime permission once per calendar day.",
+              "evening_release_time": "Absolute latest boundary. Heat protection ends earlier when the general shading schedule ends or sunset plus offset is reached.",
+              "sunset_offset_minutes": "Negative values end heat protection before sunset; positive values end it afterwards. The earliest of all three evening boundaries always wins.",
+              "reopen_temperature": "When indoor temperature falls below this value, only the normal temperature-based shading request ends. With continuing direct sun Smart Shading holds the current position; it does not force an immediate opening. Heat protection is not reset."
             }
           },
           "execution_settings": {
@@ -1783,8 +1814,8 @@
         }
       },
       "manage_night": {
-        "title": "Night function",
-        "description": "The Night function uses dedicated targets for privacy and darkness. Choose an existing time source or calculate the period from sunset and sunrise.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nNight has its own period and remains available outside the general shading schedule. Each cover group uses the Night position stored in its profile settings. {next_feature}",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -1805,8 +1836,8 @@
         }
       },
       "manage_pause": {
-        "title": "Pause and manual control",
-        "description": "Choose when a pause ends and whether external movement starts one.",
+        "title": "{room_name} · Pause and manual control",
+        "description": "For {room_name}, choose when a pause ends and whether confirmed external movement starts a local automation pause.",
         "data": {
           "default_pause_mode": "Default pause action",
           "pause_sun_offset_minutes": "Sun-event offset",
@@ -1818,13 +1849,13 @@
           "default_pause_mode": "Release at the selected sun event, after a duration, or only manually.",
           "pause_sun_offset_minutes": "Negative values release before the selected sun event.",
           "pause_duration_hours": "Used only for a timed pause.",
-          "heat_during_pause": "Allows heat protection while normal automation remains paused.",
+          "heat_during_pause": "Allows heat protection during a pause, but still only inside the general shading schedule.",
           "external_movement_detection": "Starts a pause after confirmed position or slat movement outside Smart Shading."
         }
       },
       "manage_conditions": {
-        "title": "Selected protection feature",
-        "description": "Configure the inputs for the feature currently being edited. It is already active; optional empty sources are ignored.",
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nYou are now editing the inputs for {feature_name}. Optional empty sources are ignored. {next_feature}",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -1832,7 +1863,7 @@
           "cloud_cover_sensor": "Cloud cover sensor",
           "cloud_cover_maximum": "Maximum cloud cover",
           "weather_permission": "Weather permission",
-          "glare_sensor": "Glare sensor",
+          "glare_sensor": "External glare request",
           "occupancy_sensor": "Occupancy sensor",
           "weather_logic": "Combine weather inputs",
           "heat_ignores_weather": "Heat ignores normal weather conditions",
@@ -1848,10 +1879,10 @@
           "cloud_cover_sensor": "Optional cloud percentage sensor.",
           "cloud_cover_maximum": "Normal shading requires cloud cover at or below this value.",
           "weather_permission": "Optional binary permission; on allows normal shading.",
-          "glare_sensor": "Optional binary glare request.",
+          "glare_sensor": "Optional. An external on/off request supplements geometric glare protection; measured protection zones are calculated independently.",
           "occupancy_sensor": "Optional room occupancy input.",
           "weather_logic": "Require all configured weather inputs or any one of them.",
-          "heat_ignores_weather": "Lets heat protection start even when normal weather conditions fail.",
+          "heat_ignores_weather": "Lets heat protection start when normal weather conditions fail, but never outside the general shading schedule.",
           "heat_requires_sun": "At least one room sector must currently have sun to start heat protection.",
           "comfort_requires_occupancy": "Use the Comfort state only while the room is occupied.",
           "safety_behavior": "Move to the configured safe target or only block normal automatic commands while danger is active.",
@@ -2004,7 +2035,7 @@
         },
         "data_description": {
           "lux_sensor": "Outdoor Lux sensor or directional weather-station channel for this facade. Indoor sensors are unsuitable for this purpose.",
-          "sun_preset": "Balanced uses 35,000/30,000 lx with 10/30 minute delays. The other profiles react earlier or only to strong sunlight.",
+          "sun_preset": "Select how readily this facade should confirm direct sunlight.",
           "sun_presence_entity": "Existing entity where on means direct sun reaches this facade."
         }
       },
@@ -2039,13 +2070,13 @@
         }
       },
       "protected_zones_hub": {
-        "title": "{sector_name} · Glare protection",
+        "title": "Glare protection",
         "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
         "menu_options": {}
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
-        "description": "Choose one physical cover, then describe its window and the object that should stay out of direct sun. Smart Shading continuously calculates the least restrictive protective position.",
+        "description": "Measure in three steps: choose the cover for this window, measure the clear window opening, then measure the protected area on the table or object. Use the shortest distance from the window plane. Before saving, Smart Shading validates every measurement and uses the current sun position to show whether a calculation is possible.",
         "sections": {
           "protected_zone_identity": {
             "name": "Protected object and cover",
@@ -2094,6 +2125,7 @@
           },
           "protected_zone_window": {
             "name": "Window dimensions",
+            "description": "Measure the clear opening through which sunlight actually enters: width, height and lower edge above the finished floor.",
             "data": {
               "window_width_m": "Window width",
               "window_height_m": "Window height",
@@ -2111,7 +2143,7 @@
           },
           "protected_zone_object": {
             "name": "Protected object relative to the window",
-            "description": "Use the centre of the object area that must remain out of direct sun. Horizontal offsets are measured from the window centre; heights are measured from the finished floor.",
+            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. Curtains are assumed to close symmetrically and vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
             "data": {
               "object_distance_m": "Distance from window to object",
               "object_center_height_m": "Object centre above floor",
@@ -2129,9 +2161,35 @@
           }
         }
       },
+      "confirm_protected_zone": {
+        "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
+        "description": "{calculation_status}\n\n{geometry_summary}\n\nCurrent sun position: {current_sun}\n\nCurrently calculated target: {calculated_target}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "data": {
+          "confirm_protected_zone": "Save protected zone"
+        },
+        "data_description": {
+          "confirm_protected_zone": "Off saves nothing yet and returns to measurement."
+        }
+      },
+      "initial_maximum_opening": {
+        "title": "{feature_context} · Maximum opening · {cover_name}",
+        "description": "{feature_description} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature}",
+        "data": {
+          "enforce_max_open_position": "Enforce a maximum opening",
+          "max_open_position": "Maximum opening"
+        },
+        "data_description": {
+          "enforce_max_open_position": "Checks external movement feedback immediately and again every 30 seconds. Safety movement keeps priority.",
+          "max_open_position": "If the reported position exceeds this value by more than the tight tolerance, Smart Shading returns the cover to this limit."
+        }
+      },
+      "maximum_opening_hub": {
+        "title": "Maximum opening limits",
+        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately."
+      },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
-        "description": "Edit the window and protected-object measurements for this one physical cover. Its position is always calculated automatically from the sun.",
+        "description": "Edit the measurement for this individual cover. Smart Shading validates the window and protected object again and shows the current calculation before saving.",
         "sections": {
           "protected_zone_identity": {
             "name": "Protected object and cover",

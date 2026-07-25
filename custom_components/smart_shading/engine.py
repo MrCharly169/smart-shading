@@ -29,14 +29,16 @@ from .const import (
     CONF_EXTERNAL_MOVEMENT_DETECTION,
     CONF_ROOMS,
     CONF_SUN_PRESENCE_ENTITY,
-    CONF_SUN_ENTITY,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
     DEFAULT_COMMAND_COOLDOWN,
     DEFAULT_EVALUATION_DEBOUNCE_SECONDS,
     DEFAULT_EVALUATION_INTERVAL,
+    DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS,
+    DEFAULT_MAX_OPEN_TOLERANCE,
     DEFAULT_POSITION_TOLERANCE,
     DEFAULT_SOURCE_STALE_SECONDS,
+    DEFAULT_SUN_ENTITY,
     DEFAULT_TILT_TOLERANCE,
     DIAGNOSTIC_EVENTS,
     DIAGNOSTIC_FULL,
@@ -49,9 +51,11 @@ from .const import (
     DOMAIN,
     FEATURE_TEST_TOOLS,
     FEATURE_GLARE_PROTECTION,
+    FEATURE_MAXIMUM_OPENING,
     MODE_COMFORT,
     MODE_DISABLED,
     MODE_FINISHED,
+    MODE_GLARE,
     MODE_HEAT,
     MODE_IDLE,
     MODE_NIGHT,
@@ -523,6 +527,17 @@ class SmartShadingEngine:
                 timedelta(seconds=interval),
             )
         )
+        if self.advanced_mode and any(
+            bool(cover.get("enforce_max_open_position", False))
+            for _room, _sector, _layer, cover in self._iter_covers()
+        ):
+            self._unsubs.append(
+                async_track_time_interval(
+                    self.hass,
+                    self._async_maximum_opening_interval,
+                    timedelta(seconds=DEFAULT_MAX_OPEN_HEARTBEAT_SECONDS),
+                )
+            )
         await self._async_sync_configured_locks()
         for room_id, runtime in self.rooms.items():
             if self.advanced_mode and runtime.pause_mode != PAUSE_AUTO:
@@ -535,17 +550,28 @@ class SmartShadingEngine:
             self._schedule_card_notification_retry(1)
 
     async def _async_sync_sun_requirement_notification(self) -> None:
-        entity_id = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        entity_id = DEFAULT_SUN_ENTITY
         state = self.hass.states.get(entity_id)
         notification_id = f"smart_shading_sun_{self.entry.entry_id}"
         invalid = state is None or state.state in {"unknown", "unavailable"}
         if invalid:
             german = (getattr(self.hass.config, "language", "en") or "en").lower().startswith("de")
-            title = "Smart Shading – Sonnenentität fehlt" if german else "Smart Shading – Sun entity unavailable"
+            title = (
+                "Smart Shading – Sonnenintegration fehlt"
+                if german
+                else "Smart Shading – Sun integration unavailable"
+            )
             message = (
-                "`sun.sun` fehlt oder ist nicht verfügbar. Prüfen Sie Standort, Zeitzone und Sonnenintegration. Sektorbasierte Beschattung bleibt bis zur Behebung inaktiv."
+                "Die Home-Assistant-Sonnenentität `sun.sun` wurde nicht "
+                "gefunden oder ist nicht verfügbar. Aktivieren oder "
+                "initialisieren Sie unter Einstellungen → Geräte & Dienste "
+                "die native Integration „Sonne“ („Sun“). Sektorbasierte "
+                "Beschattung bleibt bis dahin inaktiv."
                 if german else
-                "`sun.sun` is missing or unavailable. Check location, time zone and the Sun integration. Sector-based shading remains inactive until this is fixed."
+                "The Home Assistant sun entity `sun.sun` was not found or is "
+                "unavailable. Enable or initialize the native Sun integration "
+                "under Settings → Devices & services. Sector-based shading "
+                "remains inactive until then."
             )
             await self.hass.services.async_call(
                 "persistent_notification", "create",
@@ -785,7 +811,14 @@ class SmartShadingEngine:
     def _heat_release_due(
         self, room: dict[str, Any], now: datetime
     ) -> datetime:
-        """Return the next exact Heat release boundary for the current day."""
+        """Return the earliest exact Heat release boundary.
+
+        Heat is a daytime function. Its one daily cycle therefore ends at the
+        first of the general shading-schedule boundary, the configured
+        sunset-relative release, or the absolute latest release time.
+        """
+        if not self._schedule_active_at(room, now):
+            return now
         fixed = room.get(
             "evening_release_time",
             self.config.get("evening_release_time", "18:00:00"),
@@ -797,25 +830,35 @@ class SmartShadingEngine:
             )
         except (TypeError, ValueError):
             fixed_due = now.replace(hour=18, minute=0, second=0, microsecond=0)
-        if fixed_due <= now:
-            return now
-
         candidates = [fixed_due]
-        sun = self.hass.states.get(self.config.get(CONF_SUN_ENTITY, "sun.sun"))
-        next_setting = sun.attributes.get("next_setting") if sun else None
-        parsed = dt_util.parse_datetime(next_setting) if next_setting else None
-        if parsed is not None:
-            sunset_due = dt_util.as_local(parsed) + timedelta(
-                minutes=int(
-                    room.get(
-                        "sunset_offset_minutes",
-                        self.config.get("sunset_offset_minutes", -15),
+        _sunrise, sunset = self._virtual_solar_events(now)
+        if sunset is None:
+            sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
+            next_setting = sun.attributes.get("next_setting") if sun else None
+            parsed = (
+                dt_util.parse_datetime(next_setting)
+                if next_setting
+                else None
+            )
+            if parsed is not None and dt_util.as_local(parsed).date() == now.date():
+                sunset = dt_util.as_local(parsed)
+        if sunset is not None:
+            candidates.append(
+                sunset
+                + timedelta(
+                    minutes=int(
+                        room.get(
+                            "sunset_offset_minutes",
+                            self.config.get("sunset_offset_minutes", -15),
+                        )
                     )
                 )
             )
-            if sunset_due > now:
-                candidates.append(sunset_due)
-        return min(candidates)
+        schedule_due = self._next_schedule_change(room, now, True)
+        if schedule_due is not None:
+            candidates.append(schedule_due)
+        due = min(candidates)
+        return now if due <= now else due
 
     def _schedule_heat_release_timer(
         self,
@@ -866,6 +909,12 @@ class SmartShadingEngine:
                 )
                 return
             if decision.manual:
+                # A hard opening limit intentionally overrides a physical or
+                # KNX request above the configured maximum. Correct it from
+                # the fresh feedback before normal automation is paused.
+                await self._async_enforce_cover_maximum(
+                    entity_id, new_state
+                )
                 await self._activate_cover_pause(
                     room, cover, "external_or_physical_control"
                 )
@@ -910,6 +959,13 @@ class SmartShadingEngine:
                         "manual_lock_entity",
                         set_lock=False,
                     )
+                # The pause has already cancelled queued physical work.  Run
+                # the decision pipeline as well so room mode, winner trace,
+                # Card and diagnostics all reflect the external lock now,
+                # without waiting for the watchdog.
+                await self.async_evaluate_all(
+                    f"manual_group_activated:{entity_id}"
+                )
             elif new_value == STATE_OFF:
                 changed = False
                 for room, covers in lock_groups:
@@ -971,6 +1027,10 @@ class SmartShadingEngine:
     async def _async_interval(self, now) -> None:
         await self.async_evaluate_all("watchdog")
 
+    async def _async_maximum_opening_interval(self, now) -> None:
+        """Cheap fallback check for opt-in hard limits."""
+        await self._async_enforce_all_maximum_openings()
+
     def _iter_covers(self):
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
@@ -1014,6 +1074,24 @@ class SmartShadingEngine:
     def _find_cover_by_entity(self, entity_id: str):
         return next(((room, cover) for room, _sector, _layer, cover in self._iter_covers() if cover.get("entity") == entity_id), None)
 
+    def _maximum_opening_enabled(
+        self,
+        room: dict[str, Any],
+        layer: dict[str, Any],
+        cover: dict[str, Any],
+    ) -> bool:
+        """Return whether one cover has the selected hard-limit feature."""
+        return bool(
+            self.advanced_mode
+            and self.room_feature_enabled(
+                str(room.get("id") or ""), FEATURE_MAXIMUM_OPENING
+            )
+            and profile_supports_position(
+                str(layer.get("profile", DEVICE_VENETIAN))
+            )
+            and cover.get("enforce_max_open_position", False)
+        )
+
     def _cover_tolerances(self, entity_id: str) -> tuple[float, float]:
         context = self._find_cover_context(entity_id)
         if context is None:
@@ -1030,10 +1108,8 @@ class SmartShadingEngine:
         if context is None:
             return False
         room, _sector, layer, cover = context
-        profile = str(layer.get("profile", DEVICE_VENETIAN))
         if (
-            not profile_supports_position(profile)
-            or not bool(cover.get("enforce_max_open_position", False))
+            not self._maximum_opening_enabled(room, layer, cover)
             or self._room_safety_active(room)
         ):
             return False
@@ -1049,8 +1125,7 @@ class SmartShadingEngine:
         maximum = clamp_percent(
             float(cover.get("max_open_position", 100.0))
         )
-        position_tolerance, _tilt_tolerance = self._layer_tolerances(layer)
-        if logical_current <= maximum + position_tolerance:
+        if logical_current <= maximum + DEFAULT_MAX_OPEN_TOLERANCE:
             return False
         supported_features = int(
             state.attributes.get("supported_features", 0) if state else 0
@@ -1098,8 +1173,8 @@ class SmartShadingEngine:
         return True
 
     async def _async_enforce_all_maximum_openings(self) -> None:
-        for _room, _sector, _layer, cover in self._iter_covers():
-            if bool(cover.get("enforce_max_open_position", False)):
+        for room, _sector, layer, cover in self._iter_covers():
+            if self._maximum_opening_enabled(room, layer, cover):
                 await self._async_enforce_cover_maximum(
                     str(cover.get("entity") or "")
                 )
@@ -1184,7 +1259,7 @@ class SmartShadingEngine:
         ]
 
     def _easy_reactive_entities(self) -> set[str]:
-        result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
+        result = {DEFAULT_SUN_ENTITY}
         for room in self.config.get(CONF_ROOMS, []):
             if room.get("outdoor_temperature"):
                 result.add(room["outdoor_temperature"])
@@ -1217,7 +1292,7 @@ class SmartShadingEngine:
         this method runs before the regular sector loop refreshes that runtime.
         """
         sun_state = self.hass.states.get(
-            self.config.get(CONF_SUN_ENTITY, "sun.sun")
+            DEFAULT_SUN_ENTITY
         )
         sun_up = bool(sun_state and sun_state.state == "above_horizon")
         azimuth = parse_numeric_value(
@@ -1374,6 +1449,7 @@ class SmartShadingEngine:
             MODE_DISABLED: 900,
             MODE_NIGHT: 800,
             MODE_HEAT: 700,
+            MODE_GLARE: 600,
             MODE_SOLAR: 500,
             MODE_COMFORT: 400,
             MODE_OPEN: 100,
@@ -1493,7 +1569,7 @@ class SmartShadingEngine:
         if self.command_planner is None:
             return ()
 
-        normal_rules = {MODE_SOLAR, MODE_COMFORT, MODE_OPEN}
+        normal_rules = {MODE_GLARE, MODE_SOLAR, MODE_COMFORT, MODE_OPEN}
         active_results = {
             CommandResult.PLANNED,
             CommandResult.QUEUED,
@@ -2104,7 +2180,7 @@ class SmartShadingEngine:
         }
 
     def referenced_entities(self) -> set[str]:
-        result = {self.config.get(CONF_SUN_ENTITY, "sun.sun")}
+        result = {DEFAULT_SUN_ENTITY}
         if not self.advanced_mode:
             result.update(self._easy_reactive_entities())
             return {entity for entity in result if entity}
@@ -2491,11 +2567,23 @@ class SmartShadingEngine:
         # or fixed protected zone until migration writes that list; test tools
         # still remain opt-in because no legacy room inferred that feature.
         if features is None:
-            return feature == FEATURE_GLARE_PROTECTION and any(
-                sector.get("protected_zones")
-                for sector in room.get("sectors", [])
-                if isinstance(sector, dict)
-            )
+            if feature == FEATURE_GLARE_PROTECTION:
+                return any(
+                    sector.get("protected_zones")
+                    for sector in room.get("sectors", [])
+                    if isinstance(sector, dict)
+                )
+            if feature == FEATURE_MAXIMUM_OPENING:
+                return any(
+                    bool(cover.get("enforce_max_open_position", False))
+                    for sector in room.get("sectors", [])
+                    if isinstance(sector, dict)
+                    for layer in sector.get("layers", [])
+                    if isinstance(layer, dict)
+                    for cover in layer.get("covers", [])
+                    if isinstance(cover, dict)
+                )
+            return False
         return str(feature) in {
             str(value) for value in features if isinstance(value, str)
         }
@@ -2598,7 +2686,7 @@ class SmartShadingEngine:
 
     def _pause_until_from_sun(self, room_id: str, mode: str, now: datetime) -> datetime | None:
         room = self.room_config(room_id)
-        sun = self.hass.states.get(self.config.get(CONF_SUN_ENTITY, "sun.sun"))
+        sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
         attribute = "next_rising" if mode == PAUSE_NEXT_SUNRISE else "next_setting"
         value = sun.attributes.get(attribute) if sun else None
         candidate = dt_util.parse_datetime(value) if value else None
@@ -3373,7 +3461,7 @@ class SmartShadingEngine:
                 next_transition,
             )
 
-        sun = self.hass.states.get(self.config.get(CONF_SUN_ENTITY, "sun.sun"))
+        sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
         if sun is None or sun.state in {"unknown", "unavailable", "none", ""}:
             return False, True, "Sun source unavailable; positions held", None, None
         rising = _parse_datetime(sun.attributes.get("next_rising"))
@@ -3640,7 +3728,7 @@ class SmartShadingEngine:
         """Create one auditable Advanced-mode snapshot from current HA state."""
         max_age = self._decision_max_age(room)
         inputs: dict[str, Any] = {}
-        sun_entity = str(self.config.get(CONF_SUN_ENTITY, "sun.sun") or "")
+        sun_entity = DEFAULT_SUN_ENTITY
         inputs["sun_state"] = self._decision_live_input(
             "sun_state",
             sun_entity,
@@ -3857,7 +3945,14 @@ class SmartShadingEngine:
         """Map established profile targets into the pure decision contract."""
         safe_elevation = elevation if elevation is not None else 0.0
         result: dict[str, DecisionTarget] = {}
-        for mode in (MODE_SAFETY, MODE_NIGHT, MODE_HEAT, MODE_SOLAR, MODE_COMFORT, MODE_OPEN):
+        for mode in (
+            MODE_SAFETY,
+            MODE_NIGHT,
+            MODE_HEAT,
+            MODE_SOLAR,
+            MODE_COMFORT,
+            MODE_OPEN,
+        ):
             position, tilt = self._targets(layer, mode, safe_elevation)
             result[mode] = DecisionTarget(position=position, tilt=tilt)
         return result
@@ -3867,20 +3962,24 @@ class SmartShadingEngine:
         room: dict[str, Any],
         sector: dict[str, Any] | None,
         mode: str | bool,
+        *,
+        glare_active: bool = False,
     ) -> tuple[str, ...]:
-        """Name health-gated inputs for normal Solar/Comfort automation."""
+        """Name only inputs that can affect the requested daytime action."""
         normal_mode_active = (
             mode
             if isinstance(mode, bool)
             else mode in {MODE_SOLAR, MODE_COMFORT}
         )
-        if not normal_mode_active:
+        if not normal_mode_active and not glare_active:
             return ()
         keys = ["sun_state", "sun_azimuth", "sun_elevation"]
         if sector is not None:
             sector_id = str(sector.get("id") or "")
             if sector_id:
                 keys.append(f"sector:{sector_id}:sun_confirmation")
+        if glare_active and not normal_mode_active:
+            return tuple(dict.fromkeys(keys))
         # These are only health gates when configured. Their actual threshold
         # result remains represented by the effective mode passed to the
         # pipeline, preserving established hysteresis and weather semantics.
@@ -3925,10 +4024,12 @@ class SmartShadingEngine:
                 "safety_active": selected_mode == MODE_SAFETY,
                 "manual_override_active": selected_mode == MODE_DISABLED,
                 "room_pause_active": selected_mode == MODE_PAUSED,
+                "safety_source_hold_active": False,
                 "night_active": selected_mode == MODE_NIGHT,
                 "night_source_hold_active": False,
                 "heat_active": selected_mode == MODE_HEAT,
                 "schedule_hold_active": False,
+                "glare_allowed": selected_mode == MODE_GLARE,
                 "solar_active": selected_mode == MODE_SOLAR,
                 "comfort_active": selected_mode == MODE_COMFORT,
                 "open_active": selected_mode == MODE_OPEN,
@@ -3972,6 +4073,9 @@ class SmartShadingEngine:
             ),
             room_pause_active=bool(resolved_facts.get("room_pause_active")),
             local_pause_active=local_pause_active,
+            safety_source_hold_active=bool(
+                resolved_facts.get("safety_source_hold_active")
+            ),
             night_active=bool(resolved_facts.get("night_active")),
             night_source_hold_active=bool(
                 resolved_facts.get("night_source_hold_active")
@@ -3980,6 +4084,7 @@ class SmartShadingEngine:
             schedule_hold_active=bool(
                 resolved_facts.get("schedule_hold_active")
             ),
+            glare_allowed=bool(resolved_facts.get("glare_allowed")),
             solar_active=bool(resolved_facts.get("solar_active")),
             comfort_active=bool(resolved_facts.get("comfort_active")),
             open_active=bool(resolved_facts.get("open_active")),
@@ -3989,6 +4094,7 @@ class SmartShadingEngine:
                 sector,
                 bool(resolved_facts.get("solar_active"))
                 or bool(resolved_facts.get("comfort_active")),
+                glare_active=bool(resolved_facts.get("glare_allowed")),
             ),
             targets=targets,
             sector_id=sector_id,
@@ -4054,10 +4160,12 @@ class SmartShadingEngine:
             "safety_active": False,
             "manual_override_active": False,
             "room_pause_active": False,
+            "safety_source_hold_active": False,
             "night_source_hold_active": False,
             "night_active": False,
             "heat_active": False,
             "schedule_hold_active": False,
+            "glare_allowed": False,
             "solar_active": False,
             "comfort_active": False,
             "open_active": False,
@@ -4595,7 +4703,7 @@ class SmartShadingEngine:
         heat_conditions = bool(
             indoor is not None
             and (not room.get("heat_requires_sun", True) or all_sector_sun)
-            and (schedule_active or bool(room.get("heat_outside_schedule", True)))
+            and schedule_active
             and (bool(room.get("heat_ignores_weather", True)) or weather_pass)
             and outdoor_ok
         )
@@ -4610,24 +4718,9 @@ class SmartShadingEngine:
                 >= float(self.room_value(room["id"], "heat_temperature", 27.0))
             )
         )
-        try:
-            release_h, release_m, release_s = [
-                int(value)
-                for value in str(
-                    room.get(
-                        "evening_release_time",
-                        self.config.get("evening_release_time", "18:00:00"),
-                    )
-                ).split(":")
-            ]
-            heat_active = heat_active and when < when.replace(
-                hour=release_h,
-                minute=release_m,
-                second=release_s,
-                microsecond=0,
-            )
-        except (TypeError, ValueError):
-            pass
+        heat_active = heat_active and not self._evening_release_reached(
+            room, when
+        )
 
         sector_sun, source_unavailable = self._virtual_sector_sun_state(
             sector, snapshot
@@ -4723,6 +4816,7 @@ class SmartShadingEngine:
             night_active=night_active,
             heat_active=heat_active,
             schedule_hold_active=(not schedule_active and not heat_active and not open_active),
+            glare_allowed=bool(schedule_active and sector_sun and not source_unavailable),
             solar_active=solar_active,
             comfort_active=comfort_active,
             open_active=open_active,
@@ -4766,6 +4860,7 @@ class SmartShadingEngine:
                 "night_active",
                 "heat_active",
                 "schedule_hold_active",
+                "glare_allowed",
                 "solar_active",
                 "comfort_active",
                 "open_active",
@@ -4857,6 +4952,28 @@ class SmartShadingEngine:
             )
         decision_payload = result.as_dict()
         pure_trace = decision_payload["trace"]
+        if runtime.mode == MODE_GLARE:
+            glare_result = next(
+                (
+                    cover.get("command")
+                    for target_trace in target_traces
+                    if isinstance(target_trace, dict)
+                    for cover in target_trace.get("covers", [])
+                    if isinstance(cover, dict)
+                    and isinstance(cover.get("command"), dict)
+                    and cover["command"].get("mode") == MODE_GLARE
+                ),
+                None,
+            )
+            glare_trace = (
+                glare_result.get("trace")
+                if isinstance(glare_result, dict)
+                and isinstance(glare_result.get("trace"), dict)
+                else None
+            )
+            if glare_trace is not None:
+                decision_payload = glare_result
+                pure_trace = glare_trace
         runtime.decision_trace = {
             "schema": 1,
             "evaluated_at": now.isoformat(),
@@ -5674,6 +5791,15 @@ class SmartShadingEngine:
             for entity in room.get("safety_blockers", [])
             if _is_on(self.hass, entity)
         ]
+        unavailable_blockers = [
+            entity
+            for entity in room.get("safety_blockers", [])
+            if (
+                (state := self.hass.states.get(entity)) is None
+                or state.state
+                in {"unknown", "unavailable", "none", ""}
+            )
+        ]
         # Calculate normal candidates before checking Safety/Pause/Night.
         # The high-priority branch below may return without sending a normal
         # command, but the trace must still show the real Solar/Comfort/Open
@@ -5685,6 +5811,7 @@ class SmartShadingEngine:
         priority_facts.update(
             {
                 "safety_active": bool(blockers),
+                "safety_source_hold_active": bool(unavailable_blockers),
                 "manual_override_active": not runtime.enabled,
                 "room_pause_active": (
                     pause_active
@@ -5730,6 +5857,17 @@ class SmartShadingEngine:
                     0.0,
                     facts=priority_facts,
                 )
+            else:
+                # "Block normal automation" must also invalidate work that
+                # was queued before the Safety input became active.  A hold
+                # cannot recall a service call already accepted by the
+                # actuator, but it can prevent delayed axes, staggered covers
+                # and verification retries from moving later.
+                await self._cancel_pending_normal_lifecycles(
+                    runtime.room_id,
+                    "safety_block_active",
+                    include_non_safety=True,
+                )
             await self._save_room_runtime(runtime)
             return
 
@@ -5757,7 +5895,32 @@ class SmartShadingEngine:
             await self._save_room_runtime(runtime)
             return
 
-        sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        if priority_result.winner.rule == "safety_source_hold":
+            await self._cancel_pending_normal_lifecycles(
+                runtime.room_id,
+                "safety_source_unavailable_hold",
+                include_non_safety=True,
+            )
+            runtime.mode = MODE_IDLE
+            names = [
+                self._entity_display_name(entity, "Safety sensor")
+                for entity in unavailable_blockers
+            ]
+            runtime.reason = (
+                "Safety input unavailable; automatic movements held: "
+                + ", ".join(names)
+            )
+            self._mark_room_sectors(
+                room,
+                status="safety_unavailable",
+                reason=runtime.reason,
+                mode=MODE_IDLE,
+                active=False,
+            )
+            await self._save_room_runtime(runtime)
+            return
+
+        sun_entity = DEFAULT_SUN_ENTITY
         sun_state = self.hass.states.get(sun_entity)
         sun_up = bool(sun_state and sun_state.state == "above_horizon")
         azimuth_value = parse_numeric_value(
@@ -5836,9 +5999,7 @@ class SmartShadingEngine:
         heat_requires_sun = bool(room.get("heat_requires_sun", True))
         room_sun_present = self._room_heat_sun_present(room)
         heat_sun_pass = not heat_requires_sun or room_sun_present
-        heat_schedule_pass = schedule_active or bool(
-            room.get("heat_outside_schedule", True)
-        )
+        heat_schedule_pass = schedule_active
         heat_weather_pass = bool(room.get("heat_ignores_weather", True)) or weather_pass
         self._diag(
             "room_inputs",
@@ -5880,10 +6041,14 @@ class SmartShadingEngine:
             and indoor < heat_start
         ):
             runtime.heat_phase = "armed"
-        if not runtime.heat_active and not runtime.finished_today and (
-            heat_conditions_valid
-            and indoor is not None
-            and indoor >= heat_start
+        if (
+            not runtime.heat_active
+            and not runtime.finished_today
+            and (
+                heat_conditions_valid
+                and indoor is not None
+                and indoor >= heat_start
+            )
         ):
             # Heat protection is latched for the day. Falling temperature or
             # Sun Presence ending must not reopen covers and start another
@@ -5926,25 +6091,40 @@ class SmartShadingEngine:
                 )
                 await self._save_room_runtime(runtime)
                 return
-            release_facts = self._advanced_decision_facts(open_active=True)
+            release_opens = bool(
+                schedule_active
+                or room.get("outside_schedule_behavior", OUTSIDE_OPEN)
+                == OUTSIDE_OPEN
+            )
+            release_facts = self._advanced_decision_facts(
+                open_active=release_opens,
+                schedule_hold_active=not release_opens,
+                idle_active=not release_opens,
+            )
             runtime.mode = self._resolve_advanced_decision(
                 room, runtime, now, facts=release_facts
             ).mode
             self._decision_room_facts[runtime.room_id] = release_facts
             runtime.reason = "Heat protection released for evening"
             runtime.heat_phase = "released_today"
-            await self._apply_room_mode(
-                room,
-                runtime,
-                runtime.mode,
-                elevation,
-                facts=release_facts,
-            )
+            if release_opens:
+                await self._apply_room_mode(
+                    room,
+                    runtime,
+                    runtime.mode,
+                    elevation,
+                    facts=release_facts,
+                )
+            else:
+                await self._cancel_pending_normal_lifecycles(
+                    runtime.room_id,
+                    "heat_released_outside_schedule_hold",
+                )
             self._mark_room_sectors(
                 room,
                 status="outside_sun_sector",
                 reason=runtime.reason,
-                mode=MODE_OPEN,
+                mode=runtime.mode,
                 active=False,
             )
             await self._save_room_runtime(runtime)
@@ -6324,13 +6504,21 @@ class SmartShadingEngine:
                 reason,
                 facts=sector_facts,
             )
+            if mode == MODE_GLARE:
+                reason = "Direct sun reaches a configured protected area"
             if sector_result.winner.rule == "input_quality_hold":
                 quality_hold_waiting = True
                 reason = "Input quality is unavailable, stale or pending; cover positions held"
             sector_runtime = self.sun_runtime[sector["id"]]
             sector_runtime.mode = mode
-            sector_runtime.shading_active = mode in {MODE_COMFORT, MODE_SOLAR, MODE_HEAT, MODE_SAFETY}
-            if mode in {MODE_COMFORT, MODE_SOLAR}:
+            sector_runtime.shading_active = mode in {
+                MODE_COMFORT,
+                MODE_SOLAR,
+                MODE_GLARE,
+                MODE_HEAT,
+                MODE_SAFETY,
+            }
+            if mode in {MODE_COMFORT, MODE_SOLAR, MODE_GLARE}:
                 sector_runtime.status = "shading_active"
             elif (
                 mode == MODE_IDLE
@@ -6377,43 +6565,16 @@ class SmartShadingEngine:
             MODE_OPEN: 1,
             MODE_COMFORT: 2,
             MODE_SOLAR: 3,
-            MODE_HEAT: 4,
-            MODE_NIGHT: 5,
-            MODE_SAFETY: 6,
+            MODE_GLARE: 4,
+            MODE_HEAT: 5,
+            MODE_NIGHT: 6,
+            MODE_SAFETY: 7,
         }.get(mode, 0)
 
     def _evening_release_reached(
         self, room: dict[str, Any], now: datetime
     ) -> bool:
-        fixed = room.get(
-            "evening_release_time",
-            self.config.get("evening_release_time", "18:00:00"),
-        )
-        try:
-            hour, minute, second = [int(part) for part in fixed.split(":")]
-        except (AttributeError, ValueError):
-            hour, minute, second = 18, 0, 0
-        fixed_dt = now.replace(
-            hour=hour, minute=minute, second=second, microsecond=0
-        )
-        if now >= fixed_dt:
-            return True
-        state = self.hass.states.get(
-            self.config.get(CONF_SUN_ENTITY, "sun.sun")
-        )
-        next_setting = state.attributes.get("next_setting") if state else None
-        parsed = dt_util.parse_datetime(next_setting) if next_setting else None
-        if parsed is None:
-            return False
-        release = dt_util.as_local(parsed) + timedelta(
-            minutes=int(
-                room.get(
-                    "sunset_offset_minutes",
-                    self.config.get("sunset_offset_minutes", -15),
-                )
-            )
-        )
-        return now >= release
+        return self._heat_release_due(room, now) <= now
 
     async def _evaluate_easy_room(
         self, room: dict[str, Any], runtime: RoomRuntime, now: datetime
@@ -6468,7 +6629,7 @@ class SmartShadingEngine:
             await self._save_room_runtime(runtime)
             return
 
-        sun_entity = self.config.get(CONF_SUN_ENTITY, "sun.sun")
+        sun_entity = DEFAULT_SUN_ENTITY
         sun_state = self.hass.states.get(sun_entity)
         azimuth = parse_numeric_value(
             sun_state.attributes.get("azimuth") if sun_state else None
@@ -6683,6 +6844,7 @@ class SmartShadingEngine:
         facts: dict[str, bool] | None = None,
     ) -> str:
         resolved_mode = mode
+        highest_resolved_mode = mode
         for layer in sector.get("layers", []):
             position, tilt = self._targets(layer, resolved_mode, elevation)
             decision_result = None
@@ -6724,8 +6886,18 @@ class SmartShadingEngine:
                     layer=layer,
                     result=decision_result,
                 )
+                glare_probe = bool(
+                    facts
+                    and facts.get("glare_allowed")
+                    and self.room_feature_enabled(
+                        str(room.get("id") or ""),
+                        FEATURE_GLARE_PROTECTION,
+                    )
+                    and sector.get("protected_zones")
+                )
                 if (
                     resolved_mode in {MODE_IDLE, MODE_PAUSED, MODE_DISABLED}
+                    and not glare_probe
                 ):
                     # A resolver hold is operational, not merely a trace. In
                     # particular it prevents a stale normal source from
@@ -6781,6 +6953,10 @@ class SmartShadingEngine:
                             )
                         )
                     cover_mode = cover_decision_result.mode
+                    if self._mode_priority(cover_mode) > self._mode_priority(
+                        highest_resolved_mode
+                    ):
+                        highest_resolved_mode = cover_mode
                     cover_position, cover_tilt = self._targets(
                         layer, cover_mode, elevation
                     )
@@ -6794,6 +6970,22 @@ class SmartShadingEngine:
                             )
                         if cover_decision_result.target.tilt is not None:
                             cover_tilt = cover_decision_result.target.tilt
+                if cover_mode in {MODE_IDLE, MODE_PAUSED, MODE_DISABLED}:
+                    if cover_decision_result is not None and trace_record is not None:
+                        trace_record["covers"].append(
+                            {
+                                "cover_id": self._cover_id(cover),
+                                "entity_id": cover.get("entity"),
+                                "command": cover_decision_result.as_dict(),
+                                "held": True,
+                            }
+                        )
+                    continue
+                cover_reason = (
+                    "Direct sun reaches a configured protected area"
+                    if cover_mode == MODE_GLARE
+                    else reason
+                )
                 await self._apply_cover(
                     room,
                     sector,
@@ -6803,7 +6995,7 @@ class SmartShadingEngine:
                     cover_mode,
                     cover_position,
                     cover_tilt,
-                    reason,
+                    cover_reason,
                 )
                 if cover_decision_result is None or trace_record is None:
                     continue
@@ -6835,6 +7027,19 @@ class SmartShadingEngine:
                             "protected_zone_applied_ids", ()
                         )
                     )
+                    target_record["protected_zone_calculations"] = [
+                        item.as_dict() for item in protected
+                    ]
+                    target_record["ordinary_target"] = (
+                        command_trace.trace.winner.details.get(
+                            "ordinary_target"
+                        )
+                    )
+                    target_record["final_target"] = (
+                        command_trace.target.as_dict()
+                        if command_trace.target is not None
+                        else None
+                    )
                     trace_record["covers"].append(
                         {
                             "cover_id": self._cover_id(cover),
@@ -6842,7 +7047,7 @@ class SmartShadingEngine:
                             "command": command_trace.as_dict(),
                         }
                     )
-        return resolved_mode
+        return highest_resolved_mode
 
     def _targets(
         self, layer: dict[str, Any], mode: str, elevation: float
@@ -6899,11 +7104,17 @@ class SmartShadingEngine:
         # Vertical blinds cover the opening first, then adjust slats.
         if profile == DEVICE_VERTICAL:
             if mode == MODE_COMFORT:
-                return 0.0, value("comfort_tilt", float(defaults["comfort_tilt"]))
+                return value(
+                    "comfort_position", float(defaults["comfort_position"])
+                ), value("comfort_tilt", float(defaults["comfort_tilt"]))
             if mode == MODE_SOLAR:
-                return 0.0, adaptive(float(defaults["solar_tilt"]))
+                return value(
+                    "solar_position", float(defaults["solar_position"])
+                ), adaptive(float(defaults["solar_tilt"]))
             if mode == MODE_HEAT:
-                return 0.0, value("heat_tilt", float(defaults["heat_tilt"]))
+                return value(
+                    "heat_position", float(defaults["heat_position"])
+                ), value("heat_tilt", float(defaults["heat_tilt"]))
             if mode == MODE_NIGHT:
                 return value("night_position", 0.0), value(
                     "night_tilt", float(defaults["night_tilt"])
@@ -7002,6 +7213,7 @@ class SmartShadingEngine:
                 target_position is not None
                 and mode != MODE_SAFETY
                 and profile != DEVICE_BINARY
+                and self._maximum_opening_enabled(room, layer, cover)
             ):
                 try:
                     target_position = min(
@@ -7197,9 +7409,19 @@ class SmartShadingEngine:
         entity_id = cover["entity"]
         profile = layer.get("profile", DEVICE_VENETIAN)
         target_position = clamp_percent(target_position)
-        if mode != MODE_SAFETY and profile != DEVICE_BINARY:
-            max_open = clamp_percent(float(cover.get("max_open_position", 100.0)))
-            target_position = min(target_position, max_open)
+        ordinary_position = target_position
+        maximum_opening_enabled = self._maximum_opening_enabled(
+            room, layer, cover
+        )
+        maximum_opening = clamp_percent(
+            float(cover.get("max_open_position", 100.0))
+        )
+        if (
+            mode != MODE_SAFETY
+            and profile != DEVICE_BINARY
+            and maximum_opening_enabled
+        ):
+            target_position = min(target_position, maximum_opening)
 
         state = self.hass.states.get(entity_id)
         current_position = (
@@ -7221,6 +7443,15 @@ class SmartShadingEngine:
         displayed_tilt = target_tilt
         if target_tilt is not None and cover.get("invert_tilt", False):
             displayed_tilt = 100.0 - target_tilt
+        logical_current_position = (
+            (
+                100.0 - float(current_position)
+                if cover.get("invert_position", False)
+                else float(current_position)
+            )
+            if current_position is not None
+            else None
+        )
         suppressions: list[str] = []
 
         pause_info = self.cover_pause_info(cover) if self.advanced_mode else {
@@ -7254,8 +7485,11 @@ class SmartShadingEngine:
             "name": cover.get("name") or self._entity_display_name(entity_id, "Cover"),
             "short": cover.get("short", ""),
             "mode": mode,
+            "ordinary_position": ordinary_position,
             "position": target_position,
             "command_position": displayed_position,
+            "current_position": current_position,
+            "logical_current_position": logical_current_position,
             "tilt": target_tilt,
             "command_tilt": displayed_tilt,
             "tilt_inverted": bool(cover.get("invert_tilt", False)),
@@ -7268,6 +7502,22 @@ class SmartShadingEngine:
             "layer_id": layer["id"],
             "profile": profile,
             "reason": reason,
+            "maximum_opening": {
+                "enabled": maximum_opening_enabled,
+                "limit": maximum_opening if maximum_opening_enabled else None,
+                "constrained": bool(
+                    maximum_opening_enabled
+                    and target_position < ordinary_position
+                ),
+                "effective_position": target_position,
+                "current_position": logical_current_position,
+                "violation": bool(
+                    maximum_opening_enabled
+                    and logical_current_position is not None
+                    and logical_current_position
+                    > maximum_opening + DEFAULT_MAX_OPEN_TOLERANCE
+                ),
+            },
             "suppressed": suppressions,
             "cover_pause_active": pause_info["active"],
             "cover_pause_until": pause_info["until"],
@@ -7611,6 +7861,10 @@ class SmartShadingEngine:
             allow_automatic_reverse=bool(
                 self.advanced_mode and cover.get("allow_automatic_reverse") is True
             ),
+            # This request comes from the newest complete, serialized room
+            # evaluation.  It may therefore replace a still-travelling
+            # lifecycle whose higher-priority source has since cleared.
+            authoritative_replacement=True,
         )
         result = self.command_planner.plan(request, now=dt_util.now())
         target_record.update(
@@ -7690,6 +7944,7 @@ class SmartShadingEngine:
             MODE_PAUSED: "room_or_cover_pause_active",
             MODE_NIGHT: "night_mode_active",
             MODE_HEAT: "heat_protection_active",
+            MODE_GLARE: "protected_zone_target_adjusted",
             MODE_SOLAR: "solar_conditions_matched",
             MODE_COMFORT: "comfort_conditions_matched",
             MODE_OPEN: "open_target_selected",

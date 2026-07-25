@@ -1086,6 +1086,13 @@ class ManualOverrideDetectionMixin:
         await self._record_command_feedback(
             str(entity_id or ""), event.data.get("new_state")
         )
+        window_context = self.window_automation_contexts.get(
+            str(entity_id or "")
+        )
+        window_recovery_active = bool(
+            window_context is not None
+            and window_context.phase == "recovery"
+        )
         decision = self._classify_confirmed_cover_change(
             room,
             entity_id,
@@ -1100,6 +1107,21 @@ class ManualOverrideDetectionMixin:
                 entity_id=entity_id,
                 reason=decision.reason,
             )
+            if (
+                window_recovery_active
+                and decision.changed
+                and decision.reason == "window_automation_context"
+            ):
+                # A contact can close again before the actuator has reacted
+                # to its opening command.  The contact event then sees the
+                # old, apparently correct position and legitimately produces
+                # no command.  Re-evaluate on the first subsequent movement
+                # feedback so that this late opening is reversed immediately
+                # instead of waiting for the recovery watchdog.
+                await self._queue_evaluation(
+                    f"window_recovery_feedback:{entity_id}",
+                    immediate=True,
+                )
             return
 
         if decision.manual:
