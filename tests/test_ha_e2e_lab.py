@@ -15,6 +15,7 @@ from scripts.ha_e2e.run_scenarios import (
     baseline_uses_legacy_wizard,
     continue_past_legacy_global_settings,
     continue_past_initial_structure_hub,
+    continue_past_retired_night_setup,
     duplicate_wizard_setting_owners,
     is_retired_legacy_optional_entity,
     submit_options_expect_error,
@@ -110,7 +111,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         api = Mock()
         api.post.return_value = {"step_id": "choose_advanced_features"}
         result = continue_past_initial_structure_hub(
-            api, "flow-1", {"step_id": "initial_structure_hub"}
+            api,
+            "flow-1",
+            {"flow_id": "flow-1", "step_id": "initial_structure_hub"},
         )
         self.assertEqual({"step_id": "choose_advanced_features"}, result)
         api.post.assert_called_once_with(
@@ -145,6 +148,45 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
                     "maximum_opening": True,
                 },
             ),
+        )
+
+    def test_upgrade_bootstrap_completes_retired_night_forms(self):
+        api = Mock()
+        api.post.side_effect = [
+            {
+                "flow_id": "flow-1",
+                "step_id": "manage_pause",
+                "data_schema": [
+                    {"name": "default_pause_mode"},
+                    {"name": "pause_duration_hours"},
+                ],
+            },
+            {"step_id": "manage_conditions"},
+        ]
+        result = continue_past_retired_night_setup(
+            api,
+            "flow-1",
+            {
+                "flow_id": "flow-1",
+                "step_id": "initial_night_targets",
+                "data_schema": [
+                    {"name": "night_position"},
+                    {"name": "night_tilt"},
+                ],
+            },
+        )
+        self.assertEqual({"step_id": "manage_conditions"}, result)
+        self.assertEqual(2, api.post.call_count)
+        self.assertEqual(
+            {"night_position": 0, "night_tilt": 100},
+            api.post.call_args_list[0].args[1],
+        )
+        self.assertEqual(
+            {
+                "default_pause_mode": "next_sunrise",
+                "pause_duration_hours": 2,
+            },
+            api.post.call_args_list[1].args[1],
         )
 
     def test_advanced_features_use_focused_automation_submissions(self):

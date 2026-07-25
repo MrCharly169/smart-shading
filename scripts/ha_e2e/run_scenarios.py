@@ -412,6 +412,7 @@ def continue_past_initial_structure_hub(
     """Complete the structure checkpoint when the installed version has it."""
     if result.get("step_id") != "initial_structure_hub":
         return result
+    expect_step(result, "initial_structure_hub")
     return submit_flow(
         api,
         flow_id,
@@ -432,6 +433,41 @@ def supported_form_data(
     if not supported:
         return data
     return {key: value for key, value in data.items() if key in supported}
+
+
+def continue_past_retired_night_setup(
+    api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
+) -> dict[str, Any]:
+    """Complete per-layer Night and pause forms retired after v2026.7.1."""
+    while result.get("step_id") == "initial_night_targets":
+        expect_step(result, "initial_night_targets")
+        result = submit_flow(
+            api,
+            flow_id,
+            "initial_night_targets",
+            supported_form_data(
+                result,
+                {"night_position": 0, "night_tilt": 100},
+            ),
+        )
+    if result.get("step_id") == "manage_pause":
+        expect_step(result, "manage_pause")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_pause",
+            supported_form_data(
+                result,
+                {
+                    "default_pause_mode": "next_sunrise",
+                    "pause_sun_offset_minutes": -60,
+                    "pause_duration_hours": 2,
+                    "external_movement_detection": True,
+                    "heat_during_pause": True,
+                },
+            ),
+        )
+    return result
 
 
 def start_options_flow(
@@ -909,6 +945,7 @@ def create_advanced_entry(
         "manage_night",
         supported_form_data(result, night_offsets),
     )
+    result = continue_past_retired_night_setup(api, flow_id, result)
     expect_step(result, "manage_conditions")
     safety_conditions = {
         "safety_blockers": [setup["safety_entity"]],
@@ -942,6 +979,7 @@ def create_advanced_entry(
         supported_form_data(result, condition_sources),
     )
     if result.get("step_id") == "initial_maximum_opening":
+        expect_step(result, "initial_maximum_opening")
         maximum_opening = {
             "enforce_max_open_position": True,
             "max_open_position": 90,
