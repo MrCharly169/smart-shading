@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 2026.8.0b0 - 2026-08-02
+
 ### Manual control reliability and dashboard clarity
 
 - detect short external KNX or wall-switch position and slat movements
