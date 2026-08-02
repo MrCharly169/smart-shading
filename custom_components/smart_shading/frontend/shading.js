@@ -661,6 +661,63 @@ class SmartShadingV4Dialog extends HTMLElement {
     return labels[key] || humanizeToken(key);
   }
 
+  _diagnosticEventTitle(value) {
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const labels = de ? {
+      room_evaluated: "Raumstatus aktualisiert",
+      room_mode_changed: "Raummodus geändert",
+      evaluation_started: "Auswertung gestartet",
+      external_cover_movement_confirmed: "Externe Behangfahrt erkannt",
+      cover_change_observed: "Behangbewegung geprüft",
+      room_automation_paused: "Raumautomatik pausiert",
+      room_pause_ended: "Raumautomatik fortgesetzt",
+      manual_override_group_started: "Behanggruppe pausiert",
+      manual_override_group_ended: "Behanggruppe fortgesetzt",
+      diagnostic_level: "Diagnoseumfang geändert",
+    } : {
+      room_evaluated: "Room status updated",
+      room_mode_changed: "Room mode changed",
+      evaluation_started: "Evaluation started",
+      external_cover_movement_confirmed: "External cover movement detected",
+      cover_change_observed: "Cover movement checked",
+      room_automation_paused: "Room automation paused",
+      room_pause_ended: "Room automation resumed",
+      manual_override_group_started: "Cover group paused",
+      manual_override_group_ended: "Cover group resumed",
+      diagnostic_level: "Diagnostic level changed",
+    };
+    const key = String(value || "").trim();
+    return labels[key] || this._traceText(key);
+  }
+
+  _diagnosticEventDetails(event) {
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const eventName = String(event.event || event.type || "");
+    const fieldLabels = de ? {
+      room: "Raum", previous: "Vorher", mode: "Modus", reason: "Grund",
+      trigger: "Auslöser", status: "Status", targets: "Behangziele",
+      active_sectors: "Aktive Bereiche", cover: "Behang", entity_id: "Entität",
+      axis: "Bewegung", direction: "Richtung", level: "Umfang",
+    } : {
+      room: "Room", previous: "Previous", mode: "Mode", reason: "Reason",
+      trigger: "Trigger", status: "Status", targets: "Cover targets",
+      active_sectors: "Active areas", cover: "Cover", entity_id: "Entity",
+      axis: "Movement", direction: "Direction", level: "Level",
+    };
+    const preferred = eventName === "room_evaluated"
+      ? ["room", "mode", "reason", "active_sectors", "targets"]
+      : ["room", "cover", "mode", "previous", "reason", "status", "axis", "direction", "trigger", "level", "entity_id"];
+    return preferred.flatMap((key) => {
+      if (!(key in event) || event[key] == null || event[key] === "") return [];
+      let value = event[key];
+      if (key === "mode" || key === "previous") value = this._modeText(value);
+      else if (["reason", "status", "direction", "axis"].includes(key)) value = this._traceText(value);
+      else if (key === "entity_id") value = cleanDisplayName(this._hass?.states?.[value]?.attributes?.friendly_name, value);
+      else if (Array.isArray(value)) value = value.length ? value.map((item) => cleanDisplayName(item, item)).join(", ") : (de ? "Keine" : "None");
+      return [`${fieldLabels[key] || humanizeToken(key)}: ${String(value)}`];
+    }).join(" · ") || (de ? "Keine weiteren Angaben" : "No further details");
+  }
+
   _traceTarget(target, L) {
     const value = asRecord(target);
     const position = asNumber(value.position, null);
@@ -1060,11 +1117,8 @@ class SmartShadingV4Dialog extends HTMLElement {
 
     const eventHtml = events.length ? events.map((event) => {
       const time = event.time || event.timestamp || event.created_at;
-      const data = Object.entries(event)
-        .filter(([key]) => !["time", "timestamp", "created_at", "event", "type"].includes(key))
-        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : String(value ?? "")}`)
-        .join(" · ");
-      return `<div class="event"><time>${htmlEscape(this._formatDate(time))}</time><strong>${htmlEscape(event.event || event.type || "event")}</strong><span>${htmlEscape(data)}</span></div>`;
+      const eventName = event.event || event.type || "event";
+      return `<div class="event"><time>${htmlEscape(this._formatDate(time))}</time><strong>${htmlEscape(this._diagnosticEventTitle(eventName))}</strong><span>${htmlEscape(this._diagnosticEventDetails(event))}</span></div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noEvents)}</div>`;
     const decisionHtml = this._decisionTraceHtml(attrs, L);
 
@@ -1548,6 +1602,13 @@ class SmartShadingV4Card extends HTMLElement {
     this._renderCount += 1;
     this.dataset.renderCount = String(this._renderCount);
     const L = this._labels();
+    const activeElement = this.shadowRoot.activeElement;
+    const focusToken = activeElement
+      ? ["more", "nightSource", "press", "advanced"].find((key) =>
+        Object.prototype.hasOwnProperty.call(activeElement.dataset || {}, key)
+      )
+      : null;
+    const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     if (!this._config?.entity) {
       this.shadowRoot.innerHTML = this._messageCard(L.noEntity);
       return;
@@ -1607,28 +1668,6 @@ class SmartShadingV4Card extends HTMLElement {
     const targets = asArray(attrs.targets);
     const targetByEntity = new Map(targets.map((target) => [target.entity_id, target]));
     const coverPauseByEntity = new Map(asArray(attrs.cover_pauses).map((item) => [item.entity_id, item]));
-    const decisionTrace = tracePayload(attrs.decision_trace);
-    const traceWinner = asRecord(decisionTrace.winner);
-    const traceCommand = asRecord(decisionTrace.command_result);
-    const traceCommandRows = asArray(asRecord(attrs.decision_trace).command_results);
-    const traceCommandStatus = traceCommand.status && traceCommand.status !== "not_planned"
-      ? traceCommand.status
-      : asRecord(traceCommandRows[0]).status || traceCommand.status;
-    const traceInputs = Object.values(asRecord(asRecord(decisionTrace.input_snapshot).inputs));
-    const traceInputProblems = traceInputs.filter((raw) => String(asRecord(raw).quality || "valid") !== "valid").length;
-    const traceZones = protectedZonePayloads(attrs.decision_trace);
-    const traceHits = traceZones.filter((raw) => String(asRecord(raw).status || "") === "hit").length;
-    const preview = previewPayload(attrs.day_preview);
-    const previewTransitions = asArray(preview.transitions);
-    const decisionSummary = advancedMode && Object.keys(decisionTrace).length ? `<div class="decision-summary" data-decision-trace>
-      <span><small>${htmlEscape(L.winner)}</small><strong>${htmlEscape(traceWinner.rule ? humanizeToken(traceWinner.rule) : traceWinner.mode ? this._modeInfo(traceWinner.mode, L)[1] : "–")}</strong></span>
-      <span><small>${htmlEscape(L.command)}</small><strong>${htmlEscape(humanizeToken(traceCommandStatus))}</strong></span>
-      <span><small>${htmlEscape(L.quality)}</small><strong>${htmlEscape(traceInputs.length ? `${traceInputs.length - traceInputProblems}/${traceInputs.length}` : "–")}</strong></span>
-      ${traceZones.length ? `<span><small>${htmlEscape(L.protectedZones)}</small><strong>${htmlEscape(`${traceHits}/${traceZones.length}`)}</strong></span>` : ""}
-      ${attrs.simulation_active ? `<span class="decision-running"><small>${htmlEscape(L.simulation)}</small><strong>${htmlEscape(L.simulationActive)}</strong></span>` : ""}
-      ${Object.keys(preview).length ? `<span><small>${htmlEscape(L.previewDay)}</small><strong>${htmlEscape(`${previewTransitions.length}`)}</strong></span>` : ""}
-    </div>` : "";
-
     const coverChips = covers.map((cover, index) => {
       const locked = cover.lock && this._state(cover.lock)?.state === "on";
       return `<button class="mini-part ${locked ? "bad" : "good"}" data-more="${htmlEscape(cover.lock || cover.entity)}" title="${htmlEscape(this._displayName(cover.entity, cover.name, `${L.cover} ${index + 1}`))}">${htmlEscape(this._short(cover.short, String(index + 1)))}</button>`;
@@ -1766,7 +1805,7 @@ class SmartShadingV4Card extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host{display:block;width:100%;max-width:100%;min-width:0;overflow:visible;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);container-type:inline-size;container-name:shading-card}
+        :host{display:block;width:100%;max-width:100%;min-width:0;overflow:visible;overflow-anchor:none;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);container-type:inline-size;container-name:shading-card}
         *{box-sizing:border-box;min-width:0}
         ha-card{display:block;width:100%;max-width:100%;min-width:0;overflow:hidden;border-radius:22px;border:1px solid rgba(255,255,255,.09);box-shadow:none;background:var(--ha-card-background,var(--card-background-color,#202020));color:var(--primary-text-color,#fff)}
         ha-card.danger{background:linear-gradient(135deg,rgba(255,67,57,.27),rgba(30,27,27,.96))} ha-card.heat{background:linear-gradient(135deg,rgba(255,94,65,.23),rgba(29,27,27,.96))}
@@ -1778,7 +1817,6 @@ class SmartShadingV4Card extends HTMLElement {
         .header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.heading{flex:1;overflow:hidden}.title{font-size:18px;font-weight:850;line-height:1.08}.room-name{font-size:11px;opacity:.56;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.important{font-size:11px;opacity:.72;margin-top:4px;line-height:1.3;overflow-wrap:anywhere}
         .mode{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.10);font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap;line-height:1}.danger .mode .mode-icon,.heat .mode .mode-icon,.paused .mode .mode-icon,.disabled .mode .mode-icon,.manual .mode .mode-icon,.active-master .icon-box,.sector-card.active .sector-icon,.cover-row.warning .cover-icon,.easy-cover-row.manual .easy-cover-icon,.calm-pulse{--pulse-transform:translateZ(0);animation:calmPulse 4.2s ease-in-out infinite;transform-origin:center}.sun-dot.calm-pulse{--pulse-transform:translate(-50%,-50%)}@keyframes calmPulse{0%,100%{opacity:.76;transform:var(--pulse-transform) scale(.98)}50%{opacity:1;transform:var(--pulse-transform) scale(1.045)}}
         .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;line-height:1;cursor:pointer}.chip.icon-only{width:26px;padding:0}.parts{display:inline-flex;align-items:center;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;line-height:1;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
-        .decision-summary{display:flex;flex-wrap:wrap;gap:5px;padding:7px 8px;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(255,255,255,.035)}.decision-summary span{display:grid;gap:1px;min-width:74px;flex:1 1 80px}.decision-summary small{font-size:8px;letter-spacing:.03em;opacity:.55;text-transform:uppercase}.decision-summary strong{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.decision-summary .decision-running strong{color:var(--warning-color,#ffbf69)}
         .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.35)}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
         .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}
         .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar.unknown:after{content:"";display:block;width:100%;height:100%;background:rgba(255,255,255,.04)}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
@@ -1805,7 +1843,6 @@ class SmartShadingV4Card extends HTMLElement {
             ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
           </div>
-          ${decisionSummary}
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</span><span>${sunAvailable ? `Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°` : htmlEscape(L.sunUnavailable)}</span></div><div class="track">${sectorBars}${sunAvailable ? `<span class="sun-dot ${effectiveSunActive ? "calm-pulse" : ""}"></span>` : ""}</div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
           ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}
           ${this._config.show_covers !== false ? `<div class="covers">${coverRows || `<div class="message">${htmlEscape(L.noCovers)}</div>`}</div>` : ""}
@@ -1834,6 +1871,18 @@ class SmartShadingV4Card extends HTMLElement {
           </div>` : ""}
         </div>
       </ha-card>`}`;
+
+    if (focusToken) {
+      const attribute = {
+        more: "data-more",
+        nightSource: "data-night-source",
+        press: "data-press",
+        advanced: "data-advanced",
+      }[focusToken];
+      const candidates = asArray(Array.from(this.shadowRoot.querySelectorAll?.(`[${attribute}]`) || []));
+      const replacement = candidates.find((element) => element.dataset?.[focusToken] === focusValue);
+      replacement?.focus?.({ preventScroll: true });
+    }
 
   }
 

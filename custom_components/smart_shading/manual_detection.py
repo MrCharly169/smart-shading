@@ -23,6 +23,12 @@ EXTERNAL_MIN_CHANGED_UPDATES = 2
 EXTERNAL_MIN_STABLE_UPDATES = 1
 EXTERNAL_STABLE_EPSILON = 0.5
 EXTERNAL_STABILITY_SECONDS = 5.0
+# Manual movement detection must not inherit command de-duplication tolerances.
+# A layer can deliberately accept a fairly large target deviation, while KNX
+# actuators often report short wall-switch movements in one-percent steps.
+# Stability and baseline confirmation below provide the false-positive guard.
+EXTERNAL_POSITION_CHANGE_THRESHOLD = 1.0
+EXTERNAL_TILT_CHANGE_THRESHOLD = 1.0
 OWN_COMMAND_SETTLE_SECONDS = 30.0
 WINDOW_AUTOMATION_SETTLE_SECONDS = 30.0
 WINDOW_AUTOMATION_TIMEOUT_SECONDS = 180.0
@@ -565,8 +571,8 @@ class ManualOverrideDetectionMixin:
         new_position = self._state_attribute_number(state, "current_position")
         new_tilt = self._state_attribute_number(state, "current_tilt_position")
         position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
-        position_threshold = max(2.0, position_tolerance)
-        tilt_threshold = max(3.0, tilt_tolerance)
+        position_threshold = EXTERNAL_POSITION_CHANGE_THRESHOLD
+        tilt_threshold = EXTERNAL_TILT_CHANGE_THRESHOLD
 
         pause = self.cover_pauses.get(self._cover_id(cover))
         if pause is not None and pause.active:
@@ -834,8 +840,8 @@ class ManualOverrideDetectionMixin:
             )
         age = (now - latest).total_seconds() if latest is not None else None
         position_tolerance, tilt_tolerance = self._cover_tolerances(entity_id)
-        position_threshold = max(2.0, position_tolerance)
-        tilt_threshold = max(3.0, tilt_tolerance)
+        position_threshold = EXTERNAL_POSITION_CHANGE_THRESHOLD
+        tilt_threshold = EXTERNAL_TILT_CHANGE_THRESHOLD
 
         raw = classify_cover_feedback(
             old_position=old_position,
