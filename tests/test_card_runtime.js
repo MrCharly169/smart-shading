@@ -48,9 +48,10 @@ class FakeElement extends FakeNode {
   }
 }
 class FakeShadowRoot extends FakeNode {
-  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this.activeElement = null; this.writeCount = 0; }
+  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this._queryCache = new Map(); this.activeElement = null; this.writeCount = 0; }
   set innerHTML(value) {
     this._innerHTML = String(value || "");
+    this._queryCache.clear();
     this.writeCount += 1;
     if (this._innerHTML.includes('class="dialog"')) {
       this._dialog = new FakeElement();
@@ -69,6 +70,12 @@ class FakeShadowRoot extends FakeNode {
   }
   querySelectorAll(selector) {
     if (selector === "[data-close]" && this._dialog) return [new FakeElement(), new FakeElement()];
+    if (this._queryCache.has(selector)) return this._queryCache.get(selector);
+    if (/^\[data-[a-z-]+\]$/.test(selector)) {
+      const nodes = new FakeElement(this._innerHTML).querySelectorAll(selector);
+      this._queryCache.set(selector, nodes);
+      return nodes;
+    }
     return [];
   }
 }
@@ -241,7 +248,10 @@ const roomStatus = {
     easy_confirmation_state: "confirmed",
     easy_source_summary: "Binary sensor",
     outdoor_temperature_condition: { enabled: true, source_entity: "sensor.outdoor", value: 24.5, minimum: 18, passed: true },
-    diagnostic_events: [{ timestamp: "2026-07-14T12:00:00+00:00", event: "room_mode_changed", room_id: "room", mode: "solar" }],
+    diagnostic_events: [
+      { timestamp: "2026-07-14T12:00:00+00:00", event: "room_mode_changed", room_id: "room", previous: "idle", mode: "solar" },
+      { timestamp: "2026-07-14T12:01:00+00:00", event: "room_evaluated", room_id: "room", room: "Raum A", mode: "solar", reason: "solar_conditions_matched", active_sectors: ["Süd links"], targets: 1 },
+    ],
     sector_statuses: [{ id: "south_left", name: "Süd links", short: "S1", status: "shading_active", reason: "Normal shading", geometry_active: true, sun_presence: true, confirmation_source: "binary", confirmation_entity: "binary_sensor.south_sun_presence", confirmation_state: true, effective_active: true, lux: 26398.72, lux_raw_state: "26398.72", lux_unit: "lx", sun_settings: { sun_on_lux: 18000, sun_off_lux: 9000, sun_on_delay: 3, sun_off_delay: 12 }, pending_target: null, pending_until: null, mode: "solar", sun_presence_entity_id: "binary_sensor.south_sun_presence" }],
     configuration: {
       indoor_temperature: "sensor.room_temperature",
@@ -294,7 +304,12 @@ const visibleHtml = html.replace(/data-(?:more|press|toggle|number|select)="[^"]
 if (visibleHtml.includes("cover.internal_identifier")) throw new Error("Card exposed a raw cover entity ID as visible content");
 if (html.includes("undefined")) throw new Error("Card rendered undefined");
 if (!html.includes('data-card-mode="advanced"') || !html.includes("data-advanced-layout") || !html.includes("data-advanced-sectors")) throw new Error("Advanced card did not use its dedicated layout");
-if (!html.includes("data-decision-trace") || html.includes('data-press="button.simulate"') || html.includes('data-press="button.preview"')) throw new Error("Advanced card exposed test controls outside the details view");
+if (html.includes("data-decision-trace") || html.includes('data-press="button.simulate"') || html.includes('data-press="button.preview"')) throw new Error("Advanced card exposed decision diagnostics or test controls outside the details view");
+if (!html.includes("overflow-anchor:none")) throw new Error("Card did not opt out of dashboard scroll anchoring during live updates");
+const focusedAdvancedEntrance = card.shadowRoot.querySelectorAll("[data-advanced]")[0];
+card.shadowRoot.activeElement = focusedAdvancedEntrance;
+card._render();
+if (!card.shadowRoot.querySelectorAll("[data-advanced]")[0]?.focused) throw new Error("Card did not restore focused controls without scrolling after a live update");
 if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
@@ -414,7 +429,7 @@ const glareCard = new Card();
 glareCard.setConfig({ entity: glareStatus.entity_id });
 glareCard.hass = hass;
 const glareMarkup = glareCard.shadowRoot.innerHTML.slice(glareCard.shadowRoot.innerHTML.indexOf("</style>") + 8);
-if (!glareMarkup.includes("Blendschutz") || !glareMarkup.includes("Schutzzone")) throw new Error("Active glare protection was not explicit on the Advanced card");
+if (!glareMarkup.includes("Blendschutz") || glareMarkup.includes("Schutzzone")) throw new Error("Advanced card did not keep glare visible while reserving protected-zone diagnostics for Details");
 const glareDialog = new Dialog();
 glareDialog._hass = hass;
 glareDialog._roomState = glareStatus;
@@ -484,6 +499,7 @@ if (!dialog.shadowRoot.innerHTML.includes('data-tool-press="button.simulate"') |
 if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
+if (!dialog.shadowRoot.innerHTML.includes("Raumstatus aktualisiert") || !dialog.shadowRoot.innerHTML.includes("Modus: Sonnenschutz") || !dialog.shadowRoot.innerHTML.includes("Behangziele: 1") || dialog.shadowRoot.innerHTML.includes("room_evaluated")) throw new Error("Diagnostic journal did not present room evaluation events in customer-friendly language");
 if (!dialog.shadowRoot.innerHTML.includes("Höchste passende Priorität") || !dialog.shadowRoot.innerHTML.includes("Regel nicht zutreffend") || !dialog.shadowRoot.innerHTML.includes("Komfortbedingungen nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Öffnungsregel nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Eingabe gültig") || !dialog.shadowRoot.innerHTML.includes("Eingabe veraltet") || !dialog.shadowRoot.innerHTML.includes("Behangbefehl gesendet")) throw new Error("Advanced dialog did not localize the production candidate, input, command, and resolution trace codes");
 if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector") || dialog.shadowRoot.innerHTML.includes("highest_matching_priority") || dialog.shadowRoot.innerHTML.includes("rule_not_matched")) throw new Error("Advanced dialog exposed raw internal reason keys");
 const germanTraceLabels = {

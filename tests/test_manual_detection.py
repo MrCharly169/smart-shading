@@ -206,6 +206,22 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_short_knx_movement_ignores_command_tolerance(self):
+        """A target tolerance must not hide a real wall-switch movement."""
+        layer = self.engine.config["rooms"][0]["sectors"][0]["layers"][0]
+        layer["position_tolerance"] = 10
+        layer["tilt_tolerance"] = 10
+        self.engine._rebuild_runtime()
+
+        first = FakeState("open", current_position=100, current_tilt_position=100)
+        final = FakeState("open", current_position=98, current_tilt_position=100)
+        await self.engine._async_state_changed(FakeEvent("cover.one", first, final))
+        self.hass.states.values["cover.one"] = final
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
     async def test_single_candidate_returning_to_baseline_is_not_confirmed(self):
         first = FakeState("open", current_position=100, current_tilt_position=100)
         candidate = FakeState(

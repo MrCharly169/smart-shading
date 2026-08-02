@@ -54,6 +54,7 @@ Do not disable the global KNX state updater as the only workaround. Other KNX en
 - Automatic pause detection uses numeric `current_position` and `current_cover_tilt_position` feedback where available.
 - One numeric change starts a candidate but never pauses the cover immediately.
 - Smart Shading confirms the candidate when its numeric value remains unchanged for five seconds. This also supports actuators that publish only their final position or tilt value.
+- External movement uses the actuator's one-percent numeric feedback resolution rather than the larger command tolerance configured for automatic target suppression. Short wall-switch movements can therefore still pause automation.
 - Every additional numeric change restarts the stability timer.
 - A value returning to the accepted baseline rejects the candidate.
 - Smart Shading, window-policy, and safety-owned command sessions cannot create a manual pause.

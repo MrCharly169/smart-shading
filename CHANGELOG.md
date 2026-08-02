@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Manual control reliability and dashboard clarity
+
+- detect short external KNX or wall-switch position and slat movements
+  independently of the larger command tolerances used to suppress redundant
+  automatic targets, while retaining the existing stable-feedback confirmation
+- keep decision, input-quality, command and protected-zone diagnostics in the
+  Advanced details view instead of repeating them in the compact room Card
+- translate diagnostic journal events such as room evaluation into readable
+  customer-facing status, mode, reason, active-area and target descriptions
+- preserve focused Card controls and disable browser scroll anchoring during
+  live Home Assistant updates so dashboard status refreshes no longer move the
+  viewport unexpectedly
+
 
 ## 2026.7.2b1 - 2026-07-25
 
