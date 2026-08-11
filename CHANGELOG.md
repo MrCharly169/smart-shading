@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 2026.8.0b1 - 2026-08-11
+
 ### Dashboard stability and status badges
 
 - preserve the outer Home Assistant dashboard viewport and the Advanced
@@ -13,6 +16,7 @@
 - expose the room pause and automation summary needed by the house badge and
   include badge setup in the initial wizard help, dashboard notification and
   documentation
+
 
 ## 2026.8.0b0 - 2026-08-02
 
