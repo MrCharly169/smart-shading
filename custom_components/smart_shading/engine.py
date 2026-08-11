@@ -49,6 +49,7 @@ from .const import (
     DEVICE_VERTICAL,
     DEVICE_VENETIAN,
     DOMAIN,
+    FEATURE_DASHBOARD_BADGES,
     FEATURE_TEST_TOOLS,
     FEATURE_GLARE_PROTECTION,
     FEATURE_MAXIMUM_OPENING,
@@ -75,6 +76,7 @@ from .const import (
     PRESET_CUSTOM,
     PRESET_MEDIUM,
     PROFILE_DEFAULTS,
+    SHARED_FEATURES,
     profile_supports_position,
     SUN_PRESETS,
     VERSION,
@@ -605,7 +607,13 @@ class SmartShadingEngine:
         registry = er.async_get(self.hass)
         previous_ids = set(self.store.card_notification_ids())
         configured_ids = {
-            f"smart_shading_card_{self.entry.entry_id}_{room['id']}"
+            (
+                f"smart_shading_card_badges_{self.entry.entry_id}_{room['id']}"
+                if self.room_feature_enabled(
+                    room["id"], FEATURE_DASHBOARD_BADGES
+                )
+                else f"smart_shading_card_{self.entry.entry_id}_{room['id']}"
+            )
             for room in self.config.get(CONF_ROOMS, [])
         }
         successful_ids = previous_ids & configured_ids
@@ -614,7 +622,14 @@ class SmartShadingEngine:
 
         for room in self.config.get(CONF_ROOMS, []):
             room_id = room["id"]
-            notification_id = f"smart_shading_card_{self.entry.entry_id}_{room_id}"
+            badges_enabled = self.room_feature_enabled(
+                room_id, FEATURE_DASHBOARD_BADGES
+            )
+            notification_id = (
+                f"smart_shading_card_badges_{self.entry.entry_id}_{room_id}"
+                if badges_enabled
+                else f"smart_shading_card_{self.entry.entry_id}_{room_id}"
+            )
             if notification_id in previous_ids:
                 continue
             unique_id = f"{self.entry.entry_id}_{room_id}_status"
@@ -624,13 +639,49 @@ class SmartShadingEngine:
                 _LOGGER.debug("Room status entity not yet registered for %s", room.get("name"))
                 continue
 
+            house_entity_id = None
+            if badges_enabled:
+                house_entity_id = registry.async_get_entity_id(
+                    "sensor", DOMAIN, f"{self.entry.entry_id}_house_status"
+                )
+                if house_entity_id is None:
+                    missing_entities += 1
+                    _LOGGER.debug("House status entity not yet registered")
+                    continue
+
             card_yaml = (
                 "type: custom:smart-shading-card\n"
                 f"entity: {entity_id}\n"
             )
-            badge_yaml = (
+            room_badge_yaml = (
                 "type: custom:smart-shading-badge\n"
                 f"entity: {entity_id}\n"
+            )
+            house_badge_yaml = (
+                "type: custom:smart-shading-badge\n"
+                f"entity: {house_entity_id}\n"
+                if house_entity_id
+                else ""
+            )
+            badge_message_de = (
+                "\n\n**Gewählte Dashboard-Badges:** Öffnen Sie im Dashboard-Editor "
+                "`Badge hinzufügen → Smart Shading status` und wählen Sie Haus- "
+                "oder Raumstatus. Alternativ können Sie den YAML-Code verwenden.\n\n"
+                "Haus-Badge:\n\n```yaml\n"
+                f"{house_badge_yaml}```\n\nRaum-Badge:\n\n```yaml\n"
+                f"{room_badge_yaml}```"
+                if badges_enabled
+                else ""
+            )
+            badge_message_en = (
+                "\n\n**Selected dashboard badges:** In the dashboard editor, open "
+                "`Add badge → Smart Shading status` and select the house or room "
+                "status. You can alternatively use the YAML below.\n\n"
+                "House badge:\n\n```yaml\n"
+                f"{house_badge_yaml}```\n\nRoom badge:\n\n```yaml\n"
+                f"{room_badge_yaml}```"
+                if badges_enabled
+                else ""
             )
             if german:
                 title = f"Smart Shading – Dashboard-Karte für {room['name']}"
@@ -639,11 +690,8 @@ class SmartShadingEngine:
                     "Smart-Shading-Karte zum Dashboard hinzu.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
-                    "```\n\n"
-                    "**Kompakter Raum-Badge:**\n\n"
-                    "```yaml\n"
-                    f"{badge_yaml}"
-                    "```\n\n"
+                    "```"
+                    f"{badge_message_de}\n\n"
                     "**So fügen Sie die Karte ein:** Dashboard bearbeiten → Karte "
                     "hinzufügen → Manuell → Code einfügen → Speichern.\n\n"
                     f"Falls die Karte noch nicht registriert ist, fügen Sie unter "
@@ -657,11 +705,8 @@ class SmartShadingEngine:
                     "Shading card to a dashboard.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
-                    "```\n\n"
-                    "**Compact room badge:**\n\n"
-                    "```yaml\n"
-                    f"{badge_yaml}"
-                    "```\n\n"
+                    "```"
+                    f"{badge_message_en}\n\n"
                     "**Add the card:** Edit dashboard → Add card → Manual → paste "
                     "the code → Save.\n\n"
                     f"If the card resource is not registered yet, add `{CARD_RESOURCE}` "
@@ -2564,13 +2609,13 @@ class SmartShadingEngine:
         )
 
     def room_feature_enabled(self, room_id: str, feature: str) -> bool:
-        """Return whether a customer explicitly enabled one Advanced feature.
+        """Return whether a customer explicitly enabled one optional feature.
 
-        The base automation remains independent of this list.  It is used for
-        optional tools and views so an integration update cannot add controls
-        to an established room without the customer's consent.
+        Easy accepts only the shared feature subset; automation and protection
+        features remain Advanced-only. The base automation is independent of
+        this list so an update cannot add controls without consent.
         """
-        if not self.advanced_mode:
+        if not self.advanced_mode and feature not in SHARED_FEATURES:
             return False
         room = self.room_config(room_id)
         features = room.get(CONF_ADVANCED_FEATURES)

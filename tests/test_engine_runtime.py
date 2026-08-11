@@ -754,7 +754,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             creates[0][2]["notification_id"], "smart_shading_card_entry_room"
         )
         self.assertIn("entity: sensor.room_status", creates[0][2]["message"])
-        self.assertIn("type: custom:smart-shading-badge", creates[0][2]["message"])
+        self.assertNotIn("type: custom:smart-shading-badge", creates[0][2]["message"])
         self.assertEqual(
             self.engine.store.card_notification_ids(),
             ["smart_shading_card_entry_room"],
@@ -766,6 +766,45 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.engine.reload_config()
         self.assertTrue(await self._sync_card_notifications(registry))
         self.assertEqual(len(self._notification_calls("create")), 1)
+
+    async def test_selected_badge_feature_adds_house_and_room_guidance(self):
+        room = self.engine.entry.data["rooms"][0]
+        room["advanced_features"] = [engine_mod.FEATURE_DASHBOARD_BADGES]
+        self.engine.reload_config()
+        registry = FakeEntityRegistry({
+            ("sensor", "smart_shading", "entry_house_status"): "sensor.house_status",
+            ("sensor", "smart_shading", "entry_room_status"): "sensor.room_status",
+        })
+
+        self.assertTrue(await self._sync_card_notifications(registry))
+
+        creates = self._notification_calls("create")
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(
+            creates[0][2]["notification_id"],
+            "smart_shading_card_badges_entry_room",
+        )
+        message = creates[0][2]["message"]
+        self.assertEqual(message.count("type: custom:smart-shading-badge"), 2)
+        self.assertIn("entity: sensor.house_status", message)
+        self.assertIn("entity: sensor.room_status", message)
+
+    async def test_easy_room_can_select_shared_badge_feature(self):
+        self.engine.entry.data["advanced_mode"] = False
+        self.engine.entry.data["rooms"][0]["advanced_features"] = [
+            engine_mod.FEATURE_DASHBOARD_BADGES
+        ]
+        self.engine.reload_config()
+        self.assertTrue(
+            self.engine.room_feature_enabled(
+                "room", engine_mod.FEATURE_DASHBOARD_BADGES
+            )
+        )
+        self.assertFalse(
+            self.engine.room_feature_enabled(
+                "room", engine_mod.FEATURE_MAXIMUM_OPENING
+            )
+        )
 
     async def test_card_notification_adds_only_the_second_new_room(self):
         registry = FakeEntityRegistry({

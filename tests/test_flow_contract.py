@@ -745,6 +745,8 @@ class WizardRouteContractTests(unittest.TestCase):
             "manage_safety",
             "manage_weather_conditions",
             "initial_glare_protection",
+            "initial_maximum_opening",
+            "manage_dashboard_badges",
             "manage_execution",
         )
         offsets = [dispatcher.index(f'"{handler}"') for handler in ordered_handlers]
@@ -759,6 +761,14 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn("_start_initial_feature_sequence", chooser)
         self.assertIn("newly_enabled", chooser)
         self.assertIn("self._queued_feature_setup = newly_enabled", chooser)
+        self.assertIn("SHARED_FEATURES", chooser)
+
+        badge_setup = ast.get_source_segment(
+            FLOW_PATH.read_text(encoding="utf-8"),
+            _method(self.mixin, "async_step_manage_dashboard_badges"),
+        ) or ""
+        self.assertIn("_finish_feature_step", badge_setup)
+        self.assertIn('step_id="manage_dashboard_badges"', badge_setup)
 
         night_source = ast.get_source_segment(
             FLOW_PATH.read_text(encoding="utf-8"),

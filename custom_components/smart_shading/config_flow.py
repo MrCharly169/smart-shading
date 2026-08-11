@@ -66,6 +66,7 @@ from .const import (
     DIRECTION_PRESETS,
     DOMAIN,
     FEATURE_CONDITIONS,
+    FEATURE_DASHBOARD_BADGES,
     FEATURE_EXPERT_EXECUTION,
     FEATURE_GLARE_PROTECTION,
     FEATURE_MAXIMUM_OPENING,
@@ -101,6 +102,7 @@ from .const import (
     SCHEDULE_SUMMER,
     SCHEDULE_YEAR_ROUND,
     STAGGER_SCOPE_OPTIONS,
+    SHARED_FEATURES,
     SUN_PRESETS,
     SUN_PRESET_OPTIONS,
     TILT_CURVE_PRESETS,
@@ -587,6 +589,7 @@ class _SmartShadingWizardMixin:
                 FEATURE_CONDITIONS: "Wetter & Anwesenheit",
                 FEATURE_GLARE_PROTECTION: "Blendschutz für Bereich oder Objekt",
                 FEATURE_MAXIMUM_OPENING: "Maximale Öffnungsbegrenzung",
+                FEATURE_DASHBOARD_BADGES: "Dashboard-Badges einrichten",
                 FEATURE_TEST_TOOLS: "Test & Vorschau",
                 FEATURE_EXPERT_EXECUTION: "Experteneinstellungen für Fahrbefehle",
             }
@@ -598,6 +601,7 @@ class _SmartShadingWizardMixin:
             FEATURE_CONDITIONS: "Weather & occupancy",
             FEATURE_GLARE_PROTECTION: "Glare protection for an area or object",
             FEATURE_MAXIMUM_OPENING: "Maximum opening limit",
+            FEATURE_DASHBOARD_BADGES: "Set up dashboard badges",
             FEATURE_TEST_TOOLS: "Test & preview",
             FEATURE_EXPERT_EXECUTION: "Expert command settings",
         }
@@ -638,6 +642,10 @@ class _SmartShadingWizardMixin:
                 "Die harte Öffnungsgrenze korrigiert auch externe Fahrten "
                 "oberhalb des Grenzwerts. Nur Sicherheitsfahrten haben Vorrang."
             ),
+            FEATURE_DASHBOARD_BADGES: (
+                "Die kleinen runden Home-Assistant-Badges zeigen Haus- oder "
+                "Raumstatus mit Behangsymbol, Zustandsmarkierung und Farbe."
+            ),
             FEATURE_TEST_TOOLS: (
                 "Vorschau und Simulation erklären Entscheidungen, bewegen "
                 "aber niemals einen Behang."
@@ -676,6 +684,10 @@ class _SmartShadingWizardMixin:
             FEATURE_MAXIMUM_OPENING: (
                 "The hard opening limit also corrects external movement above "
                 "the configured maximum. Only safety movement has priority."
+            ),
+            FEATURE_DASHBOARD_BADGES: (
+                "The small round Home Assistant badges show house or room "
+                "status through a cover symbol, state marker and color."
             ),
             FEATURE_TEST_TOOLS: (
                 "Preview and simulation explain decisions but never move a cover."
@@ -782,6 +794,7 @@ class _SmartShadingWizardMixin:
             FEATURE_CONDITIONS: "manage_weather_conditions",
             FEATURE_GLARE_PROTECTION: "initial_glare_protection",
             FEATURE_MAXIMUM_OPENING: "initial_maximum_opening",
+            FEATURE_DASHBOARD_BADGES: "manage_dashboard_badges",
             FEATURE_EXPERT_EXECUTION: "manage_execution",
         }
         handler = handlers.get(feature)
@@ -791,8 +804,6 @@ class _SmartShadingWizardMixin:
 
     async def async_step_advanced_features_hub(self, user_input=None):
         """Show only features the customer selected for this room."""
-        if not self.advanced_mode:
-            return await self.async_step_room_hub()
         labels = self._feature_labels()
         selected = self._advanced_features()
         menu_options = {
@@ -800,35 +811,40 @@ class _SmartShadingWizardMixin:
                 "Funktionen auswählen" if self._is_german() else "Choose features"
             ),
         }
-        if FEATURE_SCHEDULE in selected:
+        if self.advanced_mode and FEATURE_SCHEDULE in selected:
             menu_options["manage_schedule"] = labels[FEATURE_SCHEDULE]
-        if FEATURE_TEMPERATURE in selected:
+        if self.advanced_mode and FEATURE_TEMPERATURE in selected:
             menu_options["manage_temperature"] = labels[FEATURE_TEMPERATURE]
-        if FEATURE_NIGHT in selected:
+        if self.advanced_mode and FEATURE_NIGHT in selected:
             menu_options["manage_night"] = labels[FEATURE_NIGHT]
-        if FEATURE_SAFETY in selected:
+        if self.advanced_mode and FEATURE_SAFETY in selected:
             menu_options["manage_safety"] = labels[FEATURE_SAFETY]
-        if FEATURE_CONDITIONS in selected:
+        if self.advanced_mode and FEATURE_CONDITIONS in selected:
             menu_options["manage_weather_conditions"] = labels[
                 FEATURE_CONDITIONS
             ]
-        if FEATURE_GLARE_PROTECTION in selected:
+        if self.advanced_mode and FEATURE_GLARE_PROTECTION in selected:
             menu_options["glare_protection_hub"] = labels[
                 FEATURE_GLARE_PROTECTION
             ]
-        if FEATURE_MAXIMUM_OPENING in selected:
+        if self.advanced_mode and FEATURE_MAXIMUM_OPENING in selected:
             menu_options["maximum_opening_hub"] = labels[
                 FEATURE_MAXIMUM_OPENING
             ]
-        if FEATURE_EXPERT_EXECUTION in selected:
+        if FEATURE_DASHBOARD_BADGES in selected:
+            menu_options["manage_dashboard_badges"] = labels[
+                FEATURE_DASHBOARD_BADGES
+            ]
+        if self.advanced_mode and FEATURE_EXPERT_EXECUTION in selected:
             menu_options["manage_execution"] = labels[
                 FEATURE_EXPERT_EXECUTION
             ]
-        menu_options["manage_pause"] = (
-            "Pause und manuelle Bedienung"
-            if self._is_german()
-            else "Pause and manual control"
-        )
+        if self.advanced_mode:
+            menu_options["manage_pause"] = (
+                "Pause und manuelle Bedienung"
+                if self._is_german()
+                else "Pause and manual control"
+            )
         menu_options["back_to_room"] = "Zurück zum Raum" if self._is_german() else "Back to room"
         return self.async_show_menu(
             step_id="advanced_features_hub",
@@ -840,18 +856,19 @@ class _SmartShadingWizardMixin:
         )
 
     async def async_step_choose_advanced_features(self, user_input=None):
-        """Let a customer opt into Advanced capabilities before configuration."""
-        if not self.advanced_mode:
-            return await self.async_step_room_hub()
+        """Let a customer opt into capabilities available in the fixed mode."""
         room = self.room()
-        selected = self._advanced_features(room)
+        allowed_features = (
+            ADVANCED_FEATURES if self.advanced_mode else SHARED_FEATURES
+        )
+        selected = self._advanced_features(room) & set(allowed_features)
         glare_available = self._room_supports_glare_protection(room)
         maximum_opening_available = self._room_supports_maximum_opening(room)
         if user_input is not None:
             previously_selected = set(selected)
             selected_features = [
                 feature
-                for feature in ADVANCED_FEATURES
+                for feature in allowed_features
                 if user_input.get(feature, False)
                 and (
                     feature != FEATURE_GLARE_PROTECTION
@@ -868,39 +885,40 @@ class _SmartShadingWizardMixin:
             # later re-enable returns to its focused setup page instead of
             # leaving an invisible automatic rule active in the room.
             selected_set = set(selected_features)
-            if FEATURE_SCHEDULE not in selected_set:
-                room["schedule_enabled"] = False
-            else:
-                room["schedule_enabled"] = True
-            if FEATURE_TEMPERATURE not in selected_set:
-                room["indoor_temperature"] = ""
-            if FEATURE_NIGHT not in selected_set:
-                room["night_enabled"] = False
-            else:
-                room["night_enabled"] = True
-            if FEATURE_SAFETY not in selected_set:
-                room["safety_blockers"] = []
-            if FEATURE_CONDITIONS not in selected_set:
-                for key in (
-                    "irradiance_sensor",
-                    "cloud_cover_sensor",
-                    "weather_permission",
-                    "occupancy_sensor",
-                    "glare_sensor",
-                ):
-                    room[key] = ""
-            if FEATURE_MAXIMUM_OPENING not in selected_set:
-                for sector in room.get("sectors", []):
-                    for layer in sector.get("layers", []):
-                        for cover in layer.get("covers", []):
-                            cover["enforce_max_open_position"] = False
-            # These tools create entities, so an Options-flow save/reload is
-            # required before Home Assistant can add or remove them.
+            if self.advanced_mode:
+                if FEATURE_SCHEDULE not in selected_set:
+                    room["schedule_enabled"] = False
+                else:
+                    room["schedule_enabled"] = True
+                if FEATURE_TEMPERATURE not in selected_set:
+                    room["indoor_temperature"] = ""
+                if FEATURE_NIGHT not in selected_set:
+                    room["night_enabled"] = False
+                else:
+                    room["night_enabled"] = True
+                if FEATURE_SAFETY not in selected_set:
+                    room["safety_blockers"] = []
+                if FEATURE_CONDITIONS not in selected_set:
+                    for key in (
+                        "irradiance_sensor",
+                        "cloud_cover_sensor",
+                        "weather_permission",
+                        "occupancy_sensor",
+                        "glare_sensor",
+                    ):
+                        room[key] = ""
+                if FEATURE_MAXIMUM_OPENING not in selected_set:
+                    for sector in room.get("sectors", []):
+                        for layer in sector.get("layers", []):
+                            for cover in layer.get("covers", []):
+                                cover["enforce_max_open_position"] = False
+            # Saving the Options flow reloads Home Assistant so entity tools
+            # and the selected dashboard onboarding guidance stay in sync.
             if getattr(self, "_initial_setup", False):
                 return await self._start_initial_feature_sequence()
             newly_enabled = [
                 feature
-                for feature in ADVANCED_FEATURES
+                for feature in allowed_features
                 if feature in selected_set
                 and feature not in previously_selected
                 and feature != FEATURE_TEST_TOOLS
@@ -915,7 +933,7 @@ class _SmartShadingWizardMixin:
             return await self.async_step_advanced_features_hub()
         fields = {
             vol.Required(feature, default=feature in selected): selector.BooleanSelector()
-            for feature in ADVANCED_FEATURES
+            for feature in allowed_features
             if (
                 feature != FEATURE_GLARE_PROTECTION
                 or glare_available
@@ -931,6 +949,22 @@ class _SmartShadingWizardMixin:
             step_id="choose_advanced_features",
             data_schema=vol.Schema(fields),
             description_placeholders=self._option_placeholders(),
+        )
+
+    async def async_step_manage_dashboard_badges(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Explain the safe manual placement of selected dashboard badges."""
+        if not self._feature_enabled(FEATURE_DASHBOARD_BADGES):
+            return await self.async_step_room_hub()
+        if user_input is not None:
+            return await self._finish_feature_step()
+        return self.async_show_form(
+            step_id="manage_dashboard_badges",
+            data_schema=vol.Schema({}),
+            description_placeholders=self._feature_context_placeholders(
+                FEATURE_DASHBOARD_BADGES
+            ),
         )
 
 
@@ -2720,7 +2754,7 @@ class SmartShadingConfigFlow(
                         fallback=return_step
                     )
                 return await getattr(self, f"async_step_{return_step}")()
-            if getattr(self, "_initial_setup", False) and self.advanced_mode:
+            if getattr(self, "_initial_setup", False):
                 return await self.async_step_choose_advanced_features()
             return await self.async_step_after_room()
         entity_id = entities[index]
@@ -4796,7 +4830,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 # customer add every sector, group and cover before optional
                 # features are selected for that full structure.
                 return await self.async_step_structure_hub()
-            return await self.async_step_after_room()
+            return await self.async_step_choose_advanced_features()
         return await self._finish_structure_change(fallback="sector_hub")
 
     async def async_step_manage_layer(

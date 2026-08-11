@@ -1945,18 +1945,14 @@ class SmartShadingBadge extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._lastRenderSignature = "";
-    this.shadowRoot?.addEventListener?.("click", () => {
-      const entityId = String(this._config.entity || "");
-      if (!entityId) return;
-      this.dispatchEvent(new CustomEvent("hass-more-info", {
-        bubbles: true,
-        composed: true,
-        detail: { entityId },
-      }));
-    });
   }
 
-  static getStubConfig() { return {}; }
+  static getStubConfig(hass) {
+    const state = Object.values(hass?.states || {}).find((candidate) =>
+      candidate?.entity_id?.startsWith("sensor.") && candidate.attributes?.smart_shading_entry_id
+      && (candidate.attributes?.smart_shading_room_id || Array.isArray(candidate.attributes?.rooms)));
+    return state ? { entity: state.entity_id } : {};
+  }
   static async getConfigElement() { return document.createElement("smart-shading-badge-editor"); }
 
   setConfig(config = {}) {
@@ -1978,6 +1974,30 @@ class SmartShadingBadge extends HTMLElement {
     if (signature === this._lastRenderSignature) return;
     this._lastRenderSignature = signature;
     this._render();
+  }
+
+  _openMoreInfo() {
+    const entityId = String(this._config.entity || "");
+    if (!entityId) return;
+    this.dispatchEvent(new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    }));
+  }
+
+  _bindInteraction() {
+    const badge = this.shadowRoot?.querySelector?.("ha-badge");
+    if (!badge || !this._config.entity) return;
+    badge.addEventListener?.("click", (event) => {
+      event.stopPropagation?.();
+      this._openMoreInfo();
+    });
+    badge.addEventListener?.("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault?.();
+      this._openMoreInfo();
+    });
   }
 
   _labels() {
@@ -2012,13 +2032,43 @@ class SmartShadingBadge extends HTMLElement {
       : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
   }
 
-  _icon(mode) {
+  _profile(state) {
+    const attrs = asRecord(state?.attributes);
+    if (attrs.badge_profile) return String(attrs.badge_profile);
+    const room = asRecord(attrs.configuration);
+    const roomProfiles = asArray(room.sectors).flatMap((sector) =>
+      asArray(asRecord(sector).layers).map((layer) => String(asRecord(layer).profile || "")).filter(Boolean));
+    if (roomProfiles.length) return roomProfiles[0];
+    const houseProfiles = asArray(attrs.cover_profiles).map(String).filter(Boolean);
+    return houseProfiles.length === 1 ? houseProfiles[0] : "venetian";
+  }
+
+  _coverIcon(state, mode) {
+    const closed = ["comfort", "solar", "glare", "heat", "night", "safety"].includes(mode);
+    return profileIcon(this._profile(state), closed);
+  }
+
+  _stateIcon(mode) {
     return ({
-      safety: "mdi:shield-alert", night: "mdi:weather-night", heat: "mdi:shield-sun",
-      glare: "mdi:shield-sun-outline", solar: "mdi:weather-sunny-alert", comfort: "mdi:sun-angle",
-      paused: "mdi:pause-circle", disabled: "mdi:hand-back-right", finished: "mdi:calendar-check",
-      open: "mdi:blinds-open", idle: "mdi:home-automation",
-    })[mode] || "mdi:blinds-horizontal";
+      safety: "mdi:shield-alert", night: "mdi:weather-night", heat: "mdi:thermometer-high",
+      glare: "mdi:eye-outline", solar: "mdi:weather-sunny", comfort: "mdi:account-check-outline",
+      paused: "mdi:pause", disabled: "mdi:hand-back-right", finished: "mdi:check",
+      open: "mdi:auto-mode", idle: "mdi:auto-mode", unavailable: "mdi:alert-circle-outline",
+    })[mode] || "mdi:auto-mode";
+  }
+
+  _color(mode) {
+    return ({
+      safety: "var(--error-color,var(--red-color,#db4437))",
+      disabled: "var(--error-color,var(--red-color,#db4437))",
+      paused: "var(--info-color,var(--primary-color,#039be5))",
+      night: "var(--purple-color,#926bc7)",
+      heat: "var(--deep-orange-color,#ff5722)",
+      glare: "var(--amber-color,#ffc107)",
+      solar: "var(--amber-color,#ffc107)",
+      comfort: "var(--green-color,#4caf50)",
+      unavailable: "var(--error-color,var(--red-color,#db4437))",
+    })[mode] || "var(--state-inactive-color,var(--secondary-text-color,#727272))";
   }
 
   _status(state, L) {
@@ -2041,8 +2091,8 @@ class SmartShadingBadge extends HTMLElement {
     const pausedRooms = rooms.filter((room) => room.pause_mode && room.pause_mode !== "auto");
     const manualRooms = rooms.filter((room) => room.enabled === false);
     let mode = String(state?.state || "idle");
-    if (rooms.length && manualRooms.length === rooms.length) mode = "disabled";
-    else if (rooms.length && pausedRooms.length === rooms.length) mode = "paused";
+    if (mode !== "safety" && manualRooms.length) mode = "disabled";
+    else if (mode !== "safety" && pausedRooms.length) mode = "paused";
     const parts = [];
     if (pausedRooms.length) parts.push(`${pausedRooms.length} ${L.roomsPaused}`);
     if (manualRooms.length) parts.push(`${manualRooms.length} ${L.roomsManual}`);
@@ -2061,22 +2111,35 @@ class SmartShadingBadge extends HTMLElement {
     const L = this._labels();
     const state = this._hass?.states?.[this._config.entity];
     if (!this._config.entity || !state) {
-      this.shadowRoot.innerHTML = `<style>:host{display:block}.empty{padding:8px 10px;border-radius:999px;background:var(--secondary-background-color,#303030);font-size:11px;white-space:nowrap}</style><div class="empty">${htmlEscape(L.choose)}</div>`;
+      this.shadowRoot.innerHTML = `
+        <style>:host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px)}ha-badge{--badge-color:var(--error-color,var(--red-color,#db4437))}.badge-symbol{position:relative;display:grid;place-items:center;width:22px;height:22px;color:var(--badge-color)}.cover-symbol{--mdc-icon-size:20px}.state-marker{position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 0 0 1px var(--ha-card-border-color,var(--divider-color,#ddd));color:var(--badge-color)}.state-marker ha-icon{--mdc-icon-size:9px}</style>
+        <ha-badge icon-only title="${htmlEscape(L.choose)}" aria-label="${htmlEscape(L.choose)}">
+          <span slot="icon" class="badge-symbol">
+            <ha-icon class="cover-symbol" icon="mdi:blinds-horizontal"></ha-icon>
+            <span class="state-marker"><ha-icon icon="mdi:alert-circle-outline"></ha-icon></span>
+          </span>
+        </ha-badge>`;
       return;
     }
     const status = this._status(state, L);
     const name = this._config.name || status.name;
+    const tooltip = [name, status.label, status.title !== status.label ? status.title : ""].filter(Boolean).join(" · ");
     this.shadowRoot.innerHTML = `
       <style>
-        :host{display:block;max-width:240px;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif)}
-        *{box-sizing:border-box}.badge{height:42px;max-width:240px;display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:7px;padding:5px 11px 5px 6px;border:1px solid color-mix(in srgb,var(--divider-color,#777) 55%,transparent);border-radius:999px;background:var(--ha-card-background,var(--card-background-color,#242424));color:var(--primary-text-color,#fff);cursor:pointer;box-shadow:var(--ha-card-box-shadow,none)}
-        .icon{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(120,170,255,.16);color:var(--primary-color,#5aa2ff)}ha-icon{--mdc-icon-size:18px}.copy{min-width:0;display:grid;line-height:1.05}.copy small,.copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.copy small{font-size:9px;opacity:.58}.copy strong{margin-top:3px;font-size:11px}
-        .badge[data-mode="safety"] .icon,.badge[data-mode="disabled"] .icon{background:rgba(255,75,65,.18);color:var(--error-color,#ff675d)}.badge[data-mode="paused"] .icon{background:rgba(90,145,230,.18);color:#8ab7ff}.badge[data-mode="night"] .icon{background:rgba(108,99,220,.20);color:#b2adff}.badge[data-mode="heat"] .icon{background:rgba(255,100,58,.18);color:#ff8b62}.badge[data-mode="solar"] .icon,.badge[data-mode="glare"] .icon{background:rgba(255,190,65,.18);color:#ffd06a}.badge[data-mode="comfort"] .icon{background:rgba(72,190,108,.18);color:#87dd9e}
+        :host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px)}
+        ha-badge{--badge-color:${htmlEscape(this._color(status.mode))}}
+        .badge-symbol{position:relative;display:grid;place-items:center;width:22px;height:22px;color:var(--badge-color)}
+        .cover-symbol{--mdc-icon-size:20px}
+        .state-marker{position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 0 0 1px var(--ha-card-border-color,var(--divider-color,#ddd));color:var(--badge-color)}
+        .state-marker ha-icon{--mdc-icon-size:9px}
       </style>
-      <div class="badge" data-mode="${htmlEscape(status.mode)}" title="${htmlEscape(status.title)}">
-        <span class="icon"><ha-icon icon="${htmlEscape(this._icon(status.mode))}"></ha-icon></span>
-        <span class="copy"><small>${htmlEscape(name)}</small><strong>${htmlEscape(status.label)}</strong></span>
-      </div>`;
+      <ha-badge type="button" icon-only data-mode="${htmlEscape(status.mode)}" title="${htmlEscape(tooltip)}" aria-label="${htmlEscape(tooltip)}">
+        <span slot="icon" class="badge-symbol">
+          <ha-icon class="cover-symbol" icon="${htmlEscape(this._coverIcon(state, status.mode))}"></ha-icon>
+          <span class="state-marker"><ha-icon icon="${htmlEscape(this._stateIcon(status.mode))}"></ha-icon></span>
+        </span>
+      </ha-badge>`;
+    this._bindInteraction();
   }
 }
 
@@ -2109,8 +2172,8 @@ class SmartShadingBadgeEditor extends HTMLElement {
           const name = cleanDisplayName(state.attributes?.name, state.attributes?.friendly_name || scope);
           return `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(`${name} (${scope})`)}</option>`;
         }).join("")}</select></label>
-        <label>${de ? "Eigener Name (optional)" : "Custom name (optional)"}<input data-name value="${htmlEscape(this._config.name || "")}"></label>
-        <div class="help">${de ? "Der Badge zeigt Automatik, aktuellen Modus, Pausen und das Pausenende automatisch an." : "The badge automatically shows automation, the current mode, pauses, and the pause end."}</div>
+        <label>${de ? "Name im Tooltip (optional)" : "Tooltip name (optional)"}<input data-name value="${htmlEscape(this._config.name || "")}"></label>
+        <div class="help">${de ? "Das Hauptsymbol zeigt immer den Behangtyp. Die kleine Zusatzmarkierung und Farbe zeigen den aktuellen Modus. Anklicken öffnet alle Details einschließlich Pause und Pausenende." : "The main symbol always shows the cover type. The small marker and color show the current mode. Select it to open all details, including the pause and its end time."}</div>
       </div>`;
     this.shadowRoot.querySelector?.("[data-entity]")?.addEventListener("change", (event) => {
       this._config = { ...this._config, entity: event.target.value }; this._emit();
@@ -2175,6 +2238,6 @@ if (!window.customCards.some((card) => card.type === "smart-shading-card")) {
 }
 window.customBadges = window.customBadges || [];
 if (!window.customBadges.some((badge) => badge.type === "smart-shading-badge")) {
-  window.customBadges.push({ type: "smart-shading-badge", name: "Smart Shading status", description: "Live house or room automation status", preview: true });
+  window.customBadges.push({ type: "smart-shading-badge", name: "Smart Shading status", description: "Native round live status badge for a house or room", preview: true });
 }
 console.info("%c SMART-SHADING %c loaded ", "color:white;background:#0aa4d6;font-weight:700", "color:#0aa4d6;background:#111");

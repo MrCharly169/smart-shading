@@ -88,7 +88,7 @@
       },
       "choose_advanced_features": {
         "title": "Choose optional features",
-        "description": "Choose the additional features for this room. The wizard will then guide you through every selected feature in order. A feature is fully configured after its required values are saved; it can be changed or deselected later.",
+        "description": "Choose the optional features available for this room and the selected setup scope. The wizard then guides you through every selected feature in order. A feature can be changed or deselected later.",
         "data": {
           "schedule": "Use a schedule",
           "temperature": "Use temperature and heat protection",
@@ -97,6 +97,7 @@
           "conditions": "Use weather or occupancy sensors",
           "glare_protection": "Use glare protection for an area or object",
           "maximum_opening": "Use a maximum opening limit",
+          "dashboard_badges": "Set up house and room dashboard badges",
           "test_tools": "Show test and day preview tools",
           "expert_execution": "Show expert command settings"
         },
@@ -108,6 +109,7 @@
           "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
           "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
           "maximum_opening": "Keeps selected position-controlled covers below a hard opening limit, including after an external KNX or wall-switch movement. Feedback is checked immediately and every 30 seconds; Safety keeps priority.",
+          "dashboard_badges": "Adds guided setup for the small round house and room status badges. Their cover symbol, state marker and color show the current Smart Shading mode without permanent text.",
           "test_tools": "Creates preview and diagnostic tools after saving and reloading. It has no separate setup step, and test runs never move covers.",
           "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
         }
@@ -130,8 +132,12 @@
         }
       },
       "advanced_features_hub": {
-        "title": "Features and protection",
-        "description": "Open the feature whose setup you want to inspect or change. The room and feature name remain visible on every following page."
+        "title": "Optional features",
+        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope."
+      },
+      "manage_dashboard_badges": {
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature}"
       },
       "glare_protection_hub": {
         "title": "Glare protection",
@@ -1148,7 +1154,7 @@
           "confirm_start": "Start Smart Shading"
         },
         "data_description": {
-          "confirm_start": "Confirm that you reviewed the setup and want to start automation. The dashboard editor then provides the Smart Shading room card plus house and room badges; badges show automation, mode, pauses, and the pause end live."
+          "confirm_start": "Confirm that you reviewed the setup and want to start automation. The dashboard editor then provides the Smart Shading room card plus small round Home Assistant badges for the house and rooms. The main symbol shows the cover type; the state marker and color show the current mode. Select one to open every detail, including pauses and their end time."
         }
       }
     },
@@ -1195,7 +1201,7 @@
     "step": {
       "choose_advanced_features": {
         "title": "Choose optional features",
-        "description": "Choose the additional features for this room. The wizard will then guide you through every selected feature in order. A feature is fully configured after its required values are saved; it can be changed or deselected later.",
+        "description": "Choose the optional features available for this room and the selected setup scope. The wizard then guides you through every selected feature in order. A feature can be changed or deselected later.",
         "data": {
           "schedule": "Use a schedule",
           "temperature": "Use temperature and heat protection",
@@ -1204,6 +1210,7 @@
           "conditions": "Use weather or occupancy sensors",
           "glare_protection": "Use glare protection for an area or object",
           "maximum_opening": "Use a maximum opening limit",
+          "dashboard_badges": "Set up house and room dashboard badges",
           "test_tools": "Show test and day preview tools",
           "expert_execution": "Show expert command settings"
         },
@@ -1215,6 +1222,7 @@
           "conditions": "Adds weather and occupancy signals so comfort movements happen only when conditions fit. Safety and heat-protection rules keep priority.",
           "glare_protection": "Protects a defined area such as a screen, table or seat from direct sun. Smart Shading calculates the required position from the sun, window and protected zone.",
           "maximum_opening": "Keeps selected position-controlled covers below a hard opening limit, including after an external KNX or wall-switch movement. Feedback is checked immediately and every 30 seconds; Safety keeps priority.",
+          "dashboard_badges": "Adds guided setup for the small round house and room status badges. Their cover symbol, state marker and color show the current Smart Shading mode without permanent text.",
           "test_tools": "Creates preview and diagnostic tools after saving and reloading. It has no separate setup step, and test runs never move covers.",
           "expert_execution": "Adjusts command spacing, queues and target verification. This helps with slow drives, large groups or unreliable feedback."
         }
@@ -1237,8 +1245,12 @@
         }
       },
       "advanced_features_hub": {
-        "title": "Features and protection",
-        "description": "Open the feature whose setup you want to inspect or change. The room and feature name remain visible on every following page."
+        "title": "Optional features",
+        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope."
+      },
+      "manage_dashboard_badges": {
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature}"
       },
       "glare_protection_hub": {
         "title": "Glare protection",

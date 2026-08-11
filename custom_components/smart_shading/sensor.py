@@ -73,6 +73,15 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
                     }
                     for runtime in self.engine.rooms.values()
                 ],
+                "cover_profiles": sorted(
+                    {
+                        str(layer.get("profile") or "")
+                        for room in self.engine.config.get("rooms", [])
+                        for sector in room.get("sectors", [])
+                        for layer in sector.get("layers", [])
+                        if layer.get("profile")
+                    }
+                ),
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
                     f"entity: {self.entity_id}\n"

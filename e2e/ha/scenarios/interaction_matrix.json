@@ -29,6 +29,7 @@
     {"id": "migration_v9_to_v10", "area": "migration", "automation": "fast"},
     {"id": "wizard_easy_full_real_ha", "area": "wizard", "automation": "ha-e2e"},
     {"id": "wizard_advanced_full_real_ha", "area": "wizard", "automation": "ha-e2e"},
+    {"id": "wizard_dashboard_badges_easy_advanced", "area": "wizard", "automation": "ha-e2e"},
     {"id": "wizard_every_direction_choice", "area": "wizard", "automation": "ha-e2e"},
     {"id": "wizard_every_sun_source_choice", "area": "wizard", "automation": "ha-e2e"},
     {"id": "wizard_every_sun_and_tilt_preset", "area": "wizard", "automation": "ha-e2e"},

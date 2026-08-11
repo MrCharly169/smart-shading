@@ -48,7 +48,7 @@ class FakeElement extends FakeNode {
   }
 }
 class FakeShadowRoot extends FakeNode {
-  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this._queryCache = new Map(); this.activeElement = null; this.writeCount = 0; }
+  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this._badge = null; this._queryCache = new Map(); this.activeElement = null; this.writeCount = 0; }
   set innerHTML(value) {
     this._innerHTML = String(value || "");
     this._queryCache.clear();
@@ -64,11 +64,13 @@ class FakeShadowRoot extends FakeNode {
       this._dialog = null;
       this._main = null;
     }
+    this._badge = this._innerHTML.includes("<ha-badge") ? new FakeElement() : null;
   }
   get innerHTML() { return this._innerHTML; }
   querySelector(selector) {
     if (selector === ".dialog") return this._dialog;
     if (selector === "main") return this._main;
+    if (selector === "ha-badge") return this._badge;
     return null;
   }
   querySelectorAll(selector) {
@@ -316,19 +318,69 @@ roomBadge.hass = { ...hass, language: "en", states: {
     ...roomStatus.attributes, pause_mode: "timed", pause_until: "2031-06-21T18:30:00+00:00",
   } },
 } };
-if (!roomBadge.shadowRoot.innerHTML.includes("Paused until") || !roomBadge.shadowRoot.innerHTML.includes("Raum A")) throw new Error("Room badge did not show its timed pause");
-roomBadge.shadowRoot.listeners.get("click")?.();
+if (!roomBadge.shadowRoot.innerHTML.includes('<ha-badge type="button" icon-only data-mode="paused"')
+  || !roomBadge.shadowRoot.innerHTML.includes('class="cover-symbol" icon="mdi:blinds-horizontal"')
+  || !roomBadge.shadowRoot.innerHTML.includes('class="state-marker"><ha-icon icon="mdi:pause"')
+  || !roomBadge.shadowRoot.innerHTML.includes("Paused until")
+  || !roomBadge.shadowRoot.innerHTML.includes("Raum A")) throw new Error("Room badge was not rendered as a native round timed-pause badge");
+roomBadge.shadowRoot.querySelector("ha-badge")?.listeners.get("click")?.(new FakeEvent("click"));
 if (roomBadge.dispatchedEvents.at(-1)?.detail?.entityId !== "sensor.room_status") throw new Error("Room badge did not open its status entity");
 
 const houseBadge = new Badge();
 houseBadge.setConfig({ entity: "sensor.house_status" });
 houseBadge.hass = { ...hass, language: "en" };
-if (!houseBadge.shadowRoot.innerHTML.includes("Auto · Solar shading · 1 paused") || !houseBadge.shadowRoot.innerHTML.includes("My house")) throw new Error("House badge did not aggregate active and paused rooms");
+if (!houseBadge.shadowRoot.innerHTML.includes('<ha-badge type="button" icon-only data-mode="paused"')
+  || !houseBadge.shadowRoot.innerHTML.includes('class="cover-symbol" icon="mdi:blinds-horizontal"')
+  || !houseBadge.shadowRoot.innerHTML.includes('class="state-marker"><ha-icon icon="mdi:pause"')
+  || !houseBadge.shadowRoot.innerHTML.includes("Paused until")
+  || !houseBadge.shadowRoot.innerHTML.includes("My house")) throw new Error("House badge did not prioritize and aggregate its paused room in the native badge");
+const badgeStub = Badge.getStubConfig(hass);
+if (badgeStub.entity !== "sensor.room_status") throw new Error("Badge picker did not preselect an available Smart Shading status entity");
 
 const badgeEditor = new BadgeEditor();
 badgeEditor.setConfig({ entity: "sensor.house_status" });
 badgeEditor.hass = { ...hass, language: "en" };
 if (!badgeEditor.shadowRoot.innerHTML.includes("My house (House)") || !badgeEditor.shadowRoot.innerHTML.includes("Raum A (Room)")) throw new Error("Badge editor did not offer house and room status entities");
+if (!badgeEditor.shadowRoot.innerHTML.includes("main symbol always shows the cover type")) throw new Error("Badge editor did not explain the cover symbol and state marker behavior");
+
+const curtainHeatBadge = new Badge();
+curtainHeatBadge.setConfig({ entity: "sensor.curtain_status" });
+curtainHeatBadge.hass = { ...hass, language: "en", states: {
+  ...hass.states,
+  "sensor.curtain_status": { ...roomStatus, entity_id: "sensor.curtain_status", state: "heat", attributes: {
+    ...roomStatus.attributes,
+    pause_mode: "auto",
+    configuration: { sectors: [{ layers: [{ profile: "curtain", covers: [] }] }] },
+  } },
+} };
+if (!curtainHeatBadge.shadowRoot.innerHTML.includes('class="cover-symbol" icon="mdi:curtains-closed"')
+  || !curtainHeatBadge.shadowRoot.innerHTML.includes('class="state-marker"><ha-icon icon="mdi:thermometer-high"')) throw new Error("Badge did not combine the configured cover profile with its heat state marker");
+
+const badgeModeCases = {
+  idle: ["idle", "mdi:auto-mode"], open: ["open", "mdi:auto-mode"], comfort: ["comfort", "mdi:account-check-outline"],
+  solar: ["solar", "mdi:weather-sunny"], glare: ["glare", "mdi:eye-outline"], heat: ["heat", "mdi:thermometer-high"],
+  night: ["night", "mdi:weather-night"], paused: ["paused", "mdi:pause"], safety: ["safety", "mdi:shield-alert"],
+  manual: ["disabled", "mdi:hand-back-right"], finished: ["finished", "mdi:check"], unavailable: ["unavailable", "mdi:alert-circle-outline"],
+};
+for (const [requestedMode, [renderedMode, marker]] of Object.entries(badgeModeCases)) {
+  const modeBadge = new Badge();
+  const entityId = `sensor.badge_${requestedMode}`;
+  modeBadge.setConfig({ entity: entityId });
+  modeBadge.hass = { ...hass, language: "en", states: { ...hass.states, [entityId]: {
+    ...roomStatus, entity_id: entityId, state: requestedMode === "manual" ? "idle" : requestedMode, attributes: {
+      ...roomStatus.attributes,
+      manual_master_active: requestedMode === "manual",
+      pause_mode: requestedMode === "paused" ? "timed" : "auto",
+      pause_until: requestedMode === "paused" ? "2031-06-21T18:30:00+00:00" : null,
+      configuration: { sectors: [{ layers: [{ profile: "roller_shutter", covers: [] }] }] },
+    },
+  } } };
+  const expectedCoverIcon = ["comfort", "solar", "glare", "heat", "night", "safety"].includes(renderedMode)
+    ? "mdi:window-shutter" : "mdi:window-shutter-open";
+  if (!modeBadge.shadowRoot.innerHTML.includes(`data-mode="${renderedMode}"`)
+    || !modeBadge.shadowRoot.innerHTML.includes(`class="cover-symbol" icon="${expectedCoverIcon}"`)
+    || !modeBadge.shadowRoot.innerHTML.includes(`class="state-marker"><ha-icon icon="${marker}"`)) throw new Error(`Badge mode ${requestedMode} lost its cover identity or state marker`);
+}
 
 const card = new Card();
 card.setConfig({ entity: "sensor.room_status", advanced_mode: true });

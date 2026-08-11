@@ -1,0 +1,42 @@
+set_state:
+  name: Set fixture state
+  description: Change one deterministic E2E fixture entity.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity: {}
+    state:
+      required: false
+      selector:
+        text: {}
+    attributes:
+      required: false
+      selector:
+        object: {}
+    available:
+      required: false
+      default: true
+      selector:
+        boolean: {}
+
+reset_calls:
+  name: Reset recorded fixture calls
+  description: Clear cover service calls recorded by the E2E fixture.
+
+set_entry_enabled:
+  name: Set test entry enabled
+  description: Enable or disable one Smart Shading test config entry.
+  fields:
+    entry_id:
+      required: true
+      selector:
+        text: {}
+    enabled:
+      required: true
+      selector:
+        boolean: {}
+
+registry_snapshot:
+  name: Get Smart Shading registry snapshot
+  description: Return current Smart Shading test devices and entities.

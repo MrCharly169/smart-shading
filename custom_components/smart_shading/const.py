@@ -32,6 +32,7 @@ FEATURE_SAFETY = "safety"
 FEATURE_CONDITIONS = "conditions"
 FEATURE_GLARE_PROTECTION = "glare_protection"
 FEATURE_MAXIMUM_OPENING = "maximum_opening"
+FEATURE_DASHBOARD_BADGES = "dashboard_badges"
 FEATURE_TEST_TOOLS = "test_tools"
 FEATURE_EXPERT_EXECUTION = "expert_execution"
 ADVANCED_FEATURES = (
@@ -42,9 +43,14 @@ ADVANCED_FEATURES = (
     FEATURE_CONDITIONS,
     FEATURE_GLARE_PROTECTION,
     FEATURE_MAXIMUM_OPENING,
+    FEATURE_DASHBOARD_BADGES,
     FEATURE_TEST_TOOLS,
     FEATURE_EXPERT_EXECUTION,
 )
+# These optional features are useful in either setup variant. Easy deliberately
+# exposes only this small shared subset; the automation and protection choices
+# above remain an Advanced-only contract.
+SHARED_FEATURES = (FEATURE_DASHBOARD_BADGES,)
 CONF_EVALUATION_INTERVAL = "evaluation_interval"
 CONF_TEST_MODE = "test_mode"  # legacy compatibility
 CONF_DIAGNOSTIC_LEVEL = "diagnostic_level"

@@ -1012,7 +1012,8 @@ class PackageTests(unittest.TestCase):
             "manage_cover", "sector_hub", "group_hub", "cover_hub",
             "manage_room_details", "manage_room_maintenance",
             "manage_automation", "manage_night", "manage_pause",
-            "manage_conditions", "choose_sector_for_group",
+            "manage_conditions", "manage_dashboard_badges",
+            "choose_sector_for_group",
             "choose_group_for_covers",
         }
         for language in ("de", "en"):
@@ -1085,6 +1086,8 @@ class PackageTests(unittest.TestCase):
             "manage_safety",
             "manage_weather_conditions",
             "initial_glare_protection",
+            "initial_maximum_opening",
+            "manage_dashboard_badges",
             "manage_execution",
         ):
             self.assertIn(f'"{handler}"', dispatcher)
@@ -1188,10 +1191,16 @@ class PackageTests(unittest.TestCase):
         self.assertIn('customElements.define("smart-shading-badge"', frontend)
         self.assertIn("window.customBadges", frontend)
         self.assertIn("class SmartShadingBadgeEditor", frontend)
+        self.assertIn('<ha-badge type="button" icon-only', frontend)
+        self.assertIn('slot="icon"', frontend)
+        self.assertIn('class="cover-symbol"', frontend)
+        self.assertIn('class="state-marker"', frontend)
+        self.assertNotIn('class="badge" data-mode=', frontend)
         self.assertIn("captureScrollPositions", frontend)
         self.assertIn("restoreScrollPositions", frontend)
         self.assertIn('"pause_until": runtime.pause_until', sensor)
         self.assertIn('"badge_yaml"', sensor)
+        self.assertIn('"cover_profiles"', sensor)
 
     def test_canonical_domain_and_card_names(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))

@@ -569,6 +569,20 @@ def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
             "short": "C1",
         },
     )
+    expect_step(result, "choose_advanced_features")
+    result = submit_flow(
+        api,
+        flow_id,
+        "choose_advanced_features",
+        supported_form_data(result, {"dashboard_badges": True}),
+    )
+    expect_step(result, "manage_dashboard_badges")
+    result = submit_flow(
+        api,
+        flow_id,
+        "manage_dashboard_badges",
+        {},
+    )
     expect_step(result, "init")
     result = submit_flow(api, flow_id, "init", {"next_step_id": "finish"})
     expect_step(result, "finish")
@@ -877,6 +891,7 @@ def create_advanced_entry(
         "safety": not legacy_compatible,
         "conditions": True,
         "maximum_opening": True,
+        "dashboard_badges": True,
         "test_tools": not legacy_compatible and include_test_tools,
         "expert_execution": not legacy_compatible,
     }
@@ -989,6 +1004,13 @@ def create_advanced_entry(
             flow_id,
             "initial_maximum_opening",
             supported_form_data(result, maximum_opening),
+        )
+    expect_step(result, "manage_dashboard_badges")
+    result = submit_flow(
+        api,
+        flow_id,
+        "manage_dashboard_badges",
+        {},
     )
     expect_step(result, "manage_automation")
     result = submit_flow(
@@ -1054,6 +1076,20 @@ def add_easy_room_through_options(
         flow_id,
         "compact_cover_details",
         {"name": "Binary Test Cover", "short": "C2"},
+    )
+    expect_step(result, "choose_advanced_features")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "choose_advanced_features",
+        supported_form_data(result, {"dashboard_badges": True}),
+    )
+    expect_step(result, "manage_dashboard_badges")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_dashboard_badges",
+        {},
     )
     expect_step(result, "room_hub")
     result = submit_options_flow(
