@@ -12,6 +12,7 @@ from scripts.ha_e2e.run_scenarios import (
     advanced_execution_settings_payload,
     advanced_execution_settings_section,
     assert_entry_variant,
+    baseline_supports_dashboard_badges,
     baseline_uses_legacy_wizard,
     continue_past_legacy_global_settings,
     continue_past_initial_structure_hub,
@@ -84,6 +85,13 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertTrue(baseline_uses_legacy_wizard("v5.0.0-beta.0"))
         self.assertFalse(baseline_uses_legacy_wizard("2026.7.0"))
         self.assertFalse(baseline_uses_legacy_wizard("v2026.7.1"))
+
+    def test_upgrade_badge_step_matches_the_selected_baseline_version(self):
+        self.assertFalse(baseline_supports_dashboard_badges("4.6.2"))
+        self.assertFalse(baseline_supports_dashboard_badges("v2026.8.0b1"))
+        self.assertTrue(baseline_supports_dashboard_badges("2026.8.0b2"))
+        self.assertTrue(baseline_supports_dashboard_badges("v2026.8.0"))
+        self.assertTrue(baseline_supports_dashboard_badges("2026.8.1b1"))
 
     def test_upgrade_bootstrap_accepts_retired_global_settings_step(self):
         api = Mock()
@@ -529,7 +537,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         )
         self.assertIn("run_upgrade_bootstrap", runner)
         self.assertIn("baseline_uses_legacy_wizard", runner)
+        self.assertIn("baseline_supports_dashboard_badges", runner)
         self.assertIn("include_test_tools=False", runner)
+        self.assertIn("include_dashboard_badges=", runner)
         self.assertIn('saved_state.get("upgrade_baseline")', runner)
         self.assertIn("entity IDs disappeared during upgrade", runner)
         self.assertIn('--bootstrap-mode "${BOOTSTRAP_MODE}"', shell)

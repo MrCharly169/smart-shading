@@ -70,7 +70,7 @@ class OptionsNavigationTests(unittest.TestCase):
         self.assertIn("Shading structure · 1 sector · 1 group · 2 covers", labels)
         self.assertNotIn("South / Windows", labels)
 
-    def test_simple_room_hides_unavailable_function_categories(self):
+    def test_simple_room_exposes_only_shared_optional_features(self):
         actions = [
             route["action"]
             for route in navigation.build_room_routes(
@@ -81,7 +81,12 @@ class OptionsNavigationTests(unittest.TestCase):
         self.assertNotIn("manage_pause", actions)
         self.assertEqual(
             actions,
-            ["manage_room_details", "structure_hub", "manage_room_maintenance"],
+            [
+                "manage_room_details",
+                "structure_hub",
+                "advanced_features_hub",
+                "manage_room_maintenance",
+            ],
         )
 
     def test_structure_is_hierarchical_and_each_level_has_one_add_action(self):

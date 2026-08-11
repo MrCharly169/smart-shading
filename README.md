@@ -50,9 +50,17 @@ created. It has no separate Easy/Advanced switch.
 
 The same frontend resource provides a graphical badge editor. In the dashboard
 editor choose **Add badge → Smart Shading status**, then select either the house
-status or a room status. The badge shows the live automation mode, Night,
-Safety, heat, glare, solar or comfort shading, manual control, pauses, and the
-pause end when available.
+status or a room status. Smart Shading uses Home Assistant's official small,
+round icon badge. Its main glyph always represents the configured cover type;
+a small state marker and the native theme color show Auto, Night, Safety, heat,
+glare, solar or comfort shading, manual control and pauses. Select the badge to
+open the complete status, including the pause end when available.
+
+During initial setup, select **Set up house and room dashboard badges** from the
+optional feature page. This choice is available in both Easy and Advanced Mode.
+After saving, Home Assistant creates an onboarding notification with the exact
+house and room choices. Existing dashboards are never changed automatically;
+the customer confirms placement in the native dashboard editor.
 
 ```yaml
 type: custom:smart-shading-badge

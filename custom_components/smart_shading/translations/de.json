@@ -88,7 +88,7 @@
       },
       "choose_advanced_features": {
         "title": "Zusatzfunktionen auswählen",
-        "description": "Wählen Sie die Zusatzfunktionen für diesen Raum. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion ist vollständig eingerichtet, sobald ihre erforderlichen Angaben gespeichert sind; sie kann später jederzeit geändert oder abgewählt werden.",
+        "description": "Wählen Sie die optionalen Funktionen, die für diesen Raum und den gewählten Einrichtungsumfang verfügbar sind. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion kann später jederzeit geändert oder abgewählt werden.",
         "data": {
           "schedule": "Zeitplan verwenden",
           "temperature": "Temperatur und Hitzeschutz verwenden",
@@ -97,6 +97,7 @@
           "conditions": "Wetter- oder Anwesenheitssensoren verwenden",
           "glare_protection": "Blendschutz für Bereich oder Objekt verwenden",
           "maximum_opening": "Maximale Öffnungsbegrenzung verwenden",
+          "dashboard_badges": "Haus- und Raum-Badges für das Dashboard einrichten",
           "test_tools": "Test und Tagvorschau anzeigen",
           "expert_execution": "Experteneinstellungen für Fahrbefehle anzeigen"
         },
@@ -108,6 +109,7 @@
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
           "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "dashboard_badges": "Führt durch die Einrichtung der kleinen runden Haus- und Raumstatus-Badges. Behangsymbol, Zustandsmarkierung und Farbe zeigen den aktuellen Smart-Shading-Modus ohne dauerhaften Text.",
           "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
         }
@@ -130,8 +132,12 @@
         }
       },
       "advanced_features_hub": {
-        "title": "Funktionen und Schutz",
-        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Funktionsname und Raum bleiben auf jeder folgenden Seite sichtbar."
+        "title": "Optionale Funktionen",
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang."
+      },
+      "manage_dashboard_badges": {
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature}"
       },
       "glare_protection_hub": {
         "title": "Blendschutz",
@@ -824,7 +830,7 @@
           "confirm_start": "Smart Shading starten"
         },
         "data_description": {
-          "confirm_start": "Bestätigen Sie, dass Sie die Einrichtung geprüft haben und die Automatik starten möchten. Danach stehen im Dashboard-Editor die Smart-Shading-Raumkarte sowie Haus- und Raum-Badges bereit; die Badges zeigen Automatik, Modus, Pause und Pausenende live an."
+          "confirm_start": "Bestätigen Sie, dass Sie die Einrichtung geprüft haben und die Automatik starten möchten. Danach stehen im Dashboard-Editor die Smart-Shading-Raumkarte sowie kleine runde Home-Assistant-Badges für Haus und Räume bereit. Das Hauptsymbol zeigt den Behangtyp; Zusatzmarkierung und Farbe zeigen den aktuellen Modus. Ein Klick öffnet alle Details einschließlich Pause und Pausenende."
         }
       },
       "structure_hub": {
@@ -1195,7 +1201,7 @@
     "step": {
       "choose_advanced_features": {
         "title": "Zusatzfunktionen auswählen",
-        "description": "Wählen Sie die Zusatzfunktionen für diesen Raum. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion ist vollständig eingerichtet, sobald ihre erforderlichen Angaben gespeichert sind; sie kann später jederzeit geändert oder abgewählt werden.",
+        "description": "Wählen Sie die optionalen Funktionen, die für diesen Raum und den gewählten Einrichtungsumfang verfügbar sind. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion kann später jederzeit geändert oder abgewählt werden.",
         "data": {
           "schedule": "Zeitplan verwenden",
           "temperature": "Temperatur und Hitzeschutz verwenden",
@@ -1204,6 +1210,7 @@
           "conditions": "Wetter- oder Anwesenheitssensoren verwenden",
           "glare_protection": "Blendschutz für Bereich oder Objekt verwenden",
           "maximum_opening": "Maximale Öffnungsbegrenzung verwenden",
+          "dashboard_badges": "Haus- und Raum-Badges für das Dashboard einrichten",
           "test_tools": "Test und Tagvorschau anzeigen",
           "expert_execution": "Experteneinstellungen für Fahrbefehle anzeigen"
         },
@@ -1215,6 +1222,7 @@
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
           "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "dashboard_badges": "Führt durch die Einrichtung der kleinen runden Haus- und Raumstatus-Badges. Behangsymbol, Zustandsmarkierung und Farbe zeigen den aktuellen Smart-Shading-Modus ohne dauerhaften Text.",
           "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
         }
@@ -1237,8 +1245,12 @@
         }
       },
       "advanced_features_hub": {
-        "title": "Funktionen und Schutz",
-        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Funktionsname und Raum bleiben auf jeder folgenden Seite sichtbar."
+        "title": "Optionale Funktionen",
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang."
+      },
+      "manage_dashboard_badges": {
+        "title": "{room_name} · {feature_name} · {feature_progress}",
+        "description": "{feature_description}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature}"
       },
       "glare_protection_hub": {
         "title": "Blendschutz",

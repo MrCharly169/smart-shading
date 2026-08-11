@@ -3,6 +3,26 @@
 ## Unreleased
 
 
+## 2026.8.0b2 - 2026-08-12
+
+### Native dashboard badge appearance
+
+- render the Smart Shading house and room status badge with Home Assistant's
+  official round icon-only `ha-badge` component instead of a custom text pill
+- use icon and native theme color changes for the current automation state,
+  prioritize mixed house pauses or manual rooms, and keep complete status and
+  pause details available in the entity dialog
+- keep the main badge glyph tied to the configured cover profile and add a
+  small state marker for Auto, Sun, glare, heat, Night, pause, manual and
+  safety states so the badge remains recognizable as Smart Shading
+- offer guided house and room badge setup as an optional feature in both Easy
+  and Advanced Mode, continue directly through its focused wizard page, and
+  provide the exact dashboard choices after the integration is saved
+- keep dashboard placement customer-controlled: Smart Shading never rewrites
+  an existing dashboard automatically, and removing the feature also removes
+  its onboarding instructions on the next reload
+
+
 ## 2026.8.0b1 - 2026-08-11
 
 ### Dashboard stability and status badges

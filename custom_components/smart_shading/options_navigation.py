@@ -57,8 +57,12 @@ def build_room_routes(
                 "structure_hub",
             ),
         ]
-        if full:
-            labels.append(("Funktionen und Schutz", "advanced_features_hub"))
+        labels.append(
+            (
+                "Funktionen und Schutz" if full else "Optionale Funktionen",
+                "advanced_features_hub",
+            )
+        )
         labels.append(("Raum entfernen", "manage_room_maintenance"))
     else:
         sector_label = f"{sectors} sector" if sectors == 1 else f"{sectors} sectors"
@@ -71,8 +75,12 @@ def build_room_routes(
                 "structure_hub",
             ),
         ]
-        if full:
-            labels.append(("Features and protection", "advanced_features_hub"))
+        labels.append(
+            (
+                "Features and protection" if full else "Optional features",
+                "advanced_features_hub",
+            )
+        )
         labels.append(("Remove room", "manage_room_maintenance"))
     return [
         {"label": label, "action": action, "room_id": room_id}

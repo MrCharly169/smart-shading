@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -494,7 +495,12 @@ def submit_options_flow(
     return result
 
 
-def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
+def create_easy_entry(
+    api: HomeAssistantApi,
+    scenario: dict[str, Any],
+    *,
+    include_dashboard_badges: bool = True,
+) -> str:
     """Create an Easy entry through the current guided flow."""
     setup = scenario["setup"]
     result = api.post(
@@ -569,6 +575,21 @@ def create_easy_entry(api: HomeAssistantApi, scenario: dict[str, Any]) -> str:
             "short": "C1",
         },
     )
+    if include_dashboard_badges:
+        expect_step(result, "choose_advanced_features")
+        result = submit_flow(
+            api,
+            flow_id,
+            "choose_advanced_features",
+            supported_form_data(result, {"dashboard_badges": True}),
+        )
+        expect_step(result, "manage_dashboard_badges")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_dashboard_badges",
+            {},
+        )
     expect_step(result, "init")
     result = submit_flow(api, flow_id, "init", {"next_step_id": "finish"})
     expect_step(result, "finish")
@@ -626,12 +647,33 @@ def baseline_uses_legacy_wizard(version: str) -> bool:
     return not normalized.startswith("20")
 
 
+def baseline_supports_dashboard_badges(version: str) -> bool:
+    """Return whether a release already has the optional badge wizard step."""
+    normalized = str(version or "").strip().removeprefix("v")
+    match = re.fullmatch(
+        r"(?P<year>20[0-9]{2})\.(?P<month>[0-9]{1,2})\."
+        r"(?P<patch>[0-9]+)(?:b(?P<beta>[0-9]+))?",
+        normalized,
+    )
+    if match is None:
+        return False
+    release_base = tuple(
+        int(match.group(name)) for name in ("year", "month", "patch")
+    )
+    badge_base = (2026, 8, 0)
+    if release_base != badge_base:
+        return release_base > badge_base
+    beta = match.group("beta")
+    return beta is None or int(beta) >= 2
+
+
 def create_advanced_entry(
     api: HomeAssistantApi,
     scenario: dict[str, Any],
     *,
     legacy_compatible: bool = False,
     include_test_tools: bool = True,
+    include_dashboard_badges: bool = True,
 ) -> str:
     """Exercise Advanced setup, optionally avoiding broken legacy optionals."""
     global CAPTURE_INITIAL_ADVANCED_WIZARD
@@ -877,6 +919,7 @@ def create_advanced_entry(
         "safety": not legacy_compatible,
         "conditions": True,
         "maximum_opening": True,
+        "dashboard_badges": include_dashboard_badges,
         "test_tools": not legacy_compatible and include_test_tools,
         "expert_execution": not legacy_compatible,
     }
@@ -989,7 +1032,15 @@ def create_advanced_entry(
             flow_id,
             "initial_maximum_opening",
             supported_form_data(result, maximum_opening),
-    )
+        )
+    if include_dashboard_badges:
+        expect_step(result, "manage_dashboard_badges")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_dashboard_badges",
+            {},
+        )
     expect_step(result, "manage_automation")
     result = submit_flow(
         api,
@@ -1054,6 +1105,20 @@ def add_easy_room_through_options(
         flow_id,
         "compact_cover_details",
         {"name": "Binary Test Cover", "short": "C2"},
+    )
+    expect_step(result, "choose_advanced_features")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "choose_advanced_features",
+        supported_form_data(result, {"dashboard_badges": True}),
+    )
+    expect_step(result, "manage_dashboard_badges")
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_dashboard_badges",
+        {},
     )
     expect_step(result, "room_hub")
     result = submit_options_flow(
@@ -3103,7 +3168,13 @@ def run_upgrade_bootstrap(
     os.chmod(state_file, 0o600)
     wait_for_state(api, scenario["setup"]["cover_entity"], lambda _item: True)
     apply_initial_state(api, scenario)
-    entry_id = create_easy_entry(api, scenario)
+    entry_id = create_easy_entry(
+        api,
+        scenario,
+        include_dashboard_badges=baseline_supports_dashboard_badges(
+            baseline_version
+        ),
+    )
     wait_for_entry_loaded(api, entry_id)
     wait_for_smart_shading_entities(api, entry_id)
     assert_entry_variant(api, entry_id, False)
@@ -3113,6 +3184,9 @@ def run_upgrade_bootstrap(
         scenario,
         legacy_compatible=legacy_compatible,
         include_test_tools=False,
+        include_dashboard_badges=baseline_supports_dashboard_badges(
+            baseline_version
+        ),
     )
     wait_for_entry_loaded(api, advanced_entry_id)
     wait_for_smart_shading_entities(api, advanced_entry_id)

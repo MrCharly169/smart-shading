@@ -51,6 +51,7 @@ from .const import (
     ROOM_DEFAULTS,
     SUN_PRESETS,
     STAGGER_SCOPE_OPTIONS,
+    SHARED_FEATURES,
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
     profile_supports_position,
@@ -249,7 +250,19 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             # defaults, so an Easy entry has no hidden execution surface.
             for key in ADVANCED_EXECUTION_ROOM_DEFAULTS:
                 room.pop(key, None)
-            room.pop(CONF_ADVANCED_FEATURES, None)
+            raw_features = room.get(CONF_ADVANCED_FEATURES, [])
+            room[CONF_ADVANCED_FEATURES] = [
+                feature
+                for feature in dict.fromkeys(
+                    str(value)
+                    for value in (
+                        raw_features
+                        if isinstance(raw_features, (list, tuple, set))
+                        else []
+                    )
+                )
+                if feature in SHARED_FEATURES
+            ]
         room.setdefault("normal_shading_temperature", room.get("comfort_temperature", 23.5))
         room.setdefault("sectors", [])
         room["active_months"] = [int(v) for v in room.get("active_months", range(1, 13))]
