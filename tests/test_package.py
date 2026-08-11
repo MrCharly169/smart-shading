@@ -1179,7 +1179,19 @@ class PackageTests(unittest.TestCase):
         self.assertIn("persistent_notification", engine)
         self.assertIn("smart_shading_card_", engine)
         self.assertIn("type: custom:smart-shading-card", engine)
+        self.assertIn("type: custom:smart-shading-badge", engine)
         self.assertNotIn("advanced_mode: false", engine)
+
+    def test_custom_badge_and_scroll_stability_are_registered(self):
+        frontend = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        sensor = (COMP / "sensor.py").read_text(encoding="utf-8")
+        self.assertIn('customElements.define("smart-shading-badge"', frontend)
+        self.assertIn("window.customBadges", frontend)
+        self.assertIn("class SmartShadingBadgeEditor", frontend)
+        self.assertIn("captureScrollPositions", frontend)
+        self.assertIn("restoreScrollPositions", frontend)
+        self.assertIn('"pause_until": runtime.pause_until', sensor)
+        self.assertIn('"badge_yaml"', sensor)
 
     def test_canonical_domain_and_card_names(self):
         manifest = json.loads((COMP / "manifest.json").read_text(encoding="utf-8"))

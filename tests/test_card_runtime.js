@@ -53,6 +53,9 @@ class FakeShadowRoot extends FakeNode {
     this._innerHTML = String(value || "");
     this._queryCache.clear();
     this.writeCount += 1;
+    if (global.simulateDashboardScrollJump && global.document?.scrollingElement) {
+      global.document.scrollingElement.scrollTop = 0;
+    }
     if (this._innerHTML.includes('class="dialog"')) {
       this._dialog = new FakeElement();
       const match = this._innerHTML.match(/<main>([\s\S]*)<\/main>/);
@@ -100,6 +103,7 @@ global.customElements = {
 };
 global.document = {
   body,
+  scrollingElement: { scrollTop: 0, scrollLeft: 0, scrollHeight: 2400, clientHeight: 800, scrollWidth: 1200, clientWidth: 1200 },
   createElement(name) {
     const Klass = registry.get(name);
     return Klass ? new Klass() : new FakeHTMLElement();
@@ -121,7 +125,10 @@ vm.runInThisContext(fs.readFileSync(cardPath, "utf8"), { filename: cardPath });
 const Card = registry.get("smart-shading-card");
 const Editor = registry.get("smart-shading-card-editor");
 const Dialog = registry.get("smart-shading-dialog");
-if (!Card || !Editor || !Dialog) throw new Error("Smart Shading card, editor, or dialog was not registered");
+const Badge = registry.get("smart-shading-badge");
+const BadgeEditor = registry.get("smart-shading-badge-editor");
+if (!Card || !Editor || !Dialog || !Badge || !BadgeEditor) throw new Error("Smart Shading card, badge, editor, or dialog was not registered");
+if (!window.customBadges?.some((badge) => badge.type === "smart-shading-badge")) throw new Error("Smart Shading badge was not registered in the dashboard picker");
 
 const editor = new Editor();
 editor.setConfig({ entity: "sensor.room_status", advanced_mode: true });
@@ -276,6 +283,12 @@ const hass = {
     "binary_sensor.south_sun_presence": { entity_id: "binary_sensor.south_sun_presence", state: "on", attributes: { friendly_name: "Süd links Sonne erkannt" } },
     "schedule.room_night": { entity_id: "schedule.room_night", state: "off", attributes: { friendly_name: "Nachtzeitplan" } },
     "sensor.room_status": roomStatus,
+    "sensor.house_status": { entity_id: "sensor.house_status", state: "solar", attributes: {
+      name: "My house", smart_shading_entry_id: "entry", rooms: [
+        { id: "room", name: "Living room", mode: "solar", enabled: true, pause_mode: "auto", pause_until: null, night_active: false },
+        { id: "office", name: "Office", mode: "paused", enabled: true, pause_mode: "timed", pause_until: "2031-06-21T18:30:00+00:00", night_active: false },
+      ],
+    } },
     "button.pause": { entity_id: "button.pause", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "pause_default" } },
     "button.resume": { entity_id: "button.resume", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "resume" } },
     "button.evaluate": { entity_id: "button.evaluate", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "evaluate" } },
@@ -294,6 +307,28 @@ const hass = {
     throw new Error("Entity registry entry unavailable");
   },
 };
+
+const roomBadge = new Badge();
+roomBadge.setConfig({ entity: "sensor.room_status" });
+roomBadge.hass = { ...hass, language: "en", states: {
+  ...hass.states,
+  "sensor.room_status": { ...roomStatus, state: "paused", attributes: {
+    ...roomStatus.attributes, pause_mode: "timed", pause_until: "2031-06-21T18:30:00+00:00",
+  } },
+} };
+if (!roomBadge.shadowRoot.innerHTML.includes("Paused until") || !roomBadge.shadowRoot.innerHTML.includes("Raum A")) throw new Error("Room badge did not show its timed pause");
+roomBadge.shadowRoot.listeners.get("click")?.();
+if (roomBadge.dispatchedEvents.at(-1)?.detail?.entityId !== "sensor.room_status") throw new Error("Room badge did not open its status entity");
+
+const houseBadge = new Badge();
+houseBadge.setConfig({ entity: "sensor.house_status" });
+houseBadge.hass = { ...hass, language: "en" };
+if (!houseBadge.shadowRoot.innerHTML.includes("Auto · Solar shading · 1 paused") || !houseBadge.shadowRoot.innerHTML.includes("My house")) throw new Error("House badge did not aggregate active and paused rooms");
+
+const badgeEditor = new BadgeEditor();
+badgeEditor.setConfig({ entity: "sensor.house_status" });
+badgeEditor.hass = { ...hass, language: "en" };
+if (!badgeEditor.shadowRoot.innerHTML.includes("My house (House)") || !badgeEditor.shadowRoot.innerHTML.includes("Raum A (Room)")) throw new Error("Badge editor did not offer house and room status entities");
 
 const card = new Card();
 card.setConfig({ entity: "sensor.room_status", advanced_mode: true });
@@ -583,15 +618,26 @@ if (!replacementPreviewDate?.focused || replacementPreviewDate.value !== "2031-0
 const renderCountBeforeUnrelated = Number(card.dataset.renderCount || 0);
 card.hass = { ...hass, states: { ...hass.states, "sensor.unrelated": { entity_id: "sensor.unrelated", state: "1", attributes: {} } } };
 if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw new Error("An unrelated Home Assistant update rebuilt the whole card");
-card.hass = {
+  card.hass = {
   ...hass,
   states: {
     ...hass.states,
     "sensor.room_status": { ...roomStatus, state: "comfort", attributes: { ...roomStatus.attributes, reason: "Relevant state changed" } },
   },
-};
-if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated + 1) throw new Error("A relevant Home Assistant update did not refresh the card");
-card.disconnectedCallback();
+  };
+  if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated + 1) throw new Error("A relevant Home Assistant update did not refresh the card");
+  document.scrollingElement.scrollTop = 640;
+  global.simulateDashboardScrollJump = true;
+  card.hass = {
+    ...hass,
+    states: {
+      ...hass.states,
+      "sensor.room_status": { ...roomStatus, state: "heat", attributes: { ...roomStatus.attributes, reason: "Heat protection changed the visible status" } },
+    },
+  };
+  global.simulateDashboardScrollJump = false;
+  if (document.scrollingElement.scrollTop !== 640) throw new Error("A relevant card update changed the dashboard scroll position");
+  card.disconnectedCallback();
 if (dialog.isConnected || documentListeners.has("keydown")) throw new Error("Detached card did not clean up its dialog and document listener");
 }
 

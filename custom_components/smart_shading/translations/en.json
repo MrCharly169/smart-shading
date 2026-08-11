@@ -1148,7 +1148,7 @@
           "confirm_start": "Start Smart Shading"
         },
         "data_description": {
-          "confirm_start": "Confirm that you reviewed the setup and want to start automation."
+          "confirm_start": "Confirm that you reviewed the setup and want to start automation. The dashboard editor then provides the Smart Shading room card plus house and room badges; badges show automation, mode, pauses, and the pause end live."
         }
       }
     },

@@ -628,6 +628,10 @@ class SmartShadingEngine:
                 "type: custom:smart-shading-card\n"
                 f"entity: {entity_id}\n"
             )
+            badge_yaml = (
+                "type: custom:smart-shading-badge\n"
+                f"entity: {entity_id}\n"
+            )
             if german:
                 title = f"Smart Shading – Dashboard-Karte für {room['name']}"
                 message = (
@@ -635,6 +639,10 @@ class SmartShadingEngine:
                     "Smart-Shading-Karte zum Dashboard hinzu.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
+                    "```\n\n"
+                    "**Kompakter Raum-Badge:**\n\n"
+                    "```yaml\n"
+                    f"{badge_yaml}"
                     "```\n\n"
                     "**So fügen Sie die Karte ein:** Dashboard bearbeiten → Karte "
                     "hinzufügen → Manuell → Code einfügen → Speichern.\n\n"
@@ -649,6 +657,10 @@ class SmartShadingEngine:
                     "Shading card to a dashboard.\n\n"
                     "```yaml\n"
                     f"{card_yaml}"
+                    "```\n\n"
+                    "**Compact room badge:**\n\n"
+                    "```yaml\n"
+                    f"{badge_yaml}"
                     "```\n\n"
                     "**Add the card:** Edit dashboard → Add card → Manual → paste "
                     "the code → Save.\n\n"

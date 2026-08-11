@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Dashboard stability and status badges
+
+- preserve the outer Home Assistant dashboard viewport and the Advanced
+  diagnostics scroll position across relevant live state updates, including
+  delayed icon and layout work after a room re-evaluation
+- add a graphical `custom:smart-shading-badge` for either the complete house
+  or one room, with live Auto, Safety, Night, Heat, glare, Solar, Comfort,
+  manual, pause and pause-until status
+- expose the room pause and automation summary needed by the house badge and
+  include badge setup in the initial wizard help, dashboard notification and
+  documentation
 
 ## 2026.8.0b0 - 2026-08-02
 
