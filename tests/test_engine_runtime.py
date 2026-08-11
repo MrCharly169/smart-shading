@@ -754,6 +754,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             creates[0][2]["notification_id"], "smart_shading_card_entry_room"
         )
         self.assertIn("entity: sensor.room_status", creates[0][2]["message"])
+        self.assertIn("type: custom:smart-shading-badge", creates[0][2]["message"])
         self.assertEqual(
             self.engine.store.card_notification_ids(),
             ["smart_shading_card_entry_room"],

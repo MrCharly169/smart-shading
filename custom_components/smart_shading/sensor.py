@@ -66,11 +66,19 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
                         "name": runtime.name,
                         "mode": runtime.mode,
                         "reason": runtime.reason,
+                        "enabled": runtime.enabled,
+                        "pause_mode": runtime.pause_mode,
+                        "pause_until": runtime.pause_until,
+                        "night_active": runtime.night_active,
                     }
                     for runtime in self.engine.rooms.values()
                 ],
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
+                    f"entity: {self.entity_id}\n"
+                ),
+                "badge_yaml": (
+                    "type: custom:smart-shading-badge\n"
                     f"entity: {self.entity_id}\n"
                 ),
                 "card_resource": CARD_RESOURCE,
@@ -316,6 +324,10 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 "configuration": room,
                 "card_yaml": (
                     "type: custom:smart-shading-card\n"
+                    f"entity: {self.entity_id}\n"
+                ),
+                "badge_yaml": (
+                    "type: custom:smart-shading-badge\n"
                     f"entity: {self.entity_id}\n"
                 ),
             }

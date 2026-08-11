@@ -17,6 +17,48 @@ const localDateKey = (value = new Date()) => {
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
+const captureScrollPositions = (host, primary = null) => {
+  const elements = [];
+  const seen = new Set();
+  const add = (element) => {
+    if (!element || seen.has(element)) return;
+    const hasViewport = Number(element.scrollHeight || 0) > Number(element.clientHeight || 0)
+      || Number(element.scrollWidth || 0) > Number(element.clientWidth || 0);
+    if (element === primary || hasViewport || Number(element.scrollTop || 0) || Number(element.scrollLeft || 0)) {
+      seen.add(element);
+      elements.push({ element, top: Number(element.scrollTop || 0), left: Number(element.scrollLeft || 0) });
+    }
+  };
+  add(primary);
+  let current = host;
+  while (current) {
+    add(current);
+    const root = current.getRootNode?.();
+    current = current.parentElement || (root?.host && root.host !== current ? root.host : null);
+  }
+  add(globalThis.document?.scrollingElement);
+  return elements;
+};
+const restoreScrollPositions = (positions, owner) => {
+  const token = Number(owner?._scrollRestoreToken || 0) + 1;
+  if (owner) owner._scrollRestoreToken = token;
+  const restore = () => {
+    if (owner && owner._scrollRestoreToken !== token) return;
+    for (const { element, top, left } of positions) {
+      if (!element) continue;
+      element.scrollTop = top;
+      element.scrollLeft = left;
+    }
+  };
+  restore();
+  globalThis.queueMicrotask?.(restore);
+  if (globalThis.requestAnimationFrame) {
+    globalThis.requestAnimationFrame(() => {
+      restore();
+      globalThis.requestAnimationFrame(restore);
+    });
+  }
+};
 const humanizeToken = (value, fallback = "–") => {
   const token = String(value ?? "").trim();
   if (!token) return fallback;
@@ -1033,7 +1075,7 @@ class SmartShadingV4Dialog extends HTMLElement {
 
   _render() {
     const existingDialog = this.shadowRoot?.querySelector?.(".dialog");
-    const previousScrollTop = existingDialog?.scrollTop || 0;
+    const scrollPositions = captureScrollPositions(this, existingDialog);
     if (!this.shadowRoot || !this._roomState) return;
     this._renderCount += 1;
     this.dataset.renderCount = String(this._renderCount);
@@ -1242,7 +1284,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         replacement?.focus?.({ preventScroll: true });
       }
     }
-    if (dialog) dialog.scrollTop = previousScrollTop;
+    restoreScrollPositions(scrollPositions, this);
   }
 }
 
@@ -1599,6 +1641,7 @@ class SmartShadingV4Card extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    const scrollPositions = captureScrollPositions(this);
     this._renderCount += 1;
     this.dataset.renderCount = String(this._renderCount);
     const L = this._labels();
@@ -1611,11 +1654,13 @@ class SmartShadingV4Card extends HTMLElement {
     const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     if (!this._config?.entity) {
       this.shadowRoot.innerHTML = this._messageCard(L.noEntity);
+      restoreScrollPositions(scrollPositions, this);
       return;
     }
     const roomState = this._resolvedRoomState();
     if (!roomState) {
       this.shadowRoot.innerHTML = this._messageCard(L.unavailable);
+      restoreScrollPositions(scrollPositions, this);
       return;
     }
 
@@ -1884,10 +1929,195 @@ class SmartShadingV4Card extends HTMLElement {
       replacement?.focus?.({ preventScroll: true });
     }
 
+    restoreScrollPositions(scrollPositions, this);
+
   }
 
   _messageCard(message) {
     return `<style>:host{display:block;width:100%;max-width:100%}ha-card{padding:18px;border-radius:20px}.message{font-size:13px;opacity:.72}</style><ha-card><div class="message">${htmlEscape(message)}</div></ha-card>`;
+  }
+}
+
+class SmartShadingBadge extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+    this._lastRenderSignature = "";
+    this.shadowRoot?.addEventListener?.("click", () => {
+      const entityId = String(this._config.entity || "");
+      if (!entityId) return;
+      this.dispatchEvent(new CustomEvent("hass-more-info", {
+        bubbles: true,
+        composed: true,
+        detail: { entityId },
+      }));
+    });
+  }
+
+  static getStubConfig() { return {}; }
+  static async getConfigElement() { return document.createElement("smart-shading-badge-editor"); }
+
+  setConfig(config = {}) {
+    if (!config || typeof config !== "object") throw new Error("Invalid Smart Shading badge configuration");
+    this._config = { ...config };
+    this._lastRenderSignature = "";
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const state = hass?.states?.[this._config.entity];
+    let signature;
+    try {
+      signature = JSON.stringify([this._config, hass?.language || "en", state?.state, state?.attributes]);
+    } catch (_error) {
+      signature = `${this._config.entity || ""}:${state?.state || ""}:${state?.last_changed || ""}`;
+    }
+    if (signature === this._lastRenderSignature) return;
+    this._lastRenderSignature = signature;
+    this._render();
+  }
+
+  _labels() {
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const modes = de ? {
+      safety: "Sicherheit", night: "Nachtmodus", heat: "Hitzeschutz", glare: "Blendschutz",
+      solar: "Sonnenschutz", comfort: "Komfort", paused: "Pausiert", finished: "Tag beendet",
+      open: "Offen", idle: "Bereit", disabled: "Manuell", unavailable: "Nicht verfügbar",
+    } : {
+      safety: "Safety", night: "Night mode", heat: "Heat protection", glare: "Glare protection",
+      solar: "Solar shading", comfort: "Comfort", paused: "Paused", finished: "Day finished",
+      open: "Open", idle: "Ready", disabled: "Manual", unavailable: "Unavailable",
+    };
+    return de ? {
+      modes, auto: "Auto", pauseUntil: "Pause bis", roomsPaused: "pausiert", roomsManual: "manuell",
+      choose: "Smart-Shading-Status auswählen", house: "Haus", room: "Raum",
+    } : {
+      modes, auto: "Auto", pauseUntil: "Paused until", roomsPaused: "paused", roomsManual: "manual",
+      choose: "Select a Smart Shading status", house: "House", room: "Room",
+    };
+  }
+
+  _formatPause(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const sameDay = date.getFullYear() === now.getFullYear()
+      && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    return new Intl.DateTimeFormat(undefined, sameDay
+      ? { hour: "2-digit", minute: "2-digit" }
+      : { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+  }
+
+  _icon(mode) {
+    return ({
+      safety: "mdi:shield-alert", night: "mdi:weather-night", heat: "mdi:shield-sun",
+      glare: "mdi:shield-sun-outline", solar: "mdi:weather-sunny-alert", comfort: "mdi:sun-angle",
+      paused: "mdi:pause-circle", disabled: "mdi:hand-back-right", finished: "mdi:calendar-check",
+      open: "mdi:blinds-open", idle: "mdi:home-automation",
+    })[mode] || "mdi:blinds-horizontal";
+  }
+
+  _status(state, L) {
+    const attrs = asRecord(state?.attributes);
+    const rooms = asArray(attrs.rooms).map(asRecord);
+    const isRoom = Boolean(attrs.smart_shading_room_id);
+    if (isRoom) {
+      const disabled = attrs.manual_master_active === true;
+      const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
+      const mode = disabled ? "disabled" : paused ? "paused" : String(state?.state || "idle");
+      const pauseTime = paused ? this._formatPause(attrs.pause_until) : "";
+      const label = mode === "paused" && pauseTime
+        ? `${L.pauseUntil} ${pauseTime}`
+        : ["idle", "open", "comfort", "solar", "glare", "heat", "finished"].includes(mode)
+          ? `${L.auto} · ${L.modes[mode] || humanizeToken(mode)}`
+          : L.modes[mode] || humanizeToken(mode);
+      return { mode, label, name: attrs.name || state?.attributes?.friendly_name || L.room, title: attrs.reason || label };
+    }
+
+    const pausedRooms = rooms.filter((room) => room.pause_mode && room.pause_mode !== "auto");
+    const manualRooms = rooms.filter((room) => room.enabled === false);
+    let mode = String(state?.state || "idle");
+    if (rooms.length && manualRooms.length === rooms.length) mode = "disabled";
+    else if (rooms.length && pausedRooms.length === rooms.length) mode = "paused";
+    const parts = [];
+    if (pausedRooms.length) parts.push(`${pausedRooms.length} ${L.roomsPaused}`);
+    if (manualRooms.length) parts.push(`${manualRooms.length} ${L.roomsManual}`);
+    const pauseTimes = [...new Set(pausedRooms.map((room) => this._formatPause(room.pause_until)).filter(Boolean))];
+    let label = ["idle", "open", "comfort", "solar", "glare", "heat", "finished"].includes(mode)
+      ? `${L.auto} · ${L.modes[mode] || humanizeToken(mode)}`
+      : L.modes[mode] || humanizeToken(mode);
+    if (mode === "paused" && pauseTimes.length === 1) label = `${L.pauseUntil} ${pauseTimes[0]}`;
+    else if (parts.length) label = `${label} · ${parts.join(" · ")}`;
+    const roomDetails = rooms.map((room) => `${room.name || room.id}: ${L.modes[room.mode] || humanizeToken(room.mode)}`).join(" · ");
+    return { mode, label, name: attrs.name || state?.attributes?.friendly_name || L.house, title: roomDetails || label };
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const L = this._labels();
+    const state = this._hass?.states?.[this._config.entity];
+    if (!this._config.entity || !state) {
+      this.shadowRoot.innerHTML = `<style>:host{display:block}.empty{padding:8px 10px;border-radius:999px;background:var(--secondary-background-color,#303030);font-size:11px;white-space:nowrap}</style><div class="empty">${htmlEscape(L.choose)}</div>`;
+      return;
+    }
+    const status = this._status(state, L);
+    const name = this._config.name || status.name;
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host{display:block;max-width:240px;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif)}
+        *{box-sizing:border-box}.badge{height:42px;max-width:240px;display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:7px;padding:5px 11px 5px 6px;border:1px solid color-mix(in srgb,var(--divider-color,#777) 55%,transparent);border-radius:999px;background:var(--ha-card-background,var(--card-background-color,#242424));color:var(--primary-text-color,#fff);cursor:pointer;box-shadow:var(--ha-card-box-shadow,none)}
+        .icon{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(120,170,255,.16);color:var(--primary-color,#5aa2ff)}ha-icon{--mdc-icon-size:18px}.copy{min-width:0;display:grid;line-height:1.05}.copy small,.copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.copy small{font-size:9px;opacity:.58}.copy strong{margin-top:3px;font-size:11px}
+        .badge[data-mode="safety"] .icon,.badge[data-mode="disabled"] .icon{background:rgba(255,75,65,.18);color:var(--error-color,#ff675d)}.badge[data-mode="paused"] .icon{background:rgba(90,145,230,.18);color:#8ab7ff}.badge[data-mode="night"] .icon{background:rgba(108,99,220,.20);color:#b2adff}.badge[data-mode="heat"] .icon{background:rgba(255,100,58,.18);color:#ff8b62}.badge[data-mode="solar"] .icon,.badge[data-mode="glare"] .icon{background:rgba(255,190,65,.18);color:#ffd06a}.badge[data-mode="comfort"] .icon{background:rgba(72,190,108,.18);color:#87dd9e}
+      </style>
+      <div class="badge" data-mode="${htmlEscape(status.mode)}" title="${htmlEscape(status.title)}">
+        <span class="icon"><ha-icon icon="${htmlEscape(this._icon(status.mode))}"></ha-icon></span>
+        <span class="copy"><small>${htmlEscape(name)}</small><strong>${htmlEscape(status.label)}</strong></span>
+      </div>`;
+  }
+}
+
+class SmartShadingBadgeEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+  }
+
+  set hass(hass) { this._hass = hass; this._render(); }
+  setConfig(config = {}) { this._config = { ...(config || {}) }; this._render(); }
+  _emit() {
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: { ...this._config } }, bubbles: true, composed: true,
+    }));
+  }
+  _render() {
+    if (!this.shadowRoot) return;
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const entities = this._hass ? Object.values(this._hass.states || {}).filter((state) =>
+      state.entity_id?.startsWith("sensor.") && state.attributes?.smart_shading_entry_id
+      && (state.attributes?.smart_shading_room_id || Array.isArray(state.attributes?.rooms))) : [];
+    this.shadowRoot.innerHTML = `
+      <style>*{box-sizing:border-box}.editor{display:grid;gap:15px;padding:4px 0;color:var(--primary-text-color)}label{display:grid;gap:6px;font-size:12px}select,input{width:100%;padding:11px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:var(--secondary-background-color,#292929);color:inherit}.help{font-size:10px;opacity:.58;line-height:1.35}</style>
+      <div class="editor">
+        <label>${de ? "Status für Haus oder Raum" : "House or room status"}<select data-entity><option value=""></option>${entities.map((state) => {
+          const scope = state.attributes?.smart_shading_room_id ? (de ? "Raum" : "Room") : (de ? "Haus" : "House");
+          const name = cleanDisplayName(state.attributes?.name, state.attributes?.friendly_name || scope);
+          return `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(`${name} (${scope})`)}</option>`;
+        }).join("")}</select></label>
+        <label>${de ? "Eigener Name (optional)" : "Custom name (optional)"}<input data-name value="${htmlEscape(this._config.name || "")}"></label>
+        <div class="help">${de ? "Der Badge zeigt Automatik, aktuellen Modus, Pausen und das Pausenende automatisch an." : "The badge automatically shows automation, the current mode, pauses, and the pause end."}</div>
+      </div>`;
+    this.shadowRoot.querySelector?.("[data-entity]")?.addEventListener("change", (event) => {
+      this._config = { ...this._config, entity: event.target.value }; this._emit();
+    });
+    this.shadowRoot.querySelector?.("[data-name]")?.addEventListener("change", (event) => {
+      this._config = { ...this._config, name: event.target.value }; this._emit();
+    });
   }
 }
 
@@ -1936,9 +2166,15 @@ class SmartShadingV4CardEditor extends HTMLElement {
 if (!customElements.get("smart-shading-dialog")) customElements.define("smart-shading-dialog", SmartShadingV4Dialog);
 if (!customElements.get("smart-shading-card")) customElements.define("smart-shading-card", SmartShadingV4Card);
 if (!customElements.get("smart-shading-card-editor")) customElements.define("smart-shading-card-editor", SmartShadingV4CardEditor);
+if (!customElements.get("smart-shading-badge")) customElements.define("smart-shading-badge", SmartShadingBadge);
+if (!customElements.get("smart-shading-badge-editor")) customElements.define("smart-shading-badge-editor", SmartShadingBadgeEditor);
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "smart-shading-card")) {
   window.customCards.push({ type: "smart-shading-card", name: "Smart Shading", description: "Smart Shading room card with an optional details dialog", preview: true });
+}
+window.customBadges = window.customBadges || [];
+if (!window.customBadges.some((badge) => badge.type === "smart-shading-badge")) {
+  window.customBadges.push({ type: "smart-shading-badge", name: "Smart Shading status", description: "Live house or room automation status", preview: true });
 }
 console.info("%c SMART-SHADING %c loaded ", "color:white;background:#0aa4d6;font-weight:700", "color:#0aa4d6;background:#111");

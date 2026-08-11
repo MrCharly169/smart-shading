@@ -46,6 +46,19 @@ entity: sensor.YOUR_ROOM_STATUS
 The card automatically follows the setup variant chosen when the integration is
 created. It has no separate Easy/Advanced switch.
 
+## Dashboard badges
+
+The same frontend resource provides a graphical badge editor. In the dashboard
+editor choose **Add badge → Smart Shading status**, then select either the house
+status or a room status. The badge shows the live automation mode, Night,
+Safety, heat, glare, solar or comfort shading, manual control, pauses, and the
+pause end when available.
+
+```yaml
+type: custom:smart-shading-badge
+entity: sensor.YOUR_ROOM_OR_HOUSE_STATUS
+```
+
 ## Easy and Advanced Mode
 
 - **Easy Mode** always works from `sun.sun`, the configured facade sector, the
