@@ -673,6 +673,7 @@ def create_advanced_entry(
     *,
     legacy_compatible: bool = False,
     include_test_tools: bool = True,
+    include_dashboard_badges: bool = True,
 ) -> str:
     """Exercise Advanced setup, optionally avoiding broken legacy optionals."""
     global CAPTURE_INITIAL_ADVANCED_WIZARD
@@ -918,7 +919,7 @@ def create_advanced_entry(
         "safety": not legacy_compatible,
         "conditions": True,
         "maximum_opening": True,
-        "dashboard_badges": True,
+        "dashboard_badges": include_dashboard_badges,
         "test_tools": not legacy_compatible and include_test_tools,
         "expert_execution": not legacy_compatible,
     }
@@ -1032,13 +1033,14 @@ def create_advanced_entry(
             "initial_maximum_opening",
             supported_form_data(result, maximum_opening),
         )
-    expect_step(result, "manage_dashboard_badges")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_dashboard_badges",
-        {},
-    )
+    if include_dashboard_badges:
+        expect_step(result, "manage_dashboard_badges")
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_dashboard_badges",
+            {},
+        )
     expect_step(result, "manage_automation")
     result = submit_flow(
         api,
@@ -3182,6 +3184,9 @@ def run_upgrade_bootstrap(
         scenario,
         legacy_compatible=legacy_compatible,
         include_test_tools=False,
+        include_dashboard_badges=baseline_supports_dashboard_badges(
+            baseline_version
+        ),
     )
     wait_for_entry_loaded(api, advanced_entry_id)
     wait_for_smart_shading_entities(api, advanced_entry_id)
