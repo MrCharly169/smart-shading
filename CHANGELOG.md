@@ -3,6 +3,19 @@
 ## Unreleased
 
 
+## 2026.8.0b3 - 2026-08-12
+
+### Dashboard scroll stability
+
+- keep the Home Assistant dashboard viewport stable during delayed card layout
+  recalculations instead of restoring the position for only two animation frames
+- coordinate simultaneous card and diagnostics scroll restoration, include slotted
+  Home Assistant scroll containers, and stop stabilization immediately when the
+  customer starts scrolling or interacting
+- avoid rebuilding unchanged Card DOM and disable native scroll anchoring inside
+  the Advanced diagnostics dialog
+
+
 ## 2026.8.0b2 - 2026-08-12
 
 ### Native dashboard badge appearance

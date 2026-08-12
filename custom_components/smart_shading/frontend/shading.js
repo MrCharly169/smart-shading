@@ -17,6 +17,7 @@ const localDateKey = (value = new Date()) => {
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
+const activeScrollRestorations = new WeakMap();
 const captureScrollPositions = (host, primary = null) => {
   const elements = [];
   const seen = new Set();
@@ -34,7 +35,9 @@ const captureScrollPositions = (host, primary = null) => {
   while (current) {
     add(current);
     const root = current.getRootNode?.();
-    current = current.parentElement || (root?.host && root.host !== current ? root.host : null);
+    current = current.assignedSlot
+      || current.parentElement
+      || (root?.host && root.host !== current ? root.host : null);
   }
   add(globalThis.document?.scrollingElement);
   return elements;
@@ -42,13 +45,35 @@ const captureScrollPositions = (host, primary = null) => {
 const restoreScrollPositions = (positions, owner) => {
   const token = Number(owner?._scrollRestoreToken || 0) + 1;
   if (owner) owner._scrollRestoreToken = token;
+  const registrations = positions.map(({ element, top, left }) => {
+    if (!element) return null;
+    const registration = { owner, token };
+    activeScrollRestorations.set(element, registration);
+    return { element, top, left, registration };
+  }).filter(Boolean);
   const restore = () => {
     if (owner && owner._scrollRestoreToken !== token) return;
-    for (const { element, top, left } of positions) {
-      if (!element) continue;
-      element.scrollTop = top;
-      element.scrollLeft = left;
+    for (const { element, top, left, registration } of registrations) {
+      if (activeScrollRestorations.get(element) !== registration) continue;
+      if (Number(element.scrollTop || 0) !== top) element.scrollTop = top;
+      if (Number(element.scrollLeft || 0) !== left) element.scrollLeft = left;
     }
+  };
+  const cancel = () => {
+    for (const { element, registration } of registrations) {
+      if (activeScrollRestorations.get(element) === registration) {
+        activeScrollRestorations.delete(element);
+      }
+    }
+  };
+  const inputTarget = globalThis.document;
+  const cancelOnUserInput = () => cancel();
+  const inputEvents = ["wheel", "touchstart", "pointerdown"];
+  inputEvents.forEach((eventName) => inputTarget?.addEventListener?.(eventName, cancelOnUserInput, { passive: true, capture: true }));
+  const finish = () => {
+    restore();
+    cancel();
+    inputEvents.forEach((eventName) => inputTarget?.removeEventListener?.(eventName, cancelOnUserInput, { capture: true }));
   };
   restore();
   globalThis.queueMicrotask?.(restore);
@@ -58,6 +83,16 @@ const restoreScrollPositions = (positions, owner) => {
       globalThis.requestAnimationFrame(restore);
     });
   }
+  [50, 120, 250, 500].forEach((delay) => globalThis.setTimeout?.(restore, delay));
+  let resizeObserver = null;
+  if (globalThis.ResizeObserver && owner) {
+    resizeObserver = new globalThis.ResizeObserver(restore);
+    try { resizeObserver.observe(owner); } catch (_error) { resizeObserver.disconnect?.(); }
+  }
+  globalThis.setTimeout?.(() => {
+    resizeObserver?.disconnect?.();
+    finish();
+  }, 800);
 };
 const humanizeToken = (value, fallback = "–") => {
   const token = String(value ?? "").trim();
@@ -305,6 +340,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   close() {
+    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     document.removeEventListener?.("keydown", this._keyHandler);
     this.remove?.();
     this._opener?.focus?.({ preventScroll: true });
@@ -312,6 +348,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     document.removeEventListener?.("keydown", this._keyHandler);
     this._renderQueued = false;
   }
@@ -1194,7 +1231,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         :host{position:fixed;inset:0;z-index:99999;display:block;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--primary-text-color,#fff)}
         *{box-sizing:border-box}
         .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(5px)}
-        .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 24px));max-height:min(900px,calc(100vh - 24px));max-height:min(900px,calc(100dvh - 24px));overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;background:var(--ha-card-background,var(--card-background-color,#1d1d1d));border:1px solid rgba(255,255,255,.13);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+        .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 24px));max-height:min(900px,calc(100vh - 24px));max-height:min(900px,calc(100dvh - 24px));overflow:auto;overflow-anchor:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable;background:var(--ha-card-background,var(--card-background-color,#1d1d1d));border:1px solid rgba(255,255,255,.13);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
         header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color,#1d1d1d)) 94%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
         h2{margin:0;font-size:19px} .room{font-size:12px;opacity:.62;margin-top:3px}
         button{border:0;border-radius:999px;background:rgba(255,255,255,.09);color:inherit;min-width:34px;height:34px;cursor:pointer;font:inherit}button:hover{background:rgba(255,255,255,.16)}button[data-close]{display:grid;place-items:center;align-content:center;justify-content:center;padding:0;line-height:0}
@@ -1300,6 +1337,7 @@ class SmartShadingV4Card extends HTMLElement {
     this._forceRender = false;
     this._renderCount = 0;
     this._lastRenderSignature = "";
+    this._cardHtml = "";
     this.shadowRoot?.addEventListener?.("click", (event) => {
       const element = event.target?.closest?.(
         "[data-more],[data-night-source],[data-press],[data-advanced]",
@@ -1362,6 +1400,7 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     this._renderQueued = false;
     if (this._dialog) {
       this._dialog.close?.();
@@ -1653,13 +1692,21 @@ class SmartShadingV4Card extends HTMLElement {
       : null;
     const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     if (!this._config?.entity) {
-      this.shadowRoot.innerHTML = this._messageCard(L.noEntity);
+      const nextHtml = this._messageCard(L.noEntity);
+      if (nextHtml !== this._cardHtml) {
+        this._cardHtml = nextHtml;
+        this.shadowRoot.innerHTML = nextHtml;
+      }
       restoreScrollPositions(scrollPositions, this);
       return;
     }
     const roomState = this._resolvedRoomState();
     if (!roomState) {
-      this.shadowRoot.innerHTML = this._messageCard(L.unavailable);
+      const nextHtml = this._messageCard(L.unavailable);
+      if (nextHtml !== this._cardHtml) {
+        this._cardHtml = nextHtml;
+        this.shadowRoot.innerHTML = nextHtml;
+      }
       restoreScrollPositions(scrollPositions, this);
       return;
     }
@@ -1848,7 +1895,7 @@ class SmartShadingV4Card extends HTMLElement {
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
     const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
 
-    this.shadowRoot.innerHTML = `
+    const nextCardHtml = `
       <style>
         :host{display:block;width:100%;max-width:100%;min-width:0;overflow:visible;overflow-anchor:none;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);container-type:inline-size;container-name:shading-card}
         *{box-sizing:border-box;min-width:0}
@@ -1916,6 +1963,14 @@ class SmartShadingV4Card extends HTMLElement {
           </div>` : ""}
         </div>
       </ha-card>`}`;
+
+    if (nextCardHtml === this._cardHtml) {
+      activeElement?.focus?.({ preventScroll: true });
+      restoreScrollPositions(scrollPositions, this);
+      return;
+    }
+    this._cardHtml = nextCardHtml;
+    this.shadowRoot.innerHTML = nextCardHtml;
 
     if (focusToken) {
       const attribute = {

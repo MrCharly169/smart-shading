@@ -56,6 +56,9 @@ class FakeShadowRoot extends FakeNode {
     if (global.simulateDashboardScrollJump && global.document?.scrollingElement) {
       global.document.scrollingElement.scrollTop = 0;
     }
+    if (global.simulateDelayedDashboardScrollJump && global.document?.scrollingElement) {
+      setTimeout(() => { global.document.scrollingElement.scrollTop = 0; }, 75);
+    }
     if (this._innerHTML.includes('class="dialog"')) {
       this._dialog = new FakeElement();
       const match = this._innerHTML.match(/<main>([\s\S]*)<\/main>/);
@@ -395,8 +398,10 @@ if (html.includes("data-decision-trace") || html.includes('data-press="button.si
 if (!html.includes("overflow-anchor:none")) throw new Error("Card did not opt out of dashboard scroll anchoring during live updates");
 const focusedAdvancedEntrance = card.shadowRoot.querySelectorAll("[data-advanced]")[0];
 card.shadowRoot.activeElement = focusedAdvancedEntrance;
+const cardWritesBeforeNoopRender = card.shadowRoot.writeCount;
 card._render();
 if (!card.shadowRoot.querySelectorAll("[data-advanced]")[0]?.focused) throw new Error("Card did not restore focused controls without scrolling after a live update");
+if (card.shadowRoot.writeCount !== cardWritesBeforeNoopRender) throw new Error("Visually unchanged card state rebuilt the dashboard DOM");
 if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
@@ -586,6 +591,7 @@ if (!dialog.shadowRoot.innerHTML.includes('data-tool-press="button.simulate"') |
 if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
+if (!dialog.shadowRoot.innerHTML.includes("overflow:auto;overflow-anchor:none")) throw new Error("Advanced dialog did not disable native scroll anchoring during live content replacement");
 if (!dialog.shadowRoot.innerHTML.includes("Raumstatus aktualisiert") || !dialog.shadowRoot.innerHTML.includes("Modus: Sonnenschutz") || !dialog.shadowRoot.innerHTML.includes("Behangziele: 1") || dialog.shadowRoot.innerHTML.includes("room_evaluated")) throw new Error("Diagnostic journal did not present room evaluation events in customer-friendly language");
 if (!dialog.shadowRoot.innerHTML.includes("Höchste passende Priorität") || !dialog.shadowRoot.innerHTML.includes("Regel nicht zutreffend") || !dialog.shadowRoot.innerHTML.includes("Komfortbedingungen nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Öffnungsregel nicht aktiv") || !dialog.shadowRoot.innerHTML.includes("Eingabe gültig") || !dialog.shadowRoot.innerHTML.includes("Eingabe veraltet") || !dialog.shadowRoot.innerHTML.includes("Behangbefehl gesendet")) throw new Error("Advanced dialog did not localize the production candidate, input, command, and resolution trace codes");
 if (dialog.shadowRoot.innerHTML.includes("automation_lock") || dialog.shadowRoot.innerHTML.includes("outside_sun_sector") || dialog.shadowRoot.innerHTML.includes("highest_matching_priority") || dialog.shadowRoot.innerHTML.includes("rule_not_matched")) throw new Error("Advanced dialog exposed raw internal reason keys");
@@ -659,6 +665,9 @@ hass.states["cover.internal_identifier"] = { ...unknownCoverState, attributes: {
 card.hass = hass;
 if (Number(dialog.dataset.contentWriteCount || 0) !== contentWritesAfterTools + 1 || !dialog._mainHtml.includes("75%")) throw new Error("Changed relevant cover feedback did not refresh the Advanced dialog");
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position while refreshing content");
+setTimeout(() => { dialog.shadowRoot.querySelector(".dialog").scrollTop = 0; }, 75);
+await new Promise((resolve) => setTimeout(resolve, 180));
+if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Delayed diagnostic layout recalculation changed the dialog scroll position");
 const replacementAction = dialog.shadowRoot.querySelector("main").querySelectorAll("[data-tool-press]").find((element) => element.dataset.toolPress === "button.simulate");
 if (!replacementAction?.focused) throw new Error("Advanced dialog did not restore focused control after a relevant update");
 const focusedPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
@@ -689,6 +698,18 @@ if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw 
   };
   global.simulateDashboardScrollJump = false;
   if (document.scrollingElement.scrollTop !== 640) throw new Error("A relevant card update changed the dashboard scroll position");
+  document.scrollingElement.scrollTop = 615;
+  global.simulateDelayedDashboardScrollJump = true;
+  card.hass = {
+    ...hass,
+    states: {
+      ...hass.states,
+      "sensor.room_status": { ...roomStatus, state: "safety", attributes: { ...roomStatus.attributes, reason: "Delayed Home Assistant layout recalculation" } },
+    },
+  };
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  global.simulateDelayedDashboardScrollJump = false;
+  if (document.scrollingElement.scrollTop !== 615) throw new Error("A delayed Home Assistant layout recalculation changed the dashboard scroll position");
   card.disconnectedCallback();
 if (dialog.isConnected || documentListeners.has("keydown")) throw new Error("Detached card did not clean up its dialog and document listener");
 }
