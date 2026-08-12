@@ -24,7 +24,8 @@ def _compact_cover(cover: dict) -> dict:
         key: cover.get(key)
         for key in (
             "id", "entity", "name", "short", "lock", "window",
-            "window_safe_state",
+            "window_safe_state", "enforce_max_open_position",
+            "max_open_position",
         )
         if cover.get(key) not in (None, "")
     }
@@ -37,7 +38,8 @@ def _compact_room_configuration(room: dict) -> dict:
         for key in (
             "id", "name", "indoor_temperature", "outdoor_temperature",
             "normal_shading_temperature", "comfort_temperature",
-            "heat_temperature",
+            "heat_temperature", "advanced_features", "night_enabled",
+            "night_source", "schedule_enabled",
         )
         if room.get(key) not in (None, "")
     } | {

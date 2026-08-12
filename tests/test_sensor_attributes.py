@@ -58,6 +58,22 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_room_status_attributes_stay_below_recorder_limit(self):
         runtime = self.engine.rooms["room"]
+        room = self.engine.config["rooms"][0]
+        room.update(
+            {
+                "advanced_features": ["night", "schedule"],
+                "night_enabled": False,
+                "night_source": "sun",
+                "schedule_enabled": True,
+            }
+        )
+        cover = room["sectors"][0]["layers"][0]["covers"][0]
+        cover.update(
+            {
+                "enforce_max_open_position": True,
+                "max_open_position": 90,
+            }
+        )
         oversized = "x" * 50_000
         runtime.decision_trace = {
             "schema": 1,
@@ -123,7 +139,16 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(encoded), 16_384)
         self.assertNotIn("card_yaml", attributes)
         self.assertNotIn("badge_yaml", attributes)
-        self.assertNotIn("advanced_features", attributes["configuration"])
+        configuration = attributes["configuration"]
+        self.assertEqual(
+            ["night", "schedule"], configuration["advanced_features"]
+        )
+        self.assertIs(configuration["night_enabled"], False)
+        self.assertEqual("sun", configuration["night_source"])
+        self.assertIs(configuration["schedule_enabled"], True)
+        compact_cover = configuration["sectors"][0]["layers"][0]["covers"][0]
+        self.assertIs(compact_cover["enforce_max_open_position"], True)
+        self.assertEqual(90, compact_cover["max_open_position"])
         self.assertEqual("2031-06-21", attributes["day_preview"]["day"])
         self.assertIs(runtime.decision_trace, original_trace)
         self.assertIn("debug", runtime.decision_trace)
