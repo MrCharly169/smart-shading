@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import json
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
@@ -11,6 +14,347 @@ from .const import (
     DEFAULT_SUN_ENTITY,
 )
 from .entity import SmartShadingEntity, localized
+
+
+STATE_ATTRIBUTE_BUDGET = 15_500
+
+
+def _compact_cover(cover: dict) -> dict:
+    return {
+        key: cover.get(key)
+        for key in (
+            "id", "entity", "name", "short", "lock", "window",
+            "window_safe_state",
+        )
+        if cover.get(key) not in (None, "")
+    }
+
+
+def _compact_room_configuration(room: dict) -> dict:
+    """Return only configuration fields rendered by the public status Card."""
+    return {
+        key: room.get(key)
+        for key in (
+            "id", "name", "indoor_temperature", "outdoor_temperature",
+            "normal_shading_temperature", "comfort_temperature",
+            "heat_temperature",
+        )
+        if room.get(key) not in (None, "")
+    } | {
+        "safety_blockers": list(room.get("safety_blockers", [])),
+        "sectors": [
+            {
+                key: sector.get(key)
+                for key in (
+                    "id", "name", "short", "azimuth_start", "azimuth_end",
+                    "elevation_min", "lux_sensor", "sun_presence_entity",
+                )
+                if sector.get(key) not in (None, "")
+            }
+            | {
+                "layers": [
+                    {
+                        key: layer.get(key)
+                        for key in ("id", "name", "profile")
+                        if layer.get(key) not in (None, "")
+                    }
+                    | {
+                        "covers": [
+                            _compact_cover(cover)
+                            for cover in layer.get("covers", [])
+                        ]
+                    }
+                    for layer in sector.get("layers", [])
+                ]
+            }
+            for sector in room.get("sectors", [])
+        ],
+    }
+
+
+def _compact_target(target: dict) -> dict:
+    compact = {
+        key: target.get(key)
+        for key in (
+            "entity_id", "name", "mode", "decision_mode", "position", "tilt",
+            "ordinary_position", "ordinary_target", "final_target", "layer",
+            "layer_id",
+        )
+        if target.get(key) is not None
+    }
+    compact["suppressed"] = list(target.get("suppressed", []))[:4]
+    maximum = target.get("maximum_opening")
+    if isinstance(maximum, dict) and maximum.get("enabled"):
+        compact["maximum_opening"] = {
+            key: maximum.get(key)
+            for key in (
+                "enabled", "limit", "effective_position", "current_position",
+                "constrained", "violation",
+            )
+            if maximum.get(key) is not None
+        }
+    zones = target.get("protected_zone_calculations")
+    if isinstance(zones, list):
+        compact["protected_zone_calculations"] = [
+            _compact_protected_zone(zone)
+            for zone in zones[:3]
+            if isinstance(zone, dict)
+        ]
+        compact["protected_zone_applied_ids"] = list(
+            target.get("protected_zone_applied_ids", [])
+        )[:3]
+    return compact
+
+
+def _compact_protected_zone(zone: dict) -> dict:
+    details = zone.get("details")
+    if not isinstance(details, dict):
+        details = {}
+    compact = {
+        key: deepcopy(zone.get(key))
+        for key in (
+            "zone_id", "name", "status", "reason_code", "target",
+            "ordinary_target", "final_target", "projected_height_range_m",
+        )
+        if zone.get(key) is not None
+    }
+    compact_details = {
+        key: deepcopy(details.get(key))
+        for key in (
+            "calculation", "calculated_position", "calculated_tilt",
+            "relative_azimuth_degrees", "projected_height_range_m",
+            "protected_height_range_m", "sun_vector", "valid",
+        )
+        if details.get(key) is not None
+    }
+    if compact_details:
+        compact["details"] = compact_details
+    return compact
+
+
+def _compact_candidate(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: value.get(key)
+        for key in ("rule", "mode", "reason_code", "target")
+        if value.get(key) is not None
+    }
+
+
+def _compact_pure_trace(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    trace = value.get("trace") if isinstance(value.get("trace"), dict) else value
+    inputs = trace.get("input_snapshot", {})
+    raw_inputs = inputs.get("inputs", {}) if isinstance(inputs, dict) else {}
+    return {
+        "winner": _compact_candidate(trace.get("winner")),
+        "entries": [
+            {
+                "candidate": _compact_candidate(entry.get("candidate")),
+                "outcome": entry.get("outcome"),
+                "resolution_reason_code": entry.get("resolution_reason_code"),
+            }
+            for entry in trace.get("entries", [])[:8]
+            if isinstance(entry, dict)
+        ],
+        "rejected": [
+            _compact_candidate(candidate)
+            for candidate in trace.get("rejected", [])[:8]
+        ],
+        "input_snapshot": {
+            "evaluated_at": inputs.get("evaluated_at")
+            if isinstance(inputs, dict) else None,
+            "inputs": {
+                str(key): {
+                    field: raw.get(field)
+                    for field in (
+                        "value", "raw_value", "unit", "quality", "reason_code",
+                    )
+                    if raw.get(field) is not None
+                }
+                for key, raw in list(raw_inputs.items())[:8]
+                if isinstance(raw, dict)
+            },
+        },
+        "command_result": {
+            key: trace.get("command_result", {}).get(key)
+            for key in ("status", "reason_code", "target")
+            if isinstance(trace.get("command_result"), dict)
+            and trace["command_result"].get(key) is not None
+        },
+        "protected_zones": [
+            _compact_protected_zone(zone)
+            for zone in trace.get("protected_zones", [])[:3]
+            if isinstance(zone, dict)
+        ],
+    }
+
+
+def _compact_decision_trace(value) -> dict:
+    if not isinstance(value, dict) or not value:
+        return {}
+    compact = {
+        key: value.get(key)
+        for key in ("schema", "evaluated_at", "trigger", "room_id", "mode", "reason")
+        if value.get(key) is not None
+    }
+    compact.update(_compact_pure_trace(value))
+    compact["command_results"] = [
+        {
+            key: row.get(key)
+            for key in ("cover_id", "status", "reason_code")
+            if row.get(key) is not None
+        }
+        for row in value.get("command_results", [])[:8]
+        if isinstance(row, dict)
+    ]
+    compact["target_decisions"] = [
+        {
+            key: row.get(key)
+            for key in ("sector_id", "sector_name", "layer_id", "layer_name")
+            if row.get(key) is not None
+        }
+        | {"trace": _compact_pure_trace(row.get("decision", row))}
+        for row in value.get("target_decisions", [])[:4]
+        if isinstance(row, dict)
+    ]
+    return compact
+
+
+def _compact_simulation_trace(value) -> dict:
+    if not isinstance(value, dict) or not value:
+        return {}
+    return {
+        key: value.get(key)
+        for key in (
+            "schema", "available", "completed", "room_id", "simulated_at",
+            "reason_code",
+        )
+        if value.get(key) is not None
+    } | {
+        "results": [
+            {
+                key: row.get(key)
+                for key in (
+                    "sector_id", "sector_name", "layer_id", "layer_name",
+                    "mode", "status", "reason_code",
+                )
+                if row.get(key) is not None
+            }
+            | {
+                "cover_targets": [
+                    {
+                        key: target.get(key)
+                        for key in (
+                            "cover_id", "entity_id", "name", "position", "tilt",
+                            "command_position", "command_tilt", "command_result",
+                            "reason_code", "constraints",
+                        )
+                        if target.get(key) is not None
+                    }
+                    for target in row.get("cover_targets", [])[:6]
+                    if isinstance(target, dict)
+                ],
+                "result": {
+                    "mode": row.get("result", {}).get("mode"),
+                    "target": row.get("result", {}).get("target"),
+                    "trace": _compact_pure_trace(row.get("result", {})),
+                },
+            }
+            for row in value.get("results", [])[:4]
+            if isinstance(row, dict)
+        ]
+    }
+
+
+def _compact_day_preview(value) -> dict:
+    if not isinstance(value, dict) or not value:
+        return {}
+    preview = value.get("preview")
+    if not isinstance(preview, dict):
+        preview = value.get("day_preview") if isinstance(value.get("day_preview"), dict) else value
+    return {
+        "day": preview.get("day") or preview.get("date") or value.get("date"),
+        "transitions": [
+            {
+                key: transition.get(key)
+                for key in (
+                    "at", "time", "timestamp", "previous_mode", "mode",
+                    "reason", "reason_code", "sector_id", "sector_name",
+                )
+                if transition.get(key) is not None
+            }
+            | {
+                "target": {
+                    key: transition.get("target", {}).get(key)
+                    for key in ("position", "tilt")
+                    if isinstance(transition.get("target"), dict)
+                    and transition["target"].get(key) is not None
+                }
+            }
+            for transition in preview.get("transitions", [])[:12]
+            if isinstance(transition, dict)
+        ],
+    }
+
+
+def _compact_diagnostic_events(events) -> list[dict]:
+    fields = (
+        "time", "timestamp", "created_at", "event", "type", "room", "cover",
+        "mode", "previous", "reason", "status", "axis", "direction", "trigger",
+        "level", "entity_id", "active_sectors", "targets",
+    )
+    return [
+        {key: event.get(key) for key in fields if event.get(key) is not None}
+        for event in list(events)[-8:]
+        if isinstance(event, dict)
+    ]
+
+
+def _attribute_size(attributes: dict) -> int:
+    return len(json.dumps(attributes, default=str, separators=(",", ":")).encode())
+
+
+def _fit_attribute_budget(attributes: dict) -> dict:
+    """Keep recorder-facing attributes below HA's hard 16-KB limit."""
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    attributes["diagnostic_events"] = attributes.get("diagnostic_events", [])[-3:]
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    attributes["simulation_trace"] = {}
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    trace = attributes.get("decision_trace")
+    if isinstance(trace, dict):
+        trace.pop("target_decisions", None)
+        trace.pop("entries", None)
+        trace.pop("rejected", None)
+        trace.pop("input_snapshot", None)
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    attributes["diagnostic_events"] = []
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    attributes["decision_trace"] = {}
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    preview = attributes.get("day_preview")
+    if isinstance(preview, dict):
+        preview["transitions"] = preview.get("transitions", [])[:4]
+    if _attribute_size(attributes) <= STATE_ATTRIBUTE_BUDGET:
+        return attributes
+    if isinstance(preview, dict):
+        preview["transitions"] = []
+    if _attribute_size(attributes) > STATE_ATTRIBUTE_BUDGET:
+        attributes["configuration"] = {
+            "id": attributes.get("configuration", {}).get("id"),
+            "name": attributes.get("configuration", {}).get("name"),
+            "configuration_truncated": True,
+        }
+    return attributes
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -82,18 +426,10 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
                         if layer.get("profile")
                     }
                 ),
-                "card_yaml": (
-                    "type: custom:smart-shading-card\n"
-                    f"entity: {self.entity_id}\n"
-                ),
-                "badge_yaml": (
-                    "type: custom:smart-shading-badge\n"
-                    f"entity: {self.entity_id}\n"
-                ),
                 "card_resource": CARD_RESOURCE,
             }
         )
-        return attrs
+        return _fit_attribute_budget(attrs)
 
 
 class RoomStatusSensor(SmartShadingEntity, SensorEntity):
@@ -130,12 +466,15 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
     def extra_state_attributes(self):
         attrs = super().extra_state_attributes
         room = self.engine.room_config(self.room_id)
+        compact_targets = [
+            _compact_target(target) for target in self.runtime.targets
+        ]
         attrs.update(
             {
                 "name": self.runtime.name,
                 "reason": self.runtime.reason,
                 "active_sectors": self.runtime.active_sectors,
-                "targets": self.runtime.targets,
+                "targets": compact_targets,
                 "protected_zone_calculations": [
                     {
                         "cover_entity": target.get("entity_id"),
@@ -146,7 +485,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                             "protected_zone_calculations", []
                         ),
                     }
-                    for target in self.runtime.targets
+                    for target in compact_targets
                     if target.get("protected_zone_calculations")
                 ],
                 "maximum_opening_calculations": [
@@ -170,7 +509,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                             "maximum_opening", {}
                         ).get("violation"),
                     }
-                    for target in self.runtime.targets
+                    for target in compact_targets
                     if target.get("maximum_opening", {}).get("enabled")
                 ],
                 "maximum_opening_monitor": {
@@ -188,7 +527,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                 # Advanced-only decision data.  Easy receives no Advanced
                 # controls or settings; its compact status remains unchanged.
                 "decision_trace": (
-                    self.runtime.decision_trace
+                    _compact_decision_trace(self.runtime.decision_trace)
                     if self.engine.advanced_mode
                     else {}
                 ),
@@ -197,17 +536,19 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     and self.runtime.simulation_active
                 ),
                 "simulation_trace": (
-                    self.runtime.simulation_trace
+                    _compact_simulation_trace(self.runtime.simulation_trace)
                     if self.engine.advanced_mode
                     else {}
                 ),
                 "day_preview": (
-                    self.runtime.day_preview
+                    _compact_day_preview(self.runtime.day_preview)
                     if self.engine.advanced_mode
                     else {}
                 ),
                 "diagnostic_level": self.engine.diagnostic_level,
-                "diagnostic_events": self.engine.recent_diagnostics(self.room_id, 30),
+                "diagnostic_events": _compact_diagnostic_events(
+                    self.engine.recent_diagnostics(self.room_id, 30)
+                ),
                 "sector_statuses": [
                     {
                         "id": sector["id"],
@@ -235,8 +576,6 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                             if sector.get("lux_sensor") and self.engine.hass.states.get(sector.get("lux_sensor", ""))
                             else None
                         ),
-                        "sun_settings": self.engine._sun_settings(sector["id"]),
-                        "pending_target": self.engine.sun_runtime[sector["id"]].pending_target,
                         "pending_until": self.engine.sun_runtime[sector["id"]].pending_until,
                         "last_transition": self.engine.sun_runtime[sector["id"]].last_transition,
                         "mode": self.engine.sun_runtime[sector["id"]].mode,
@@ -330,15 +669,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     for layer in sector.get("layers", [])
                     for cover in layer.get("covers", [])
                 ],
-                "configuration": room,
-                "card_yaml": (
-                    "type: custom:smart-shading-card\n"
-                    f"entity: {self.entity_id}\n"
-                ),
-                "badge_yaml": (
-                    "type: custom:smart-shading-badge\n"
-                    f"entity: {self.entity_id}\n"
-                ),
+                "configuration": _compact_room_configuration(room),
             }
         )
         if self.engine.advanced_mode:
@@ -455,7 +786,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     for sector in room.get("sectors", [])
                 ],
             }
-        return attrs
+        return _fit_attribute_budget(attrs)
 
 
 class SectorStatusSensor(SmartShadingEntity, SensorEntity):

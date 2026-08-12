@@ -3,6 +3,23 @@
 ## Unreleased
 
 
+## 2026.8.0b4 - 2026-08-13
+
+### Dashboard rendering and recorder stability
+
+- remove every programmatic dashboard scroll-restoration path; Smart Shading no
+  longer writes document or ancestor scroll positions after state updates
+- reconcile the existing Card and Advanced-dialog DOM in place so normal live
+  updates preserve nodes, controls and focus instead of replacing the complete
+  Shadow DOM
+- restrict Card render signatures to visible state fields and ignore unrelated
+  or diagnostics-only state changes
+- keep recorder-facing room attributes below Home Assistant's 16-KB limit by
+  omitting repeated Card/Badge YAML and publishing compact public summaries of
+  configuration, traces, previews and diagnostic events; complete data remains
+  available through Smart Shading diagnostics
+
+
 ## 2026.8.0b3 - 2026-08-12
 
 ### Dashboard scroll stability

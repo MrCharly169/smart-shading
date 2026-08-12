@@ -17,82 +17,121 @@ const localDateKey = (value = new Date()) => {
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
-const activeScrollRestorations = new WeakMap();
-const captureScrollPositions = (host, primary = null) => {
-  const elements = [];
-  const seen = new Set();
-  const add = (element) => {
-    if (!element || seen.has(element)) return;
-    const hasViewport = Number(element.scrollHeight || 0) > Number(element.clientHeight || 0)
-      || Number(element.scrollWidth || 0) > Number(element.clientWidth || 0);
-    if (element === primary || hasViewport || Number(element.scrollTop || 0) || Number(element.scrollLeft || 0)) {
-      seen.add(element);
-      elements.push({ element, top: Number(element.scrollTop || 0), left: Number(element.scrollLeft || 0) });
-    }
+const visibleStateAttributes = (state) => {
+  const attrs = asRecord(state?.attributes);
+  return {
+    state: state?.state ?? null,
+    friendly_name: attrs.friendly_name ?? null,
+    device_class: attrs.device_class ?? null,
+    unit_of_measurement: attrs.unit_of_measurement ?? null,
+    current_position: attrs.current_position ?? null,
+    current_tilt_position: attrs.current_tilt_position ?? null,
+    azimuth: attrs.azimuth ?? null,
+    elevation: attrs.elevation ?? null,
+    smart_shading_control_key: attrs.smart_shading_control_key ?? null,
   };
-  add(primary);
-  let current = host;
-  while (current) {
-    add(current);
-    const root = current.getRootNode?.();
-    current = current.assignedSlot
-      || current.parentElement
-      || (root?.host && root.host !== current ? root.host : null);
-  }
-  add(globalThis.document?.scrollingElement);
-  return elements;
 };
-const restoreScrollPositions = (positions, owner) => {
-  const token = Number(owner?._scrollRestoreToken || 0) + 1;
-  if (owner) owner._scrollRestoreToken = token;
-  const registrations = positions.map(({ element, top, left }) => {
-    if (!element) return null;
-    const registration = { owner, token };
-    activeScrollRestorations.set(element, registration);
-    return { element, top, left, registration };
-  }).filter(Boolean);
-  const restore = () => {
-    if (owner && owner._scrollRestoreToken !== token) return;
-    for (const { element, top, left, registration } of registrations) {
-      if (activeScrollRestorations.get(element) !== registration) continue;
-      if (Number(element.scrollTop || 0) !== top) element.scrollTop = top;
-      if (Number(element.scrollLeft || 0) !== left) element.scrollLeft = left;
-    }
-  };
-  const cancel = () => {
-    for (const { element, registration } of registrations) {
-      if (activeScrollRestorations.get(element) === registration) {
-        activeScrollRestorations.delete(element);
+const cardRoomAttributes = (attrs) => ({
+  name: attrs.name,
+  reason: attrs.reason,
+  active_sectors: attrs.active_sectors,
+  targets: attrs.targets,
+  sector_statuses: attrs.sector_statuses,
+  cover_pauses: attrs.cover_pauses,
+  manual_master_active: attrs.manual_master_active,
+  pause_mode: attrs.pause_mode,
+  pause_until: attrs.pause_until,
+  night_enabled: attrs.night_enabled,
+  night_active: attrs.night_active,
+  night_source: attrs.night_source,
+  night_entity: attrs.night_entity,
+  schedule_active: attrs.schedule_active,
+  temperature_settings: attrs.temperature_settings,
+  easy_confirmation_state: attrs.easy_confirmation_state,
+  easy_source_summary: attrs.easy_source_summary,
+  outdoor_temperature_condition: attrs.outdoor_temperature_condition,
+  configuration: attrs.configuration,
+  sun_entity: attrs.sun_entity,
+  smart_shading_layout: attrs.smart_shading_layout,
+});
+const eventElement = (event, selector) => {
+  const pathMatch = event?.composedPath?.().find?.(
+    (candidate) => candidate?.matches?.(selector),
+  );
+  return pathMatch || event?.target?.closest?.(selector) || null;
+};
+const sameDomKind = (current, next) => current?.nodeType === next?.nodeType
+  && (current?.nodeType !== 1 || current.localName === next.localName);
+const domNodeKey = (node) => {
+  if (node?.nodeType !== 1) return "";
+  if (node.id) return `id:${node.id}`;
+  const keyAttributes = [
+    "data-close", "data-press", "data-tool-press", "data-collapse-toggle",
+    "data-more", "data-night-source", "data-preview-day", "data-preview-date",
+    "data-advanced", "data-easy-layout", "data-advanced-layout", "data-card-mode",
+  ];
+  for (const name of keyAttributes) {
+    if (node.hasAttribute?.(name)) return `${name}:${node.getAttribute(name) || ""}`;
+  }
+  return "";
+};
+const syncDomAttributes = (current, next) => {
+  const desired = new Map(Array.from(next.attributes || []).map((attribute) => [attribute.name, attribute.value]));
+  for (const attribute of Array.from(current.attributes || [])) {
+    if (!desired.has(attribute.name)) current.removeAttribute(attribute.name);
+  }
+  for (const [name, value] of desired) {
+    if (current.getAttribute(name) !== value) current.setAttribute(name, value);
+  }
+};
+const reconcileDomNode = (current, next) => {
+  if (!sameDomKind(current, next)) {
+    current.replaceWith(next.cloneNode(true));
+    return;
+  }
+  if (current.nodeType === 3 || current.nodeType === 8) {
+    if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+    return;
+  }
+  syncDomAttributes(current, next);
+  reconcileDomChildren(current, next);
+};
+const reconcileDomChildren = (currentParent, nextParent) => {
+  const desired = Array.from(nextParent.childNodes || []);
+  for (let index = 0; index < desired.length; index += 1) {
+    const next = desired[index];
+    let current = currentParent.childNodes?.[index];
+    const nextKey = domNodeKey(next);
+    if (current && nextKey && domNodeKey(current) !== nextKey) {
+      const match = Array.from(currentParent.childNodes || [])
+        .slice(index + 1)
+        .find((candidate) => domNodeKey(candidate) === nextKey);
+      if (match) {
+        currentParent.insertBefore(match, current);
+        current = match;
       }
     }
-  };
-  const inputTarget = globalThis.document;
-  const cancelOnUserInput = () => cancel();
-  const inputEvents = ["wheel", "touchstart", "pointerdown"];
-  inputEvents.forEach((eventName) => inputTarget?.addEventListener?.(eventName, cancelOnUserInput, { passive: true, capture: true }));
-  const finish = () => {
-    restore();
-    cancel();
-    inputEvents.forEach((eventName) => inputTarget?.removeEventListener?.(eventName, cancelOnUserInput, { capture: true }));
-  };
-  restore();
-  globalThis.queueMicrotask?.(restore);
-  if (globalThis.requestAnimationFrame) {
-    globalThis.requestAnimationFrame(() => {
-      restore();
-      globalThis.requestAnimationFrame(restore);
-    });
+    if (!current) {
+      currentParent.appendChild(next.cloneNode(true));
+      continue;
+    }
+    reconcileDomNode(current, next);
   }
-  [50, 120, 250, 500].forEach((delay) => globalThis.setTimeout?.(restore, delay));
-  let resizeObserver = null;
-  if (globalThis.ResizeObserver && owner) {
-    resizeObserver = new globalThis.ResizeObserver(restore);
-    try { resizeObserver.observe(owner); } catch (_error) { resizeObserver.disconnect?.(); }
+  while (Number(currentParent.childNodes?.length || 0) > desired.length) {
+    currentParent.lastChild?.remove?.();
   }
-  globalThis.setTimeout?.(() => {
-    resizeObserver?.disconnect?.();
-    finish();
-  }, 800);
+};
+const updateStableMarkup = (root, markup) => {
+  if (!root) return false;
+  const template = globalThis.document?.createElement?.("template");
+  if (!template?.content) {
+    if (root.innerHTML === markup) return false;
+    root.innerHTML = markup;
+    return true;
+  }
+  template.innerHTML = markup;
+  reconcileDomChildren(root, template.content);
+  return true;
 };
 const humanizeToken = (value, fallback = "–") => {
   const token = String(value ?? "").trim();
@@ -286,6 +325,51 @@ class SmartShadingV4Dialog extends HTMLElement {
     this._technicalOpen = false;
     this._runtimeSupportOpen = false;
     this._opener = null;
+    this.shadowRoot?.addEventListener?.("click", (event) => {
+      const element = eventElement(event,
+        "[data-close],[data-press],[data-tool-press],[data-collapse-toggle],[data-more],[data-night-source],[data-preview-day]",
+      );
+      if (!element) return;
+      if (element.hasAttribute?.("data-close")) {
+        this.close();
+        return;
+      }
+      if (element.dataset.press) {
+        this._callEntity(element.dataset.press);
+        return;
+      }
+      if (element.dataset.toolPress) {
+        this._callEntity(element.dataset.toolPress, { testTool: true });
+        return;
+      }
+      if (element.dataset.collapseToggle) {
+        const key = element.dataset.collapseToggle;
+        const property = key === "tools" ? "_toolsOpen" : key === "technical" ? "_technicalOpen" : "_runtimeSupportOpen";
+        this[property] = !this[property];
+        this._render();
+        return;
+      }
+      if (element.dataset.more) {
+        this._more(element.dataset.more);
+        return;
+      }
+      if (element.dataset.nightSource) {
+        this._openNightSource(element.dataset.nightSource);
+        return;
+      }
+      if (element.hasAttribute?.("data-preview-day")) {
+        const main = this.shadowRoot?.querySelector?.("main");
+        const selected = main?.querySelector?.("[data-preview-date]")?.value || this._selectedPreviewDate;
+        this._previewDay(element.dataset.previewRoom, element.dataset.previewEntry, selected);
+      }
+    });
+    const syncPreviewDate = (event) => {
+      const element = eventElement(event, "[data-preview-date]");
+      if (!element) return;
+      this._selectedPreviewDate = element.value || localDateKey();
+    };
+    this.shadowRoot?.addEventListener?.("input", syncPreviewDate);
+    this.shadowRoot?.addEventListener?.("change", syncPreviewDate);
     this._keyHandler = (event) => {
       if (event.key === "Escape") {
         event.preventDefault?.();
@@ -340,7 +424,6 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   close() {
-    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     document.removeEventListener?.("keydown", this._keyHandler);
     this.remove?.();
     this._opener?.focus?.({ preventScroll: true });
@@ -348,7 +431,6 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     document.removeEventListener?.("keydown", this._keyHandler);
     this._renderQueued = false;
   }
@@ -1112,7 +1194,6 @@ class SmartShadingV4Dialog extends HTMLElement {
 
   _render() {
     const existingDialog = this.shadowRoot?.querySelector?.(".dialog");
-    const scrollPositions = captureScrollPositions(this, existingDialog);
     if (!this.shadowRoot || !this._roomState) return;
     this._renderCount += 1;
     this.dataset.renderCount = String(this._renderCount);
@@ -1226,7 +1307,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         </div>
       </section>`;
 
-    if (!existingDialog) this.shadowRoot.innerHTML = `
+    const dialogHtml = `
       <style>
         :host{position:fixed;inset:0;z-index:99999;display:block;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--primary-text-color,#fff)}
         *{box-sizing:border-box}
@@ -1257,71 +1338,17 @@ class SmartShadingV4Dialog extends HTMLElement {
         <main>${mainHtml}</main>
       </article>`;
 
+    if (!existingDialog) updateStableMarkup(this.shadowRoot, dialogHtml);
+
     const dialog = this.shadowRoot.querySelector?.(".dialog");
     const main = this.shadowRoot.querySelector?.("main");
-    const activeElement = this.shadowRoot.activeElement;
-    const focusToken = activeElement && activeElement !== main
-      ? ["press", "toolPress", "more", "nightSource", "previewDate", "previewDay"].find((key) =>
-        Object.prototype.hasOwnProperty.call(activeElement.dataset || {}, key)
-      )
-      : null;
-    const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     const contentChanged = !existingDialog || this._mainHtml !== mainHtml;
-    if (existingDialog && main && contentChanged) main.innerHTML = mainHtml;
+    if (existingDialog && main && contentChanged) updateStableMarkup(main, mainHtml);
     if (contentChanged) {
       this._mainHtml = mainHtml;
       this._contentWriteCount += 1;
       this.dataset.contentWriteCount = String(this._contentWriteCount);
     }
-    if (!existingDialog) this.shadowRoot.querySelectorAll?.("[data-close]").forEach((element) => element.addEventListener("click", () => this.close()));
-    if (contentChanged) {
-      main?.querySelectorAll?.("[data-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.press)));
-      main?.querySelectorAll?.("[data-tool-press]").forEach((element) => element.addEventListener("click", () => this._callEntity(element.dataset.toolPress, { testTool: true })));
-      main?.querySelectorAll?.("[data-collapse-toggle]").forEach((element) => element.addEventListener("click", () => {
-        const key = element.dataset.collapseToggle;
-        const property = key === "tools" ? "_toolsOpen" : key === "technical" ? "_technicalOpen" : "_runtimeSupportOpen";
-        this[property] = !this[property];
-        this._render();
-      }));
-      main?.querySelectorAll?.("[data-more]").forEach((element) => element.addEventListener("click", () => this._more(element.dataset.more)));
-      main?.querySelectorAll?.("[data-night-source]").forEach((element) => element.addEventListener("click", () => this._openNightSource(element.dataset.nightSource)));
-      const syncPreviewDate = (element) => {
-        const selected = element.value || localDateKey();
-        this._selectedPreviewDate = selected;
-        // Changing an input property does not change ``innerHTML``. Keep the
-        // cached markup aligned so an otherwise unchanged HA update preserves
-        // the chosen date, focus, scroll position, and dialog DOM.
-        this._mainHtml = this._mainHtml.replace(
-          /(data-preview-date value=")[^"]*(")/,
-          `$1${htmlEscape(selected)}$2`,
-        );
-      };
-      main?.querySelectorAll?.("[data-preview-date]").forEach((element) => {
-        element.addEventListener("input", () => syncPreviewDate(element));
-        element.addEventListener("change", () => syncPreviewDate(element));
-      });
-      main?.querySelectorAll?.("[data-preview-day]").forEach((element) => element.addEventListener("click", () => {
-        const selected = main?.querySelector?.("[data-preview-date]")?.value || this._selectedPreviewDate;
-        this._previewDay(
-          element.dataset.previewRoom,
-          element.dataset.previewEntry,
-          selected,
-        );
-      }));
-      if (focusToken) {
-        const attribute = {
-          nightSource: "data-night-source",
-          toolPress: "data-tool-press",
-          previewDate: "data-preview-date",
-          previewDay: "data-preview-day",
-        }[focusToken] || `data-${focusToken}`;
-        const candidates = asArray(Array.from(main?.querySelectorAll?.(`[${attribute}]`) || []));
-        const replacement = candidates.find((element) => element.dataset?.[focusToken] === focusValue)
-          || candidates[0];
-        replacement?.focus?.({ preventScroll: true });
-      }
-    }
-    restoreScrollPositions(scrollPositions, this);
   }
 }
 
@@ -1339,7 +1366,7 @@ class SmartShadingV4Card extends HTMLElement {
     this._lastRenderSignature = "";
     this._cardHtml = "";
     this.shadowRoot?.addEventListener?.("click", (event) => {
-      const element = event.target?.closest?.(
+      const element = eventElement(event,
         "[data-more],[data-night-source],[data-press],[data-advanced]",
       );
       if (!element) return;
@@ -1357,7 +1384,7 @@ class SmartShadingV4Card extends HTMLElement {
         this._callEntity(element.dataset.press);
         return;
       }
-      if (Object.hasOwn(element.dataset, "advanced")) {
+      if (element.hasAttribute?.("data-advanced")) {
         const roomState = this._resolvedRoomState();
         if (roomState) {
           this._openAdvanced(
@@ -1400,7 +1427,6 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this._scrollRestoreToken = Number(this._scrollRestoreToken || 0) + 1;
     this._renderQueued = false;
     if (this._dialog) {
       this._dialog.close?.();
@@ -1443,12 +1469,18 @@ class SmartShadingV4Card extends HTMLElement {
       }));
     });
     this._controls(roomState).forEach((control) => entityIds.add(control.entity_id));
-    const states = [...entityIds].filter(Boolean).sort().map((entityId) => {
-      const state = this._hass?.states?.[entityId];
-      return [entityId, state?.state ?? null, state?.attributes ?? null];
-    });
+    const states = [...entityIds].filter(Boolean).sort().map((entityId) => [
+      entityId,
+      visibleStateAttributes(this._hass?.states?.[entityId]),
+    ]);
     try {
-      return JSON.stringify([this._config, this._hass?.language || "en", states]);
+      return JSON.stringify([
+        this._config,
+        this._hass?.language || "en",
+        roomState.state,
+        cardRoomAttributes(attrs),
+        states,
+      ]);
     } catch (_error) {
       return `${roomState.entity_id}:${roomState.state}:${roomState.last_changed || ""}`;
     }
@@ -1680,24 +1712,15 @@ class SmartShadingV4Card extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    const scrollPositions = captureScrollPositions(this);
     this._renderCount += 1;
     this.dataset.renderCount = String(this._renderCount);
     const L = this._labels();
-    const activeElement = this.shadowRoot.activeElement;
-    const focusToken = activeElement
-      ? ["more", "nightSource", "press", "advanced"].find((key) =>
-        Object.prototype.hasOwnProperty.call(activeElement.dataset || {}, key)
-      )
-      : null;
-    const focusValue = focusToken ? activeElement.dataset[focusToken] : null;
     if (!this._config?.entity) {
       const nextHtml = this._messageCard(L.noEntity);
       if (nextHtml !== this._cardHtml) {
         this._cardHtml = nextHtml;
-        this.shadowRoot.innerHTML = nextHtml;
+        updateStableMarkup(this.shadowRoot, nextHtml);
       }
-      restoreScrollPositions(scrollPositions, this);
       return;
     }
     const roomState = this._resolvedRoomState();
@@ -1705,9 +1728,8 @@ class SmartShadingV4Card extends HTMLElement {
       const nextHtml = this._messageCard(L.unavailable);
       if (nextHtml !== this._cardHtml) {
         this._cardHtml = nextHtml;
-        this.shadowRoot.innerHTML = nextHtml;
+        updateStableMarkup(this.shadowRoot, nextHtml);
       }
-      restoreScrollPositions(scrollPositions, this);
       return;
     }
 
@@ -1965,26 +1987,10 @@ class SmartShadingV4Card extends HTMLElement {
       </ha-card>`}`;
 
     if (nextCardHtml === this._cardHtml) {
-      activeElement?.focus?.({ preventScroll: true });
-      restoreScrollPositions(scrollPositions, this);
       return;
     }
     this._cardHtml = nextCardHtml;
-    this.shadowRoot.innerHTML = nextCardHtml;
-
-    if (focusToken) {
-      const attribute = {
-        more: "data-more",
-        nightSource: "data-night-source",
-        press: "data-press",
-        advanced: "data-advanced",
-      }[focusToken];
-      const candidates = asArray(Array.from(this.shadowRoot.querySelectorAll?.(`[${attribute}]`) || []));
-      const replacement = candidates.find((element) => element.dataset?.[focusToken] === focusValue);
-      replacement?.focus?.({ preventScroll: true });
-    }
-
-    restoreScrollPositions(scrollPositions, this);
+    updateStableMarkup(this.shadowRoot, nextCardHtml);
 
   }
 

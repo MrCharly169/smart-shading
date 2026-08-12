@@ -24,6 +24,12 @@ class FakeElement extends FakeNode {
     }
     return null;
   }
+  hasAttribute(name) {
+    const attribute = String(name).match(/^data-([a-z-]+)$/)?.[1];
+    if (!attribute) return false;
+    const key = attribute.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+    return Object.hasOwn(this.dataset, key);
+  }
   querySelectorAll(selector) {
     if (this._queryCache.has(selector)) return this._queryCache.get(selector);
     const attribute = selector.match(/^\[data-([a-z-]+)\]$/)?.[1];
@@ -53,12 +59,6 @@ class FakeShadowRoot extends FakeNode {
     this._innerHTML = String(value || "");
     this._queryCache.clear();
     this.writeCount += 1;
-    if (global.simulateDashboardScrollJump && global.document?.scrollingElement) {
-      global.document.scrollingElement.scrollTop = 0;
-    }
-    if (global.simulateDelayedDashboardScrollJump && global.document?.scrollingElement) {
-      setTimeout(() => { global.document.scrollingElement.scrollTop = 0; }, 75);
-    }
     if (this._innerHTML.includes('class="dialog"')) {
       this._dialog = new FakeElement();
       const match = this._innerHTML.match(/<main>([\s\S]*)<\/main>/);
@@ -99,6 +99,21 @@ const body = {
   appendChild(node) { node.isConnected = true; this.children.push(node); return node; },
 };
 const documentListeners = new Map();
+let dashboardScrollTop = 0;
+let dashboardScrollLeft = 0;
+let dashboardScrollWrites = 0;
+const scrollingElement = { scrollHeight: 2400, clientHeight: 800, scrollWidth: 1200, clientWidth: 1200 };
+Object.defineProperties(scrollingElement, {
+  scrollTop: {
+    get() { return dashboardScrollTop; },
+    set(value) { dashboardScrollWrites += 1; dashboardScrollTop = Number(value); },
+  },
+  scrollLeft: {
+    get() { return dashboardScrollLeft; },
+    set(value) { dashboardScrollWrites += 1; dashboardScrollLeft = Number(value); },
+  },
+});
+const outsideFocus = { id: "dashboard-search" };
 global.HTMLElement = FakeHTMLElement;
 global.Event = FakeEvent;
 global.CustomEvent = FakeCustomEvent;
@@ -108,7 +123,8 @@ global.customElements = {
 };
 global.document = {
   body,
-  scrollingElement: { scrollTop: 0, scrollLeft: 0, scrollHeight: 2400, clientHeight: 800, scrollWidth: 1200, clientWidth: 1200 },
+  scrollingElement,
+  activeElement: outsideFocus,
   createElement(name) {
     const Klass = registry.get(name);
     return Klass ? new Klass() : new FakeHTMLElement();
@@ -400,7 +416,7 @@ const focusedAdvancedEntrance = card.shadowRoot.querySelectorAll("[data-advanced
 card.shadowRoot.activeElement = focusedAdvancedEntrance;
 const cardWritesBeforeNoopRender = card.shadowRoot.writeCount;
 card._render();
-if (!card.shadowRoot.querySelectorAll("[data-advanced]")[0]?.focused) throw new Error("Card did not restore focused controls without scrolling after a live update");
+if (card.shadowRoot.querySelectorAll("[data-advanced]")[0] !== focusedAdvancedEntrance) throw new Error("Unchanged card state replaced its focused control");
 if (card.shadowRoot.writeCount !== cardWritesBeforeNoopRender) throw new Error("Visually unchanged card state rebuilt the dashboard DOM");
 if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes("cover-row")) throw new Error("Advanced reference structure missing");
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
@@ -567,9 +583,14 @@ if (!noControlMarkup.includes("data-advanced")) throw new Error("Advanced view d
 
 const advancedButton = new FakeElement();
 advancedButton.dataset.advanced = "";
+advancedButton.matches = (selector) => selector.includes("[data-advanced]");
 const delegatedClick = card.shadowRoot.listeners.get("click");
 if (!delegatedClick) throw new Error("Card did not register its stable delegated click handler");
-delegatedClick({ target: advancedButton, stopPropagation() {} });
+delegatedClick({
+  target: { closest() { return null; } },
+  composedPath() { return [advancedButton, card.shadowRoot]; },
+  stopPropagation() {},
+});
 if (!body.children.length) throw new Error("Advanced dialog was not appended to document.body");
 const dialog = body.children[0];
 if (!dialog.shadowRoot.innerHTML.includes("Smart Shading · Details")) throw new Error("Details dialog did not render");
@@ -635,8 +656,8 @@ const previewInput = dialog.shadowRoot.querySelector("main").querySelector("[dat
 const previewAction = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-day]");
 if (!previewInput || !previewAction || previewAction.dataset.previewFallback) throw new Error("Preview controls were not queryable in the card runtime");
 previewInput.value = "2031-06-21";
-previewInput.listeners.get("change")?.();
-previewAction.listeners.get("click")?.();
+dialog.shadowRoot.listeners.get("change")?.({ target: previewInput });
+dialog.shadowRoot.listeners.get("click")?.({ target: previewAction });
 const previewServiceCall = hass.calls.at(-1);
 if (previewServiceCall?.domain !== "smart_shading" || previewServiceCall.service !== "preview_day" || previewServiceCall.data?.room_id !== "room" || previewServiceCall.data?.entry_id !== "entry" || previewServiceCall.data?.date !== "2031-06-21") throw new Error("Selected preview date was not sent to the narrow Smart Shading preview service");
 const originalCallService = hass.callService;
@@ -665,17 +686,34 @@ hass.states["cover.internal_identifier"] = { ...unknownCoverState, attributes: {
 card.hass = hass;
 if (Number(dialog.dataset.contentWriteCount || 0) !== contentWritesAfterTools + 1 || !dialog._mainHtml.includes("75%")) throw new Error("Changed relevant cover feedback did not refresh the Advanced dialog");
 if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog lost its scroll position while refreshing content");
-setTimeout(() => { dialog.shadowRoot.querySelector(".dialog").scrollTop = 0; }, 75);
-await new Promise((resolve) => setTimeout(resolve, 180));
-if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Delayed diagnostic layout recalculation changed the dialog scroll position");
-const replacementAction = dialog.shadowRoot.querySelector("main").querySelectorAll("[data-tool-press]").find((element) => element.dataset.toolPress === "button.simulate");
-if (!replacementAction?.focused) throw new Error("Advanced dialog did not restore focused control after a relevant update");
+await new Promise((resolve) => setTimeout(resolve, 1100));
+if (dialog.shadowRoot.querySelector(".dialog").scrollTop !== 123) throw new Error("Advanced dialog scroll changed after delayed tasks settled");
+if (document.activeElement !== outsideFocus) throw new Error("Dialog update changed focus outside Smart Shading");
 const focusedPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
 dialog.shadowRoot.activeElement = focusedPreviewDate;
 hass.states["cover.internal_identifier"] = { ...unknownCoverState, attributes: { ...unknownCoverState.attributes, current_position: 74 } };
 card.hass = hass;
 const replacementPreviewDate = dialog.shadowRoot.querySelector("main").querySelector("[data-preview-date]");
-if (!replacementPreviewDate?.focused || replacementPreviewDate.value !== "2031-06-21") throw new Error("Advanced dialog did not retain selected-date focus and value after a relevant update");
+if (replacementPreviewDate.value !== "2031-06-21") throw new Error("Advanced dialog did not retain the selected preview date after a relevant update");
+const renderCountBeforeDiagnosticOnly = Number(card.dataset.renderCount || 0);
+const dialogWritesBeforeDiagnosticOnly = Number(dialog.dataset.contentWriteCount || 0);
+card.hass = {
+  ...hass,
+  states: {
+    ...hass.states,
+    "sensor.room_status": {
+      ...roomStatus,
+      attributes: {
+        ...roomStatus.attributes,
+        diagnostic_events: [...roomStatus.attributes.diagnostic_events, {
+          time: "2031-06-21T12:05:00+00:00", event: "room_evaluated", mode: "solar", targets: 1,
+        }],
+      },
+    },
+  },
+};
+if (Number(card.dataset.renderCount || 0) !== renderCountBeforeDiagnosticOnly) throw new Error("Diagnostics-only attributes rebuilt the visible card");
+if (Number(dialog.dataset.contentWriteCount || 0) !== dialogWritesBeforeDiagnosticOnly + 1) throw new Error("Open dialog did not receive a diagnostics-only update");
 const renderCountBeforeUnrelated = Number(card.dataset.renderCount || 0);
 card.hass = { ...hass, states: { ...hass.states, "sensor.unrelated": { entity_id: "sensor.unrelated", state: "1", attributes: {} } } };
 if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw new Error("An unrelated Home Assistant update rebuilt the whole card");
@@ -687,29 +725,24 @@ if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw 
   },
   };
   if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated + 1) throw new Error("A relevant Home Assistant update did not refresh the card");
-  document.scrollingElement.scrollTop = 640;
-  global.simulateDashboardScrollJump = true;
-  card.hass = {
-    ...hass,
-    states: {
-      ...hass.states,
-      "sensor.room_status": { ...roomStatus, state: "heat", attributes: { ...roomStatus.attributes, reason: "Heat protection changed the visible status" } },
-    },
-  };
-  global.simulateDashboardScrollJump = false;
-  if (document.scrollingElement.scrollTop !== 640) throw new Error("A relevant card update changed the dashboard scroll position");
   document.scrollingElement.scrollTop = 615;
-  global.simulateDelayedDashboardScrollJump = true;
-  card.hass = {
-    ...hass,
-    states: {
-      ...hass.states,
-      "sensor.room_status": { ...roomStatus, state: "safety", attributes: { ...roomStatus.attributes, reason: "Delayed Home Assistant layout recalculation" } },
-    },
-  };
-  await new Promise((resolve) => setTimeout(resolve, 180));
-  global.simulateDelayedDashboardScrollJump = false;
-  if (document.scrollingElement.scrollTop !== 615) throw new Error("A delayed Home Assistant layout recalculation changed the dashboard scroll position");
+  dashboardScrollWrites = 0;
+  const burstModes = ["heat", "safety", "solar", "comfort", "open"];
+  for (const [index, mode] of burstModes.entries()) {
+    card.hass = {
+      ...hass,
+      states: {
+        ...hass.states,
+        "sensor.room_status": { ...roomStatus, state: mode, attributes: { ...roomStatus.attributes, reason: `Burst ${index}` } },
+        "cover.internal_identifier": { ...unknownCoverState, attributes: { ...unknownCoverState.attributes, current_position: 70 + index } },
+      },
+    };
+  }
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  if (document.scrollingElement.scrollTop !== 615) throw new Error("A burst of relevant updates changed the dashboard scroll position");
+  if (dashboardScrollWrites !== 0) throw new Error("Smart Shading wrote document.scrollingElement during a state update");
+  if (document.activeElement !== outsideFocus) throw new Error("Smart Shading changed focus outside the card during a state update");
   card.disconnectedCallback();
 if (dialog.isConnected || documentListeners.has("keydown")) throw new Error("Detached card did not clean up its dialog and document listener");
 }
