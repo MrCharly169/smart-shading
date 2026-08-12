@@ -74,6 +74,17 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
                 "max_open_position": 90,
             }
         )
+        room["sectors"][0]["protected_zones"] = [
+            {
+                "id": "dining_table",
+                "name": "Dining table",
+                "enabled": True,
+                "cover_entity": "cover.one",
+                "calculation_mode": "curtain",
+                "window_width_m": 2.4,
+                "internal_debug": "not public",
+            }
+        ]
         oversized = "x" * 50_000
         runtime.decision_trace = {
             "schema": 1,
@@ -149,6 +160,17 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
         compact_cover = configuration["sectors"][0]["layers"][0]["covers"][0]
         self.assertIs(compact_cover["enforce_max_open_position"], True)
         self.assertEqual(90, compact_cover["max_open_position"])
+        compact_zone = configuration["sectors"][0]["protected_zones"][0]
+        self.assertEqual(
+            {
+                "id": "dining_table",
+                "name": "Dining table",
+                "enabled": True,
+                "cover_entity": "cover.one",
+                "calculation_mode": "curtain",
+            },
+            compact_zone,
+        )
         self.assertEqual("2031-06-21", attributes["day_preview"]["day"])
         self.assertIs(runtime.decision_trace, original_trace)
         self.assertIn("debug", runtime.decision_trace)

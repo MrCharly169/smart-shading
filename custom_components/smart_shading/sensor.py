@@ -54,6 +54,18 @@ def _compact_room_configuration(room: dict) -> dict:
                 if sector.get(key) not in (None, "")
             }
             | {
+                "protected_zones": [
+                    {
+                        key: zone.get(key)
+                        for key in (
+                            "id", "name", "enabled", "cover_entity",
+                            "calculation_mode",
+                        )
+                        if zone.get(key) not in (None, "")
+                    }
+                    for zone in sector.get("protected_zones", [])
+                    if isinstance(zone, dict)
+                ],
                 "layers": [
                     {
                         key: layer.get(key)
