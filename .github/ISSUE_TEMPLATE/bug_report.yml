@@ -5,7 +5,16 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Please remove private entity names and locations from diagnostics before posting.
+      value: Before reporting, read SUPPORT.md and search existing issues. Remove personal names, entity IDs, addresses, URLs, tokens, and installation-specific data from diagnostics and logs.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and checked the troubleshooting guidance.
+          required: true
+        - label: I removed private and installation-specific data.
+          required: true
   - type: input
     id: version
     attributes:
@@ -17,6 +26,15 @@ body:
     id: ha_version
     attributes:
       label: Home Assistant version
+    validations:
+      required: true
+  - type: dropdown
+    id: setup_mode
+    attributes:
+      label: Setup mode
+      options:
+        - Easy
+        - Advanced
     validations:
       required: true
   - type: textarea
@@ -41,4 +59,5 @@ body:
     id: logs
     attributes:
       label: Relevant diagnostics or logs
+      description: Include the Card reason and the smallest sanitized evidence that shows the problem.
       render: shell

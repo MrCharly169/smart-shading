@@ -1,188 +1,253 @@
-# Smart Shading
+<p align="right"><a href="docs/de/README.md">Deutsch</a> · <strong>English</strong></p>
 
-Smart Shading is a Home Assistant custom integration for sector-based shading using sun geometry, illuminance, temperature, safety inputs, window contacts, and manual overrides.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/smart_shading/brand/dark_logo@2x.png">
+    <img src="custom_components/smart_shading/brand/logo@2x.png" alt="Smart Shading — Adaptive sun and heat control" width="760">
+  </picture>
+</p>
 
-- **Home Assistant:** 2026.6 or newer
-- **Integration domain:** `smart_shading`
-- **Canonical dashboard resource:** `/smart_shading/shading.js`
+<p align="center">
+  <a href="https://github.com/MrCharly169/smart-shading/actions/workflows/validate.yml"><img alt="Validate status" src="https://img.shields.io/github/actions/workflow/status/MrCharly169/smart-shading/validate.yml?branch=main&amp;style=flat-square&amp;label=validate"></a>
+  <a href="https://github.com/MrCharly169/smart-shading/releases"><img alt="Latest GitHub release, including prereleases" src="https://img.shields.io/github/v/release/MrCharly169/smart-shading?include_prereleases&amp;style=flat-square&amp;label=release"></a>
+  <a href="https://github.com/MrCharly169/smart-shading/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/MrCharly169/smart-shading?style=flat-square"></a>
+  <a href="https://github.com/MrCharly169/smart-shading/releases"><img alt="GitHub release downloads" src="https://img.shields.io/github/downloads/MrCharly169/smart-shading/total?style=flat-square&amp;label=Release%20downloads"></a>
+  <a href="https://hacs.xyz/docs/faq/custom_repositories/"><img alt="HACS Custom" src="https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square"></a>
+  <a href="#requirements-and-limitations"><img alt="Home Assistant 2026.6 or newer" src="https://img.shields.io/badge/Home%20Assistant-2026.6%2B-41BDF5?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square"></a>
+</p>
 
-The dashboard resource URL is stable and contains no version query. Future integration upgrades replace the JavaScript behind the same URL; the Home Assistant resource entry does not need to be edited again.
+> **Stable channel:** the current `main` release line contains stable releases. Enable prereleases in HACS only if you intentionally want to test beta builds from `develop`.
+
+**Smart Shading turns Home Assistant cover entities into context-aware shading that reacts to the real sun, room conditions, and explicit safety or manual signals instead of relying only on fixed times.**
+
+## Why Smart Shading?
+
+Fixed schedules cannot tell whether sunlight is actually reaching a facade, whether a room needs protection, or whether a person has taken control. Smart Shading combines the sun position with the configured facade sector and only the room inputs you select.
+
+- **Sun-aware:** decisions follow facade direction and current sun geometry, a local Lux source, or an external direct-sun signal.
+- **Room-aware:** optional temperature, occupancy, weather, window, Night, and Safety inputs refine Advanced decisions.
+- **Deliberately understandable:** the Card, Badge, status sensors, and diagnostics show the active mode and reason.
+- **Manual control first:** explicit overrides and detected external movement can pause automation; active Safety still has the highest priority.
+- **No hidden guesses:** an unavailable selected source creates a visible hold instead of silently substituting weather, Lux, geometry, or a zero value.
+
+Smart Shading is intended for Home Assistant users who already have cover entities and want adaptive facade-based control. Easy Mode suits a straightforward first installation; Advanced Mode suits homes that need selected schedules, protection layers, temperature stages, or detailed diagnostics. It is not a hardware driver, a weather service, or a replacement for actuator-level safety limits.
+
+## See it in Home Assistant
+
+The screenshots below come from the repository's disposable Home Assistant E2E laboratory with neutral fixture data. They show the real bundled frontend, not mock-ups or a private installation.
+
+| Easy Mode | Advanced Mode |
+| --- | --- |
+| ![Easy Mode Smart Shading Card showing an open awning, sun status, and one manual override](docs/images/easy-mode-card.jpg) | ![Advanced Mode Smart Shading Card showing its sun source, facade sector, cover targets, maximum-opening decision, and actions](docs/images/advanced-mode-card.jpg) |
+| A compact room view with the essential state and one override. | A detailed view with selected inputs, targets, constraints, and diagnostics access. |
+
+<p align="center"><img src="docs/images/status-badges.jpg" alt="Real Smart Shading house and room status badges from the Home Assistant E2E laboratory" width="300"></p>
+<p align="center"><em>Native round Home Assistant badges for a house and rooms. The cover glyph stays recognizable while the marker and theme color communicate state.</em></p>
+
+## How it works
+
+![Sensor inputs flow through sector decisions and priority and safety logic to cover groups, the Card, and the Badge](docs/images/architecture-overview.svg)
+
+Each sun sector represents the part of the sky that can reach one facade. A sector uses exactly one authoritative sun source; room and cover-group context then determine the target.
+
+![Top-down facade sketch showing north, east, south, and west sun sectors around a house](docs/images/facade-sectors.svg)
+
+## Quick Start
+
+1. Confirm that Home Assistant `2026.6.0` or newer provides `sun.sun` and the cover entities you want to control.
+2. Install Smart Shading through HACS as a **custom Integration repository** or copy it manually, then restart Home Assistant.
+3. Add **Smart Shading** under **Settings → Devices & services → Add integration**, choose Easy or Advanced, and complete one room, sector, cover group, and cover.
+4. Register `/smart_shading/shading.js` once as a JavaScript module and add the Card or Badge YAML shown below.
+5. Test the resulting targets with neutral conditions before relying on automatic movements.
 
 ## Installation
 
 ### HACS custom repository
 
-1. Add this repository to HACS as an **Integration**.
-2. Install **Smart Shading**.
-3. Restart Home Assistant.
-4. Add the integration under **Settings → Devices & services → Add integration**.
-5. Register this dashboard resource once if it is not already present:
+Smart Shading is not installed from the default HACS catalog. Add it once as a custom repository:
 
-```text
-/smart_shading/shading.js
-```
+1. Open **HACS → Integrations**.
+2. Open the HACS menu and choose **Custom repositories**.
+3. Enter `https://github.com/MrCharly169/smart-shading`.
+4. Select category **Integration** and add the repository.
+5. Open **Smart Shading**, select **Download**, and restart Home Assistant.
+6. For stable use, keep prereleases disabled. Enable prereleases only when you deliberately want the beta channel.
 
-Resource type: **JavaScript module**.
-
-Older installations using `/smart_shading/smart-shading-card.js?v=...` remain compatible through a small legacy loader. They should be migrated once to the canonical URL above.
+HACS installs the source belonging to a published GitHub release. `hacs.json` hides the unversioned default branch so development snapshots are not offered as releases.
 
 ### Manual installation
 
-Copy this directory into Home Assistant:
+1. Download the ZIP attached to the desired [GitHub release](https://github.com/MrCharly169/smart-shading/releases).
+2. Copy the included `custom_components/smart_shading` directory to your Home Assistant configuration so the final path is:
+
+   ```text
+   <config>/custom_components/smart_shading
+   ```
+
+3. Restart Home Assistant.
+
+Do not copy only the frontend file; the integration, translations, services, and Card are shipped together.
+
+## First setup
+
+### Add the integration
+
+1. Go to **Settings → Devices & services → Add integration**.
+2. Search for **Smart Shading**.
+3. Choose **Easy** or **Advanced**. This choice is fixed for that config entry; create a new entry to use the other setup variant.
+4. Name the house or area and add a room.
+5. Add a facade sector, choose its single sun source, create a cover group, select its physical profile, and assign covers.
+6. In Advanced Mode, select only the optional capabilities the room actually needs.
+7. Review and save. Incomplete sectors, groups, covers, or dependent options are rejected by the wizard.
+
+Home Assistant's `sun.sun` is used automatically. If the Sun integration is missing or unavailable, Smart Shading stops sector setup and reports what must be restored.
+
+### Register the dashboard resource
+
+Register the bundled frontend once under **Settings → Dashboards → Resources**:
 
 ```text
-custom_components/smart_shading
+URL:  /smart_shading/shading.js
+Type: JavaScript module
 ```
 
-Restart Home Assistant and register the same stable dashboard resource once.
+The URL is intentionally versionless. Updates replace the JavaScript behind the same path. Older `/smart_shading/smart-shading-card.js?v=...` entries still load through a compatibility loader, but should be migrated once to the canonical URL above.
 
-## Dashboard card
+### Add a Card
 
 ```yaml
 type: custom:smart-shading-card
 entity: sensor.YOUR_ROOM_STATUS
 ```
 
-The card automatically follows the setup variant chosen when the integration is
-created. It has no separate Easy/Advanced switch.
+The Card derives Easy or Advanced presentation from the config entry; it has no independent mode switch.
 
-## Easy and Advanced Mode
+### Add a Badge
 
-- **Easy Mode** always works from `sun.sun`, the configured facade sector, the
-  cover profile, and one room-level **Manual Override**. Each sector uses
-  exactly one source: sun geometry, a local Lux sensor, or an external on/off
-  sensor. An optional outdoor-temperature sensor automatically adds its
-  configured minimum condition. The override remains active until a user or
-  an explicit automation turns it off.
-- **Advanced Mode** starts with the same base shading, then lets each room
-  select only the optional capabilities it needs: schedules, temperatures,
-  Night, Safety, weather or occupancy conditions, glare protection, test
-  tools, and expert command settings. Unselected features do not run in the
-  background and do not add controls to the dashboard.
+```yaml
+type: custom:smart-shading-badge
+entity: sensor.YOUR_ROOM_OR_HOUSE_STATUS
+```
 
-The setup variant is fixed for the config entry. To use the other variant,
-create a new Smart Shading entry and configure it from the beginning. New
-Advanced rooms keep external-movement pause detection off until it is
-explicitly enabled.
+The visual editor offers **Smart Shading status** for house and room status sensors. Selecting the optional dashboard-badges feature during setup creates onboarding guidance, but Smart Shading never edits an existing dashboard automatically.
 
-Each Easy sector uses one source: sun geometry, a Lux sensor, or an external
-on/off sun confirmation. Local Lux is recommended and creates Smart Shading's
-Sun Presence binary sensor with hysteresis and delays. An external entity is a
-separate alternative where `on` means direct sun. Sources are never combined
-and there is no hidden weather fallback. If an explicitly selected source is
-unavailable, normal shading waits instead of guessing. Without an outdoor
-temperature sensor, outdoor temperature is ignored entirely.
+## Easy or Advanced?
 
-### Advanced decision, execution, and glare protection
+| | Easy Mode | Advanced Mode |
+| --- | --- | --- |
+| Best for | A clear facade-based setup with safe defaults | Rooms that need explicitly selected extra behavior |
+| Sun source | One source per sector: geometry, Lux, or external on/off | The same choices, plus editable thresholds, delays, and custom geometry |
+| Temperature | Optional outdoor sensor automatically adds its minimum condition | Optional indoor/outdoor temperature stages and related controls |
+| Manual control | One indefinite room-level Manual Override | Room and per-cover pause/override behavior, with opt-in external-movement detection |
+| Optional features | Dashboard badge guidance | Schedules, Night, Safety, conditions, glare protection, maximum opening, test tools, and expert execution settings |
+| Diagnostics | Compact status and reason | Decision trace, rejected rules, input quality, targets, protected zones, and command lifecycle |
 
-Advanced evaluates source changes event-by-event and combines related updates
-into one short debounced decision. The configured evaluation interval is only a
-recovery watchdog; it does not repeatedly resend an unchanged target.
+Easy is intentionally small: few choices, profile defaults, one source per sector, and one understandable override. Advanced begins with the same base shading and activates only capabilities selected for that room. Unselected Advanced features do not run in the background and do not add controls to the Card.
 
-The room-status Card and diagnostic export show the selected rule, rejected
-rules, input quality, resulting cover targets, and command lifecycle. A target
-can be verified once after its expected movement time and retried only within
-the configured bound. Venetian and vertical-blind height movement is always
-completed before a delayed slat correction. A newer higher-priority target,
-especially Safety, cancels obsolete delayed work.
+### Decision and safety philosophy
 
-In **Sun sector → Glare protection**, Advanced users can add a protected area
-with a measured distance, height range, optional lateral range, affected cover
-group, and a fixed target. Roller shades, screens, curtains, binary covers,
-and vertical slats can instead calculate the least restrictive protection from
-the live Sun position, window width/height, and the protected area's position.
-Venetian blinds keep their normal adaptive slat protection. Zones participate
-only in Solar shading. Incomplete geometry is shown in the trace and leaves
-ordinary Solar shading safe and unchanged. Easy Mode has neither the
-configuration nor the runtime controls for this feature.
+For Advanced decisions, the immutable order verified by code and tests is:
 
-Simulation and day preview reuse the production decision path but never call a
-cover service. They are an explicit per-room Test & Preview option, and return
-a completed result rather than changing the room's automation state.
+1. active **Safety**;
+2. manual master override, room pause, or local cover pause;
+3. hold for an unavailable configured Safety or Night source;
+4. **Night**;
+5. **Heat Protection**;
+6. schedule or normal-input-quality hold;
+7. **Glare Protection**;
+8. **Solar**;
+9. **Comfort**;
+10. **Open** or idle hold.
 
-The cover type is a functional profile, not only a label. Exterior venetian
-blinds and vertical blinds receive position plus slat guidance; roller
-shutters, screens, curtains, and awnings receive their own direction and target
-defaults; simple open/close covers use only open/close services. Changing the
-type updates the wizard, runtime, available entities, and card together and
-removes incompatible options.
+Every matching and rejected candidate is retained in the Advanced trace with a stable reason and normalized input quality. Command planning happens afterwards. A newer higher-priority target cancels obsolete delayed work. See [Advanced behavior](docs/ADVANCED_MODE.md) and the [mode architecture](docs/MODE_ARCHITECTURE.md) for the full technical contract.
+
+## Supported cover profiles
+
+| Profile | Control model |
+| --- | --- |
+| Exterior Venetian blind | Position plus slat guidance, including adaptive slat curves |
+| Roller shutter | Position targets |
+| Exterior or zip screen | Position targets |
+| Interior curtain | Position targets |
+| Vertical blind | Position plus slat guidance |
+| Awning | Position targets with retracted neutral and Safety position |
+| Simple open/close cover | Open/close services only; no numeric target fields |
+
+The selected physical profile changes wizard fields, defaults, commands, entities, and Card presentation. Wind and frost Safety sources are offered only for exterior profiles where they are applicable. Changing a profile resets incompatible profile values while retaining assigned covers.
+
+Home Assistant cover position semantics are `0%` closed and `100%` open. Smart Shading's slat convention is the KNX-oriented scale used by its profiles: `0%` open/light-through and `100%` closed/light-blocking. Use **Invert slats** only when a supported cover reports the opposite direction.
+
+## Requirements and limitations
+
+- Home Assistant `2026.6.0` or newer.
+- The native Sun integration and an available `sun.sun` entity.
+- Existing Home Assistant cover entities; Smart Shading does not communicate with motors directly.
+- Exactly one sun source per sector. Sources are not combined and there is no hidden fallback.
+- Without an outdoor-temperature sensor, outdoor temperature is ignored. If a selected sensor is unavailable, its configured condition is not treated as satisfied.
+- Easy/Advanced is fixed per config entry.
+- The general Advanced shading schedule permits all daytime modes; Night has its own independent source or Sun-relative period.
+- Calculated object-glare geometry is available only for compatible Advanced profiles; exterior Venetian blinds and awnings are not offered by that calculator, and vertical-slat results are approximate.
+- Software automation cannot replace physical end stops, actuator protections, or appropriate wind/frost safeguards. Validate targets and fail-safe behavior for your installation.
+
+### Local processing and privacy
+
+Smart Shading reads entity states, calculates decisions, stores its runtime data, and calls cover services inside Home Assistant. Its manifest declares the `calculated` IoT class, has no third-party Python requirements, and the integration contains no cloud client or telemetry endpoint. This statement applies to Smart Shading itself; Home Assistant, HACS, and the integrations that provide your entities may have their own network and privacy behavior.
 
 ## Updating
 
-1. Update Smart Shading through HACS or replace `custom_components/smart_shading`.
+1. Update Smart Shading in HACS, or replace the complete `custom_components/smart_shading` directory with the files from a newer release.
 2. Restart Home Assistant.
-3. Reload the browser or Home Assistant companion app if the previous card code is still in memory.
+3. Reload the browser or companion app if it still holds older Card code.
 
-Do not change the resource URL and do not append a version query.
+Keep `/smart_shading/shading.js` unchanged and do not add a version query.
 
-## Cover and slat semantics
+## Uninstalling
 
-Cover height keeps the Home Assistant convention: `0%` is closed and `100%`
-is open. Slat position uses the KNX convention confirmed for exterior venetian
-blinds: `0%` is fully open and lets light through; `100%` is fully closed and
-blocks sunlight.
+1. Remove the Smart Shading config entry under **Settings → Devices & services**.
+2. Remove Smart Shading in HACS, or delete `<config>/custom_components/smart_shading` for a manual installation.
+3. Restart Home Assistant.
+4. If no other Smart Shading entry remains, remove `/smart_shading/shading.js` from dashboard resources and remove Cards or Badges from your dashboards.
 
-Accordingly, Open and Safety use a `0%` slat target, Heat Protection uses
-`100%`, and normal shading follows the adaptive KNX-scale slat curve. The
-per-cover **Invert slats** option remains available only for covers that expose
-the opposite direction.
+Removing the integration does not remove or reconfigure the cover entities supplied by other integrations.
 
-## Version and change management
+## FAQ and troubleshooting
 
-The repository uses the following sources of truth:
+**The Card says “Custom element doesn't exist.”**
 
-- `custom_components/smart_shading/manifest.json`: integration/release version
-- `CHANGELOG.md → Unreleased`: user-visible changes currently under development
-- versioned sections in `CHANGELOG.md`: published release history
-- pull request description: implementation details and validation
+Confirm that `/smart_shading/shading.js` is registered as a JavaScript module, restart Home Assistant after installation, then reload the browser or companion app.
 
-A pull request that changes production or release behavior must update `CHANGELOG.md`. CI enforces this rule. Documentation changes are selected deliberately because GitHub cannot infer the meaning of a logic or UI change automatically.
+**Why is normal shading waiting?**
 
-## Beta and stable release channels
+Check the Card reason and the room status sensor. The sun may be outside the sector, the schedule or temperature condition may be inactive, or the selected Lux/external/temperature input may be unavailable. Smart Shading does not substitute another source.
 
-Smart Shading uses two release channels:
+**Do I need a Lux or outdoor-temperature sensor?**
 
-- **Beta:** built only from `develop`, with Home Assistant-style versions such
-  as `2026.8.0b0`, and published as a GitHub prerelease.
-- **Stable:** built only from `main`, with versions such as `2026.7.0`, and
-  published as the latest stable GitHub release. The initial release of a month
-  ends in `.0`; later fixes use `.1`, `.2`, and so on.
+No. A sector can use sun geometry alone, and outdoor temperature is ignored when no sensor is selected. Lux and external direct-sun entities are alternative authoritative sources, not extra fallbacks.
 
-Releases use two deliberate maintainer gates:
+**Can I switch an existing entry from Easy to Advanced?**
 
-1. Open **GitHub → Actions → Prepare Release → Run workflow** on the default branch. Select the channel and enter the requested version without a leading `v`. The workflow validates and tests the tested `develop` state, updates the manifest, moves `Unreleased` into a dated version section, creates a dedicated draft pull request, and dispatches the normal validation workflow for its release commit. It never merges or publishes.
-2. Review and merge that pull request deliberately. Beta preparation targets `develop`. Stable preparation starts from the current `main`, integrates the tested `develop` state locally, and then opens the promotion pull request to `main`. Unexpected merge conflicts abort before any release branch is pushed. Stable preparation can assemble the beta sections since the previous stable release into an editable release draft.
-3. Merging the reviewed manifest-version change starts **Release**
-   automatically. A version change on `develop` selects Beta; the same change
-   on `main` selects Stable. The manual **Release → Run workflow** entry is only
-   a guarded retry and requires the exact manifest version as confirmation.
-   Only this separate workflow creates the immutable tag, installation ZIP,
-   and GitHub release.
+No. The setup contract is fixed to prevent hidden cross-mode settings. Create a separate config entry and configure it deliberately.
 
-The GitHub release body is extracted exactly from the matching dated `CHANGELOG.md` section. It is never generated independently. Before a beta or stable tag can be published, the release workflow requires the repository-wide syntax and fast suites, real lifecycles on both Stable and Beta Home Assistant, the real HA browser/Card suite, and an upgrade from the newest published stable Smart Shading tag. Afterwards, a hosted job uses the official HACS backend to resolve the published tag, downloads the same public source archive HACS sees, and runs that artifact in a fresh Home Assistant instance. The HACS job is the final post-publication acceptance gate; a parent delivery issue is closed only after it succeeds. See [docs/HA_E2E_LAB.md](docs/HA_E2E_LAB.md) and [the Issue #79 major-release acceptance record](docs/ISSUE_79_RELEASE_ACCEPTANCE.md).
+**Home Assistant shows false KNX cover movement. What should I check?**
 
-For automatic draft pull-request creation, repository administrators must enable **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Only pull-request creation is automated; approval and merging remain manual.
+See the [KNX troubleshooting guide](docs/FAQ.md#why-does-home-assistant-show-a-knx-cover-moving-although-the-motor-is-idle) before changing actuator or state-updater settings.
 
-The repository remains outside the official HACS catalog during private testing. It must nevertheless be publicly readable because HACS cannot download private GitHub repositories. Add it once as a HACS custom integration repository. Test installations may opt into GitHub prereleases; stable installations use normal releases. `hide_default_branch` prevents accidental installation of an unversioned development snapshot.
+More answers are in the [FAQ](docs/FAQ.md). For setup help, use [Support](SUPPORT.md). For a reproducible defect, search existing [issues](https://github.com/MrCharly169/smart-shading/issues) and open the Bug Report template with sanitized diagnostics. Security issues follow [SECURITY.md](SECURITY.md).
 
-HACS downloads the source belonging to the selected GitHub release tag. The attached ZIP is retained for manual recovery and inspection.
+## License and voluntary support
 
-## Repository layout
+Smart Shading is open-source software under the [MIT License](LICENSE). Private and commercial use are permitted under the terms of that license; there is no separate commercial license or fee. The software is provided without warranty as described in the license.
 
-```text
-custom_components/smart_shading/   Integration and frontend
-tests/                             Regression and runtime tests
-e2e/                               Real HA fixture, scenarios and Playwright suite
-docs/                              Development and repository notes
-scripts/build_release.py           Package and metadata validation
-scripts/check_pr_changelog.py      PR documentation policy
-scripts/release_changelog.py       Release preparation and note extraction
-scripts/ha_e2e/                    HA lifecycle, coverage and registry runners
-.github/workflows/validate.yml     Continuous validation
-.github/workflows/prepare-release.yml  Reviewable release preparation
-.github/workflows/release.yml      Manual beta/stable release automation
-```
+Voluntary sponsorship can help fund development, testing, documentation, and maintenance, but it is never a license fee. **Funding-link placeholder:** no verified Buy Me a Coffee or GitHub Sponsors URL is currently present in this repository, so no funding badge has been added.
 
-Development rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md). Home Assistant presents the integration in English or German according to the user's selected language.
+## Technical documentation and development
 
-Troubleshooting, including false KNX cover movement caused by readable command objects, is documented in the [FAQ](docs/FAQ.md).
+- [Advanced behavior](docs/ADVANCED_MODE.md)
+- [Mode and decision architecture](docs/MODE_ARCHITECTURE.md)
+- [Setup-wizard behavior contract](docs/SETUP_WIZARD_REVIEW.md)
+- [Home Assistant E2E laboratory](docs/HA_E2E_LAB.md)
+- [Regression matrix](docs/REGRESSION_MATRIX.md)
+- [Development guide](docs/DEVELOPMENT.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)

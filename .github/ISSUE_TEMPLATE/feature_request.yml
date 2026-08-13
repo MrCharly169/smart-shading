@@ -3,6 +3,9 @@ description: Propose a focused Smart Shading improvement
 title: "[Feature]: "
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: Please search existing issues first and describe the user problem before proposing implementation details.
   - type: textarea
     id: problem
     attributes:
@@ -19,3 +22,4 @@ body:
     id: safety
     attributes:
       label: Safety and migration considerations
+      description: Explain effects on manual control, unavailable inputs, existing entries, and cover behavior when applicable.

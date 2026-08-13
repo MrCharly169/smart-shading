@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup and troubleshooting
+    url: https://github.com/MrCharly169/smart-shading/blob/develop/SUPPORT.md
+    about: Read installation, setup, and troubleshooting guidance before filing a defect.
+  - name: Security vulnerability
+    url: https://github.com/MrCharly169/smart-shading/security/advisories/new
+    about: Report suspected vulnerabilities privately; do not disclose them in a public issue.

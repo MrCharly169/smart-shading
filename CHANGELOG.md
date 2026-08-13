@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Documentation and community
+
+- replace the repository and HACS landing page with customer-oriented English
+  and German guides covering installation, first setup, Easy and Advanced
+  modes, real E2E Card and Badge screenshots, updates, removal, privacy scope,
+  troubleshooting, support, licensing, and the beta/stable channels
+- add public architecture, facade-sector, and social-preview artwork plus
+  security, support, and community conduct guidance without changing runtime or
+  release packaging behavior
 
 ## 2026.7.1 - 2026-07-23
 

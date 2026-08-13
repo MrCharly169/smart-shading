@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">Facade and sun sector sketch</title>
+  <desc id="desc">Top-down house sketch with north, east, south, and west facades, representative sun paths, and a highlighted south sector.</desc>
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="50%" r="55%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#eef5f7"/></radialGradient>
+    <marker id="ray" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L0 6 L8 3 z" fill="#e1a300"/></marker>
+    <style>.title{font:700 28px system-ui,sans-serif;fill:#172637;text-anchor:middle}.label{font:700 20px system-ui,sans-serif;fill:#172637;text-anchor:middle}.small{font:16px system-ui,sans-serif;fill:#52657a;text-anchor:middle}.ray{stroke:#e1a300;stroke-width:4;marker-end:url(#ray)}.sector{fill:#ffc438;fill-opacity:.2;stroke:#e1a300;stroke-width:2;stroke-dasharray:8 7}</style>
+  </defs>
+  <rect width="1200" height="620" rx="28" fill="url(#sky)"/>
+  <text x="600" y="48" class="title">A facade sector answers: “Can direct sun reach this side now?”</text>
+  <path class="sector" d="M600 310 L330 520 A360 360 0 0 1 870 520 Z"/>
+  <circle cx="600" cy="310" r="215" fill="none" stroke="#9eb0bf" stroke-width="2" stroke-dasharray="5 8"/>
+  <line x1="600" y1="82" x2="600" y2="540" stroke="#9eb0bf" stroke-width="2"/>
+  <line x1="372" y1="310" x2="828" y2="310" stroke="#9eb0bf" stroke-width="2"/>
+  <rect x="475" y="205" width="250" height="210" rx="10" fill="#25384a"/>
+  <rect x="497" y="227" width="206" height="166" rx="5" fill="#f8fafc"/>
+  <text x="600" y="305" class="label">HOUSE</text>
+  <text x="600" y="332" class="small">top view</text>
+  <line x1="505" y1="405" x2="695" y2="405" stroke="#ffc438" stroke-width="10" stroke-linecap="round"/>
+  <text x="600" y="447" class="label">SOUTH FACADE</text>
+  <text x="600" y="102" class="label">N</text>
+  <text x="855" y="317" class="label">E</text>
+  <text x="600" y="566" class="label">S</text>
+  <text x="345" y="317" class="label">W</text>
+  <circle cx="315" cy="470" r="30" fill="#ffc438"/>
+  <g stroke="#ffc438" stroke-width="5"><line x1="315" y1="422" x2="315" y2="405"/><line x1="315" y1="518" x2="315" y2="535"/><line x1="267" y1="470" x2="250" y2="470"/><line x1="363" y1="470" x2="380" y2="470"/><line x1="281" y1="436" x2="269" y2="424"/><line x1="349" y1="504" x2="361" y2="516"/></g>
+  <line class="ray" x1="350" y1="450" x2="492" y2="376"/>
+  <circle cx="885" cy="470" r="30" fill="#ffc438"/>
+  <g stroke="#ffc438" stroke-width="5"><line x1="885" y1="422" x2="885" y2="405"/><line x1="885" y1="518" x2="885" y2="535"/><line x1="837" y1="470" x2="820" y2="470"/><line x1="933" y1="470" x2="950" y2="470"/></g>
+  <line class="ray" x1="850" y1="450" x2="708" y2="376"/>
+  <text x="600" y="590" class="small">The highlighted sector is representative. Presets and Advanced custom angles define the actual azimuth range.</text>
+</svg>
