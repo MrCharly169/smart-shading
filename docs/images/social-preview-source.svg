@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Shading social preview</title>
+  <desc id="desc">Smart Shading brand artwork with the message adaptive sun and heat control for Home Assistant.</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101c2a"/><stop offset="1" stop-color="#24394b"/></linearGradient></defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="1110" cy="92" r="210" fill="#ffc438" opacity=".08"/>
+  <circle cx="1180" cy="590" r="310" fill="#41bdf5" opacity=".05"/>
+  <g transform="translate(105 132)">
+    <circle cx="95" cy="78" r="54" fill="#ffc438"/>
+    <g stroke="#ffc438" stroke-width="12"><line x1="95" y1="0" x2="95" y2="-24"/><line x1="95" y1="156" x2="95" y2="180"/><line x1="17" y1="78" x2="-7" y2="78"/><line x1="173" y1="78" x2="197" y2="78"/><line x1="40" y1="23" x2="23" y2="6"/><line x1="150" y1="23" x2="167" y2="6"/></g>
+    <g stroke="#f4f7fa" stroke-width="10" fill="none"><path d="M15 140 V320"/><path d="M175 140 V320"/><line x1="15" y1="155" x2="175" y2="155"/><line x1="15" y1="210" x2="175" y2="210"/><line x1="15" y1="265" x2="175" y2="265"/></g>
+  </g>
+  <text x="365" y="245" fill="#f4f7fa" font-family="system-ui,sans-serif" font-size="82" font-weight="750">Smart Shading</text>
+  <text x="370" y="315" fill="#ffc438" font-family="system-ui,sans-serif" font-size="34" font-weight="650">Adaptive sun &amp; heat control</text>
+  <text x="370" y="374" fill="#c8d5df" font-family="system-ui,sans-serif" font-size="28">Context-aware cover automation for Home Assistant</text>
+  <g font-family="system-ui,sans-serif" font-size="22" font-weight="650">
+    <rect x="370" y="430" width="190" height="54" rx="27" fill="#fff" opacity=".1"/><text x="465" y="465" fill="#f4f7fa" text-anchor="middle">Sun-aware</text>
+    <rect x="580" y="430" width="210" height="54" rx="27" fill="#fff" opacity=".1"/><text x="685" y="465" fill="#f4f7fa" text-anchor="middle">Explainable</text>
+    <rect x="810" y="430" width="255" height="54" rx="27" fill="#fff" opacity=".1"/><text x="937" y="465" fill="#f4f7fa" text-anchor="middle">Manual control first</text>
+  </g>
+  <text x="370" y="555" fill="#8fa4b4" font-family="system-ui,sans-serif" font-size="22">Open source · MIT License · Easy and Advanced modes</text>
+</svg>

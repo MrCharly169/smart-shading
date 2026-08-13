@@ -25,6 +25,7 @@
 - [ ] Kept `/smart_shading/shading.js` as the versionless canonical resource
 - [ ] Did not duplicate the manifest version elsewhere
 - [ ] Described migration impact below
+- [ ] Followed `CODE_OF_CONDUCT.md` and removed private installation data
 
 ## Migration impact
 

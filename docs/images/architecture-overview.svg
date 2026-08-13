@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Shading decision flow</title>
+  <desc id="desc">Sensor inputs flow through a facade sector decision, priority and safety logic, and cover groups to the Home Assistant Card and Badge.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef6f8"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#52657a"/>
+    </marker>
+    <style>
+      .box{fill:#fff;stroke:#33475b;stroke-width:2;rx:18}.accent{fill:#fff7dc;stroke:#e5a900}.output{fill:#edf8f4;stroke:#26735b}.label{font:700 23px system-ui,sans-serif;fill:#172637;text-anchor:middle}.small{font:16px system-ui,sans-serif;fill:#52657a;text-anchor:middle}.arrow{stroke:#52657a;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
+  <text x="600" y="48" class="label" font-size="28">From measured context to an explainable cover target</text>
+  <rect class="box" x="35" y="105" width="195" height="150"/>
+  <text class="label" x="132" y="145">Sensor inputs</text>
+  <text class="small" x="132" y="180">sun · Lux · temperature</text>
+  <text class="small" x="132" y="207">windows · weather</text>
+  <text class="small" x="132" y="234">manual signals</text>
+  <path class="arrow" d="M235 180 H275"/>
+  <rect class="box accent" x="280" y="105" width="195" height="150"/>
+  <text class="label" x="377" y="145">Sector decision</text>
+  <text class="small" x="377" y="180">one facade</text>
+  <text class="small" x="377" y="207">one authoritative</text>
+  <text class="small" x="377" y="234">sun source</text>
+  <path class="arrow" d="M480 180 H520"/>
+  <rect class="box" x="525" y="105" width="210" height="150"/>
+  <text class="label" x="630" y="145">Priority &amp; safety</text>
+  <text class="small" x="630" y="180">validated inputs</text>
+  <text class="small" x="630" y="207">manual precedence</text>
+  <text class="small" x="630" y="234">traceable winner</text>
+  <path class="arrow" d="M740 180 H780"/>
+  <rect class="box" x="785" y="105" width="175" height="150"/>
+  <text class="label" x="872" y="145">Cover groups</text>
+  <text class="small" x="872" y="180">profile targets</text>
+  <text class="small" x="872" y="207">position &amp; slats</text>
+  <text class="small" x="872" y="234">owned commands</text>
+  <path class="arrow" d="M965 180 H1005"/>
+  <rect class="box output" x="1010" y="105" width="155" height="150"/>
+  <text class="label" x="1087" y="155">Card</text>
+  <text class="small" x="1087" y="184">and</text>
+  <text class="label" x="1087" y="220">Badge</text>
+  <text class="small" x="600" y="318">Unavailable selected data creates a visible hold — never a hidden fallback.</text>
+</svg>

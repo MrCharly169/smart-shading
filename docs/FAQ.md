@@ -1,5 +1,40 @@
 # Frequently Asked Questions
 
+## Why is normal shading waiting?
+
+Read the reason shown by the room Card or status sensor first. Normal shading
+waits when the sun is outside the configured sector, the daytime schedule is
+inactive, a selected temperature condition is not satisfied, or the sector's
+authoritative Lux/external source is unavailable or invalid. Smart Shading
+does not silently substitute another source.
+
+## Do I need a Lux or outdoor-temperature sensor?
+
+No. A sector can use Home Assistant's `sun.sun` geometry as its one source.
+Lux and external on/off confirmation are alternatives. Without a selected
+outdoor-temperature sensor, outdoor temperature is ignored entirely.
+
+## Can an existing entry switch between Easy and Advanced Mode?
+
+No. The setup variant is fixed for the config entry so settings from one
+contract cannot become hidden in the other. Create a separate Smart Shading
+entry to use the other variant.
+
+## Why does the Card say “Custom element doesn't exist”?
+
+Confirm that `/smart_shading/shading.js` is registered under Home Assistant
+dashboard resources as a JavaScript module. Restart Home Assistant after
+installing or updating, then reload the browser or companion app. Do not add a
+version query to the resource URL.
+
+## Does Smart Shading send data to a cloud service?
+
+The Smart Shading integration reads Home Assistant entities, calculates its
+decisions, stores runtime data, and calls cover services inside Home Assistant.
+It has no third-party runtime requirement, cloud client, or telemetry endpoint.
+Home Assistant, HACS, and the integrations that provide the selected entities
+may have their own network behavior.
+
 ## Why does Home Assistant show a KNX cover moving although the motor is idle?
 
 ### Symptoms
