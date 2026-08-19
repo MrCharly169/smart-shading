@@ -52,8 +52,8 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [[ "$CHANNEL" == "beta" ]]; then
-            if [[ ! "$REQUESTED_VERSION" =~ ^20[0-9]{2}\.([1-9]|1[0-2])\.[0-9]+b[0-9]+$ ]]; then
-              echo "::error::Beta versions must match YYYY.M.PATCHbN without a leading v."
+            if [[ ! "$REQUESTED_VERSION" =~ ^20[0-9]{2}\.([1-9]|1[0-2])\.[0-9]+b[0-9]$ ]]; then
+              echo "::error::Beta versions must match YYYY.M.PATCHbN with N between 0 and 9, without a leading v."
               exit 1
             fi
             TARGET_BRANCH="develop"
