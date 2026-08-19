@@ -654,12 +654,14 @@ class SmartShadingEngine:
                 f"entity: {entity_id}\n"
             )
             room_badge_yaml = (
-                "type: custom:smart-shading-badge\n"
+                "type: entity\n"
                 f"entity: {entity_id}\n"
+                "show_name: false\nshow_icon: true\nshow_state: true\ncolor: state\n"
             )
             house_badge_yaml = (
-                "type: custom:smart-shading-badge\n"
+                "type: entity\n"
                 f"entity: {house_entity_id}\n"
+                "show_name: false\nshow_icon: true\nshow_state: true\ncolor: state\n"
                 if house_entity_id
                 else ""
             )

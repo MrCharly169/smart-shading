@@ -126,11 +126,15 @@ Die Card leitet Easy- oder Advanced-Darstellung aus dem Konfigurationseintrag ab
 ### Badge hinzufügen
 
 ```yaml
-type: custom:smart-shading-badge
+type: entity
 entity: sensor.DEIN_RAUM_ODER_HAUS_STATUS
+show_name: false
+show_icon: true
+show_state: true
+color: state
 ```
 
-Der grafische Editor bietet **Smart Shading status** für Haus- und Raumstatussensoren. Die optionale Dashboard-Badge-Funktion im Setup erzeugt eine Onboarding-Hilfe, verändert aber nie automatisch ein bestehendes Dashboard.
+Wähle den Haus- oder Raumstatussensor mit Home Assistants normalem **Entität**-Badge. Enum-Status und zustandsabhängiges Symbol kommen direkt von Smart Shading; die bedingte Anzeige wird ausschließlich im nativen Sichtbarkeit-Tab konfiguriert. Die optionale Dashboard-Badge-Funktion im Setup erzeugt eine Onboarding-Hilfe, verändert aber nie automatisch ein bestehendes Dashboard.
 
 ## Easy oder Advanced?
 
