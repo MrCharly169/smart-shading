@@ -2372,6 +2372,42 @@
       "no_rooms": "No rooms have been configured yet."
     }
   },
+  "entity": {
+    "sensor": {
+      "house_status": {
+        "name": "House status",
+        "state": {
+          "idle": "Ready",
+          "open": "Open",
+          "comfort": "Comfort",
+          "solar": "Solar shading",
+          "glare": "Glare protection",
+          "heat": "Heat protection",
+          "night": "Night mode",
+          "safety": "Safety",
+          "paused": "Paused",
+          "disabled": "Manual",
+          "finished": "Day finished"
+        }
+      },
+      "room_status": {
+        "name": "Room status",
+        "state": {
+          "idle": "Ready",
+          "open": "Open",
+          "comfort": "Comfort",
+          "solar": "Solar shading",
+          "glare": "Glare protection",
+          "heat": "Heat protection",
+          "night": "Night mode",
+          "safety": "Safety",
+          "paused": "Paused",
+          "disabled": "Manual",
+          "finished": "Day finished"
+        }
+      }
+    }
+  },
   "selector": {
     "diagnostic_level": {
       "options": {

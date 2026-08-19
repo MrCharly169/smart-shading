@@ -2372,6 +2372,42 @@
       "no_rooms": "Es sind noch keine Räume vorhanden."
     }
   },
+  "entity": {
+    "sensor": {
+      "house_status": {
+        "name": "Hausstatus",
+        "state": {
+          "idle": "Bereit",
+          "open": "Offen",
+          "comfort": "Komfort",
+          "solar": "Sonnenschutz",
+          "glare": "Blendschutz",
+          "heat": "Hitzeschutz",
+          "night": "Nachtmodus",
+          "safety": "Sicherheit",
+          "paused": "Pausiert",
+          "disabled": "Manuell",
+          "finished": "Tag beendet"
+        }
+      },
+      "room_status": {
+        "name": "Raumstatus",
+        "state": {
+          "idle": "Bereit",
+          "open": "Offen",
+          "comfort": "Komfort",
+          "solar": "Sonnenschutz",
+          "glare": "Blendschutz",
+          "heat": "Hitzeschutz",
+          "night": "Nachtmodus",
+          "safety": "Sicherheit",
+          "paused": "Pausiert",
+          "disabled": "Manuell",
+          "finished": "Tag beendet"
+        }
+      }
+    }
+  },
   "selector": {
     "diagnostic_level": {
       "options": {

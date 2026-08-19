@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er
 
@@ -17,6 +17,19 @@ from .entity import SmartShadingEntity, localized
 
 
 STATE_ATTRIBUTE_BUDGET = 15_500
+STATUS_OPTIONS = [
+    "idle",
+    "open",
+    "comfort",
+    "solar",
+    "glare",
+    "heat",
+    "night",
+    "safety",
+    "paused",
+    "disabled",
+    "finished",
+]
 
 
 def _compact_cover(cover: dict) -> dict:
@@ -387,6 +400,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 class HouseStatusSensor(SmartShadingEntity, SensorEntity):
     _attr_name = "House status"
     _attr_icon = "mdi:home-analytics"
+    _attr_translation_key = "house_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = STATUS_OPTIONS
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
@@ -395,15 +411,20 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
 
     @property
     def native_value(self):
-        values = [room.mode for room in self.engine.rooms.values()]
+        rooms = list(self.engine.rooms.values())
+        values = [room.mode for room in rooms]
+        if "safety" in values:
+            return "safety"
+        if any(not room.enabled for room in rooms):
+            return "disabled"
+        if any(room.pause_mode and room.pause_mode != "auto" for room in rooms):
+            return "paused"
         for priority in (
-            "safety",
             "night",
             "heat",
             "glare",
             "solar",
             "comfort",
-            "paused",
             "finished",
             "open",
             "idle",
@@ -448,6 +469,9 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
 
 class RoomStatusSensor(SmartShadingEntity, SensorEntity):
     _attr_name = "Status"
+    _attr_translation_key = "room_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = STATUS_OPTIONS
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
