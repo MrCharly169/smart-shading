@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Home Assistant ecosystem governance
+
+- Adopt the shared MeyersHaff Home Assistant ecosystem policy v1 and its
+  repository guard, so HA-wide integration contracts remain documented and
+  testable in this project.
+
 ## 2026.8.1b0 - 2026-08-19
 
 ### Native entity badges
