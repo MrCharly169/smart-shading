@@ -1182,7 +1182,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("persistent_notification", engine)
         self.assertIn("smart_shading_card_", engine)
         self.assertIn("type: custom:smart-shading-card", engine)
-        self.assertIn('"type: entity\\n"', engine)
+        self.assertIn('"type: custom:smart-shading-badge\\n"', engine)
         self.assertNotIn("advanced_mode: false", engine)
 
     def test_custom_badge_and_scroll_stability_are_registered(self):
@@ -1191,6 +1191,9 @@ class PackageTests(unittest.TestCase):
         self.assertIn('customElements.define("smart-shading-badge"', frontend)
         self.assertIn("window.customBadges", frontend)
         self.assertIn("class SmartShadingBadgeEditor", frontend)
+        self.assertIn('new CustomEvent("hass-action"', frontend)
+        self.assertIn('selector: { entity: { domain: "sensor", integration: "smart_shading" } }', frontend)
+        self.assertNotIn('<select data-entity>', frontend.split("class SmartShadingBadgeEditor", 1)[1].split("class SmartShadingV4CardEditor", 1)[0])
         self.assertIn('<ha-badge type="button" icon-only', frontend)
         self.assertIn('slot="icon"', frontend)
         self.assertIn('class="cover-symbol"', frontend)

@@ -654,21 +654,23 @@ class SmartShadingEngine:
                 f"entity: {entity_id}\n"
             )
             room_badge_yaml = (
-                "type: entity\n"
+                "type: custom:smart-shading-badge\n"
                 f"entity: {entity_id}\n"
-                "show_name: false\nshow_icon: true\nshow_state: true\ncolor: state\n"
+                "tap_action:\n  action: more-info\n"
             )
             house_badge_yaml = (
-                "type: entity\n"
+                "type: custom:smart-shading-badge\n"
                 f"entity: {house_entity_id}\n"
-                "show_name: false\nshow_icon: true\nshow_state: true\ncolor: state\n"
+                "tap_action:\n  action: more-info\n"
                 if house_entity_id
                 else ""
             )
             badge_message_de = (
                 "\n\n**Gewählte Dashboard-Badges:** Öffnen Sie im Dashboard-Editor "
                 "`Badge hinzufügen → Smart Shading status` und wählen Sie Haus- "
-                "oder Raumstatus. Alternativ können Sie den YAML-Code verwenden.\n\n"
+                "oder Raumstatus. Navigation und Bedingungen konfigurieren Sie in "
+                "Home Assistants nativen Tabs Interaktionen und Sichtbarkeit. "
+                "Alternativ können Sie den YAML-Code verwenden.\n\n"
                 "Haus-Badge:\n\n```yaml\n"
                 f"{house_badge_yaml}```\n\nRaum-Badge:\n\n```yaml\n"
                 f"{room_badge_yaml}```"
@@ -678,7 +680,8 @@ class SmartShadingEngine:
             badge_message_en = (
                 "\n\n**Selected dashboard badges:** In the dashboard editor, open "
                 "`Add badge → Smart Shading status` and select the house or room "
-                "status. You can alternatively use the YAML below.\n\n"
+                "status. Use Home Assistant's native Interactions and Visibility "
+                "tabs for navigation and conditions. You can alternatively use the YAML below.\n\n"
                 "House badge:\n\n```yaml\n"
                 f"{house_badge_yaml}```\n\nRoom badge:\n\n```yaml\n"
                 f"{room_badge_yaml}```"

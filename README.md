@@ -43,7 +43,7 @@ The screenshots below come from the repository's disposable Home Assistant E2E l
 | A compact room view with the essential state and one override. | A detailed view with selected inputs, targets, constraints, and diagnostics access. |
 
 <p align="center"><img src="docs/images/status-badges.jpg" alt="Real Smart Shading house and room status badges from the Home Assistant E2E laboratory" width="300"></p>
-<p align="center"><em>Native round Home Assistant badges for a house and rooms. The cover glyph stays recognizable while the marker and theme color communicate state.</em></p>
+<p align="center"><em>Hybrid Custom Badges for a house and rooms. Home Assistant owns entity, interaction and Visibility configuration while the cover glyph, marker and theme color communicate state.</em></p>
 
 ## How it works
 
@@ -126,15 +126,13 @@ The Card derives Easy or Advanced presentation from the config entry; it has no 
 ### Add a Badge
 
 ```yaml
-type: entity
+type: custom:smart-shading-badge
 entity: sensor.YOUR_ROOM_OR_HOUSE_STATUS
-show_name: false
-show_icon: true
-show_state: true
-color: state
+tap_action:
+  action: more-info
 ```
 
-Select the house or room status sensor with Home Assistant's standard **Entity** Badge. Its enum state and state-dependent icon come directly from Smart Shading; conditional display is configured only in Home Assistant's native Visibility tab. Selecting the optional dashboard-badges feature during setup creates onboarding guidance, but Smart Shading never edits an existing dashboard automatically.
+Select **Smart Shading status** and choose the house or room status through Home Assistant's native entity selector. The Custom Badge combines the cover logo, state marker and semantic color. Configure navigation under the native Interactions tab and conditional display only under Visibility; the Badge has no separate navigation, hidden or state controls. Selecting the optional dashboard-badges feature during setup creates onboarding guidance, but Smart Shading never edits an existing dashboard automatically.
 
 ## Easy or Advanced?
 

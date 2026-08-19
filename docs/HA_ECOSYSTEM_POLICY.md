@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.0.0
+Policy-Version: 1.1.0
 Adopted: 2026-08-19
 
 ## Scope and automatic classification
@@ -26,13 +26,24 @@ Visibility conditions whenever they can express the required behavior.
 
 - Status exposed to dashboards must be a native entity. Finite lifecycles use
   `SensorDeviceClass.ENUM` and publish the complete `options` list.
-- State-dependent symbols belong to the backend entity `icon` property.
+- State-dependent native fallback symbols belong to the backend entity `icon`
+  property. A Custom Badge may combine an integration logo, state marker,
+  animation, and semantic color when that presentation cannot be expressed by
+  the Entity Badge.
 - Dashboard visibility belongs exclusively to Home Assistant's native
   Visibility conditions. A custom frontend must not implement a parallel
   state selector, visibility list, state override, or hidden-display mode.
-- A custom card or badge is allowed only for behavior that cannot be expressed
-  natively. The documented native limitation and compatibility fallback must
-  be explicit.
+- Badge navigation and actions belong to Home Assistant's native Interactions
+  configuration. A Custom Badge must preserve `tap_action`, `hold_action`,
+  `double_tap_action`, and `visibility` values it does not edit, and delegate
+  configured actions through Home Assistant's `hass-action` contract. It must
+  not expose a separate navigation-path field.
+- A Custom Badge editor may expose only its native entity selector and
+  presentation-specific fields. Entity selection uses Home Assistant selectors;
+  action and Visibility editing remain in Home Assistant's surrounding tabs.
+- A custom card or badge is allowed only for presentation or behavior that
+  cannot be expressed natively. The documented native limitation and
+  compatibility fallback must be explicit.
 - Ecosystem migrations must update live dashboards, onboarding snippets,
   examples, E2E fixtures, tests, and release documentation together.
 

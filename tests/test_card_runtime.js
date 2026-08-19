@@ -330,7 +330,11 @@ const hass = {
 };
 
 const roomBadge = new Badge();
-roomBadge.setConfig({ entity: "sensor.room_status" });
+roomBadge.setConfig({
+  entity: "sensor.room_status",
+  tap_action: { action: "navigate", navigation_path: "/lovelace/shading" },
+  visibility: [{ condition: "state", entity: "sensor.room_status", state: "paused" }],
+});
 roomBadge.hass = { ...hass, language: "en", states: {
   ...hass.states,
   "sensor.room_status": { ...roomStatus, state: "paused", attributes: {
@@ -343,7 +347,11 @@ if (!roomBadge.shadowRoot.innerHTML.includes('<ha-badge type="button" icon-only 
   || !roomBadge.shadowRoot.innerHTML.includes("Paused until")
   || !roomBadge.shadowRoot.innerHTML.includes("Raum A")) throw new Error("Room badge was not rendered as a native round timed-pause badge");
 roomBadge.shadowRoot.querySelector("ha-badge")?.listeners.get("click")?.(new FakeEvent("click"));
-if (roomBadge.dispatchedEvents.at(-1)?.detail?.entityId !== "sensor.room_status") throw new Error("Room badge did not open its status entity");
+if (roomBadge.dispatchedEvents.at(-1)?.type !== "hass-action"
+  || roomBadge.dispatchedEvents.at(-1)?.detail?.action !== "tap"
+  || roomBadge.dispatchedEvents.at(-1)?.detail?.config?.entity !== "sensor.room_status"
+  || roomBadge.dispatchedEvents.at(-1)?.detail?.config?.tap_action?.action !== "navigate"
+  || roomBadge.dispatchedEvents.at(-1)?.detail?.config?.visibility?.[0]?.state !== "paused") throw new Error("Room badge did not preserve and delegate native action/Visibility config");
 
 const houseBadge = new Badge();
 houseBadge.setConfig({ entity: "sensor.house_status" });
@@ -355,13 +363,14 @@ if (!houseBadge.shadowRoot.innerHTML.includes('<ha-badge type="button" icon-only
   || !houseBadge.shadowRoot.innerHTML.includes("My house")) throw new Error("House badge did not prioritize and aggregate its paused room in the native badge");
 const badgeStub = Badge.getStubConfig(hass);
 if (badgeStub.entity !== "sensor.room_status") throw new Error("Badge picker did not preselect an available Smart Shading status entity");
+if (badgeStub.tap_action?.action !== "more-info") throw new Error("Badge picker did not provide a native default interaction");
 
 const badgeEditor = new BadgeEditor();
 badgeEditor.setConfig({ entity: "sensor.house_status" });
 badgeEditor.hass = { ...hass, language: "en" };
-if (!badgeEditor.shadowRoot.innerHTML.includes("My house (House)") || !badgeEditor.shadowRoot.innerHTML.includes("Raum A (Room)")) throw new Error("Badge editor did not offer house and room status entities");
-if (!badgeEditor.shadowRoot.innerHTML.includes("main symbol always shows the cover type")) throw new Error("Badge editor did not explain the cover symbol and state marker behavior");
-if (!badgeEditor.shadowRoot.innerHTML.includes("native Visibility tab")) throw new Error("Badge editor did not delegate visibility to Home Assistant");
+if (!badgeEditor.shadowRoot.innerHTML.includes("<ha-form>")) throw new Error("Badge editor did not use Home Assistant's native entity form");
+if (!badgeEditor.shadowRoot.innerHTML.includes("native editors")) throw new Error("Badge editor did not delegate entity, interaction and visibility configuration");
+if (badgeEditor.shadowRoot.innerHTML.includes("<select")) throw new Error("Badge editor still rendered its own entity or state dropdown");
 
 const curtainHeatBadge = new Badge();
 curtainHeatBadge.setConfig({ entity: "sensor.curtain_status" });
