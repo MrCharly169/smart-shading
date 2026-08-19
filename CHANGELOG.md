@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 2026.8.0b5 - 2026-08-19
+
 ### Native dashboard visibility
 
 - expose house and room status sensors as Home Assistant enum sensors so every
@@ -18,6 +21,7 @@
 - add public architecture, facade-sector, and social-preview artwork plus
   security, support, and community conduct guidance without changing runtime or
   release packaging behavior
+
 
 ## 2026.8.0b4 - 2026-08-13
 
