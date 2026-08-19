@@ -29,6 +29,9 @@ jobs:
       - name: Install browser test dependencies
         working-directory: e2e/ui
         run: npm install --ignore-scripts
+      - name: Install Playwright media helper
+        working-directory: e2e/ui
+        run: npx playwright install ffmpeg
       - name: Verify preinstalled runner Chrome
         run: google-chrome --version
       - name: Run real Home Assistant wizard and card browser tests

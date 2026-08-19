@@ -589,6 +589,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("HA_E2E_RUN_UI", ui)
         self.assertIn("HA_E2E_BROWSER_CHANNEL: 'chrome'", ui)
         self.assertIn("google-chrome --version", ui)
+        self.assertIn("playwright install ffmpeg", ui)
         self.assertNotIn("playwright install --with-deps chromium", ui)
         self.assertIn("scripts/ha_e2e/run_lab.sh", ui)
         playwright = (ROOT / "e2e" / "ui" / "playwright.config.js").read_text(
