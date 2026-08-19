@@ -32,6 +32,23 @@ STATUS_OPTIONS = [
 ]
 
 
+def _status_icon(status: str) -> str:
+    """Return the native entity icon for a dashboard status."""
+    return {
+        "idle": "mdi:blinds-horizontal",
+        "open": "mdi:blinds-open",
+        "comfort": "mdi:sun-angle",
+        "solar": "mdi:weather-sunny-alert",
+        "glare": "mdi:shield-sun-outline",
+        "heat": "mdi:shield-sun",
+        "night": "mdi:weather-night",
+        "safety": "mdi:shield-alert",
+        "paused": "mdi:pause-circle",
+        "disabled": "mdi:power",
+        "finished": "mdi:calendar-check",
+    }.get(status, "mdi:blinds-horizontal")
+
+
 def _compact_cover(cover: dict) -> dict:
     return {
         key: cover.get(key)
@@ -434,6 +451,10 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
         return "idle"
 
     @property
+    def icon(self):
+        return _status_icon(self.native_value)
+
+    @property
     def extra_state_attributes(self):
         attrs = super().extra_state_attributes
         attrs.update(
@@ -488,17 +509,7 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
 
     @property
     def icon(self):
-        return {
-            "heat": "mdi:shield-sun",
-            "night": "mdi:weather-night",
-            "glare": "mdi:shield-sun-outline",
-            "solar": "mdi:weather-sunny-alert",
-            "comfort": "mdi:sun-angle",
-            "safety": "mdi:shield-alert",
-            "paused": "mdi:pause-circle",
-            "open": "mdi:blinds-open",
-            "finished": "mdi:calendar-check",
-        }.get(self.runtime.mode, "mdi:blinds-horizontal")
+        return _status_icon(self.runtime.mode)
 
     @property
     def extra_state_attributes(self):

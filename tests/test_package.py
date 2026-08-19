@@ -1182,7 +1182,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("persistent_notification", engine)
         self.assertIn("smart_shading_card_", engine)
         self.assertIn("type: custom:smart-shading-card", engine)
-        self.assertIn("type: custom:smart-shading-badge", engine)
+        self.assertIn('"type: entity\\n"', engine)
         self.assertNotIn("advanced_mode: false", engine)
 
     def test_custom_badge_and_scroll_stability_are_registered(self):

@@ -49,6 +49,12 @@ Run **Actions → Prepare Release → Run workflow** from the default branch.
 - Beta versions must match `YYYY.M.PATCHbN`, for example `2026.8.0b0`.
   The workflow branches from `develop` and opens a draft pull request back to
   `develop`.
+  `PATCH` identifies one coherent customer outcome or problem bundle. Start a
+  new bundle at `b0` by incrementing `PATCH`; increment only `N` for corrections
+  to that same bundle. Promote a completed bundle to `YYYY.M.PATCH` before
+  starting the next one. Beta candidates are intentionally capped at `b9`;
+  reaching that limit requires closing or rescoping the bundle instead of
+  continuing with `b10`. A new calendar month starts again at patch `.0b0`.
 - Stable versions must match `YYYY.M.PATCH`, for example `2026.7.0`. The
   initial monthly release uses `.0`; fixes increment the patch. The workflow
   creates the release branch from the current `main`, integrates the tested

@@ -785,7 +785,8 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "smart_shading_card_badges_entry_room",
         )
         message = creates[0][2]["message"]
-        self.assertEqual(message.count("type: custom:smart-shading-badge"), 2)
+        self.assertEqual(message.count("type: entity"), 2)
+        self.assertEqual(message.count("color: state"), 2)
         self.assertIn("entity: sensor.house_status", message)
         self.assertIn("entity: sensor.room_status", message)
 

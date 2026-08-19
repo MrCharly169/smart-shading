@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2026.8.1b0 - 2026-08-19
+
+### Native entity badges
+
+- make house and room status sensors publish the state-dependent icon used by
+  Home Assistant's standard Entity Badge
+- replace custom Badge snippets and onboarding guidance with native Entity
+  Badges whose Visibility conditions are configured only by Home Assistant
+- bound future beta trains to `b0` through `b9`; a new completed scope increments
+  the CalVer patch and restarts at `b0`
 
 ## 2026.8.0b5 - 2026-08-19
 

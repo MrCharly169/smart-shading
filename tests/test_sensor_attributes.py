@@ -198,6 +198,8 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
         runtime.mode = "solar"
         self.assertEqual("solar", room_sensor.native_value)
         self.assertEqual("solar", house_sensor.native_value)
+        self.assertEqual("mdi:weather-sunny-alert", room_sensor.icon)
+        self.assertEqual("mdi:weather-sunny-alert", house_sensor.icon)
 
         runtime.enabled = False
         self.assertEqual("disabled", house_sensor.native_value)
@@ -206,6 +208,7 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("paused", house_sensor.native_value)
         runtime.mode = "safety"
         self.assertEqual("safety", house_sensor.native_value)
+        self.assertEqual("mdi:shield-alert", house_sensor.icon)
 
 
 if __name__ == "__main__":
