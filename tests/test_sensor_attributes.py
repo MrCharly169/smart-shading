@@ -18,6 +18,7 @@ except ModuleNotFoundError:  # package-style unittest invocation
 
 sensor_component = types.ModuleType("homeassistant.components.sensor")
 sensor_component.SensorEntity = type("SensorEntity", (), {})
+sensor_component.SensorDeviceClass = type("SensorDeviceClass", (), {"ENUM": "enum"})
 sys.modules["homeassistant.components.sensor"] = sensor_component
 
 entity_helper = types.ModuleType("homeassistant.helpers.entity")
@@ -183,6 +184,28 @@ class StatusAttributeBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             len(json.dumps(attributes, default=str).encode()), 16_384
         )
+
+    async def test_status_sensors_publish_native_enum_options(self):
+        room_sensor = sensor_mod.RoomStatusSensor(self.engine, "room")
+        house_sensor = sensor_mod.HouseStatusSensor(self.engine)
+
+        self.assertEqual("enum", room_sensor._attr_device_class)
+        self.assertEqual(sensor_mod.STATUS_OPTIONS, room_sensor._attr_options)
+        self.assertEqual("enum", house_sensor._attr_device_class)
+        self.assertEqual(sensor_mod.STATUS_OPTIONS, house_sensor._attr_options)
+
+        runtime = self.engine.rooms["room"]
+        runtime.mode = "solar"
+        self.assertEqual("solar", room_sensor.native_value)
+        self.assertEqual("solar", house_sensor.native_value)
+
+        runtime.enabled = False
+        self.assertEqual("disabled", house_sensor.native_value)
+        runtime.enabled = True
+        runtime.pause_mode = "manual"
+        self.assertEqual("paused", house_sensor.native_value)
+        runtime.mode = "safety"
+        self.assertEqual("safety", house_sensor.native_value)
 
 
 if __name__ == "__main__":

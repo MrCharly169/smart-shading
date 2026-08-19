@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Native dashboard visibility
+
+- expose house and room status sensors as Home Assistant enum sensors so every
+  supported Smart Shading state is selectable in the native Visibility tab
+- align the house sensor with the Badge's safety, manual and pause priorities,
+  and keep all show/hide decisions in Lovelace instead of the custom Badge
+
 ### Documentation and community
 
 - replace the repository and HACS landing page with customer-oriented English

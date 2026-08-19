@@ -361,6 +361,7 @@ badgeEditor.setConfig({ entity: "sensor.house_status" });
 badgeEditor.hass = { ...hass, language: "en" };
 if (!badgeEditor.shadowRoot.innerHTML.includes("My house (House)") || !badgeEditor.shadowRoot.innerHTML.includes("Raum A (Room)")) throw new Error("Badge editor did not offer house and room status entities");
 if (!badgeEditor.shadowRoot.innerHTML.includes("main symbol always shows the cover type")) throw new Error("Badge editor did not explain the cover symbol and state marker behavior");
+if (!badgeEditor.shadowRoot.innerHTML.includes("native Visibility tab")) throw new Error("Badge editor did not delegate visibility to Home Assistant");
 
 const curtainHeatBadge = new Badge();
 curtainHeatBadge.setConfig({ entity: "sensor.curtain_status" });

@@ -2234,7 +2234,7 @@ class SmartShadingBadgeEditor extends HTMLElement {
           return `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(`${name} (${scope})`)}</option>`;
         }).join("")}</select></label>
         <label>${de ? "Name im Tooltip (optional)" : "Tooltip name (optional)"}<input data-name value="${htmlEscape(this._config.name || "")}"></label>
-        <div class="help">${de ? "Das Hauptsymbol zeigt immer den Behangtyp. Die kleine Zusatzmarkierung und Farbe zeigen den aktuellen Modus. Anklicken öffnet alle Details einschließlich Pause und Pausenende." : "The main symbol always shows the cover type. The small marker and color show the current mode. Select it to open all details, including the pause and its end time."}</div>
+        <div class="help">${de ? "Das Hauptsymbol zeigt immer den Behangtyp. Die kleine Zusatzmarkierung und Farbe zeigen den aktuellen Modus. Sichtbarkeit wird ausschließlich im nativen Home-Assistant-Tab Sichtbarkeit konfiguriert. Anklicken öffnet alle Details einschließlich Pause und Pausenende." : "The main symbol always shows the cover type. The small marker and color show the current mode. Configure visibility only in Home Assistant's native Visibility tab. Select it to open all details, including the pause and its end time."}</div>
       </div>`;
     this.shadowRoot.querySelector?.("[data-entity]")?.addEventListener("change", (event) => {
       this._config = { ...this._config, entity: event.target.value }; this._emit();
