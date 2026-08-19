@@ -587,6 +587,9 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertIn("playwright", ui.lower())
         self.assertIn("workflow_call:", ui)
         self.assertIn("HA_E2E_RUN_UI", ui)
+        self.assertIn("HA_E2E_BROWSER_CHANNEL: 'chrome'", ui)
+        self.assertIn("google-chrome --version", ui)
+        self.assertNotIn("playwright install --with-deps chromium", ui)
         self.assertIn("scripts/ha_e2e/run_lab.sh", ui)
         playwright = (ROOT / "e2e" / "ui" / "playwright.config.js").read_text(
             encoding="utf-8"
@@ -597,6 +600,7 @@ class HomeAssistantE2ELabTests(unittest.TestCase):
         self.assertNotIn("webServer", playwright)
         self.assertIn("HA_E2E_BASE_URL", playwright)
         self.assertIn("workers: 1", playwright)
+        self.assertIn("HA_E2E_BROWSER_CHANNEL", playwright)
         self.assertIn("/config/integrations/dashboard/add", browser)
         self.assertIn('getByRole("dialog")', browser)
         self.assertNotIn("ha-dialog:visible", browser)

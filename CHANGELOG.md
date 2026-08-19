@@ -12,6 +12,8 @@
   navigation plus conditional display in the native Interactions and Visibility tabs
 - replace the Badge's hand-built entity dropdown with Home Assistant's entity selector
 - adopt Home Assistant ecosystem policy 1.1 for the shared hybrid Badge contract
+- run browser CI against GitHub's preinstalled Chrome instead of blocking on a
+  redundant per-run Chromium and system-dependency download
 
 ### Home Assistant ecosystem governance
 
