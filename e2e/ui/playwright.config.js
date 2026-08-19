@@ -1,4 +1,5 @@
 const { defineConfig } = require("@playwright/test");
+const runnerChannel = process.env.HA_E2E_BROWSER_CHANNEL || undefined;
 
 module.exports = defineConfig({
   testDir: ".",
@@ -14,8 +15,8 @@ module.exports = defineConfig({
     video: "retain-on-failure",
   },
   projects: [
-    { name: "chromium-desktop", use: { browserName: "chromium", viewport: { width: 1280, height: 900 } } },
-    { name: "chromium-mobile", use: { browserName: "chromium", viewport: { width: 390, height: 844 } } }
+    { name: "chromium-desktop", use: { browserName: "chromium", channel: runnerChannel, viewport: { width: 1280, height: 900 } } },
+    { name: "chromium-mobile", use: { browserName: "chromium", channel: runnerChannel, viewport: { width: 390, height: 844 } } }
   ],
   outputDir: "../../artifacts/ha-ui-e2e/results",
 });

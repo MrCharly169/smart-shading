@@ -43,7 +43,7 @@ Die folgenden Screenshots stammen aus dem disposable Home-Assistant-E2E-Labor de
 | Kompakte Raumansicht mit wesentlichem Status und einem Override. | Detaillierte Ansicht mit ausgewählten Eingängen, Zielen, Begrenzungen und Diagnosezugriff. |
 
 <p align="center"><img src="../images/status-badges.jpg" alt="Echte Smart-Shading-Status-Badges für Haus und Räume aus dem Home-Assistant-E2E-Labor" width="300"></p>
-<p align="center"><em>Native runde Home-Assistant-Badges für Haus und Räume. Das Cover-Symbol bleibt erkennbar; Marker und Theme-Farbe zeigen den Zustand.</em></p>
+<p align="center"><em>Hybride Custom Badges für Haus und Räume. Home Assistant verwaltet Entity, Interaktion und Sichtbarkeit; Behangsymbol, Marker und Theme-Farbe zeigen den Zustand.</em></p>
 
 ## Funktionsweise
 
@@ -126,15 +126,13 @@ Die Card leitet Easy- oder Advanced-Darstellung aus dem Konfigurationseintrag ab
 ### Badge hinzufügen
 
 ```yaml
-type: entity
+type: custom:smart-shading-badge
 entity: sensor.DEIN_RAUM_ODER_HAUS_STATUS
-show_name: false
-show_icon: true
-show_state: true
-color: state
+tap_action:
+  action: more-info
 ```
 
-Wähle den Haus- oder Raumstatussensor mit Home Assistants normalem **Entität**-Badge. Enum-Status und zustandsabhängiges Symbol kommen direkt von Smart Shading; die bedingte Anzeige wird ausschließlich im nativen Sichtbarkeit-Tab konfiguriert. Die optionale Dashboard-Badge-Funktion im Setup erzeugt eine Onboarding-Hilfe, verändert aber nie automatisch ein bestehendes Dashboard.
+Wähle **Smart Shading status** und den Haus- oder Raumstatus über Home Assistants nativen Entity-Selector. Das Custom Badge kombiniert Behanglogo, Zustandsmarker und semantische Farbe. Navigation wird im nativen Tab Interaktionen und die bedingte Anzeige ausschließlich unter Sichtbarkeit konfiguriert; das Badge besitzt keine eigenen Navigate-, Hidden- oder Zustandsfelder. Die optionale Dashboard-Badge-Funktion im Setup erzeugt eine Onboarding-Hilfe, verändert aber nie automatisch ein bestehendes Dashboard.
 
 ## Easy oder Advanced?
 

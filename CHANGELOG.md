@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 2026.8.2b0 - 2026-08-19
+
+### Hybrid native Custom Badges
+
+- restore the Smart Shading Custom Badge so cover logo, state marker and color
+  can change together without losing Home Assistant's native configuration
+- delegate tap actions through Home Assistant's `hass-action` contract and keep
+  navigation plus conditional display in the native Interactions and Visibility tabs
+- replace the Badge's hand-built entity dropdown with Home Assistant's entity selector
+- adopt Home Assistant ecosystem policy 1.1 for the shared hybrid Badge contract
+- run browser CI against GitHub's preinstalled Chrome instead of blocking on a
+  redundant per-run Chromium and system-dependency download
+
 ### Home Assistant ecosystem governance
 
 - Adopt the shared MeyersHaff Home Assistant ecosystem policy v1 and its

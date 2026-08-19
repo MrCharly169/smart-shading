@@ -2012,13 +2012,13 @@ class SmartShadingBadge extends HTMLElement {
     const state = Object.values(hass?.states || {}).find((candidate) =>
       candidate?.entity_id?.startsWith("sensor.") && candidate.attributes?.smart_shading_entry_id
       && (candidate.attributes?.smart_shading_room_id || Array.isArray(candidate.attributes?.rooms)));
-    return state ? { entity: state.entity_id } : {};
+    return state ? { entity: state.entity_id, tap_action: { action: "more-info" } } : {};
   }
   static async getConfigElement() { return document.createElement("smart-shading-badge-editor"); }
 
   setConfig(config = {}) {
     if (!config || typeof config !== "object") throw new Error("Invalid Smart Shading badge configuration");
-    this._config = { ...config };
+    this._config = { tap_action: { action: "more-info" }, ...config };
     this._lastRenderSignature = "";
     this._render();
   }
@@ -2037,13 +2037,13 @@ class SmartShadingBadge extends HTMLElement {
     this._render();
   }
 
-  _openMoreInfo() {
+  _performNativeTapAction() {
     const entityId = String(this._config.entity || "");
     if (!entityId) return;
-    this.dispatchEvent(new CustomEvent("hass-more-info", {
+    this.dispatchEvent(new CustomEvent("hass-action", {
       bubbles: true,
       composed: true,
-      detail: { entityId },
+      detail: { action: "tap", config: { ...this._config, entity: entityId } },
     }));
   }
 
@@ -2052,12 +2052,12 @@ class SmartShadingBadge extends HTMLElement {
     if (!badge || !this._config.entity) return;
     badge.addEventListener?.("click", (event) => {
       event.stopPropagation?.();
-      this._openMoreInfo();
+      this._performNativeTapAction();
     });
     badge.addEventListener?.("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault?.();
-      this._openMoreInfo();
+      this._performNativeTapAction();
     });
   }
 
@@ -2222,25 +2222,26 @@ class SmartShadingBadgeEditor extends HTMLElement {
   _render() {
     if (!this.shadowRoot) return;
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
-    const entities = this._hass ? Object.values(this._hass.states || {}).filter((state) =>
-      state.entity_id?.startsWith("sensor.") && state.attributes?.smart_shading_entry_id
-      && (state.attributes?.smart_shading_room_id || Array.isArray(state.attributes?.rooms))) : [];
     this.shadowRoot.innerHTML = `
-      <style>*{box-sizing:border-box}.editor{display:grid;gap:15px;padding:4px 0;color:var(--primary-text-color)}label{display:grid;gap:6px;font-size:12px}select,input{width:100%;padding:11px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:var(--secondary-background-color,#292929);color:inherit}.help{font-size:10px;opacity:.58;line-height:1.35}</style>
+      <style>:host{display:block;padding:4px 0}.help{margin-top:12px;font-size:11px;line-height:1.4;color:var(--secondary-text-color)}</style>
       <div class="editor">
-        <label>${de ? "Status für Haus oder Raum" : "House or room status"}<select data-entity><option value=""></option>${entities.map((state) => {
-          const scope = state.attributes?.smart_shading_room_id ? (de ? "Raum" : "Room") : (de ? "Haus" : "House");
-          const name = cleanDisplayName(state.attributes?.name, state.attributes?.friendly_name || scope);
-          return `<option value="${htmlEscape(state.entity_id)}" ${state.entity_id === this._config.entity ? "selected" : ""}>${htmlEscape(`${name} (${scope})`)}</option>`;
-        }).join("")}</select></label>
-        <label>${de ? "Name im Tooltip (optional)" : "Tooltip name (optional)"}<input data-name value="${htmlEscape(this._config.name || "")}"></label>
-        <div class="help">${de ? "Das Hauptsymbol zeigt immer den Behangtyp. Die kleine Zusatzmarkierung und Farbe zeigen den aktuellen Modus. Sichtbarkeit wird ausschließlich im nativen Home-Assistant-Tab Sichtbarkeit konfiguriert. Anklicken öffnet alle Details einschließlich Pause und Pausenende." : "The main symbol always shows the cover type. The small marker and color show the current mode. Configure visibility only in Home Assistant's native Visibility tab. Select it to open all details, including the pause and its end time."}</div>
+        <ha-form></ha-form>
+        <div class="help">${de ? "Logo, Zusatzsymbol und Farbe folgen dem Status. Entität, Interaktion und Sichtbarkeit werden mit Home Assistants nativen Editoren konfiguriert; dieses Badge besitzt keine eigenen Navigate-, Hidden- oder Zustandslisten." : "Logo, marker and color follow the status. Configure the entity, interaction and visibility with Home Assistant's native editors; this Badge has no separate Navigate, Hidden or state lists."}</div>
       </div>`;
-    this.shadowRoot.querySelector?.("[data-entity]")?.addEventListener("change", (event) => {
-      this._config = { ...this._config, entity: event.target.value }; this._emit();
-    });
-    this.shadowRoot.querySelector?.("[data-name]")?.addEventListener("change", (event) => {
-      this._config = { ...this._config, name: event.target.value }; this._emit();
+    const form = this.shadowRoot.querySelector?.("ha-form");
+    if (!form) return;
+    form.hass = this._hass;
+    form.data = this._config;
+    form.schema = [
+      { name: "entity", required: true, selector: { entity: { domain: "sensor", integration: "smart_shading" } } },
+      { name: "name", selector: { text: {} } },
+    ];
+    form.computeLabel = (schema) => ({
+      entity: de ? "Status-Entität für Haus oder Raum" : "House or room status entity",
+      name: de ? "Name im Tooltip (optional)" : "Tooltip name (optional)",
+    }[schema.name] || schema.name);
+    form.addEventListener("value-changed", (event) => {
+      this._config = { ...this._config, ...(event.detail?.value || {}) }; this._emit();
     });
   }
 }

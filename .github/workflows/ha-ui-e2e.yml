@@ -29,13 +29,16 @@ jobs:
       - name: Install browser test dependencies
         working-directory: e2e/ui
         run: npm install --ignore-scripts
-      - name: Install Chromium
+      - name: Install Playwright media helper
         working-directory: e2e/ui
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install ffmpeg
+      - name: Verify preinstalled runner Chrome
+        run: google-chrome --version
       - name: Run real Home Assistant wizard and card browser tests
         env:
           HA_E2E_RUN_UI: '1'
           HA_E2E_PORT: '18125'
+          HA_E2E_BROWSER_CHANNEL: 'chrome'
           HA_E2E_ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ha-ui-e2e/home-assistant
         run: scripts/ha_e2e/run_lab.sh
       - name: Upload Playwright evidence
