@@ -9,9 +9,10 @@ class EcosystemPolicyTests(unittest.TestCase):
     def test_policy_contract_is_present(self):
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         policy = (ROOT / "docs" / "HA_ECOSYSTEM_POLICY.md").read_text(encoding="utf-8")
-        self.assertIn("Policy-Version: 1.1.0", agents)
-        self.assertIn("Policy-Version: 1.1.0", policy)
+        self.assertIn("Policy-Version: 1.2.0", agents)
+        self.assertIn("Policy-Version: 1.2.0", policy)
         self.assertIn("Native-first Home Assistant contract", policy)
+        self.assertIn("Future scheduled or announced occurrences", policy)
         self.assertIn("b0` through `b9", policy)
         self.assertIn("native Interactions", policy)
         self.assertIn("`hass-action` contract", policy)
