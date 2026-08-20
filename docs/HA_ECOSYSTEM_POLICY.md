@@ -1,8 +1,8 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.1.0
-Adopted: 2026-08-19
+Policy-Version: 1.2.0
+Adopted: 2026-08-20
 
 ## Scope and automatic classification
 
@@ -41,6 +41,10 @@ Visibility conditions whenever they can express the required behavior.
 - A Custom Badge editor may expose only its native entity selector and
   presentation-specific fields. Entity selection uses Home Assistant selectors;
   action and Visibility editing remain in Home Assistant's surrounding tabs.
+- Future scheduled or announced occurrences remain planning context, never an
+  active waiting presentation. Compact schedule labels use the local time only
+  for today, then tomorrow, a weekday or a date; when that label occupies the
+  Badge, secondary state markers must be hidden or positioned without overlap.
 - A custom card or badge is allowed only for presentation or behavior that
   cannot be expressed natively. The documented native limitation and
   compatibility fallback must be explicit.
