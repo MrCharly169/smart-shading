@@ -164,6 +164,12 @@ For Advanced decisions, the immutable order verified by code and tests is:
 
 Every matching and rejected candidate is retained in the Advanced trace with a stable reason and normalized input quality. Command planning happens afterwards. A newer higher-priority target cancels obsolete delayed work. See [Advanced behavior](docs/ADVANCED_MODE.md) and the [mode architecture](docs/MODE_ARCHITECTURE.md) for the full technical contract.
 
+### Calculated glare protection
+
+An Advanced protected zone belongs to one physical cover and measures the clear window plus the table, seat, screen, or other area that should remain out of direct sun. Sideways curtains can be configured as symmetric, closing left to right, or closing right to left. For a one-sided curtain, Smart Shading clips the calculated sun footprint to the real window opening and follows its moving edge, so later evaluations produce progressive percentage targets as the sun crosses the protected area. With numeric position feedback, one recalculation tightens the glare target by no more than 15 percentage points, preventing the glare adjustment itself from jumping from 100% directly to 0%; stricter ordinary Solar or Safety targets retain priority.
+
+The same zone can contain one or more native Home Assistant conditions. A binary presence zone can require somebody to be at a desk, for example, and numeric-state thresholds can be combined through AND, OR, or NOT groups. A false or unavailable condition disables only that glare zone. The Advanced Card labels every individual cover target with its active mode, such as **Glare protection** or **Solar shading**.
+
 ## Supported cover profiles
 
 | Profile | Control model |

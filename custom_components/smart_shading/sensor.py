@@ -93,6 +93,11 @@ def _compact_room_configuration(room: dict) -> dict:
                         )
                         if zone.get(key) not in (None, "")
                     }
+                    | (
+                        {"condition_count": len(zone.get("conditions") or [])}
+                        if zone.get("conditions")
+                        else {}
+                    )
                     for zone in sector.get("protected_zones", [])
                     if isinstance(zone, dict)
                 ],

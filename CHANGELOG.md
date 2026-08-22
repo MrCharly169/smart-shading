@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Extend the shared customer-documentation contract to private and MeyersHaff
+  services with safe login guidance, Proxmox evidence and upstream monitoring.
+
+- Join the shared living customer-documentation contract with one reusable
+  capability description, four required languages, GitHub/version metadata and
+  scheduled read-only inventory checks.
+
+## 2026.8.3b0 - 2026-08-21
+
+### Progressive glare protection
+
+- add explicit symmetric, left-to-right and right-to-left movement models for
+  sideways curtains; one-sided targets follow the protected sun footprint
+  clipped to the real window opening instead of collapsing to the former
+  symmetric fully-closed result, and numeric feedback limits each closing
+  recalculation to 15 percentage points so the glare adjustment itself cannot
+  jump from 100% directly to 0%; a stricter ordinary Solar or Safety target
+  keeps its existing priority
+- add native Home Assistant conditions to every protected zone, including
+  binary-state and numeric-state conditions, compound groups and event-driven
+  reevaluation when referenced entities change
+- keep unmet or unavailable zone conditions fail-closed in the decision trace
+  without blocking Solar, Comfort, Heat Protection or other protected zones
+- show the effective Glare Protection, Solar shading or other decision mode on
+  each individual Advanced Card cover row alongside its calculated target
+
 ## 2026.8.2b0 - 2026-08-19
 
 ### Hybrid native Custom Badges

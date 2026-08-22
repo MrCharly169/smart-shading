@@ -572,6 +572,7 @@ class PackageTests(unittest.TestCase):
             "protected_zone_identity", "protected_zone_geometry",
             "protected_zone_target", "protected_zone_window",
             "protected_zone_object",
+            "protected_zone_conditions",
             "protected_zone_maintenance",
             "group_identity", "slat_curve", "target_positions",
             "group_maintenance", "cover_identity", "cover_automation",

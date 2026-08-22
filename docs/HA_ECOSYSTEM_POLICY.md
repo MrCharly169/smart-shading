@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.2.0
+Policy-Version: 1.4.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -51,6 +51,49 @@ Visibility conditions whenever they can express the required behavior.
 - Ecosystem migrations must update live dashboards, onboarding snippets,
   examples, E2E fixtures, tests, and release documentation together.
 
+## Living customer documentation contract
+
+Customer-facing Home Assistant documentation is one versioned capability
+catalog, not copied prose per residence. Residence profiles contain only the
+active/available mapping, dashboard destination, and verified local context.
+
+- Every customer capability is documented in Luxembourgish, German, French,
+  and English. A capability or customer-visible change is incomplete while one
+  required language is missing.
+- The customer baseline remains stable. New behavior extends the matching
+  capability and adds a plain-language changelog entry instead of silently
+  rewriting unrelated guidance.
+- Active capabilities are derived from current dashboards, referenced entities,
+  automations, scripts, and integration manifests. Ambiguous findings require
+  review and must never be presented as verified behavior.
+- Owned open-source integrations link to their manifest documentation URL,
+  GitHub source, and detected installed version. Customer text remains
+  non-technical; deeper technical material is optional.
+- Scheduled maintenance is read-only toward Home Assistant except for the
+  dedicated documentation presentation. It must not switch entities, execute
+  customer automations, or change integration configuration.
+- Generated HTML, Markdown, database, manifest, and changelog outputs are
+  published together. Nextcloud is a synchronized publication target; the
+  versioned workspace catalog remains the source of truth.
+- Documentation outputs contain no Home Assistant tokens, Nextcloud
+  credentials, internal secrets, personal notification targets, or raw private
+  automation payloads.
+- Customer-facing private, MeyersHaff and explicitly shared web services use a
+  single multilingual service catalog alongside the capability catalog.
+  Smart Solutions workloads, administration interfaces and infrastructure-only
+  routes are excluded unless a later approved customer contract says otherwise.
+- Every published service includes only its public reverse-proxy address,
+  generic username pattern, safe password handling, mobile access and privacy
+  boundary. Never publish an actual username, password, internal IP address,
+  Proxmox guest name, token or management route.
+- Service presence and availability are evidenced by a certificate-pinned,
+  read-only Proxmox inventory and a public endpoint check. Official upstream
+  repositories and releases are monitored; a customer-visible behavioral
+  change requires a reviewed four-language changelog entry.
+- An account must not be described as active without residence-specific
+  evidence. Unverified account-based services remain available or explicitly
+  approval-required until their customer mapping is confirmed.
+
 ## Beta release trains
 
 Versions use `YYYY.M.PATCHbN` for beta and `YYYY.M.PATCH` for stable.
@@ -83,4 +126,3 @@ For every ecosystem-wide change:
 Conversation memory, proposals, and one-off scripts are evidence, not policy.
 The durable sources are this file, the project registry, project policy
 mirrors, project tests, and enforced release workflows.
-

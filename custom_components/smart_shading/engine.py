@@ -159,6 +159,28 @@ def _state_number(hass: HomeAssistant, entity_id: str) -> float | None:
     return parse_numeric_value(state.state)
 
 
+def _condition_entity_ids(value: Any) -> set[str]:
+    """Extract entity references from native HA condition configuration."""
+    result: set[str] = set()
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                if key == "entity_id":
+                    candidates = nested if isinstance(nested, list) else [nested]
+                    result.update(
+                        str(candidate)
+                        for candidate in candidates
+                        if isinstance(candidate, str) and "." in candidate
+                    )
+                elif isinstance(nested, (dict, list, tuple)):
+                    pending.append(nested)
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+    return result
+
+
 def _temperature_celsius(value: Any, unit: Any = None) -> float | None:
     """Normalize a Home Assistant temperature value to degrees Celsius."""
     parsed = parse_numeric_value(value)
@@ -269,6 +291,9 @@ class SmartShadingEngine:
         # the configured 20-minute interval remains only a recovery watchdog.
         self._evaluation_debounce_unsub: Callable[[], None] | None = None
         self._pending_evaluation_triggers: set[str] = set()
+        self._protected_zone_condition_checkers: dict[str, Any] = {}
+        self._protected_zone_condition_errors: set[str] = set()
+        self._protected_zone_condition_configs: dict[str, list[Any]] = {}
         self._schedule_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._heat_release_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._evaluate_lock = asyncio.Lock()
@@ -503,6 +528,7 @@ class SmartShadingEngine:
         self.reload_config()
         self._rebuild_runtime()
         self._restore_command_ownership_sessions()
+        await self._async_prepare_protected_zone_conditions()
         await self._async_reconcile_night_end_pauses()
         await self._async_sync_sun_requirement_notification()
 
@@ -748,6 +774,14 @@ class SmartShadingEngine:
         return missing_entities == 0
 
     def async_stop(self) -> None:
+        for checker in self._protected_zone_condition_checkers.values():
+            try:
+                checker.async_unload()
+            except Exception:
+                _LOGGER.exception("Could not unload a protected-zone condition")
+        self._protected_zone_condition_checkers.clear()
+        self._protected_zone_condition_errors.clear()
+        self._protected_zone_condition_configs.clear()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -2267,6 +2301,19 @@ class SmartShadingEngine:
                 result.add(room["night_entity"])
             result.update(room.get("safety_blockers", []))
             for sector in room.get("sectors", []):
+                for zone in sector.get("protected_zones", []):
+                    if isinstance(zone, dict):
+                        condition_key = self._protected_zone_condition_key(
+                            str(room.get("id") or ""), sector, zone
+                        )
+                        result.update(
+                            _condition_entity_ids(
+                                self._protected_zone_condition_configs.get(
+                                    condition_key,
+                                    zone.get("conditions", []),
+                                )
+                            )
+                        )
                 for key in ("lux_sensor", CONF_SUN_PRESENCE_ENTITY):
                     if sector.get(key):
                         result.add(sector[key])
@@ -3951,10 +3998,79 @@ class SmartShadingEngine:
             return None
         return (start + ((end - start) % 360.0) / 2.0) % 360.0
 
+    @staticmethod
+    def _protected_zone_condition_key(
+        room_id: str, sector: dict[str, Any], values: dict[str, Any]
+    ) -> str:
+        return (
+            f"{str(room_id or '')}:{str(sector.get('id') or '')}:"
+            f"{str(values.get('id') or values.get('zone_id') or '')}"
+        )
+
+    async def _async_prepare_protected_zone_conditions(self) -> None:
+        """Compile each zone's native HA conditions once per engine start."""
+        from homeassistant.helpers import condition as condition_helper
+
+        for room in self.config.get(CONF_ROOMS, []):
+            for sector in room.get("sectors", []):
+                for values in sector.get("protected_zones", []):
+                    if not isinstance(values, dict):
+                        continue
+                    conditions = values.get("conditions") or []
+                    if not conditions:
+                        continue
+                    key = self._protected_zone_condition_key(
+                        str(room.get("id") or ""), sector, values
+                    )
+                    try:
+                        validated = await condition_helper.async_validate_conditions_config(
+                            self.hass, list(conditions)
+                        )
+                        checker = await condition_helper.async_conditions_from_config(
+                            self.hass,
+                            validated,
+                            _LOGGER,
+                            f"Smart Shading protected zone {key}",
+                        )
+                    except Exception:
+                        self._protected_zone_condition_errors.add(key)
+                        _LOGGER.exception(
+                            "Could not prepare conditions for protected zone %s",
+                            key,
+                        )
+                        continue
+                    self._protected_zone_condition_configs[key] = list(validated)
+                    self._protected_zone_condition_checkers[key] = checker
+
+    def _protected_zone_conditions_met(
+        self,
+        room_id: str,
+        sector: dict[str, Any],
+        values: dict[str, Any],
+    ) -> bool | None:
+        """Return true only when all configured native conditions pass."""
+        if not values.get("conditions"):
+            return True
+        key = self._protected_zone_condition_key(room_id, sector, values)
+        if key in self._protected_zone_condition_errors:
+            return None
+        checker = self._protected_zone_condition_checkers.get(key)
+        if checker is None:
+            return None
+        try:
+            return bool(checker.async_check())
+        except Exception:
+            _LOGGER.exception(
+                "Could not evaluate conditions for protected zone %s", key
+            )
+            return None
+
     def _advanced_protected_zones(
         self,
         sector: dict[str, Any],
         layer: dict[str, Any] | None = None,
+        *,
+        room_id: str = "",
     ) -> tuple[ProtectedZone, ...]:
         """Adapt persisted Advanced-only zone dictionaries to pure objects."""
         zones: list[ProtectedZone] = []
@@ -3967,6 +4083,33 @@ class SmartShadingEngine:
                 zone = ProtectedZone.from_config(
                     values, sector_id=str(sector.get("id") or "")
                 )
+                if zone.condition_count:
+                    zone = replace(
+                        zone,
+                        conditions_met=self._protected_zone_conditions_met(
+                            room_id, sector, values
+                        ),
+                    )
+                if zone.calculation_mode.startswith("curtain_closes_"):
+                    cover_config = next(
+                        (
+                            cover
+                            for candidate_layer in sector.get("layers", [])
+                            for cover in candidate_layer.get("covers", [])
+                            if isinstance(cover, dict)
+                            and str(cover.get("entity") or "")
+                            == zone.cover_entity
+                        ),
+                        None,
+                    )
+                    cover_state = self.hass.states.get(zone.cover_entity)
+                    current_position = self._state_attribute_number(
+                        cover_state, "current_position"
+                    )
+                    if current_position is not None and cover_config is not None:
+                        if bool(cover_config.get("invert_position", False)):
+                            current_position = 100.0 - current_position
+                        zone = replace(zone, current_position=current_position)
                 if layer is not None and not supports_tilt and zone.target_tilt is not None:
                     # A protected zone may narrow position for every profile,
                     # but only real slat profiles may receive a tilt command.
@@ -4164,7 +4307,11 @@ class SmartShadingEngine:
             cover_entity=cover_entity,
             sun_geometry=geometry,
             protected_zones=(
-                self._advanced_protected_zones(sector, layer)
+                self._advanced_protected_zones(
+                    sector,
+                    layer,
+                    room_id=str(room.get("id") or ""),
+                )
                 if (
                     sector is not None
                     and self.room_feature_enabled(str(room.get("id") or ""), FEATURE_GLARE_PROTECTION)

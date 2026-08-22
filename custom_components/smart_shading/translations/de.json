@@ -917,6 +917,7 @@
               "name": "Zonenname",
               "enabled": "Diese Zone aktivieren",
               "cover_entity": "Behang dieses Fensters",
+              "curtain_movement": "Schließrichtung des seitlichen Vorhangs",
               "group_ids": "Betroffene Behanggruppen",
               "calculated": "Position aus Fenster und Schutzbereich berechnen"
             },
@@ -924,6 +925,7 @@
               "name": "Beim Speichern wird eine stabile interne ID erzeugt.",
               "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
               "cover_entity": "Wählen Sie genau einen physischen Behang. Die Berechnung gilt nur für diesen Behang und sein Fenster.",
+              "curtain_movement": "Wählen Sie bei einem seitlich laufenden Vorhang, auf welcher Seite der Stoff beginnt und in welche Richtung seine Kante schließt. Andere Behangprofile ignorieren dieses Feld.",
               "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf.",
               "calculated": "Berechnet die Position automatisch aus Sonnenstand, Fenster und Schutzzone."
             }
@@ -976,7 +978,7 @@
           },
           "protected_zone_object": {
             "name": "Schutzobjekt relativ zum Fenster",
-            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Vorhänge werden symmetrisch angenommen; Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
+            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Wählen Sie für seitliche Vorhänge oben die echte Schließrichtung; ihr Ziel folgt dem auf das Fenster begrenzten Sonnenkorridor stufenlos. Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
             "data": {
               "object_distance_m": "Abstand vom Fenster zum Objekt",
               "object_center_height_m": "Objektmitte über dem Boden",
@@ -990,6 +992,16 @@
               "object_height_m": "Gesamte vertikale Höhe des Bereichs, der im Schatten bleiben soll.",
               "object_lateral_center_m": "Seitlicher Abstand der Objektmitte: negativ ist links und positiv rechts beim Blick in den Raum.",
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optionale Aktivierungsbedingungen",
+            "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
+            "data": {
+              "conditions": "Bedingungen"
+            },
+            "data_description": {
+              "conditions": "Fügen Sie eine oder mehrere native Home-Assistant-Bedingungen hinzu, zum Beispiel einen eingeschalteten binären Präsenzbereich oder einen numerischen Sensor oberhalb beziehungsweise unterhalb eines Grenzwerts. Mehrere Bedingungen auf oberster Ebene werden mit UND verknüpft; Gruppen können UND, ODER oder NICHT verwenden."
             }
           }
         }
@@ -1030,6 +1042,7 @@
               "name": "Zonenname",
               "enabled": "Diese Zone aktivieren",
               "cover_entity": "Behang dieses Fensters",
+              "curtain_movement": "Schließrichtung des seitlichen Vorhangs",
               "group_ids": "Betroffene Behanggruppen",
               "calculated": "Position aus Fenster und Schutzbereich berechnen"
             },
@@ -1037,6 +1050,7 @@
               "name": "Die interne Zonen-ID bleibt auch bei einer Namensänderung stabil.",
               "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
               "cover_entity": "Wählen Sie genau einen physischen Behang. Die Berechnung gilt nur für diesen Behang und sein Fenster.",
+              "curtain_movement": "Wählen Sie bei einem seitlich laufenden Vorhang, auf welcher Seite der Stoff beginnt und in welche Richtung seine Kante schließt. Andere Behangprofile ignorieren dieses Feld.",
               "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf.",
               "calculated": "Berechnet die Position automatisch aus Sonnenstand, Fenster und Schutzzone."
             }
@@ -1102,6 +1116,16 @@
               "object_height_m": "Gesamte vertikale Höhe des Bereichs, der im Schatten bleiben soll.",
               "object_lateral_center_m": "Seitlicher Abstand der Objektmitte: negativ ist links und positiv rechts beim Blick in den Raum.",
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optionale Aktivierungsbedingungen",
+            "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
+            "data": {
+              "conditions": "Bedingungen"
+            },
+            "data_description": {
+              "conditions": "Fügen Sie eine oder mehrere native Home-Assistant-Bedingungen hinzu, zum Beispiel einen eingeschalteten binären Präsenzbereich oder einen numerischen Sensor oberhalb beziehungsweise unterhalb eines Grenzwerts. Mehrere Bedingungen auf oberster Ebene werden mit UND verknüpft; Gruppen können UND, ODER oder NICHT verwenden."
             }
           },
           "protected_zone_maintenance": {
@@ -1190,7 +1214,8 @@
       "protected_zone_cover_required": "Wählen Sie den einzelnen physischen Behang dieses Fensters.",
       "protected_zone_cover_invalid": "Der ausgewählte Behang ist in diesem Sonnensektor nicht verfügbar oder sein Typ unterstützt diese Berechnung nicht.",
       "protected_zone_window_geometry_range": "Geben Sie sinnvolle Fenstermaße und die Unterkante über dem Boden ein.",
-      "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen."
+      "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
+      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -2096,6 +2121,7 @@
               "name": "Zonenname",
               "enabled": "Diese Zone aktivieren",
               "cover_entity": "Behang dieses Fensters",
+              "curtain_movement": "Schließrichtung des seitlichen Vorhangs",
               "group_ids": "Betroffene Behanggruppen",
               "calculated": "Position aus Fenster und Schutzbereich berechnen"
             },
@@ -2103,6 +2129,7 @@
               "name": "Beim Speichern wird eine stabile interne ID erzeugt.",
               "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
               "cover_entity": "Wählen Sie genau einen physischen Behang. Die Berechnung gilt nur für diesen Behang und sein Fenster.",
+              "curtain_movement": "Wählen Sie bei einem seitlich laufenden Vorhang, auf welcher Seite der Stoff beginnt und in welche Richtung seine Kante schließt. Andere Behangprofile ignorieren dieses Feld.",
               "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf.",
               "calculated": "Berechnet die Position automatisch aus Sonnenstand, Fenster und Schutzzone."
             }
@@ -2155,7 +2182,7 @@
           },
           "protected_zone_object": {
             "name": "Schutzobjekt relativ zum Fenster",
-            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Vorhänge werden symmetrisch angenommen; Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
+            "description": "Messen Sie am Tisch oder Objekt nur den Bereich, der nicht direkt von der Sonne getroffen werden darf. Seitliche Abstände beziehen sich auf die Fenstermitte, Höhen auf den fertigen Fußboden. Wählen Sie für seitliche Vorhänge oben die echte Schließrichtung; ihr Ziel folgt dem auf das Fenster begrenzten Sonnenkorridor stufenlos. Vertikallamellen werden näherungsweise berechnet. Außenjalousien mit horizontalen Lamellen und Markisen werden hier nicht angeboten.",
             "data": {
               "object_distance_m": "Abstand vom Fenster zum Objekt",
               "object_center_height_m": "Objektmitte über dem Boden",
@@ -2169,6 +2196,16 @@
               "object_height_m": "Gesamte vertikale Höhe des Bereichs, der im Schatten bleiben soll.",
               "object_lateral_center_m": "Seitlicher Abstand der Objektmitte: negativ ist links und positiv rechts beim Blick in den Raum.",
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optionale Aktivierungsbedingungen",
+            "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
+            "data": {
+              "conditions": "Bedingungen"
+            },
+            "data_description": {
+              "conditions": "Fügen Sie eine oder mehrere native Home-Assistant-Bedingungen hinzu, zum Beispiel einen eingeschalteten binären Präsenzbereich oder einen numerischen Sensor oberhalb beziehungsweise unterhalb eines Grenzwerts. Mehrere Bedingungen auf oberster Ebene werden mit UND verknüpft; Gruppen können UND, ODER oder NICHT verwenden."
             }
           }
         }
@@ -2209,6 +2246,7 @@
               "name": "Zonenname",
               "enabled": "Diese Zone aktivieren",
               "cover_entity": "Behang dieses Fensters",
+              "curtain_movement": "Schließrichtung des seitlichen Vorhangs",
               "group_ids": "Betroffene Behanggruppen",
               "calculated": "Position aus Fenster und Schutzbereich berechnen"
             },
@@ -2216,6 +2254,7 @@
               "name": "Die interne Zonen-ID bleibt auch bei einer Namensänderung stabil.",
               "enabled": "Deaktivierte Zonen bleiben gespeichert, fordern aber keine Blendschutzziele an.",
               "cover_entity": "Wählen Sie genau einen physischen Behang. Die Berechnung gilt nur für diesen Behang und sein Fenster.",
+              "curtain_movement": "Wählen Sie bei einem seitlich laufenden Vorhang, auf welcher Seite der Stoff beginnt und in welche Richtung seine Kante schließt. Andere Behangprofile ignorieren dieses Feld.",
               "group_ids": "Wählen Sie alle Behanggruppen dieses Sektors, die diese Zone schützen darf.",
               "calculated": "Berechnet die Position automatisch aus Sonnenstand, Fenster und Schutzzone."
             }
@@ -2281,6 +2320,16 @@
               "object_height_m": "Gesamte vertikale Höhe des Bereichs, der im Schatten bleiben soll.",
               "object_lateral_center_m": "Seitlicher Abstand der Objektmitte: negativ ist links und positiv rechts beim Blick in den Raum.",
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optionale Aktivierungsbedingungen",
+            "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
+            "data": {
+              "conditions": "Bedingungen"
+            },
+            "data_description": {
+              "conditions": "Fügen Sie eine oder mehrere native Home-Assistant-Bedingungen hinzu, zum Beispiel einen eingeschalteten binären Präsenzbereich oder einen numerischen Sensor oberhalb beziehungsweise unterhalb eines Grenzwerts. Mehrere Bedingungen auf oberster Ebene werden mit UND verknüpft; Gruppen können UND, ODER oder NICHT verwenden."
             }
           },
           "protected_zone_maintenance": {
@@ -2366,7 +2415,8 @@
       "protected_zone_cover_required": "Wählen Sie den einzelnen physischen Behang dieses Fensters.",
       "protected_zone_cover_invalid": "Der ausgewählte Behang ist in diesem Sonnensektor nicht verfügbar oder sein Typ unterstützt diese Berechnung nicht.",
       "protected_zone_window_geometry_range": "Geben Sie sinnvolle Fenstermaße und die Unterkante über dem Boden ein.",
-      "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen."
+      "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
+      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden."

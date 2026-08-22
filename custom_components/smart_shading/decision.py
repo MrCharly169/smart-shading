@@ -610,6 +610,10 @@ class ProtectedZone:
     object_width_m: float | None = None
     target_lateral_center_m: float | None = None
     target_lateral_width_m: float | None = None
+    condition_count: int = 0
+    conditions_met: bool | None = True
+    current_position: float | None = None
+    curtain_max_closing_step_percent: float = 15.0
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "zone_id", str(self.zone_id or ""))
@@ -666,6 +670,11 @@ class ProtectedZone:
             object_width_m=values.get("object_width_m"),
             target_lateral_center_m=values.get("target_lateral_center_m"),
             target_lateral_width_m=values.get("target_lateral_width_m"),
+            condition_count=len(values.get("conditions") or ()),
+            conditions_met=(True if not values.get("conditions") else None),
+            curtain_max_closing_step_percent=values.get(
+                "curtain_max_closing_step_percent", 15.0
+            ),
         )
 
 
@@ -788,7 +797,15 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
             errors.append(f"{key}_invalid")
 
     calculation_mode = str(zone.calculation_mode or "fixed")
-    if calculation_mode not in {"fixed", "top_down", "curtain", "binary", "vertical_slats"}:
+    if calculation_mode not in {
+        "fixed",
+        "top_down",
+        "curtain",
+        "curtain_closes_left_to_right",
+        "curtain_closes_right_to_left",
+        "binary",
+        "vertical_slats",
+    }:
         errors.append("calculation_mode_invalid")
     window_width = _finite_measurement(zone.window_width_m)
     window_height = _finite_measurement(zone.window_height_m)
@@ -819,6 +836,11 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
             errors.append("target_lateral_center_invalid")
         if lateral_width is None or not 0.0 <= lateral_width <= 30:
             errors.append("target_lateral_width_invalid")
+    step = _finite_measurement(zone.curtain_max_closing_step_percent)
+    if calculation_mode.startswith("curtain_closes_") and (
+        step is None or not 1.0 <= step <= 100.0
+    ):
+        errors.append("curtain_max_closing_step_invalid")
 
     details = {
         "distance_m": distance,
@@ -832,6 +854,7 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
         "window_sill_height_m": window_sill,
         "target_lateral_center_m": lateral_center,
         "target_lateral_width_m": lateral_width,
+        "curtain_max_closing_step_percent": step,
     }
     if errors:
         return ProtectedZoneValidation(
@@ -936,6 +959,11 @@ def _calculated_zone_target(
         "projected_lateral_range_m": projected_lateral,
         "window_lateral_range_m": window_lateral,
     }
+    clipped_lateral = (
+        max(projected_lateral[0], window_lateral[0]),
+        min(projected_lateral[1], window_lateral[1]),
+    )
+    details["clipped_lateral_range_m"] = clipped_lateral
     if mode == "top_down":
         # Home Assistant position semantics are 0 = closed, 100 = open.  A
         # top-down blind covers from the upper edge down to the aperture edge.
@@ -958,6 +986,51 @@ def _calculated_zone_target(
         )
         position = max(0.0, min(100.0, nearest_edge / (width / 2.0) * 100.0))
         details["central_opening_half_width_m"] = nearest_edge
+        details["calculated_position"] = position
+        return Target(position=position), details
+    if mode == "curtain_closes_left_to_right":
+        # Material enters from the left and its moving edge follows the right
+        # edge of the ray footprint clipped to the real window aperture.
+        # At first contact this produces a small movement; the target closes
+        # progressively as the sun footprint travels across the window.
+        movement_edge = clipped_lateral[1]
+        position = max(
+            0.0,
+            min(100.0, (window_lateral[1] - movement_edge) / width * 100.0),
+        )
+        raw_position = position
+        current = _finite_measurement(zone.current_position)
+        max_step = _finite_measurement(zone.curtain_max_closing_step_percent)
+        if current is not None and max_step is not None:
+            position = max(position, current - max_step)
+        details["curtain_closing_direction"] = "left_to_right"
+        details["curtain_movement_edge_m"] = movement_edge
+        details["raw_calculated_position"] = raw_position
+        details["closing_step_limited"] = position > raw_position
+        details["current_position"] = current
+        details["max_closing_step_percent"] = max_step
+        details["calculated_position"] = position
+        return Target(position=position), details
+    if mode == "curtain_closes_right_to_left":
+        # Material enters from the right; the moving edge follows the left
+        # edge of the clipped ray footprint.  This is the mirror image of the
+        # left-to-right calculation and remains monotonic during a sun sweep.
+        movement_edge = clipped_lateral[0]
+        position = max(
+            0.0,
+            min(100.0, (movement_edge - window_lateral[0]) / width * 100.0),
+        )
+        raw_position = position
+        current = _finite_measurement(zone.current_position)
+        max_step = _finite_measurement(zone.curtain_max_closing_step_percent)
+        if current is not None and max_step is not None:
+            position = max(position, current - max_step)
+        details["curtain_closing_direction"] = "right_to_left"
+        details["curtain_movement_edge_m"] = movement_edge
+        details["raw_calculated_position"] = raw_position
+        details["closing_step_limited"] = position > raw_position
+        details["current_position"] = current
+        details["max_closing_step_percent"] = max_step
         details["calculated_position"] = position
         return Target(position=position), details
     if mode == "binary":
@@ -1070,6 +1143,23 @@ def evaluate_protected_zone(
                 reason_code="protected_zone_other_group",
                 details={"requested_group_id": str(group_id), "group_ids": zone.group_ids},
             )
+
+    if zone.condition_count and zone.conditions_met is not True:
+        return ProtectedZoneEvaluation(
+            zone_id=zone.zone_id,
+            name=zone.name,
+            sector_id=zone.sector_id,
+            status=ProtectedZoneStatus.INACTIVE,
+            reason_code=(
+                "protected_zone_conditions_not_met"
+                if zone.conditions_met is False
+                else "protected_zone_conditions_unavailable"
+            ),
+            details={
+                "condition_count": zone.condition_count,
+                "conditions_met": zone.conditions_met,
+            },
+        )
 
     geometry_valid, geometry_reason, geometry_details = _validate_sun_geometry(geometry)
     if not geometry_valid:
