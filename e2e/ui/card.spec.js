@@ -186,6 +186,70 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   expect(errors).toEqual([]);
 });
 
+test("Badge editor keeps the native entity form mounted during live updates", async ({ page }) => {
+  const errors = captureSmartShadingBrowserErrors(page);
+  await login(page);
+  await page.evaluate(() => import("/smart_shading/shading.js"));
+  await page.waitForFunction(() => customElements.get("smart-shading-badge-editor"));
+
+  const result = await page.evaluate(async () => {
+    const hass = document.querySelector("home-assistant").hass;
+    const room = Object.values(hass.states).find(
+      (state) => state.attributes.smart_shading_room_id
+        && Array.isArray(state.attributes.sector_statuses)
+    );
+    if (!room) throw new Error("Missing Smart Shading room status");
+    const editor = document.createElement("smart-shading-badge-editor");
+    editor.setConfig({ entity: room.entity_id });
+    editor.hass = hass;
+    document.body.appendChild(editor);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const initialForm = editor.shadowRoot?.querySelector("ha-form");
+    if (!initialForm) throw new Error("Missing native ha-form");
+    let removedFormNodes = 0;
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if ([...record.removedNodes].includes(initialForm)) removedFormNodes += 1;
+      }
+    });
+    observer.observe(editor.shadowRoot, { childList: true, subtree: true });
+    initialForm.dataset.selectorOpenProbe = "true";
+    for (let index = 0; index < 8; index += 1) {
+      editor.hass = {
+        ...hass,
+        states: {
+          ...hass.states,
+          [room.entity_id]: {
+            ...room,
+            state: index % 2 ? "solar" : "open",
+            attributes: { ...room.attributes, reason: `Badge editor update ${index}` },
+          },
+        },
+      };
+      await Promise.resolve();
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const currentForm = editor.shadowRoot?.querySelector("ha-form");
+    const response = {
+      same_form: currentForm === initialForm,
+      removed_form_nodes: removedFormNodes,
+      probe_preserved: currentForm?.dataset.selectorOpenProbe === "true",
+      entity_preserved: currentForm?.data?.entity === room.entity_id,
+    };
+    observer.disconnect();
+    editor.remove();
+    return response;
+  });
+
+  expect(result).toEqual({
+    same_form: true,
+    removed_form_nodes: 0,
+    probe_preserved: true,
+    entity_preserved: true,
+  });
+  expect(errors).toEqual([]);
+});
+
 test("live Card updates never write dashboard scroll or replace stable nodes", async ({ page }) => {
   const errors = captureSmartShadingBrowserErrors(page);
   await login(page);

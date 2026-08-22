@@ -54,7 +54,7 @@ class FakeElement extends FakeNode {
   }
 }
 class FakeShadowRoot extends FakeNode {
-  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this._badge = null; this._queryCache = new Map(); this.activeElement = null; this.writeCount = 0; }
+  constructor() { super(); this._innerHTML = ""; this._dialog = null; this._main = null; this._badge = null; this._form = null; this._help = null; this._queryCache = new Map(); this.activeElement = null; this.writeCount = 0; }
   set innerHTML(value) {
     this._innerHTML = String(value || "");
     this._queryCache.clear();
@@ -68,12 +68,16 @@ class FakeShadowRoot extends FakeNode {
       this._main = null;
     }
     this._badge = this._innerHTML.includes("<ha-badge") ? new FakeElement() : null;
+    this._form = this._innerHTML.includes("<ha-form") ? new FakeElement() : null;
+    this._help = this._innerHTML.includes('class="help"') ? new FakeElement() : null;
   }
   get innerHTML() { return this._innerHTML; }
   querySelector(selector) {
     if (selector === ".dialog") return this._dialog;
     if (selector === "main") return this._main;
     if (selector === "ha-badge") return this._badge;
+    if (selector === "ha-form") return this._form;
+    if (selector === ".help") return this._help;
     return null;
   }
   querySelectorAll(selector) {
@@ -369,8 +373,20 @@ const badgeEditor = new BadgeEditor();
 badgeEditor.setConfig({ entity: "sensor.house_status" });
 badgeEditor.hass = { ...hass, language: "en" };
 if (!badgeEditor.shadowRoot.innerHTML.includes("<ha-form>")) throw new Error("Badge editor did not use Home Assistant's native entity form");
-if (!badgeEditor.shadowRoot.innerHTML.includes("native editors")) throw new Error("Badge editor did not delegate entity, interaction and visibility configuration");
+if (!badgeEditor.shadowRoot.querySelector(".help")?.textContent?.includes("native editors")) throw new Error("Badge editor did not delegate entity, interaction and visibility configuration");
 if (badgeEditor.shadowRoot.innerHTML.includes("<select")) throw new Error("Badge editor still rendered its own entity or state dropdown");
+const stableBadgeForm = badgeEditor.shadowRoot.querySelector("ha-form");
+const badgeEditorWrites = badgeEditor.shadowRoot.writeCount;
+stableBadgeForm.selectorOpen = true;
+stableBadgeForm.focused = true;
+badgeEditor.hass = { ...hass, language: "en", states: { ...hass.states, "sensor.extra_status": roomStatus } };
+badgeEditor.hass = { ...hass, language: "en", states: { ...hass.states, "sensor.room_status": { ...roomStatus, state: "heat" } } };
+if (badgeEditor.shadowRoot.querySelector("ha-form") !== stableBadgeForm
+  || badgeEditor.shadowRoot.writeCount !== badgeEditorWrites
+  || stableBadgeForm.selectorOpen !== true
+  || stableBadgeForm.focused !== true) throw new Error("Badge editor recreated or disturbed its open native entity selector during hass updates");
+stableBadgeForm.listeners.get("value-changed")?.({ detail: { value: { entity: "sensor.room_status" } } });
+if (badgeEditor.dispatchedEvents.at(-1)?.detail?.config?.entity !== "sensor.room_status") throw new Error("Stable badge editor did not emit the selected status entity");
 
 const curtainHeatBadge = new Badge();
 curtainHeatBadge.setConfig({ entity: "sensor.curtain_status" });

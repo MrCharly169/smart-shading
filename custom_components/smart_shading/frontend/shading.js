@@ -2230,39 +2230,67 @@ class SmartShadingBadgeEditor extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {};
     this._hass = null;
+    this._form = null;
+    this._help = null;
+    this._formLanguage = null;
+    this._handleFormChange = (event) => {
+      this._config = { ...this._config, ...(event.detail?.value || {}) };
+      this._emit();
+    };
   }
 
-  set hass(hass) { this._hass = hass; this._render(); }
-  setConfig(config = {}) { this._config = { ...(config || {}) }; this._render(); }
+  set hass(hass) {
+    this._hass = hass;
+    this._ensureStructure();
+    this._syncForm(false);
+  }
+  setConfig(config = {}) {
+    const nextConfig = { ...(config || {}) };
+    const dataChanged = nextConfig.entity !== this._config.entity || nextConfig.name !== this._config.name;
+    this._config = nextConfig;
+    this._ensureStructure();
+    this._syncForm(dataChanged);
+  }
   _emit() {
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: { ...this._config } }, bubbles: true, composed: true,
     }));
   }
-  _render() {
-    if (!this.shadowRoot) return;
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+
+  _ensureStructure() {
+    if (!this.shadowRoot || this._form) return;
     this.shadowRoot.innerHTML = `
       <style>:host{display:block;padding:4px 0}.help{margin-top:12px;font-size:11px;line-height:1.4;color:var(--secondary-text-color)}</style>
       <div class="editor">
         <ha-form></ha-form>
-        <div class="help">${de ? "Logo, Zusatzsymbol und Farbe folgen dem Status. Entität, Interaktion und Sichtbarkeit werden mit Home Assistants nativen Editoren konfiguriert; dieses Badge besitzt keine eigenen Navigate-, Hidden- oder Zustandslisten." : "Logo, marker and color follow the status. Configure the entity, interaction and visibility with Home Assistant's native editors; this Badge has no separate Navigate, Hidden or state lists."}</div>
+        <div class="help"></div>
       </div>`;
-    const form = this.shadowRoot.querySelector?.("ha-form");
-    if (!form) return;
-    form.hass = this._hass;
-    form.data = this._config;
-    form.schema = [
+    this._form = this.shadowRoot.querySelector?.("ha-form") || null;
+    this._help = this.shadowRoot.querySelector?.(".help") || null;
+    if (!this._form) return;
+    this._form.schema = [
       { name: "entity", required: true, selector: { entity: { domain: "sensor", integration: "smart_shading" } } },
       { name: "name", selector: { text: {} } },
     ];
-    form.computeLabel = (schema) => ({
-      entity: de ? "Status-Entität für Haus oder Raum" : "House or room status entity",
-      name: de ? "Name im Tooltip (optional)" : "Tooltip name (optional)",
-    }[schema.name] || schema.name);
-    form.addEventListener("value-changed", (event) => {
-      this._config = { ...this._config, ...(event.detail?.value || {}) }; this._emit();
-    });
+    this._form.addEventListener("value-changed", this._handleFormChange);
+  }
+
+  _syncForm(dataChanged) {
+    if (!this._form) return;
+    const language = String(this._hass?.language || "en").toLowerCase();
+    const de = language.startsWith("de");
+    if (this._form.hass !== this._hass) this._form.hass = this._hass;
+    if (dataChanged || this._form.data == null) this._form.data = { ...this._config };
+    if (this._formLanguage !== language) {
+      this._formLanguage = language;
+      this._form.computeLabel = (schema) => ({
+        entity: de ? "Status-Entität für Haus oder Raum" : "House or room status entity",
+        name: de ? "Name im Tooltip (optional)" : "Tooltip name (optional)",
+      }[schema.name] || schema.name);
+      if (this._help) this._help.textContent = de
+        ? "Logo, Zusatzsymbol und Farbe folgen dem Status. Entität, Interaktion und Sichtbarkeit werden mit Home Assistants nativen Editoren konfiguriert; dieses Badge besitzt keine eigenen Navigate-, Hidden- oder Zustandslisten."
+        : "Logo, marker and color follow the status. Configure the entity, interaction and visibility with Home Assistant's native editors; this Badge has no separate Navigate, Hidden or state lists.";
+    }
   }
 }
 
