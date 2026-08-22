@@ -2,12 +2,16 @@
 
 ## Unreleased
 
+
+## 2026.8.4b1 - 2026-08-22
+
 - Adopt ecosystem policy 1.6: approved integration and live Dashboard changes
   must exist in durable sources and tests before a fresh beta release workspace
   may publish or install them.
 - Keep the Home Assistant native entity selector in the Smart Shading Badge
   editor mounted across live `hass` updates, so opening the room-status chooser
   no longer collapses into a reopen/close loop.
+
 
 ## 2026.8.4b0 - 2026-08-22
 
