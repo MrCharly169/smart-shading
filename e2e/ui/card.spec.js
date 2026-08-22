@@ -190,6 +190,7 @@ test("Badge editor keeps the native entity form mounted during live updates", as
   const errors = captureSmartShadingBrowserErrors(page);
   await login(page);
   await page.goto("/dashboard-test/0");
+  await page.evaluate(() => import("/smart_shading/shading.js"));
   await page.waitForFunction(() => customElements.get("smart-shading-badge-editor"));
 
   const result = await page.evaluate(async () => {
