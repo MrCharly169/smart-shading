@@ -1739,6 +1739,50 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(zone["zone_id"], "desk")
         self.assertEqual(zone["status"], "hit")
 
+    async def test_native_conditions_gate_one_zone_and_are_reactive(self):
+        room = self.engine.room_config("room")
+        room.setdefault("advanced_features", []).append("glare_protection")
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "occupied-desk",
+            "name": "Occupied desk",
+            "sector_id": "south",
+            "group_ids": ["layer"],
+            "enabled": True,
+            "distance_m": 1.5,
+            "lower_height_m": 0.2,
+            "upper_height_m": 0.8,
+            "target_position": 15,
+            "conditions": [
+                {
+                    "condition": "state",
+                    "entity_id": "binary_sensor.desk_presence",
+                    "state": "on",
+                },
+                {
+                    "condition": "numeric_state",
+                    "entity_id": "sensor.desk_lux",
+                    "above": 500,
+                },
+            ],
+        }
+        sector["protected_zones"] = [values]
+        key = self.engine._protected_zone_condition_key("room", sector, values)
+        self.engine._protected_zone_condition_checkers[key] = (
+            types.SimpleNamespace(async_check=lambda: False)
+        )
+
+        zone = self.engine._advanced_protected_zones(
+            sector, room_id="room"
+        )[0]
+
+        self.assertEqual(zone.condition_count, 2)
+        self.assertFalse(zone.conditions_met)
+        self.assertIn(
+            "binary_sensor.desk_presence", self.engine.referenced_entities()
+        )
+        self.assertIn("sensor.desk_lux", self.engine.referenced_entities())
+
     async def test_calculated_glare_target_changes_only_its_exact_cover(self):
         room = self.engine.room_config("room")
         room.setdefault("advanced_features", []).append("glare_protection")

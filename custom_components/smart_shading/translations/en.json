@@ -660,6 +660,7 @@
               "name": "Zone name",
               "enabled": "Enable this zone",
               "cover_entity": "Cover for this window",
+              "curtain_movement": "Sideways curtain closing direction",
               "group_ids": "Affected cover groups",
               "calculated": "Calculate the position from the window and protected area"
             },
@@ -667,6 +668,7 @@
               "name": "A stable internal ID is generated when the zone is saved.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
               "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "curtain_movement": "For a sideways curtain, choose where the fabric starts and in which direction its moving edge closes. Other cover profiles ignore this field.",
               "group_ids": "Choose every cover group in this sector that this zone may protect.",
               "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
@@ -719,7 +721,7 @@
           },
           "protected_zone_object": {
             "name": "Protected object relative to the window",
-            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. Curtains are assumed to close symmetrically and vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
+            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. For sideways curtains, select the real closing direction above; their target follows the clipped sun footprint progressively. Vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
             "data": {
               "object_distance_m": "Distance from window to object",
               "object_center_height_m": "Object centre above floor",
@@ -733,6 +735,16 @@
               "object_height_m": "Total vertical height of the area that must stay shaded.",
               "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
               "object_width_m": "Total horizontal width of the area that must stay shaded."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optional activation conditions",
+            "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
+            "data": {
+              "conditions": "Conditions"
+            },
+            "data_description": {
+              "conditions": "Add one or more native Home Assistant conditions, for example a binary presence zone being on or a numeric sensor above or below a threshold. Multiple top-level conditions are combined with AND; groups may use AND, OR or NOT."
             }
           }
         }
@@ -773,6 +785,7 @@
               "name": "Zone name",
               "enabled": "Enable this zone",
               "cover_entity": "Cover for this window",
+              "curtain_movement": "Sideways curtain closing direction",
               "group_ids": "Affected cover groups",
               "calculated": "Calculate the position from the window and protected area"
             },
@@ -780,6 +793,7 @@
               "name": "The internal zone ID remains stable when the name changes.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
               "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "curtain_movement": "For a sideways curtain, choose where the fabric starts and in which direction its moving edge closes. Other cover profiles ignore this field.",
               "group_ids": "Choose every cover group in this sector that this zone may protect.",
               "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
@@ -845,6 +859,16 @@
               "object_height_m": "Total vertical height of the area that must stay shaded.",
               "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
               "object_width_m": "Total horizontal width of the area that must stay shaded."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optional activation conditions",
+            "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
+            "data": {
+              "conditions": "Conditions"
+            },
+            "data_description": {
+              "conditions": "Add one or more native Home Assistant conditions, for example a binary presence zone being on or a numeric sensor above or below a threshold. Multiple top-level conditions are combined with AND; groups may use AND, OR or NOT."
             }
           },
           "protected_zone_maintenance": {
@@ -1190,7 +1214,8 @@
       "protected_zone_cover_required": "Select the one physical cover that belongs to this window.",
       "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
-      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor."
+      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
+      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -2096,6 +2121,7 @@
               "name": "Zone name",
               "enabled": "Enable this zone",
               "cover_entity": "Cover for this window",
+              "curtain_movement": "Sideways curtain closing direction",
               "group_ids": "Affected cover groups",
               "calculated": "Calculate the position from the window and protected area"
             },
@@ -2103,6 +2129,7 @@
               "name": "A stable internal ID is generated when the zone is saved.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
               "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "curtain_movement": "For a sideways curtain, choose where the fabric starts and in which direction its moving edge closes. Other cover profiles ignore this field.",
               "group_ids": "Choose every cover group in this sector that this zone may protect.",
               "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
@@ -2155,7 +2182,7 @@
           },
           "protected_zone_object": {
             "name": "Protected object relative to the window",
-            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. Curtains are assumed to close symmetrically and vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
+            "description": "Measure only the table or object area that must not receive direct sun. Horizontal offsets are relative to the window centre; heights are relative to the finished floor. For sideways curtains, select the real closing direction above; their target follows the clipped sun footprint progressively. Vertical slats are an approximation. Exterior horizontal Venetian blinds and awnings are not offered here.",
             "data": {
               "object_distance_m": "Distance from window to object",
               "object_center_height_m": "Object centre above floor",
@@ -2169,6 +2196,16 @@
               "object_height_m": "Total vertical height of the area that must stay shaded.",
               "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
               "object_width_m": "Total horizontal width of the area that must stay shaded."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optional activation conditions",
+            "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
+            "data": {
+              "conditions": "Conditions"
+            },
+            "data_description": {
+              "conditions": "Add one or more native Home Assistant conditions, for example a binary presence zone being on or a numeric sensor above or below a threshold. Multiple top-level conditions are combined with AND; groups may use AND, OR or NOT."
             }
           }
         }
@@ -2209,6 +2246,7 @@
               "name": "Zone name",
               "enabled": "Enable this zone",
               "cover_entity": "Cover for this window",
+              "curtain_movement": "Sideways curtain closing direction",
               "group_ids": "Affected cover groups",
               "calculated": "Calculate the position from the window and protected area"
             },
@@ -2216,6 +2254,7 @@
               "name": "The internal zone ID remains stable when the name changes.",
               "enabled": "Disabled zones stay configured but do not request glare-protection targets.",
               "cover_entity": "Select exactly one physical cover. The calculation is made only for this cover and its window.",
+              "curtain_movement": "For a sideways curtain, choose where the fabric starts and in which direction its moving edge closes. Other cover profiles ignore this field.",
               "group_ids": "Choose every cover group in this sector that this zone may protect.",
               "calculated": "Calculates the position automatically from the sun, window and protected zone."
             }
@@ -2281,6 +2320,16 @@
               "object_height_m": "Total vertical height of the area that must stay shaded.",
               "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
               "object_width_m": "Total horizontal width of the area that must stay shaded."
+            }
+          },
+          "protected_zone_conditions": {
+            "name": "Optional activation conditions",
+            "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
+            "data": {
+              "conditions": "Conditions"
+            },
+            "data_description": {
+              "conditions": "Add one or more native Home Assistant conditions, for example a binary presence zone being on or a numeric sensor above or below a threshold. Multiple top-level conditions are combined with AND; groups may use AND, OR or NOT."
             }
           },
           "protected_zone_maintenance": {
@@ -2366,7 +2415,8 @@
       "protected_zone_cover_required": "Select the one physical cover that belongs to this window.",
       "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
-      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor."
+      "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
+      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."

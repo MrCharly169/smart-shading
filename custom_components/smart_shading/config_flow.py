@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 import hashlib
 import math
 import re
@@ -1123,12 +1124,19 @@ class _SmartShadingWizardMixin:
         )
 
     @staticmethod
-    def _protected_zone_calculation_mode(profile: str) -> str:
+    def _protected_zone_calculation_mode(
+        profile: str, curtain_movement: str = "symmetric"
+    ) -> str:
         """Return the supported object-protection calculation for a profile."""
+        if str(profile) == DEVICE_CURTAIN:
+            return {
+                "symmetric": "curtain",
+                "left_to_right": "curtain_closes_left_to_right",
+                "right_to_left": "curtain_closes_right_to_left",
+            }.get(str(curtain_movement), "")
         return {
             DEVICE_ROLLER: "top_down",
             DEVICE_SCREEN: "top_down",
-            DEVICE_CURTAIN: "curtain",
             DEVICE_BINARY: "binary",
             DEVICE_VERTICAL: "vertical_slats",
         }.get(str(profile), "")
@@ -1224,6 +1232,47 @@ class _SmartShadingWizardMixin:
             vol.Required(
                 "cover_entity", default=selected_cover
             ): self._protected_zone_cover_selector(),
+            vol.Required(
+                "curtain_movement",
+                default=str(
+                    zone.get("curtain_movement")
+                    or {
+                        "curtain_closes_left_to_right": "left_to_right",
+                        "curtain_closes_right_to_left": "right_to_left",
+                    }.get(str(zone.get("calculation_mode") or ""), "symmetric")
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {
+                            "value": "symmetric",
+                            "label": (
+                                "Mittig / symmetrisch"
+                                if self._is_german()
+                                else "Centre / symmetric"
+                            ),
+                        },
+                        {
+                            "value": "left_to_right",
+                            "label": (
+                                "Schließt von links nach rechts"
+                                if self._is_german()
+                                else "Closes from left to right"
+                            ),
+                        },
+                        {
+                            "value": "right_to_left",
+                            "label": (
+                                "Schließt von rechts nach links"
+                                if self._is_german()
+                                else "Closes from right to left"
+                            ),
+                        },
+                    ],
+                    mode="dropdown",
+                    multiple=False,
+                )
+            ),
         }
         if include_maintenance:
             identity[
@@ -1285,6 +1334,17 @@ class _SmartShadingWizardMixin:
             vol.Required("protected_zone_object"): section(
                 vol.Schema(protected_object),
                 {"collapsed": False},
+            ),
+            vol.Optional("protected_zone_conditions"): section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            "conditions",
+                            default=list(zone.get("conditions") or []),
+                        ): selector.ConditionSelector()
+                    }
+                ),
+                {"collapsed": not bool(zone.get("conditions"))},
             ),
         }
         if include_maintenance:
@@ -1386,9 +1446,18 @@ class _SmartShadingWizardMixin:
         profile = str(
             available_covers.get(cover_entity, {}).get("profile") or ""
         )
-        calculation_mode = self._protected_zone_calculation_mode(profile)
+        curtain_movement = str(
+            values.get("curtain_movement") or "symmetric"
+        )
+        calculation_mode = self._protected_zone_calculation_mode(
+            profile, curtain_movement
+        )
         if cover_entity and not calculation_mode:
             errors["base"] = "protected_zone_profile_not_supported"
+
+        conditions = values.get("conditions") or []
+        if not isinstance(conditions, list):
+            errors["base"] = "protected_zone_conditions_invalid"
 
         if errors:
             return None, errors
@@ -1408,6 +1477,9 @@ class _SmartShadingWizardMixin:
             "lower_height_m": lower_height_m,
             "upper_height_m": upper_height_m,
             "calculation_mode": calculation_mode,
+            "curtain_movement": curtain_movement,
+            "curtain_max_closing_step_percent": 15.0,
+            "conditions": list(conditions),
             "window_width_m": float(window_width_m),
             "window_height_m": float(window_height_m),
             "window_sill_height_m": float(window_sill_height_m),
@@ -1430,10 +1502,26 @@ class _SmartShadingWizardMixin:
         candidate = {
             "id": str(zone_values.get("id") or "preview"),
             **zone_values,
+            # The pre-save preview verifies physical geometry. Native
+            # conditions are compiled by the running engine after saving; do
+            # not let their intentionally unavailable preview state hide a
+            # valid sun/window calculation here.
+            "conditions": [],
         }
         zone = ProtectedZone.from_config(
             candidate, sector_id=str(sector.get("id") or "")
         )
+        if zone.calculation_mode.startswith("curtain_closes_"):
+            selected = self._protected_zone_covers().get(zone.cover_entity, {})
+            cover = selected.get("cover", {})
+            state = self.hass.states.get(zone.cover_entity)
+            current_position = parse_numeric_value(
+                state.attributes.get("current_position") if state else None
+            )
+            if current_position is not None:
+                if bool(cover.get("invert_position", False)):
+                    current_position = 100.0 - current_position
+                zone = replace(zone, current_position=current_position)
         validation = validate_protected_zone(zone)
         sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
         azimuth = parse_numeric_value(
@@ -1590,6 +1678,20 @@ class _SmartShadingWizardMixin:
                 f"{float(zone_values['object_distance_m']):.2f} m away, "
                 f"{float(zone_values['object_width_m']):.2f} × "
                 f"{float(zone_values['object_height_m']):.2f} m"
+            )
+        )
+        condition_count = len(zone_values.get("conditions") or [])
+        geometry_summary += (
+            (
+                f" · {condition_count} Aktivierungsbedingung"
+                if condition_count == 1
+                else f" · {condition_count} Aktivierungsbedingungen"
+            )
+            if german
+            else (
+                f" · {condition_count} activation condition"
+                if condition_count == 1
+                else f" · {condition_count} activation conditions"
             )
         )
         return {

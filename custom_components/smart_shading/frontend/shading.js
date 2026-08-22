@@ -730,6 +730,8 @@ class SmartShadingV4Dialog extends HTMLElement {
       protected_zone_sun_behind_facade: "Sonne hinter der Fassade",
       protected_zone_direct_sun_inactive: "Direkte Sonne nicht aktiv",
       protected_zone_disabled: "Zone deaktiviert",
+      protected_zone_conditions_not_met: "Aktivierungsbedingungen nicht erfüllt",
+      protected_zone_conditions_unavailable: "Aktivierungsbedingungen nicht auswertbar",
       protected_zone_invalid: "Zonengeometrie ungültig",
       protected_zone_valid: "Zonengeometrie gültig", protected_zone_sector_context_required: "Sonnensektor-Kontext fehlt",
       protected_zone_other_sector: "Andere Sonnensektoren-Zuordnung", protected_zone_group_context_required: "Behanggruppen-Kontext fehlt",
@@ -803,6 +805,8 @@ class SmartShadingV4Dialog extends HTMLElement {
       protected_zone_sun_behind_facade: "Sun is behind the facade",
       protected_zone_direct_sun_inactive: "Direct sun is inactive",
       protected_zone_disabled: "Zone disabled",
+      protected_zone_conditions_not_met: "Activation conditions are not met",
+      protected_zone_conditions_unavailable: "Activation conditions are unavailable",
       protected_zone_invalid: "Zone geometry is invalid",
       protected_zone_valid: "Zone geometry is valid", protected_zone_sector_context_required: "Sun-sector context is required",
       protected_zone_other_sector: "Assigned to another sun sector", protected_zone_group_context_required: "Cover-group context is required",
@@ -1440,6 +1444,21 @@ class SmartShadingV4Card extends HTMLElement {
     return { columns: 6, min_columns: 6, max_columns: 12 };
   }
 
+  _modeText(mode, profile = "") {
+    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    if (mode === "open" && profile === "awning") return de ? "Eingefahren" : "Retracted";
+    const values = de ? {
+      safety: "Safety", heat: "Heat Protection", glare: "Blendschutz", solar: "Sonnenschutz",
+      comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
+      disabled: "Master aktiv", finished: "Für heute beendet", night: "Nacht",
+    } : {
+      safety: "Safety", heat: "Heat protection", glare: "Glare protection", solar: "Solar shading",
+      comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready",
+      disabled: "Master active", finished: "Finished today", night: "Night",
+    };
+    return values[mode] || String(mode || "–");
+  }
+
   _viewSignature() {
     const roomState = this._resolvedRoomState();
     if (!roomState) {
@@ -1848,6 +1867,7 @@ class SmartShadingV4Card extends HTMLElement {
       const locked = cover.lock && this._state(cover.lock)?.state === "on";
       const unsafe = cover.window && this._state(cover.window)?.state !== (cover.window_safe_state || "on");
       const target = targetByEntity.get(cover.entity) || {};
+      const targetMode = target.decision_mode || target.mode || roomState.state;
       const openingLimit = target.maximum_opening || {};
       const localPause = coverPauseByEntity.get(cover.entity) || {};
       const locallyPaused = Boolean(localPause.active);
@@ -1862,7 +1882,7 @@ class SmartShadingV4Card extends HTMLElement {
         </button>
         <div class="bar ${position == null ? "unknown" : ""}">${position == null ? "" : `<i style="width:${position}%"></i>`}</div>
         ${tilt == null ? "" : `<div class="bar tilt"><i style="width:${clamp(tilt, 0, 100)}%"></i></div>`}
-        ${advancedMode && target.position != null ? `<div class="target-line">${openingLimit.enabled ? `${L.normalTarget} ${Math.round(Number(target.ordinary_position))}% · ${L.openingLimit} ${Math.round(Number(openingLimit.limit))}% · ${L.effectiveTarget} ${Math.round(Number(openingLimit.effective_position))}%` : `${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}`}</div>` : ""}
+        ${advancedMode && target.position != null ? `<div class="target-line"><strong>${htmlEscape(this._modeText(targetMode, cover.layer?.profile))}</strong> · ${openingLimit.enabled ? `${L.normalTarget} ${Math.round(Number(target.ordinary_position))}% · ${L.openingLimit} ${Math.round(Number(openingLimit.limit))}% · ${L.effectiveTarget} ${Math.round(Number(openingLimit.effective_position))}%` : `${L.position} ${Math.round(Number(target.position))}%${target.tilt == null ? "" : ` · ${L.tilt} ${Math.round(Number(target.tilt))}%`}`}</div>` : ""}
       </div>`;
     }).join("");
 
@@ -1933,7 +1953,7 @@ class SmartShadingV4Card extends HTMLElement {
         .chips{display:flex;flex-wrap:wrap;gap:6px}.chip{height:26px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:3px 7px;border:0;border-radius:999px;background:rgba(255,255,255,.065);color:inherit;font-size:10px;line-height:1;cursor:pointer}.chip.icon-only{width:26px;padding:0}.parts{display:inline-flex;align-items:center;gap:2px}.mini-part{min-width:19px;height:18px;border:0;padding:0 4px;border-radius:999px;color:inherit;font-size:9px;font-weight:900;line-height:1;cursor:pointer}.mini-part.good{background:rgba(130,220,150,.20)}.mini-part.bad{background:rgba(255,85,70,.38)}.mini-part.sunny{background:rgba(255,196,78,.28)}.mini-part.neutral{background:rgba(255,255,255,.07);opacity:.56}.chip.alert{background:rgba(255,80,66,.19)}
         .sunbox{padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.047);overflow:hidden}.sun-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:750}.sun-title span:last-child{font-weight:500;opacity:.55;white-space:nowrap}.track{position:relative;height:31px;margin:6px 0}.track:before{content:"";position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;background:rgba(255,255,255,.11)}.sector-bar{position:absolute;top:50%;height:7px;transform:translateY(-50%);border-radius:99px;background:rgba(255,183,76,.24)}.sector-bar.ready{height:9px;background:rgba(255,185,72,.55)}.sun-dot{position:absolute;left:${clamp(azimuth / 360 * 100,0,100)}%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border-radius:50%;background:#ffe08c;box-shadow:0 0 14px rgba(255,200,75,.35)}.track-labels{display:flex;justify-content:space-between;font-size:9px;opacity:.38}
         .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(118px,100%),1fr));gap:7px}.sector-card{border:0;border-radius:14px;background:rgba(255,255,255,.047);color:inherit;padding:9px 10px;display:flex;justify-content:space-between;align-items:center;gap:7px;text-align:left;cursor:pointer}.sector-card.active{background:rgba(255,188,72,.12)}.sector-card strong{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sector-card small{display:block;font-size:9px;opacity:.57;margin-top:2px}
-        .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar.unknown:after{content:"";display:block;width:100%;height:100%;background:rgba(255,255,255,.04)}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.48;margin-top:4px;overflow-wrap:anywhere}
+        .covers{display:grid;gap:7px}.cover-row{padding:7px;border-radius:12px;background:rgba(255,255,255,.018)}.cover-row.warning{background:rgba(255,78,65,.09)}.cover-head{width:100%;border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;text-align:left}.cover-name{display:flex;align-items:center;gap:5px;overflow:hidden}.cover-name strong{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.values{font-size:10px;opacity:.70;white-space:nowrap;flex:none}.bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:5px}.bar.unknown:after{content:"";display:block;width:100%;height:100%;background:rgba(255,255,255,.04)}.bar i{display:block;height:100%;border-radius:inherit;background:rgba(255,255,255,.62)}.bar.tilt{height:3px;margin-top:3px}.bar.tilt i{background:rgba(255,204,102,.58)}.warning .bar i{background:rgba(255,102,87,.78)}.target-line{font-size:9px;opacity:.58;margin-top:4px;overflow-wrap:anywhere}.target-line strong{font-weight:750;opacity:1}
         .footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}.actions{display:flex;align-items:center;gap:6px;margin-left:auto}.round{width:36px;height:36px;border:0;border-radius:50%;display:grid;place-items:center;align-content:center;justify-content:center;background:rgba(255,255,255,.075);color:inherit;cursor:pointer;padding:0;line-height:0}.round:hover{background:rgba(255,255,255,.14)}.round.active-master{background:rgba(255,70,60,.34)}.advanced-button{width:auto;border-radius:999px;padding:0 11px;gap:6px;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1}
         .easy-wrap{width:100%;padding:16px;display:grid;gap:12px;overflow:hidden}.easy-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.easy-brand{font-size:9px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;opacity:.45}.easy-room{margin-top:3px;font-size:19px;font-weight:850;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.easy-status{height:30px;max-width:48%;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.085);font-size:10px;font-weight:850;line-height:1;white-space:nowrap}.easy-status span:last-child{overflow:hidden;text-overflow:ellipsis}.master .easy-status{background:rgba(255,70,60,.28)}
         .easy-sun{width:100%;border:0;border-radius:17px;padding:11px 12px 9px;background:rgba(255,255,255,.048);color:inherit;display:grid;gap:3px;text-align:left;cursor:pointer}.easy-sun-head{display:flex;align-items:center;gap:9px}.easy-sun-copy{display:grid;gap:1px}.easy-sun-copy small{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.48}.easy-sun-copy strong{font-size:12px}.easy-track{height:23px;margin:2px 0 0}.easy-track .sector-bar{height:6px}.easy-track .sector-bar.ready{height:8px}.easy-track .sun-dot{width:13px;height:13px}

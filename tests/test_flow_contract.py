@@ -553,12 +553,28 @@ class WizardRouteContractTests(unittest.TestCase):
             "object_height_m",
             "object_lateral_center_m",
             "object_width_m",
+            "curtain_movement",
+            "conditions",
         ):
             self.assertIn(f'"{field}"', payload_source)
         self.assertNotIn('"group_ids"', payload_source)
         self.assertNotIn('"calculated"', payload_source)
         self.assertNotIn("distance_from_facade", payload_source)
         self.assertNotIn("protection_strength", payload_source)
+
+        form_source = ast.get_source_segment(
+            source,
+            next(
+                node
+                for node in self.mixin.body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "_protected_zone_form_sections"
+            ),
+        ) or ""
+        self.assertIn("selector.ConditionSelector()", form_source)
+        self.assertIn('vol.Optional("protected_zone_conditions")', form_source)
+        self.assertIn('"left_to_right"', form_source)
+        self.assertIn('"right_to_left"', form_source)
 
         add_source = ast.get_source_segment(
             source, _method(self.options_flow, "async_step_add_protected_zone")

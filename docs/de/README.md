@@ -164,6 +164,12 @@ Für Advanced-Entscheidungen ist die durch Code und Tests verifizierte, unverän
 
 Jeder passende und abgelehnte Kandidat bleibt im Advanced-Trace mit stabilem Grund und normalisierter Eingangsqualität erhalten. Die Befehlsplanung folgt erst danach. Ein neueres Ziel mit höherer Priorität verwirft veraltete verzögerte Arbeit. Die vollständigen technischen Verträge stehen unter [Advanced behavior](../ADVANCED_MODE.md) und [Mode architecture](../MODE_ARCHITECTURE.md).
 
+### Berechneter Blendschutz
+
+Eine Advanced-Schutzzone gehört zu genau einem physischen Behang und beschreibt das lichte Fenster sowie den Tisch, Sitzplatz, Bildschirm oder anderen Bereich, der nicht direkt von der Sonne getroffen werden soll. Seitlich laufende Vorhänge können mittig, von links nach rechts oder von rechts nach links schließen. Bei einem einseitigen Vorhang begrenzt Smart Shading den berechneten Sonnenkorridor auf die echte Fensteröffnung und folgt dessen wandernder Kante. Spätere Neuberechnungen ergeben dadurch fortlaufende Prozentziele, während die Sonne über den Schutzbereich wandert. Mit numerischer Positionsrückmeldung verschärft eine Neuberechnung das Blendschutzziel um höchstens 15 Prozentpunkte; dadurch kann die Blendschutzkorrektur selbst nicht von 100% direkt auf 0% springen. Ein strengeres normales Solar- oder Safety-Ziel behält seinen Vorrang.
+
+Dieselbe Zone kann eine oder mehrere native Home-Assistant-Bedingungen enthalten. So kann zum Beispiel ein binärer Präsenzbereich verlangen, dass jemand am Tisch sitzt; numerische Grenzwerte lassen sich in UND-, ODER- oder NICHT-Gruppen kombinieren. Eine falsche oder nicht verfügbare Bedingung deaktiviert nur diese Blendschutzzone. Die Advanced Card beschriftet das Ziel jedes einzelnen Behangs mit seinem aktiven Modus, etwa **Blendschutz** oder **Sonnenschutz**.
+
 ## Unterstützte Cover-Profile
 
 | Profil | Steuerungsmodell |

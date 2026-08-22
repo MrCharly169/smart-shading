@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import importlib.util
+from math import atan, degrees
 from pathlib import Path
 import sys
 import unittest
@@ -665,6 +666,122 @@ class ProtectedZoneTests(unittest.TestCase):
         self.assertEqual(evaluation.status, ProtectedZoneStatus.HIT)
         self.assertAlmostEqual(evaluation.target.position, 40.0)
         self.assertEqual(evaluation.details["calculation"], "curtain")
+
+    def test_right_to_left_curtain_tracks_the_sun_footprint_progressively(self):
+        zone = self._zone(
+            group_ids=(),
+            cover_entity="cover.curtain",
+            target_position=None,
+            target_tilt=None,
+            calculation_mode="curtain_closes_right_to_left",
+            window_width_m=2.0,
+            window_height_m=2.4,
+            window_sill_height_m=0.0,
+            object_distance_m=1.5,
+            object_center_height_m=0.5,
+            object_height_m=0.6,
+            object_lateral_center_m=0.0,
+            object_width_m=0.2,
+            target_lateral_center_m=0.0,
+            target_lateral_width_m=0.2,
+        )
+
+        positions = []
+        for lateral_offset in (0.8, 0.4, 0.0):
+            geometry = SunGeometry(
+                elevation_degrees=30,
+                azimuth_degrees=180 + degrees(atan(lateral_offset / 1.5)),
+                facade_azimuth_degrees=180,
+                window_lower_height_m=0,
+                window_upper_height_m=2.4,
+            )
+            evaluation = evaluate_protected_zone(
+                zone,
+                geometry,
+                sector_id="south",
+                cover_entity="cover.curtain",
+            )
+            self.assertEqual(evaluation.status, ProtectedZoneStatus.HIT)
+            positions.append(evaluation.target.position)
+
+        self.assertEqual([round(value) for value in positions], [85, 65, 45])
+        self.assertGreater(positions[0], positions[1])
+        self.assertGreater(positions[1], positions[2])
+
+    def test_sideways_curtain_never_jumps_from_fully_open_to_closed(self):
+        common = {
+            "group_ids": (),
+            "cover_entity": "cover.curtain",
+            "target_position": None,
+            "target_tilt": None,
+            "calculation_mode": "curtain_closes_right_to_left",
+            "window_width_m": 1.2,
+            "window_height_m": 2.0,
+            "window_sill_height_m": 0.8,
+            "distance_m": 1.0,
+            "lower_height_m": 0.75,
+            "upper_height_m": 1.25,
+            "object_distance_m": 1.0,
+            "object_center_height_m": 1.0,
+            "object_height_m": 0.5,
+            "object_lateral_center_m": -0.5,
+            "object_width_m": 2.0,
+            "target_lateral_center_m": -0.5,
+            "target_lateral_width_m": 2.0,
+        }
+        geometry = SunGeometry(
+            elevation_degrees=30,
+            azimuth_degrees=180 + degrees(atan(-0.075 / 1.0)),
+            facade_azimuth_degrees=180,
+            window_lower_height_m=0.8,
+            window_upper_height_m=2.8,
+        )
+
+        first = evaluate_protected_zone(
+            self._zone(**common, current_position=100),
+            geometry,
+            sector_id="south",
+            cover_entity="cover.curtain",
+        )
+        second = evaluate_protected_zone(
+            self._zone(**common, current_position=60),
+            geometry,
+            sector_id="south",
+            cover_entity="cover.curtain",
+        )
+
+        self.assertEqual(first.target.position, 85)
+        self.assertEqual(second.target.position, 45)
+        self.assertEqual(
+            apply_protected_zones(Target(position=60), (first,)).target.position,
+            60,
+        )
+        self.assertEqual(
+            apply_protected_zones(Target(position=60), (second,)).target.position,
+            45,
+        )
+        self.assertEqual(first.details["raw_calculated_position"], 0)
+        self.assertTrue(first.details["closing_step_limited"])
+
+    def test_zone_conditions_gate_only_that_glare_zone(self):
+        blocked = self._zone(condition_count=2, conditions_met=False)
+        unavailable = self._zone(condition_count=1, conditions_met=None)
+
+        blocked_result = evaluate_protected_zone(
+            blocked, self.geometry, sector_id="south", group_id="blinds"
+        )
+        unavailable_result = evaluate_protected_zone(
+            unavailable, self.geometry, sector_id="south", group_id="blinds"
+        )
+
+        self.assertEqual(blocked_result.status, ProtectedZoneStatus.INACTIVE)
+        self.assertEqual(
+            blocked_result.reason_code, "protected_zone_conditions_not_met"
+        )
+        self.assertEqual(
+            unavailable_result.reason_code,
+            "protected_zone_conditions_unavailable",
+        )
 
     def test_calculated_zone_requires_one_physical_cover(self):
         zone = self._zone(
