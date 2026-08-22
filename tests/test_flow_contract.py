@@ -572,6 +572,7 @@ class WizardRouteContractTests(unittest.TestCase):
             ),
         ) or ""
         self.assertIn("selector.ConditionSelector()", form_source)
+        self.assertIn('vol.Optional("protected_zone_conditions")', form_source)
         self.assertIn('"left_to_right"', form_source)
         self.assertIn('"right_to_left"', form_source)
 

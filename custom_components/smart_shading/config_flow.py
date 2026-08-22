@@ -1335,7 +1335,7 @@ class _SmartShadingWizardMixin:
                 vol.Schema(protected_object),
                 {"collapsed": False},
             ),
-            vol.Required("protected_zone_conditions"): section(
+            vol.Optional("protected_zone_conditions"): section(
                 vol.Schema(
                     {
                         vol.Optional(
