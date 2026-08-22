@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.5.0
+Policy-Version: 1.6.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -125,6 +125,30 @@ active/available mapping, dashboard destination, and verified local context.
 - An account must not be described as active without residence-specific
   evidence. Unverified account-based services remain available or explicitly
   approval-required until their customer mapping is confirmed.
+
+## Durable progress and release handoff
+
+Approved work is complete only when it can be reproduced from durable sources.
+
+- Live configuration, working-tree edits, chat notes and one-off artifacts are
+  not substitutes for canonical project files and regression tests. Every
+  approved product change must be present there before a release is prepared.
+- Installation-specific live changes must also be represented in the owning
+  Home Assistant workspace's apply, update or cleanup scripts and tests so a
+  later integration release or Dashboard rebuild preserves them.
+- Before any beta or stable preparation, push, publication or installation,
+  audit the canonical working tree and the selected source commit. The release
+  process must stop when an approved change would be absent from the selected
+  source commit, fresh release workspace or generated artifact.
+- Never discard, stash, overwrite or silently exclude pending user work to make
+  a release gate pass. Incorporate it, record an explicitly approved deferral
+  in a durable source, or stop and request direction.
+- Authorization to edit or test does not by itself authorize a push,
+  publication or installation. Where project instructions require it, obtain
+  explicit user authorization before those external actions.
+- After publication and installation, verify that the exact installed version
+  contains the approved change and that its related live configuration remains
+  present and idempotent.
 
 ## Beta release trains
 
