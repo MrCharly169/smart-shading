@@ -49,6 +49,16 @@ assert.deepStrictEqual(errors, []);
 
 handlers.console({
   type: () => "error",
+  text: () =>
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  location: () => ({
+    url: "http://ha.local/api/brands/integration/smart_shading_test_fixture/icon.png?token=e2e",
+  }),
+});
+assert.deepStrictEqual(errors, []);
+
+handlers.console({
+  type: () => "error",
   text: () => "Card rendering failed",
   location: () => ({ url: "http://ha.local/smart_shading/shading.js" }),
 });

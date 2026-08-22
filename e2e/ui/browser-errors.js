@@ -1,4 +1,6 @@
 const SMART_SHADING_SOURCE = /smart[-_\s]+shading/i;
+const FIXTURE_BRAND_ICON =
+  /\/api\/brands\/integration\/smart_shading_test_fixture\/icon\.png(?:\?|$)/i;
 
 function referencesSmartShading(...values) {
   return values.some(
@@ -12,6 +14,9 @@ function captureSmartShadingBrowserErrors(page) {
     if (message.type() !== "error") return;
     const text = message.text();
     const source = message.location()?.url || "";
+    if (/404 \(Not Found\)/i.test(text) && FIXTURE_BRAND_ICON.test(source)) {
+      return;
+    }
     if (referencesSmartShading(text, source)) {
       errors.push(source ? `${text} (${source})` : text);
     }
