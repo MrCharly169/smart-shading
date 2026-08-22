@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.4.0
+Policy-Version: 1.5.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -50,6 +50,38 @@ Visibility conditions whenever they can express the required behavior.
   compatibility fallback must be explicit.
 - Ecosystem migrations must update live dashboards, onboarding snippets,
   examples, E2E fixtures, tests, and release documentation together.
+
+## Notification navigation contract
+
+Mobile notification navigation and Dashboard return navigation are separate
+native Home Assistant concerns.
+
+- A Mobile App deep link uses the same relative Home Assistant path in `url`,
+  Android `clickAction`, and every matching `URI` action. Internal persistent
+  notifications use an equivalent relative Markdown link when navigation is
+  useful. Notification clear calls never receive navigation fields.
+- `navigation_path` belongs to a Badge or Card interaction. `back_path` belongs
+  only to the destination Lovelace Subview. A Badge, custom Card, notification
+  payload, or logical notification route must not invent a second Back-path
+  field or override the native Subview contract.
+- Every notification or Badge destination that is a Lovelace Subview must have
+  an explicit, valid `back_path`. The return target must be a non-Subview or a
+  deliberately selected parent view that the intended user can access.
+- A reusable integration must not hard-code an installation-specific Dashboard.
+  When it emits navigable notifications, its setup and options flow exposes the
+  notification destination and, when different, the intended return path. One
+  configured parent view may serve as both the notification destination and the
+  native return target of a separate detail Subview. Onboarding and examples
+  show that the return path is saved on the destination Subview. If the
+  integration does not own that Dashboard, it must not claim to have changed it.
+- Because native `back_path` is static per Subview, recipients that need
+  different return destinations use distinct Subview paths. Per-recipient route
+  metadata, query-string patches, browser-history assumptions, and global
+  frontend interception are not substitutes for this native model.
+- Notification audits cover UI-managed automations and scripts, Alarmo or
+  comparable stores, integration-generated notifications, and known YAML-only
+  sources. Inaccessible or dynamically templated sources remain explicit audit
+  findings rather than being reported as verified.
 
 ## Living customer documentation contract
 

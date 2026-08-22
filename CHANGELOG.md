@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2026.8.4b0 - 2026-08-22
+
+- Adopt the ecosystem-wide native notification navigation contract. Smart
+  Shading emits Home Assistant setup/status messages rather than Mobile App
+  deep links; Badge navigation remains in Home Assistant's native Interactions
+  editor and any return path remains owned by the destination Subview.
 - Extend the shared customer-documentation contract to private and MeyersHaff
   services with safe login guidance, Proxmox evidence and upstream monitoring.
 
@@ -27,7 +33,6 @@
   without blocking Solar, Comfort, Heat Protection or other protected zones
 - show the effective Glare Protection, Solar shading or other decision mode on
   each individual Advanced Card cover row alongside its calculated target
-
 ## 2026.8.2b0 - 2026-08-19
 
 ### Hybrid native Custom Badges
