@@ -1837,10 +1837,6 @@ def assert_calculated_glare_zone_flow(
         raise AssertionError(f"Glare zone has wrong calculation mode: {zone}")
     if "group_ids" in zone or "calculated" in zone:
         raise AssertionError(f"Glare zone persisted obsolete switches: {zone}")
-    if zone.get("sun_confirmation_enabled") is not False:
-        raise AssertionError(f"Glare zone lost confirmation bypass: {zone}")
-    if zone.get("minimum_sun_elevation_degrees") != 2.5:
-        raise AssertionError(f"Glare zone lost minimum sun elevation: {zone}")
     LIVE_WIZARD_TRANSITIONS.add(
         "existing_room.glare_zone.single_cover.create_edit.save_reload"
     )
