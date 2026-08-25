@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 2026.8.5b0 - 2026-08-25
+
+- Make one-sided curtain glare targets purely geometry-driven. The current sun
+  position maps directly to the current calculated percentage, so a presence
+  condition that becomes true late may immediately request 45%, 30% or the
+  other geometrically required target instead of always taking a 15-point
+  intermediate step.
+- Add per-protected-zone controls for direct-sun confirmation and minimum sun
+  elevation. Disabling confirmation affects only Glare Protection; facade
+  azimuth, the zone elevation floor, geometry, schedule and native conditions
+  remain mandatory.
+
+- Adopt ecosystem policy 1.7: author technical Home Assistant artifacts in
+  English regardless of the conversation language, and keep one identical
+  explicit HTTPS target across external notification navigation fields.
+
 
 ## 2026.8.4b1 - 2026-08-22
 

@@ -737,6 +737,18 @@
               "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sun activation",
+            "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
+            "data": {
+              "sun_confirmation_enabled": "Require sun confirmation",
+              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optional activation conditions",
             "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
@@ -859,6 +871,18 @@
               "object_height_m": "Total vertical height of the area that must stay shaded.",
               "object_lateral_center_m": "Horizontal offset of the object centre: negative is left and positive is right when looking into the room.",
               "object_width_m": "Total horizontal width of the area that must stay shaded."
+            }
+          },
+          "protected_zone_activation": {
+            "name": "Sun activation",
+            "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
+            "data": {
+              "sun_confirmation_enabled": "Require sun confirmation",
+              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
             }
           },
           "protected_zone_conditions": {
@@ -1215,7 +1239,8 @@
       "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
       "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
-      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty."
+      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty.",
+      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -2198,6 +2223,18 @@
               "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sun activation",
+            "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
+            "data": {
+              "sun_confirmation_enabled": "Require sun confirmation",
+              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optional activation conditions",
             "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
@@ -2322,6 +2359,18 @@
               "object_width_m": "Total horizontal width of the area that must stay shaded."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sun activation",
+            "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
+            "data": {
+              "sun_confirmation_enabled": "Require sun confirmation",
+              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optional activation conditions",
             "description": "Glare protection for this zone is active only when every configured condition passes. Leave empty to use only sun and geometry.",
@@ -2416,7 +2465,8 @@
       "protected_zone_cover_invalid": "The selected cover is not available in this sun sector or its cover type cannot use this calculation.",
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
       "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
-      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty."
+      "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty.",
+      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."

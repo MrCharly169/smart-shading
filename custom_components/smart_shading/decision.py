@@ -574,6 +574,7 @@ class SunGeometry:
     window_lower_height_m: float = 0.0
     window_upper_height_m: float = 2.4
     direct_sun: bool = True
+    sector_azimuth_active: bool = True
 
 
 @dataclass(frozen=True)
@@ -612,8 +613,8 @@ class ProtectedZone:
     target_lateral_width_m: float | None = None
     condition_count: int = 0
     conditions_met: bool | None = True
-    current_position: float | None = None
-    curtain_max_closing_step_percent: float = 15.0
+    sun_confirmation_enabled: bool = True
+    minimum_sun_elevation_degrees: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "zone_id", str(self.zone_id or ""))
@@ -643,6 +644,9 @@ class ProtectedZone:
         redundant field yet.
         """
 
+        sun_confirmation_enabled = _as_bool(
+            values.get("sun_confirmation_enabled", True)
+        )
         return cls(
             zone_id=str(values.get("id") or values.get("zone_id") or ""),
             name=str(values.get("name") or ""),
@@ -672,8 +676,13 @@ class ProtectedZone:
             target_lateral_width_m=values.get("target_lateral_width_m"),
             condition_count=len(values.get("conditions") or ()),
             conditions_met=(True if not values.get("conditions") else None),
-            curtain_max_closing_step_percent=values.get(
-                "curtain_max_closing_step_percent", 15.0
+            sun_confirmation_enabled=(
+                True
+                if sun_confirmation_enabled is None
+                else sun_confirmation_enabled
+            ),
+            minimum_sun_elevation_degrees=values.get(
+                "minimum_sun_elevation_degrees"
             ),
         )
 
@@ -836,11 +845,13 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
             errors.append("target_lateral_center_invalid")
         if lateral_width is None or not 0.0 <= lateral_width <= 30:
             errors.append("target_lateral_width_invalid")
-    step = _finite_measurement(zone.curtain_max_closing_step_percent)
-    if calculation_mode.startswith("curtain_closes_") and (
-        step is None or not 1.0 <= step <= 100.0
+    minimum_elevation = _finite_measurement(
+        zone.minimum_sun_elevation_degrees
+    )
+    if zone.minimum_sun_elevation_degrees is not None and (
+        minimum_elevation is None or not 0.0 <= minimum_elevation <= 90.0
     ):
-        errors.append("curtain_max_closing_step_invalid")
+        errors.append("minimum_sun_elevation_invalid")
 
     details = {
         "distance_m": distance,
@@ -854,7 +865,8 @@ def validate_protected_zone(zone: ProtectedZone) -> ProtectedZoneValidation:
         "window_sill_height_m": window_sill,
         "target_lateral_center_m": lateral_center,
         "target_lateral_width_m": lateral_width,
-        "curtain_max_closing_step_percent": step,
+        "sun_confirmation_enabled": zone.sun_confirmation_enabled,
+        "minimum_sun_elevation_degrees": minimum_elevation,
     }
     if errors:
         return ProtectedZoneValidation(
@@ -998,17 +1010,9 @@ def _calculated_zone_target(
             0.0,
             min(100.0, (window_lateral[1] - movement_edge) / width * 100.0),
         )
-        raw_position = position
-        current = _finite_measurement(zone.current_position)
-        max_step = _finite_measurement(zone.curtain_max_closing_step_percent)
-        if current is not None and max_step is not None:
-            position = max(position, current - max_step)
         details["curtain_closing_direction"] = "left_to_right"
         details["curtain_movement_edge_m"] = movement_edge
-        details["raw_calculated_position"] = raw_position
-        details["closing_step_limited"] = position > raw_position
-        details["current_position"] = current
-        details["max_closing_step_percent"] = max_step
+        details["geometry_driven_target"] = True
         details["calculated_position"] = position
         return Target(position=position), details
     if mode == "curtain_closes_right_to_left":
@@ -1020,17 +1024,9 @@ def _calculated_zone_target(
             0.0,
             min(100.0, (movement_edge - window_lateral[0]) / width * 100.0),
         )
-        raw_position = position
-        current = _finite_measurement(zone.current_position)
-        max_step = _finite_measurement(zone.curtain_max_closing_step_percent)
-        if current is not None and max_step is not None:
-            position = max(position, current - max_step)
         details["curtain_closing_direction"] = "right_to_left"
         details["curtain_movement_edge_m"] = movement_edge
-        details["raw_calculated_position"] = raw_position
-        details["closing_step_limited"] = position > raw_position
-        details["current_position"] = current
-        details["max_closing_step_percent"] = max_step
+        details["geometry_driven_target"] = True
         details["calculated_position"] = position
         return Target(position=position), details
     if mode == "binary":
@@ -1174,15 +1170,6 @@ def evaluate_protected_zone(
     assert geometry is not None  # Narrowed by _validate_sun_geometry.
     elevation = _finite_measurement(geometry.elevation_degrees)
     assert elevation is not None
-    if not geometry.direct_sun:
-        return ProtectedZoneEvaluation(
-            zone_id=zone.zone_id,
-            name=zone.name,
-            sector_id=zone.sector_id,
-            status=ProtectedZoneStatus.INACTIVE,
-            reason_code="protected_zone_direct_sun_inactive",
-            details=geometry_details,
-        )
     if elevation <= 0.0:
         return ProtectedZoneEvaluation(
             zone_id=zone.zone_id,
@@ -1191,6 +1178,42 @@ def evaluate_protected_zone(
             status=ProtectedZoneStatus.MISS,
             reason_code="protected_zone_sun_below_horizon",
             details=geometry_details,
+        )
+    if not geometry.sector_azimuth_active:
+        return ProtectedZoneEvaluation(
+            zone_id=zone.zone_id,
+            name=zone.name,
+            sector_id=zone.sector_id,
+            status=ProtectedZoneStatus.INACTIVE,
+            reason_code="protected_zone_sector_azimuth_inactive",
+            details=geometry_details,
+        )
+    minimum_elevation = (
+        _finite_measurement(zone.minimum_sun_elevation_degrees) or 0.0
+    )
+    if elevation < minimum_elevation:
+        return ProtectedZoneEvaluation(
+            zone_id=zone.zone_id,
+            name=zone.name,
+            sector_id=zone.sector_id,
+            status=ProtectedZoneStatus.MISS,
+            reason_code="protected_zone_below_minimum_sun_elevation",
+            details={
+                **dict(geometry_details),
+                "minimum_sun_elevation_degrees": minimum_elevation,
+            },
+        )
+    if zone.sun_confirmation_enabled and not geometry.direct_sun:
+        return ProtectedZoneEvaluation(
+            zone_id=zone.zone_id,
+            name=zone.name,
+            sector_id=zone.sector_id,
+            status=ProtectedZoneStatus.INACTIVE,
+            reason_code="protected_zone_direct_sun_inactive",
+            details={
+                **dict(geometry_details),
+                "sun_confirmation_enabled": True,
+            },
         )
 
     distance = _finite_measurement(zone.distance_m)

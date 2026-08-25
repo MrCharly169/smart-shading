@@ -554,6 +554,8 @@ class WizardRouteContractTests(unittest.TestCase):
             "object_lateral_center_m",
             "object_width_m",
             "curtain_movement",
+            "sun_confirmation_enabled",
+            "minimum_sun_elevation_degrees",
             "conditions",
         ):
             self.assertIn(f'"{field}"', payload_source)
@@ -572,9 +574,13 @@ class WizardRouteContractTests(unittest.TestCase):
             ),
         ) or ""
         self.assertIn("selector.ConditionSelector()", form_source)
+        self.assertIn('vol.Required("protected_zone_activation")', form_source)
+        self.assertIn('"sun_confirmation_enabled"', form_source)
+        self.assertIn('"minimum_sun_elevation_degrees"', form_source)
         self.assertIn('vol.Optional("protected_zone_conditions")', form_source)
         self.assertIn('"left_to_right"', form_source)
         self.assertIn('"right_to_left"', form_source)
+        self.assertNotIn("curtain_max_closing_step_percent", payload_source)
 
         add_source = ast.get_source_segment(
             source, _method(self.options_flow, "async_step_add_protected_zone")

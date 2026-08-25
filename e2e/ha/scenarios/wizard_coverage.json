@@ -109,6 +109,7 @@
     "enabled": "validation-unit",
     "delete_protected_zone": "validation-unit",
     "confirm_delete_protected_zone": "validation-unit",
+    "sun_confirmation_enabled": "real-ha-flow",
     "target_verification_enabled": "validation-unit",
     "verify_target": "validation-unit",
     "allow_automatic_reverse": "validation-unit",

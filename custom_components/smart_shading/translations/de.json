@@ -994,6 +994,18 @@
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sonnenaktivierung",
+            "description": "Legen Sie fest, ob diese Blendschutzzone die Bestätigung für direkte Sonne benötigt und wie tief die Sonne stehen darf.",
+            "data": {
+              "sun_confirmation_enabled": "Sonnenbestätigung verlangen",
+              "minimum_sun_elevation_degrees": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Nur für Blendschutzzonen ausschalten, die auch bei tief stehender Sonne reagieren sollen, wenn die Lux- oder externe Sonnenbestätigung nicht einschaltet. Azimut, Sonnenhöhe, Geometrie und eingestellte Bedingungen gelten weiterhin.",
+              "minimum_sun_elevation_degrees": "Unterhalb dieser Sonnenhöhe bleibt die Zone inaktiv. Bestehende Zonen übernehmen zunächst den Mindestwert des Sonnensektors."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -1118,6 +1130,18 @@
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sonnenaktivierung",
+            "description": "Legen Sie fest, ob diese Blendschutzzone die Bestätigung für direkte Sonne benötigt und wie tief die Sonne stehen darf.",
+            "data": {
+              "sun_confirmation_enabled": "Sonnenbestätigung verlangen",
+              "minimum_sun_elevation_degrees": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Nur für Blendschutzzonen ausschalten, die auch bei tief stehender Sonne reagieren sollen, wenn die Lux- oder externe Sonnenbestätigung nicht einschaltet. Azimut, Sonnenhöhe, Geometrie und eingestellte Bedingungen gelten weiterhin.",
+              "minimum_sun_elevation_degrees": "Unterhalb dieser Sonnenhöhe bleibt die Zone inaktiv. Bestehende Zonen übernehmen zunächst den Mindestwert des Sonnensektors."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -1215,7 +1239,8 @@
       "protected_zone_cover_invalid": "Der ausgewählte Behang ist in diesem Sonnensektor nicht verfügbar oder sein Typ unterstützt diese Berechnung nicht.",
       "protected_zone_window_geometry_range": "Geben Sie sinnvolle Fenstermaße und die Unterkante über dem Boden ein.",
       "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
-      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer."
+      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer.",
+      "protected_zone_minimum_elevation_range": "Stellen Sie eine minimale Sonnenhöhe zwischen 0° und 90° ein."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -2198,6 +2223,18 @@
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sonnenaktivierung",
+            "description": "Legen Sie fest, ob diese Blendschutzzone die Bestätigung für direkte Sonne benötigt und wie tief die Sonne stehen darf.",
+            "data": {
+              "sun_confirmation_enabled": "Sonnenbestätigung verlangen",
+              "minimum_sun_elevation_degrees": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Nur für Blendschutzzonen ausschalten, die auch bei tief stehender Sonne reagieren sollen, wenn die Lux- oder externe Sonnenbestätigung nicht einschaltet. Azimut, Sonnenhöhe, Geometrie und eingestellte Bedingungen gelten weiterhin.",
+              "minimum_sun_elevation_degrees": "Unterhalb dieser Sonnenhöhe bleibt die Zone inaktiv. Bestehende Zonen übernehmen zunächst den Mindestwert des Sonnensektors."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -2322,6 +2359,18 @@
               "object_width_m": "Gesamte horizontale Breite des Bereichs, der im Schatten bleiben soll."
             }
           },
+          "protected_zone_activation": {
+            "name": "Sonnenaktivierung",
+            "description": "Legen Sie fest, ob diese Blendschutzzone die Bestätigung für direkte Sonne benötigt und wie tief die Sonne stehen darf.",
+            "data": {
+              "sun_confirmation_enabled": "Sonnenbestätigung verlangen",
+              "minimum_sun_elevation_degrees": "Minimale Sonnenhöhe"
+            },
+            "data_description": {
+              "sun_confirmation_enabled": "Nur für Blendschutzzonen ausschalten, die auch bei tief stehender Sonne reagieren sollen, wenn die Lux- oder externe Sonnenbestätigung nicht einschaltet. Azimut, Sonnenhöhe, Geometrie und eingestellte Bedingungen gelten weiterhin.",
+              "minimum_sun_elevation_degrees": "Unterhalb dieser Sonnenhöhe bleibt die Zone inaktiv. Bestehende Zonen übernehmen zunächst den Mindestwert des Sonnensektors."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -2416,7 +2465,8 @@
       "protected_zone_cover_invalid": "Der ausgewählte Behang ist in diesem Sonnensektor nicht verfügbar oder sein Typ unterstützt diese Berechnung nicht.",
       "protected_zone_window_geometry_range": "Geben Sie sinnvolle Fenstermaße und die Unterkante über dem Boden ein.",
       "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
-      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer."
+      "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer.",
+      "protected_zone_minimum_elevation_range": "Stellen Sie eine minimale Sonnenhöhe zwischen 0° und 90° ein."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden."

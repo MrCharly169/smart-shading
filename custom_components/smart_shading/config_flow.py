@@ -1221,6 +1221,11 @@ class _SmartShadingWizardMixin:
             "object_height_m",
             max(0.01, legacy_upper - legacy_lower),
         )
+        sector_minimum_elevation = parse_numeric_value(
+            self.sector().get("elevation_min")
+        )
+        if sector_minimum_elevation is None:
+            sector_minimum_elevation = 0.0
         identity = {
             vol.Required(
                 "name",
@@ -1323,6 +1328,19 @@ class _SmartShadingWizardMixin:
                 ),
             ): _number(0.01, 30, 0.01, "m", mode="box"),
         }
+        activation = {
+            vol.Required(
+                "sun_confirmation_enabled",
+                default=bool(zone.get("sun_confirmation_enabled", True)),
+            ): selector.BooleanSelector(),
+            vol.Required(
+                "minimum_sun_elevation_degrees",
+                default=_stored_number(
+                    "minimum_sun_elevation_degrees",
+                    sector_minimum_elevation,
+                ),
+            ): _number(0, 90, 0.1, "°", mode="box"),
+        }
         sections: dict[Any, Any] = {
             vol.Required("protected_zone_identity"): section(
                 vol.Schema(identity), {"collapsed": False}
@@ -1333,6 +1351,10 @@ class _SmartShadingWizardMixin:
             ),
             vol.Required("protected_zone_object"): section(
                 vol.Schema(protected_object),
+                {"collapsed": False},
+            ),
+            vol.Required("protected_zone_activation"): section(
+                vol.Schema(activation),
                 {"collapsed": False},
             ),
             vol.Optional("protected_zone_conditions"): section(
@@ -1458,6 +1480,15 @@ class _SmartShadingWizardMixin:
         conditions = values.get("conditions") or []
         if not isinstance(conditions, list):
             errors["base"] = "protected_zone_conditions_invalid"
+        minimum_elevation, minimum_elevation_valid = _number_value(
+            "minimum_sun_elevation_degrees"
+        )
+        if (
+            not minimum_elevation_valid
+            or minimum_elevation is None
+            or not 0.0 <= minimum_elevation <= 90.0
+        ):
+            errors["base"] = "protected_zone_minimum_elevation_range"
 
         if errors:
             return None, errors
@@ -1478,7 +1509,10 @@ class _SmartShadingWizardMixin:
             "upper_height_m": upper_height_m,
             "calculation_mode": calculation_mode,
             "curtain_movement": curtain_movement,
-            "curtain_max_closing_step_percent": 15.0,
+            "sun_confirmation_enabled": bool(
+                values.get("sun_confirmation_enabled", True)
+            ),
+            "minimum_sun_elevation_degrees": float(minimum_elevation),
             "conditions": list(conditions),
             "window_width_m": float(window_width_m),
             "window_height_m": float(window_height_m),
@@ -1511,17 +1545,6 @@ class _SmartShadingWizardMixin:
         zone = ProtectedZone.from_config(
             candidate, sector_id=str(sector.get("id") or "")
         )
-        if zone.calculation_mode.startswith("curtain_closes_"):
-            selected = self._protected_zone_covers().get(zone.cover_entity, {})
-            cover = selected.get("cover", {})
-            state = self.hass.states.get(zone.cover_entity)
-            current_position = parse_numeric_value(
-                state.attributes.get("current_position") if state else None
-            )
-            if current_position is not None:
-                if bool(cover.get("invert_position", False)):
-                    current_position = 100.0 - current_position
-                zone = replace(zone, current_position=current_position)
         validation = validate_protected_zone(zone)
         sun = self.hass.states.get(DEFAULT_SUN_ENTITY)
         azimuth = parse_numeric_value(
@@ -1533,7 +1556,7 @@ class _SmartShadingWizardMixin:
         start = parse_numeric_value(sector.get("azimuth_start"))
         end = parse_numeric_value(sector.get("azimuth_end"))
         minimum = parse_numeric_value(sector.get("elevation_min")) or 0.0
-        geometry_active = bool(
+        azimuth_active = bool(
             sun
             and sun.state == "above_horizon"
             and azimuth is not None
@@ -1541,6 +1564,10 @@ class _SmartShadingWizardMixin:
             and start is not None
             and end is not None
             and azimuth_inside(azimuth, start, end)
+            and elevation > 0.0
+        )
+        geometry_active = bool(
+            azimuth_active
             and elevation >= minimum
         )
         source = sun_source_for_sector(sector, advanced=True)
@@ -1581,6 +1608,7 @@ class _SmartShadingWizardMixin:
             )
             + float(zone_values.get("window_height_m", 0.0)),
             direct_sun=confirmed,
+            sector_azimuth_active=azimuth_active,
         )
         evaluation = evaluate_protected_zone(
             zone,

@@ -1900,6 +1900,49 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             runtime.decision_trace["winner"]["rule"], "glare_protection"
         )
 
+    async def test_low_sun_glare_can_bypass_confirmation_per_zone(self):
+        room = self.engine.room_config("room")
+        room.setdefault("advanced_features", []).append("glare_protection")
+        sector = self.engine.sector_config("south")
+        sector["protected_zones"] = [
+            {
+                "id": "low-sun-desk",
+                "name": "Low sun desk",
+                "sector_id": "south",
+                "group_ids": ["layer"],
+                "enabled": True,
+                "distance_m": 1.5,
+                "lower_height_m": 0.2,
+                "upper_height_m": 0.8,
+                "target_position": 15,
+                "target_tilt": 95,
+                "sun_confirmation_enabled": False,
+                "minimum_sun_elevation_degrees": 2.5,
+            }
+        ]
+        self.hass.states.values["sun.sun"] = FakeState(
+            "above_horizon", azimuth=180, elevation=3.0
+        )
+        self.hass.states.values["sensor.lux"] = FakeState(
+            "1000", unit_of_measurement="lx"
+        )
+        self.engine.sun_runtime["south"].is_on = False
+        self.engine.sun_runtime["south"].current_lux = 1000
+
+        await self.engine._evaluate_room(
+            room, datetime(2026, 8, 24, 18, 0, tzinfo=timezone.utc)
+        )
+
+        runtime = self.engine.rooms["room"]
+        self.assertEqual(runtime.mode, "glare")
+        self.assertEqual(runtime.targets[0]["position"], 15.0)
+        self.assertNotIn(
+            "sector:south:sun_confirmation",
+            self.engine._decision_required_inputs(
+                room, sector, False, glare_active=True
+            ),
+        )
+
     async def test_general_schedule_blocks_standalone_glare(self):
         room = self.engine.room_config("room")
         room.setdefault("advanced_features", []).append("glare_protection")
