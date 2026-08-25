@@ -64,6 +64,8 @@ NON_SETTING_SCHEMA_FIELDS = {
     "protected_zone_target",
     "protected_zone_window",
     "protected_zone_object",
+    "protected_zone_activation",
+    "protected_zone_conditions",
     "protected_zone_maintenance",
 }
 
@@ -1714,6 +1716,8 @@ def assert_calculated_glare_zone_flow(
         "object_height_m",
         "object_lateral_center_m",
         "object_width_m",
+        "sun_confirmation_enabled",
+        "minimum_sun_elevation_degrees",
     ):
         if required not in fields:
             raise AssertionError(
@@ -1729,6 +1733,7 @@ def assert_calculated_glare_zone_flow(
         "protected_zone_identity": {
             "name": "Dining table",
             "cover_entity": "cover.advanced_curtain",
+            "curtain_movement": "symmetric",
         },
         "protected_zone_window": {
             "window_width_m": 2.4,
@@ -1741,6 +1746,10 @@ def assert_calculated_glare_zone_flow(
             "object_height_m": 0.8,
             "object_lateral_center_m": 0.3,
             "object_width_m": 1.2,
+        },
+        "protected_zone_activation": {
+            "sun_confirmation_enabled": False,
+            "minimum_sun_elevation_degrees": 2.5,
         },
     }
     result = submit_options_flow(
@@ -1828,6 +1837,10 @@ def assert_calculated_glare_zone_flow(
         raise AssertionError(f"Glare zone has wrong calculation mode: {zone}")
     if "group_ids" in zone or "calculated" in zone:
         raise AssertionError(f"Glare zone persisted obsolete switches: {zone}")
+    if zone.get("sun_confirmation_enabled") is not False:
+        raise AssertionError(f"Glare zone lost confirmation bypass: {zone}")
+    if zone.get("minimum_sun_elevation_degrees") != 2.5:
+        raise AssertionError(f"Glare zone lost minimum sun elevation: {zone}")
     LIVE_WIZARD_TRANSITIONS.add(
         "existing_room.glare_zone.single_cover.create_edit.save_reload"
     )
