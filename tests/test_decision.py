@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import importlib.util
@@ -425,12 +426,62 @@ class ProtectedZoneTests(unittest.TestCase):
                 "upper_height_m": 1.0,
                 "target_position": 25,
                 "target_tilt": 85,
+                "sun_confirmation_enabled": False,
+                "minimum_sun_elevation_degrees": 2.5,
             },
             sector_id="south",
         )
         self.assertEqual(zone.zone_id, "desk")
         self.assertEqual(zone.sector_id, "south")
         self.assertEqual(zone.group_ids, ("blinds",))
+        self.assertFalse(zone.sun_confirmation_enabled)
+        self.assertEqual(zone.minimum_sun_elevation_degrees, 2.5)
+
+    def test_zone_can_explicitly_bypass_sun_confirmation(self):
+        unconfirmed = replace(self.geometry, direct_sun=False)
+        required = evaluate_protected_zone(
+            self._zone(sun_confirmation_enabled=True),
+            unconfirmed,
+            sector_id="south",
+            group_id="blinds",
+        )
+        bypassed = evaluate_protected_zone(
+            self._zone(sun_confirmation_enabled=False),
+            unconfirmed,
+            sector_id="south",
+            group_id="blinds",
+        )
+
+        self.assertEqual(required.status, ProtectedZoneStatus.INACTIVE)
+        self.assertEqual(
+            required.reason_code, "protected_zone_direct_sun_inactive"
+        )
+        self.assertEqual(bypassed.status, ProtectedZoneStatus.HIT)
+
+    def test_zone_minimum_sun_elevation_is_independent_from_confirmation(self):
+        zone = self._zone(
+            sun_confirmation_enabled=False,
+            minimum_sun_elevation_degrees=2.5,
+        )
+        below = evaluate_protected_zone(
+            zone,
+            replace(self.geometry, elevation_degrees=2.4, direct_sun=False),
+            sector_id="south",
+            group_id="blinds",
+        )
+        above = evaluate_protected_zone(
+            zone,
+            replace(self.geometry, elevation_degrees=2.5, direct_sun=False),
+            sector_id="south",
+            group_id="blinds",
+        )
+
+        self.assertEqual(below.status, ProtectedZoneStatus.MISS)
+        self.assertEqual(
+            below.reason_code,
+            "protected_zone_below_minimum_sun_elevation",
+        )
+        self.assertEqual(above.status, ProtectedZoneStatus.HIT)
 
     def test_vertical_miss_keeps_ordinary_solar_target(self):
         zone = self._zone(
@@ -707,61 +758,55 @@ class ProtectedZoneTests(unittest.TestCase):
         self.assertEqual([round(value) for value in positions], [85, 65, 45])
         self.assertGreater(positions[0], positions[1])
         self.assertGreater(positions[1], positions[2])
+        self.assertTrue(evaluation.details["geometry_driven_target"])
 
-    def test_sideways_curtain_never_jumps_from_fully_open_to_closed(self):
+    def test_late_condition_activation_uses_current_geometric_target_directly(self):
         common = {
             "group_ids": (),
             "cover_entity": "cover.curtain",
             "target_position": None,
             "target_tilt": None,
             "calculation_mode": "curtain_closes_right_to_left",
-            "window_width_m": 1.2,
-            "window_height_m": 2.0,
-            "window_sill_height_m": 0.8,
-            "distance_m": 1.0,
-            "lower_height_m": 0.75,
-            "upper_height_m": 1.25,
-            "object_distance_m": 1.0,
-            "object_center_height_m": 1.0,
-            "object_height_m": 0.5,
-            "object_lateral_center_m": -0.5,
-            "object_width_m": 2.0,
-            "target_lateral_center_m": -0.5,
-            "target_lateral_width_m": 2.0,
+            "window_width_m": 2.0,
+            "window_height_m": 2.4,
+            "window_sill_height_m": 0.0,
+            "distance_m": 1.5,
+            "lower_height_m": 0.2,
+            "upper_height_m": 0.8,
+            "object_distance_m": 1.5,
+            "object_center_height_m": 0.5,
+            "object_height_m": 0.6,
+            "object_lateral_center_m": 0.0,
+            "object_width_m": 0.2,
+            "target_lateral_center_m": 0.0,
+            "target_lateral_width_m": 0.2,
+            "condition_count": 1,
         }
         geometry = SunGeometry(
             elevation_degrees=30,
-            azimuth_degrees=180 + degrees(atan(-0.075 / 1.0)),
+            azimuth_degrees=180,
             facade_azimuth_degrees=180,
-            window_lower_height_m=0.8,
-            window_upper_height_m=2.8,
+            window_lower_height_m=0.0,
+            window_upper_height_m=2.4,
         )
 
-        first = evaluate_protected_zone(
-            self._zone(**common, current_position=100),
+        absent = evaluate_protected_zone(
+            self._zone(**common, conditions_met=False),
             geometry,
             sector_id="south",
             cover_entity="cover.curtain",
         )
-        second = evaluate_protected_zone(
-            self._zone(**common, current_position=60),
+        present = evaluate_protected_zone(
+            self._zone(**common, conditions_met=True),
             geometry,
             sector_id="south",
             cover_entity="cover.curtain",
         )
 
-        self.assertEqual(first.target.position, 85)
-        self.assertEqual(second.target.position, 45)
-        self.assertEqual(
-            apply_protected_zones(Target(position=60), (first,)).target.position,
-            60,
-        )
-        self.assertEqual(
-            apply_protected_zones(Target(position=60), (second,)).target.position,
-            45,
-        )
-        self.assertEqual(first.details["raw_calculated_position"], 0)
-        self.assertTrue(first.details["closing_step_limited"])
+        self.assertEqual(absent.status, ProtectedZoneStatus.INACTIVE)
+        self.assertEqual(present.status, ProtectedZoneStatus.HIT)
+        self.assertEqual(present.target.position, 45)
+        self.assertTrue(present.details["geometry_driven_target"])
 
     def test_zone_conditions_gate_only_that_glare_zone(self):
         blocked = self._zone(condition_count=2, conditions_met=False)

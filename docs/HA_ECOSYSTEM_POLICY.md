@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.6.0
+Policy-Version: 1.7.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -18,6 +18,23 @@ A change is **ecosystem-wide** when it changes a convention, entity contract,
 dashboard behavior, release rule, or frontend pattern that can apply to more
 than one registered integration. Such a change must be recorded here and in
 every affected project mirror before it is considered complete.
+
+## Home Assistant language contract
+
+All technical Home Assistant artifacts are authored in English,
+regardless of the conversation language used to request or discuss the work.
+
+- This includes entity and helper names, automation and script aliases and
+  descriptions, Dashboard titles and labels, notification copy and action
+  labels, source comments, logs, diagnostics, service descriptions, errors,
+  setup and options flows, and default status text.
+- Stable identifiers, entity IDs, translation keys and code-facing values use
+  English `snake_case` or the native convention required by Home Assistant.
+- Proper names and established physical area names may remain unchanged.
+- Home Assistant translation files may localize user-facing strings, but their
+  source keys and complete English default remain authoritative.
+- The living customer documentation remains multilingual where its own
+  contract requires Luxembourgish, German, French and English.
 
 ## Native-first Home Assistant contract
 
@@ -56,10 +73,12 @@ Visibility conditions whenever they can express the required behavior.
 Mobile notification navigation and Dashboard return navigation are separate
 native Home Assistant concerns.
 
-- A Mobile App deep link uses the same relative Home Assistant path in `url`,
-  Android `clickAction`, and every matching `URI` action. Internal persistent
-  notifications use an equivalent relative Markdown link when navigation is
-  useful. Notification clear calls never receive navigation fields.
+- A Mobile App notification uses one identical destination in `url`, Android
+  `clickAction`, and every matching `URI` action. An internal Home Assistant
+  destination is a relative Home Assistant path; an external web destination
+  is the same explicit `https://` URL in all three fields. Internal persistent
+  notifications use an equivalent Markdown link when navigation is useful.
+  Notification clear calls never receive navigation fields.
 - `navigation_path` belongs to a Badge or Card interaction. `back_path` belongs
   only to the destination Lovelace Subview. A Badge, custom Card, notification
   payload, or logical notification route must not invent a second Back-path

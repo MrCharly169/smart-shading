@@ -4083,6 +4083,17 @@ class SmartShadingEngine:
                 zone = ProtectedZone.from_config(
                     values, sector_id=str(sector.get("id") or "")
                 )
+                if zone.minimum_sun_elevation_degrees is None:
+                    zone = replace(
+                        zone,
+                        minimum_sun_elevation_degrees=float(
+                            self.sector_value(
+                                str(sector.get("id") or ""),
+                                "elevation_min",
+                                sector.get("elevation_min", 0),
+                            )
+                        ),
+                    )
                 if zone.condition_count:
                     zone = replace(
                         zone,
@@ -4090,26 +4101,6 @@ class SmartShadingEngine:
                             room_id, sector, values
                         ),
                     )
-                if zone.calculation_mode.startswith("curtain_closes_"):
-                    cover_config = next(
-                        (
-                            cover
-                            for candidate_layer in sector.get("layers", [])
-                            for cover in candidate_layer.get("covers", [])
-                            if isinstance(cover, dict)
-                            and str(cover.get("entity") or "")
-                            == zone.cover_entity
-                        ),
-                        None,
-                    )
-                    cover_state = self.hass.states.get(zone.cover_entity)
-                    current_position = self._state_attribute_number(
-                        cover_state, "current_position"
-                    )
-                    if current_position is not None and cover_config is not None:
-                        if bool(cover_config.get("invert_position", False)):
-                            current_position = 100.0 - current_position
-                        zone = replace(zone, current_position=current_position)
                 if layer is not None and not supports_tilt and zone.target_tilt is not None:
                     # A protected zone may narrow position for every profile,
                     # but only real slat profiles may receive a tilt command.
@@ -4181,7 +4172,13 @@ class SmartShadingEngine:
         keys = ["sun_state", "sun_azimuth", "sun_elevation"]
         if sector is not None:
             sector_id = str(sector.get("id") or "")
-            if sector_id:
+            if (
+                sector_id
+                and not (
+                    glare_active
+                    and self._sector_has_glare_confirmation_bypass(sector)
+                )
+            ):
                 keys.append(f"sector:{sector_id}:sun_confirmation")
         if glare_active and not normal_mode_active:
             return tuple(dict.fromkeys(keys))
@@ -4268,6 +4265,9 @@ class SmartShadingEngine:
                     resolved_facts.get("solar_active")
                     or resolved_facts.get("comfort_active")
                     or (sector_runtime and sector_runtime.effective_active)
+                ),
+                sector_azimuth_active=self._virtual_sector_azimuth_active(
+                    snapshot, sector
                 ),
             )
         return DecisionContext(
@@ -4409,10 +4409,22 @@ class SmartShadingEngine:
             and runtime.pause_until > when
         )
 
-    def _virtual_sector_geometry(
+    @staticmethod
+    def _sector_has_glare_confirmation_bypass(
+        sector: dict[str, Any],
+    ) -> bool:
+        """Return whether one enabled protected zone ignores confirmation."""
+        return any(
+            isinstance(zone, dict)
+            and bool(zone.get("enabled", True))
+            and zone.get("sun_confirmation_enabled", True) is False
+            for zone in sector.get("protected_zones", [])
+        )
+
+    def _virtual_sector_azimuth_active(
         self, snapshot: InputSnapshot, sector: dict[str, Any]
     ) -> bool:
-        """Derive facade geometry from virtual sun inputs."""
+        """Derive above-horizon facade azimuth without an elevation floor."""
         sun_state = snapshot.get("sun_state")
         azimuth = self._virtual_input_number(snapshot, "sun_azimuth")
         elevation = self._virtual_input_number(snapshot, "sun_elevation")
@@ -4421,28 +4433,42 @@ class SmartShadingEngine:
             or str(sun_state.value).lower() != "above_horizon"
             or azimuth is None
             or elevation is None
+            or elevation <= 0.0
+        ):
+            return False
+        try:
+            return azimuth_inside(
+                azimuth,
+                float(
+                    self.sector_value(
+                        sector["id"],
+                        "azimuth_start",
+                        sector.get("azimuth_start", 0),
+                    )
+                ),
+                float(
+                    self.sector_value(
+                        sector["id"],
+                        "azimuth_end",
+                        sector.get("azimuth_end", 359),
+                    )
+                ),
+            )
+        except (KeyError, TypeError, ValueError):
+            return False
+
+    def _virtual_sector_geometry(
+        self, snapshot: InputSnapshot, sector: dict[str, Any]
+    ) -> bool:
+        """Derive facade geometry from virtual sun inputs."""
+        elevation = self._virtual_input_number(snapshot, "sun_elevation")
+        if elevation is None or not self._virtual_sector_azimuth_active(
+            snapshot, sector
         ):
             return False
         try:
             return bool(
-                azimuth_inside(
-                    azimuth,
-                    float(
-                        self.sector_value(
-                            sector["id"],
-                            "azimuth_start",
-                            sector.get("azimuth_start", 0),
-                        )
-                    ),
-                    float(
-                        self.sector_value(
-                            sector["id"],
-                            "azimuth_end",
-                            sector.get("azimuth_end", 359),
-                        )
-                    ),
-                )
-                and elevation
+                elevation
                 >= float(
                     self.sector_value(
                         sector["id"],
@@ -4453,6 +4479,43 @@ class SmartShadingEngine:
             )
         except (KeyError, TypeError, ValueError):
             return False
+
+    def _virtual_glare_confirmation_bypass_active(
+        self, snapshot: InputSnapshot, sector: dict[str, Any]
+    ) -> bool:
+        """Allow configured glare geometry without a Lux/external signal."""
+        if not self._virtual_sector_azimuth_active(snapshot, sector):
+            return False
+        elevation = self._virtual_input_number(snapshot, "sun_elevation")
+        if elevation is None:
+            return False
+        sector_id = str(sector.get("id") or "")
+        try:
+            sector_minimum = float(
+                self.sector_value(
+                    sector_id,
+                    "elevation_min",
+                    sector.get("elevation_min", 0),
+                )
+            )
+        except (TypeError, ValueError):
+            return False
+        for zone in sector.get("protected_zones", []):
+            if (
+                not isinstance(zone, dict)
+                or not bool(zone.get("enabled", True))
+                or zone.get("sun_confirmation_enabled", True) is not False
+            ):
+                continue
+            try:
+                minimum = float(
+                    zone.get("minimum_sun_elevation_degrees", sector_minimum)
+                )
+            except (TypeError, ValueError):
+                continue
+            if 0.0 <= minimum <= 90.0 and elevation >= minimum:
+                return True
+        return False
 
     @staticmethod
     def _virtual_trajectory_geometry(
@@ -4934,6 +4997,9 @@ class SmartShadingEngine:
         sector_sun, source_unavailable = self._virtual_sector_sun_state(
             sector, snapshot
         )
+        glare_confirmation_bypass = (
+            self._virtual_glare_confirmation_bypass_active(snapshot, sector)
+        )
         occupied = (
             not room.get("occupancy_sensor")
             or self._virtual_input_bool(snapshot, "occupancy") is True
@@ -5025,7 +5091,13 @@ class SmartShadingEngine:
             night_active=night_active,
             heat_active=heat_active,
             schedule_hold_active=(not schedule_active and not heat_active and not open_active),
-            glare_allowed=bool(schedule_active and sector_sun and not source_unavailable),
+            glare_allowed=bool(
+                schedule_active
+                and (
+                    glare_confirmation_bypass
+                    or (sector_sun and not source_unavailable)
+                )
+            ),
             solar_active=solar_active,
             comfort_active=comfort_active,
             open_active=open_active,
