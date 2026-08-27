@@ -1215,6 +1215,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn('"cover_profiles"', sensor)
         self.assertIn("STATE_ATTRIBUTE_BUDGET = 15_500", sensor)
         self.assertIn("_compact_room_configuration", sensor)
+        self.assertIn('"condition_activation_delay_seconds"', sensor)
+        self.assertIn('"condition_release_delay_seconds"', sensor)
         self.assertIn("_fit_attribute_budget", sensor)
 
     def test_canonical_domain_and_card_names(self):
