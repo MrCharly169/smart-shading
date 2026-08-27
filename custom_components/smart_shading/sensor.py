@@ -90,6 +90,8 @@ def _compact_room_configuration(room: dict) -> dict:
                         for key in (
                             "id", "name", "enabled", "cover_entity",
                             "calculation_mode",
+                            "condition_activation_delay_seconds",
+                            "condition_release_delay_seconds",
                         )
                         if zone.get(key) not in (None, "")
                     }

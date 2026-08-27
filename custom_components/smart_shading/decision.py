@@ -613,6 +613,8 @@ class ProtectedZone:
     target_lateral_width_m: float | None = None
     condition_count: int = 0
     conditions_met: bool | None = True
+    condition_status: str = "not_configured"
+    condition_deadline: str | None = None
     sun_confirmation_enabled: bool = True
     minimum_sun_elevation_degrees: float | None = None
 
@@ -676,6 +678,9 @@ class ProtectedZone:
             target_lateral_width_m=values.get("target_lateral_width_m"),
             condition_count=len(values.get("conditions") or ()),
             conditions_met=(True if not values.get("conditions") else None),
+            condition_status=(
+                "not_configured" if not values.get("conditions") else "unavailable"
+            ),
             sun_confirmation_enabled=(
                 True
                 if sun_confirmation_enabled is None
@@ -1154,6 +1159,8 @@ def evaluate_protected_zone(
             details={
                 "condition_count": zone.condition_count,
                 "conditions_met": zone.conditions_met,
+                "condition_status": zone.condition_status,
+                "condition_deadline": zone.condition_deadline,
             },
         )
 
@@ -1242,6 +1249,10 @@ def evaluate_protected_zone(
     projected = (float(lower) + vertical_drop, float(upper) + vertical_drop)
     details: dict[str, Any] = {
         **geometry_details,
+        "condition_count": zone.condition_count,
+        "conditions_met": zone.conditions_met,
+        "condition_status": zone.condition_status,
+        "condition_deadline": zone.condition_deadline,
         "distance_m": distance,
         "protected_height_range_m": (lower, upper),
         "window_height_range_m": (window_lower, window_upper),

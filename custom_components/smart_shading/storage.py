@@ -31,6 +31,7 @@ class RuntimeStore:
             "room_runtime": {},
             "sun_runtime": {},
             "cover_runtime": {},
+            "protected_zone_condition_runtime": {},
             # The ownership ledger and last decision trace intentionally live
             # beside legacy cover pause state.  They survive a Home Assistant
             # restart and let diagnostics explain both why a cover was moved
@@ -40,7 +41,7 @@ class RuntimeStore:
             "queued_commands": [],
             "card_notification_ids": [],
             "day_key": None,
-            "runtime_schema": 5,
+            "runtime_schema": 6,
         }
 
     async def async_load(self) -> None:
@@ -125,8 +126,14 @@ class RuntimeStore:
                         "active" if runtime.get("heat_active") else "inactive",
                     )
                 changed = True
+            if schema < 6:
+                if not isinstance(
+                    self.data.get("protected_zone_condition_runtime"), dict
+                ):
+                    self.data["protected_zone_condition_runtime"] = {}
+                changed = True
             if changed:
-                self.data["runtime_schema"] = 5
+                self.data["runtime_schema"] = 6
                 await self.async_save()
 
     async def async_save(self) -> None:
@@ -199,6 +206,29 @@ class RuntimeStore:
     async def async_delete_cover_runtime(self, cover_id: str) -> None:
         if cover_id in self.data.setdefault("cover_runtime", {}):
             self.data["cover_runtime"].pop(cover_id, None)
+            await self.async_save()
+
+    def protected_zone_condition_runtime(self) -> dict[str, dict[str, Any]]:
+        """Return the persisted condition latch for every protected zone."""
+        values = self.data.setdefault("protected_zone_condition_runtime", {})
+        return deepcopy(values if isinstance(values, dict) else {})
+
+    async def async_save_protected_zone_condition_runtime(
+        self, key: str, values: dict[str, Any]
+    ) -> None:
+        runtimes = self.data.setdefault("protected_zone_condition_runtime", {})
+        new_value = deepcopy(values)
+        if runtimes.get(key) == new_value:
+            return
+        runtimes[key] = new_value
+        await self.async_save()
+
+    async def async_delete_protected_zone_condition_runtime(
+        self, key: str
+    ) -> None:
+        runtimes = self.data.setdefault("protected_zone_condition_runtime", {})
+        if key in runtimes:
+            runtimes.pop(key, None)
             await self.async_save()
 
     def command_ledger(self, cover_id: str) -> dict[str, Any]:

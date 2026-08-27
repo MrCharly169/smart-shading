@@ -294,6 +294,11 @@ class SmartShadingEngine:
         self._protected_zone_condition_checkers: dict[str, Any] = {}
         self._protected_zone_condition_errors: set[str] = set()
         self._protected_zone_condition_configs: dict[str, list[Any]] = {}
+        self._protected_zone_condition_runtime: dict[str, dict[str, Any]] = {}
+        self._protected_zone_condition_timer_unsubs: dict[
+            str, Callable[[], None]
+        ] = {}
+        self._protected_zone_condition_save_tasks: set[asyncio.Task[Any]] = set()
         self._schedule_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._heat_release_timer_unsubs: dict[str, Callable[[], None]] = {}
         self._evaluate_lock = asyncio.Lock()
@@ -348,6 +353,7 @@ class SmartShadingEngine:
 
     async def async_initialize(self) -> None:
         await self.store.async_load()
+        self._restore_protected_zone_condition_runtime()
         try:
             self.command_planner.restore_ledger(
                 self.store.data.get("command_ledger", {})
@@ -374,6 +380,29 @@ class SmartShadingEngine:
 
     def reload_config(self) -> None:
         self.config = working_config(self.entry.data, self.entry.options)
+
+    def _restore_protected_zone_condition_runtime(self) -> None:
+        """Restore condition latches without trusting malformed timestamps."""
+        self._protected_zone_condition_runtime.clear()
+        for key, values in self.store.protected_zone_condition_runtime().items():
+            if not isinstance(values, dict):
+                continue
+            self._protected_zone_condition_runtime[str(key)] = {
+                "active": bool(values.get("active", False)),
+                "pending_target": (
+                    values.get("pending_target")
+                    if isinstance(values.get("pending_target"), bool)
+                    else None
+                ),
+                "pending_since": _parse_datetime(values.get("pending_since")),
+                "pending_until": _parse_datetime(values.get("pending_until")),
+                "last_raw": (
+                    values.get("last_raw")
+                    if isinstance(values.get("last_raw"), bool)
+                    else None
+                ),
+                "status": str(values.get("status") or "unavailable"),
+            }
 
     def _rebuild_runtime(self) -> None:
         configured_room_ids: set[str] = set()
@@ -782,6 +811,9 @@ class SmartShadingEngine:
         self._protected_zone_condition_checkers.clear()
         self._protected_zone_condition_errors.clear()
         self._protected_zone_condition_configs.clear()
+        for unsub in self._protected_zone_condition_timer_unsubs.values():
+            unsub()
+        self._protected_zone_condition_timer_unsubs.clear()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -4011,6 +4043,7 @@ class SmartShadingEngine:
         """Compile each zone's native HA conditions once per engine start."""
         from homeassistant.helpers import condition as condition_helper
 
+        configured_keys: set[str] = set()
         for room in self.config.get(CONF_ROOMS, []):
             for sector in room.get("sectors", []):
                 for values in sector.get("protected_zones", []):
@@ -4022,6 +4055,7 @@ class SmartShadingEngine:
                     key = self._protected_zone_condition_key(
                         str(room.get("id") or ""), sector, values
                     )
+                    configured_keys.add(key)
                     try:
                         validated = await condition_helper.async_validate_conditions_config(
                             self.hass, list(conditions)
@@ -4041,29 +4075,191 @@ class SmartShadingEngine:
                         continue
                     self._protected_zone_condition_configs[key] = list(validated)
                     self._protected_zone_condition_checkers[key] = checker
+        for key in set(self._protected_zone_condition_runtime) - configured_keys:
+            self._protected_zone_condition_runtime.pop(key, None)
+            await self.store.async_delete_protected_zone_condition_runtime(key)
+
+    @staticmethod
+    def _protected_zone_condition_delay(
+        values: dict[str, Any], key: str
+    ) -> float:
+        try:
+            delay = float(values.get(key, 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, min(86400.0, delay)) if math.isfinite(delay) else 0.0
+
+    def _schedule_protected_zone_condition_timer(
+        self, key: str, deadline: datetime | None
+    ) -> None:
+        previous = self._protected_zone_condition_timer_unsubs.pop(key, None)
+        if previous is not None:
+            previous()
+        if deadline is None:
+            return
+        delay = max(0.0, (deadline - dt_util.now()).total_seconds())
+
+        async def _expired(_now) -> None:
+            self._protected_zone_condition_timer_unsubs.pop(key, None)
+            await self._queue_evaluation(
+                f"protected_zone_condition_deadline:{key}", immediate=True
+            )
+
+        self._protected_zone_condition_timer_unsubs[key] = async_call_later(
+            self.hass, delay, _expired
+        )
+
+    def _persist_protected_zone_condition_runtime(
+        self, key: str, runtime: dict[str, Any]
+    ) -> None:
+        serialized = {
+            "active": bool(runtime.get("active", False)),
+            "pending_target": runtime.get("pending_target"),
+            "pending_since": _serialize_datetime(runtime.get("pending_since")),
+            "pending_until": _serialize_datetime(runtime.get("pending_until")),
+            "last_raw": runtime.get("last_raw"),
+            "status": str(runtime.get("status") or "inactive"),
+        }
+        persisted = self.store.data.setdefault(
+            "protected_zone_condition_runtime", {}
+        )
+        if persisted.get(key) == serialized:
+            return
+        persisted[key] = serialized
+        task = asyncio.get_running_loop().create_task(self.store.async_save())
+        self._protected_zone_condition_save_tasks.add(task)
+        task.add_done_callback(
+            self._protected_zone_condition_save_tasks.discard
+        )
+
+    def _protected_zone_condition_latch(
+        self,
+        key: str,
+        raw: bool | None,
+        values: dict[str, Any],
+        now: datetime,
+    ) -> tuple[bool | None, str, datetime | None]:
+        """Apply restart-safe activation and release hysteresis to a zone."""
+        runtime = self._protected_zone_condition_runtime.setdefault(
+            key,
+            {
+                "active": False,
+                "pending_target": None,
+                "pending_since": None,
+                "pending_until": None,
+                "last_raw": None,
+                "status": "unavailable",
+            },
+        )
+        active = bool(runtime.get("active", False))
+        pending_target = runtime.get("pending_target")
+        pending_until = runtime.get("pending_until")
+        if not isinstance(pending_until, datetime):
+            pending_until = None
+        activation_delay = self._protected_zone_condition_delay(
+            values, "condition_activation_delay_seconds"
+        )
+        release_delay = self._protected_zone_condition_delay(
+            values, "condition_release_delay_seconds"
+        )
+
+        if raw is True:
+            if active:
+                pending_target = None
+                pending_until = None
+                runtime["pending_since"] = None
+            elif activation_delay <= 0:
+                active = True
+                pending_target = None
+                pending_until = None
+                runtime["pending_since"] = None
+            elif pending_target is not True or pending_until is None:
+                pending_target = True
+                runtime["pending_since"] = now
+                pending_until = now + timedelta(seconds=activation_delay)
+            elif now >= pending_until:
+                active = True
+                pending_target = None
+                pending_until = None
+                runtime["pending_since"] = None
+        else:
+            if active:
+                if release_delay <= 0:
+                    active = False
+                    pending_target = None
+                    pending_until = None
+                    runtime["pending_since"] = None
+                elif pending_target is not False or pending_until is None:
+                    pending_target = False
+                    runtime["pending_since"] = now
+                    pending_until = now + timedelta(seconds=release_delay)
+                elif now >= pending_until:
+                    active = False
+                    pending_target = None
+                    pending_until = None
+                    runtime["pending_since"] = None
+            else:
+                pending_target = None
+                pending_until = None
+                runtime["pending_since"] = None
+
+        status = (
+            "release_grace"
+            if active and pending_target is False
+            else "active"
+            if active
+            else "activation_pending"
+            if pending_target is True
+            else "unavailable"
+            if raw is None
+            else "inactive"
+        )
+        runtime.update(
+            {
+                "active": active,
+                "pending_target": pending_target,
+                "pending_until": pending_until,
+                "last_raw": raw,
+                "status": status,
+            }
+        )
+        self._schedule_protected_zone_condition_timer(key, pending_until)
+        self._persist_protected_zone_condition_runtime(key, runtime)
+        effective: bool | None = (
+            True
+            if active
+            else None
+            if raw is None and pending_target is None
+            else False
+        )
+        return effective, status, pending_until
 
     def _protected_zone_conditions_met(
         self,
         room_id: str,
         sector: dict[str, Any],
         values: dict[str, Any],
-    ) -> bool | None:
-        """Return true only when all configured native conditions pass."""
+        now: datetime,
+    ) -> tuple[bool | None, str, datetime | None]:
+        """Return the debounced aggregate result and its diagnostic state."""
         if not values.get("conditions"):
-            return True
+            return True, "not_configured", None
         key = self._protected_zone_condition_key(room_id, sector, values)
         if key in self._protected_zone_condition_errors:
-            return None
+            raw = None
+            return self._protected_zone_condition_latch(key, raw, values, now)
         checker = self._protected_zone_condition_checkers.get(key)
         if checker is None:
-            return None
+            raw = None
+            return self._protected_zone_condition_latch(key, raw, values, now)
         try:
-            return bool(checker.async_check())
+            raw = bool(checker.async_check())
         except Exception:
             _LOGGER.exception(
                 "Could not evaluate conditions for protected zone %s", key
             )
-            return None
+            raw = None
+        return self._protected_zone_condition_latch(key, raw, values, now)
 
     def _advanced_protected_zones(
         self,
@@ -4071,6 +4267,7 @@ class SmartShadingEngine:
         layer: dict[str, Any] | None = None,
         *,
         room_id: str = "",
+        now: datetime | None = None,
     ) -> tuple[ProtectedZone, ...]:
         """Adapt persisted Advanced-only zone dictionaries to pure objects."""
         zones: list[ProtectedZone] = []
@@ -4095,11 +4292,19 @@ class SmartShadingEngine:
                         ),
                     )
                 if zone.condition_count:
+                    conditions_met, condition_status, condition_deadline = (
+                        self._protected_zone_conditions_met(
+                            room_id,
+                            sector,
+                            values,
+                            now or dt_util.now(),
+                        )
+                    )
                     zone = replace(
                         zone,
-                        conditions_met=self._protected_zone_conditions_met(
-                            room_id, sector, values
-                        ),
+                        conditions_met=conditions_met,
+                        condition_status=condition_status,
+                        condition_deadline=_serialize_datetime(condition_deadline),
                     )
                 if layer is not None and not supports_tilt and zone.target_tilt is not None:
                     # A protected zone may narrow position for every profile,
@@ -4311,6 +4516,7 @@ class SmartShadingEngine:
                     sector,
                     layer,
                     room_id=str(room.get("id") or ""),
+                    now=now,
                 )
                 if (
                     sector is not None

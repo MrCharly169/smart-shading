@@ -556,6 +556,8 @@ class WizardRouteContractTests(unittest.TestCase):
             "curtain_movement",
             "sun_confirmation_enabled",
             "minimum_sun_elevation_degrees",
+            "condition_activation_delay_seconds",
+            "condition_release_delay_seconds",
             "conditions",
         ):
             self.assertIn(f'"{field}"', payload_source)
@@ -577,6 +579,8 @@ class WizardRouteContractTests(unittest.TestCase):
         self.assertIn('vol.Required("protected_zone_activation")', form_source)
         self.assertIn('"sun_confirmation_enabled"', form_source)
         self.assertIn('"minimum_sun_elevation_degrees"', form_source)
+        self.assertIn('"condition_activation_delay_seconds"', form_source)
+        self.assertIn('"condition_release_delay_seconds"', form_source)
         self.assertIn('vol.Optional("protected_zone_conditions")', form_source)
         self.assertIn('"left_to_right"', form_source)
         self.assertIn('"right_to_left"', form_source)

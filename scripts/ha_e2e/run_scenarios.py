@@ -1718,6 +1718,8 @@ def assert_calculated_glare_zone_flow(
         "object_width_m",
         "sun_confirmation_enabled",
         "minimum_sun_elevation_degrees",
+        "condition_activation_delay_seconds",
+        "condition_release_delay_seconds",
     ):
         if required not in fields:
             raise AssertionError(
@@ -1750,6 +1752,8 @@ def assert_calculated_glare_zone_flow(
         "protected_zone_activation": {
             "sun_confirmation_enabled": False,
             "minimum_sun_elevation_degrees": 2.5,
+            "condition_activation_delay_seconds": 60,
+            "condition_release_delay_seconds": 300,
         },
     }
     result = submit_options_flow(
@@ -1835,6 +1839,10 @@ def assert_calculated_glare_zone_flow(
         raise AssertionError(f"Glare zone lost exact cover scope: {zone}")
     if zone.get("calculation_mode") != "curtain":
         raise AssertionError(f"Glare zone has wrong calculation mode: {zone}")
+    if zone.get("condition_activation_delay_seconds") != 60.0:
+        raise AssertionError(f"Glare activation delay was not persisted: {zone}")
+    if zone.get("condition_release_delay_seconds") != 300.0:
+        raise AssertionError(f"Glare release delay was not persisted: {zone}")
     if "group_ids" in zone or "calculated" in zone:
         raise AssertionError(f"Glare zone persisted obsolete switches: {zone}")
     LIVE_WIZARD_TRANSITIONS.add(

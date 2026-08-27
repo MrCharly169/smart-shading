@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 from copy import deepcopy
 from enum import IntFlag
@@ -1401,7 +1402,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "cover_runtime": {"cover_one": {"active": True}},
         }
         await store.async_load()
-        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(store.data["runtime_schema"], 6)
         self.assertEqual(store.data["room_runtime"]["room"]["suppressed_commands"], 0)
         self.assertEqual(store.data["room_runtime"]["room"]["sent_commands"], 5)
         self.assertTrue(store.data["cover_runtime"]["cover_one"]["active"])
@@ -1414,7 +1415,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         await store.async_load()
 
-        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(store.data["runtime_schema"], 6)
         self.assertIsInstance(store.data["room_runtime"], dict)
         self.assertEqual(store.data["queued_commands"], [])
 
@@ -1434,7 +1435,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         }
         await store.async_load()
         layer = store.data["overrides"]["layer"]["layer"]
-        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(store.data["runtime_schema"], 6)
         self.assertEqual(layer["tilt_value_1"], 90.0)
         self.assertEqual(layer["heat_tilt"], 100.0)
         self.assertEqual(layer["open_position"], 100)
@@ -1459,7 +1460,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         await store.async_load()
 
-        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(store.data["runtime_schema"], 6)
         self.assertEqual(
             store.data["overrides"]["room"]["room"][
                 "pause_duration_hours"
@@ -1511,7 +1512,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         await store.async_load()
 
-        self.assertEqual(store.data["runtime_schema"], 5)
+        self.assertEqual(store.data["runtime_schema"], 6)
         self.assertEqual(
             store.data["command_ledger"]["cover_one"]["marker"], "keep"
         )
@@ -1782,6 +1783,118 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "binary_sensor.desk_presence", self.engine.referenced_entities()
         )
         self.assertIn("sensor.desk_lux", self.engine.referenced_entities())
+
+    async def test_protected_zone_condition_latch_debounces_presence_chatter(self):
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "stable-desk",
+            "name": "Stable desk",
+            "sector_id": "south",
+            "group_ids": ["layer"],
+            "enabled": True,
+            "distance_m": 1.5,
+            "lower_height_m": 0.2,
+            "upper_height_m": 0.8,
+            "conditions": [
+                {
+                    "condition": "state",
+                    "entity_id": "binary_sensor.desk_presence",
+                    "state": "on",
+                }
+            ],
+            "condition_activation_delay_seconds": 60,
+            "condition_release_delay_seconds": 300,
+        }
+        sector["protected_zones"] = [values]
+        raw = {"value": True}
+        key = self.engine._protected_zone_condition_key("room", sector, values)
+        self.engine._protected_zone_condition_checkers[key] = (
+            types.SimpleNamespace(async_check=lambda: raw["value"])
+        )
+        start = datetime(2026, 8, 27, 16, 0, tzinfo=timezone.utc)
+
+        pending = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start
+        )[0]
+        self.assertFalse(pending.conditions_met)
+        self.assertEqual(pending.condition_status, "activation_pending")
+
+        raw["value"] = False
+        cancelled = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=30)
+        )[0]
+        self.assertFalse(cancelled.conditions_met)
+        self.assertEqual(cancelled.condition_status, "inactive")
+
+        raw["value"] = True
+        restarted = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=40)
+        )[0]
+        self.assertFalse(restarted.conditions_met)
+        still_pending = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=99)
+        )[0]
+        self.assertFalse(still_pending.conditions_met)
+        active = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=100)
+        )[0]
+        self.assertTrue(active.conditions_met)
+        self.assertEqual(active.condition_status, "active")
+
+        raw["value"] = False
+        grace = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=101)
+        )[0]
+        self.assertTrue(grace.conditions_met)
+        self.assertEqual(grace.condition_status, "release_grace")
+        self.assertIsNotNone(grace.condition_deadline)
+        released = self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start + timedelta(seconds=401)
+        )[0]
+        self.assertFalse(released.conditions_met)
+        self.assertEqual(released.condition_status, "inactive")
+        await asyncio.sleep(0)
+
+    async def test_protected_zone_condition_latch_survives_restart(self):
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "restart-desk",
+            "name": "Restart desk",
+            "sector_id": "south",
+            "group_ids": ["layer"],
+            "enabled": True,
+            "distance_m": 1.5,
+            "lower_height_m": 0.2,
+            "upper_height_m": 0.8,
+            "conditions": [{"condition": "state", "entity_id": "binary_sensor.desk_presence", "state": "on"}],
+            "condition_activation_delay_seconds": 60,
+            "condition_release_delay_seconds": 300,
+        }
+        sector["protected_zones"] = [values]
+        key = self.engine._protected_zone_condition_key("room", sector, values)
+        self.engine._protected_zone_condition_checkers[key] = (
+            types.SimpleNamespace(async_check=lambda: True)
+        )
+        start = datetime(2026, 8, 27, 16, 0, tzinfo=timezone.utc)
+        self.engine._advanced_protected_zones(
+            sector, room_id="room", now=start
+        )
+        await asyncio.sleep(0)
+
+        restarted = engine_mod.SmartShadingEngine(self.hass, self.engine.entry)
+        restarted.store.data = deepcopy(self.engine.store.data)
+        restarted._restore_protected_zone_condition_runtime()
+        restarted._protected_zone_condition_checkers[key] = (
+            types.SimpleNamespace(async_check=lambda: True)
+        )
+        restored_zone = restarted._advanced_protected_zones(
+            sector,
+            room_id="room",
+            now=start + timedelta(seconds=60),
+        )[0]
+        self.assertTrue(restored_zone.conditions_met)
+        self.assertEqual(restored_zone.condition_status, "active")
+        await asyncio.sleep(0)
 
     async def test_calculated_glare_target_changes_only_its_exact_cover(self):
         room = self.engine.room_config("room")

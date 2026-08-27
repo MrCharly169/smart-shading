@@ -742,11 +742,15 @@
             "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
             "data": {
               "sun_confirmation_enabled": "Require sun confirmation",
-              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+              "minimum_sun_elevation_degrees": "Minimum sun elevation",
+              "condition_activation_delay_seconds": "Conditions must remain true",
+              "condition_release_delay_seconds": "Keep active after conditions stop"
             },
             "data_description": {
               "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
-              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum.",
+              "condition_activation_delay_seconds": "All configured conditions must stay true for this many seconds before glare protection starts.",
+              "condition_release_delay_seconds": "After a condition becomes false or unavailable, keep an already active glare zone latched for this many seconds. Sun geometry still stops protection immediately when it leaves the zone."
             }
           },
           "protected_zone_conditions": {
@@ -878,11 +882,15 @@
             "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
             "data": {
               "sun_confirmation_enabled": "Require sun confirmation",
-              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+              "minimum_sun_elevation_degrees": "Minimum sun elevation",
+              "condition_activation_delay_seconds": "Conditions must remain true",
+              "condition_release_delay_seconds": "Keep active after conditions stop"
             },
             "data_description": {
               "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
-              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum.",
+              "condition_activation_delay_seconds": "All configured conditions must stay true for this many seconds before glare protection starts.",
+              "condition_release_delay_seconds": "After a condition becomes false or unavailable, keep an already active glare zone latched for this many seconds. Sun geometry still stops protection immediately when it leaves the zone."
             }
           },
           "protected_zone_conditions": {
@@ -1240,7 +1248,8 @@
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
       "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
       "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty.",
-      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°."
+      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°.",
+      "protected_zone_condition_delay_range": "Set both condition delays between 0 and 86,400 seconds."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -2228,11 +2237,15 @@
             "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
             "data": {
               "sun_confirmation_enabled": "Require sun confirmation",
-              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+              "minimum_sun_elevation_degrees": "Minimum sun elevation",
+              "condition_activation_delay_seconds": "Conditions must remain true",
+              "condition_release_delay_seconds": "Keep active after conditions stop"
             },
             "data_description": {
               "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
-              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum.",
+              "condition_activation_delay_seconds": "All configured conditions must stay true for this many seconds before glare protection starts.",
+              "condition_release_delay_seconds": "After a condition becomes false or unavailable, keep an already active glare zone latched for this many seconds. Sun geometry still stops protection immediately when it leaves the zone."
             }
           },
           "protected_zone_conditions": {
@@ -2364,11 +2377,15 @@
             "description": "Choose whether this glare zone needs the sector's direct-sun confirmation and how low the sun may stand.",
             "data": {
               "sun_confirmation_enabled": "Require sun confirmation",
-              "minimum_sun_elevation_degrees": "Minimum sun elevation"
+              "minimum_sun_elevation_degrees": "Minimum sun elevation",
+              "condition_activation_delay_seconds": "Conditions must remain true",
+              "condition_release_delay_seconds": "Keep active after conditions stop"
             },
             "data_description": {
               "sun_confirmation_enabled": "Turn off only for glare zones that must still react to a low sun when the Lux or external sun confirmation does not switch on. Azimuth, elevation, geometry and configured conditions still apply.",
-              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum."
+              "minimum_sun_elevation_degrees": "The zone remains inactive below this solar elevation. Existing zones initially inherit the sun sector's minimum.",
+              "condition_activation_delay_seconds": "All configured conditions must stay true for this many seconds before glare protection starts.",
+              "condition_release_delay_seconds": "After a condition becomes false or unavailable, keep an already active glare zone latched for this many seconds. Sun geometry still stops protection immediately when it leaves the zone."
             }
           },
           "protected_zone_conditions": {
@@ -2466,7 +2483,8 @@
       "protected_zone_window_geometry_range": "Enter sensible window dimensions and its bottom edge above the floor.",
       "protected_zone_object_geometry_range": "Enter a valid object distance, centre, width and height. The object must remain above the floor.",
       "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty.",
-      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°."
+      "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°.",
+      "protected_zone_condition_delay_range": "Set both condition delays between 0 and 86,400 seconds."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."
