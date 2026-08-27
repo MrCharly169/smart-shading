@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 2026.8.5b1 - 2026-08-27
+
+- Add per-protected-zone activation and release hysteresis for native Home
+  Assistant conditions. New zones default to 60 seconds continuously true
+  before activation and a 300-second release grace; both values are editable,
+  restart-safe, and visible in the decision trace.
+- Keep geometric glare calculation independent from condition hysteresis. A
+  condition that becomes active late still requests the percentage required by
+  the current 3D sun position, while leaving the facade, elevation range or
+  protected footprint stops glare protection without waiting for the release
+  grace.
+- Allow a native weather condition such as `weather.home == sunny` to join a
+  presence condition, so low-sun glare can bypass unreliable Lux confirmation
+  without reacting during cloudy or rainy weather.
+
 ## 2026.8.5b0 - 2026-08-25
 
 - Make one-sided curtain glare targets purely geometry-driven. The current sun

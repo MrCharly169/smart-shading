@@ -1340,6 +1340,18 @@ class _SmartShadingWizardMixin:
                     sector_minimum_elevation,
                 ),
             ): _number(0, 90, 0.1, "°", mode="box"),
+            vol.Required(
+                "condition_activation_delay_seconds",
+                default=_stored_number(
+                    "condition_activation_delay_seconds", 60.0
+                ),
+            ): _number(0, 86400, 1, "s", mode="box"),
+            vol.Required(
+                "condition_release_delay_seconds",
+                default=_stored_number(
+                    "condition_release_delay_seconds", 300.0
+                ),
+            ): _number(0, 86400, 1, "s", mode="box"),
         }
         sections: dict[Any, Any] = {
             vol.Required("protected_zone_identity"): section(
@@ -1398,8 +1410,10 @@ class _SmartShadingWizardMixin:
         elif cover_entity not in available_covers:
             errors["base"] = "protected_zone_cover_invalid"
 
-        def _number_value(key: str) -> tuple[float | None, bool]:
-            value = values.get(key)
+        def _number_value(
+            key: str, default: float | None = None
+        ) -> tuple[float | None, bool]:
+            value = values.get(key, default)
             if value in (None, ""):
                 return None, True
             try:
@@ -1483,12 +1497,27 @@ class _SmartShadingWizardMixin:
         minimum_elevation, minimum_elevation_valid = _number_value(
             "minimum_sun_elevation_degrees"
         )
+        activation_delay, activation_delay_valid = _number_value(
+            "condition_activation_delay_seconds", 60.0
+        )
+        release_delay, release_delay_valid = _number_value(
+            "condition_release_delay_seconds", 300.0
+        )
         if (
             not minimum_elevation_valid
             or minimum_elevation is None
             or not 0.0 <= minimum_elevation <= 90.0
         ):
             errors["base"] = "protected_zone_minimum_elevation_range"
+        if (
+            not activation_delay_valid
+            or activation_delay is None
+            or not 0.0 <= activation_delay <= 86400.0
+            or not release_delay_valid
+            or release_delay is None
+            or not 0.0 <= release_delay <= 86400.0
+        ):
+            errors["base"] = "protected_zone_condition_delay_range"
 
         if errors:
             return None, errors
@@ -1513,6 +1542,8 @@ class _SmartShadingWizardMixin:
                 values.get("sun_confirmation_enabled", True)
             ),
             "minimum_sun_elevation_degrees": float(minimum_elevation),
+            "condition_activation_delay_seconds": float(activation_delay),
+            "condition_release_delay_seconds": float(release_delay),
             "conditions": list(conditions),
             "window_width_m": float(window_width_m),
             "window_height_m": float(window_height_m),
