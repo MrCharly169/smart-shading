@@ -564,6 +564,7 @@ glareCard.setConfig({ entity: glareStatus.entity_id });
 glareCard.hass = hass;
 const glareMarkup = glareCard.shadowRoot.innerHTML.slice(glareCard.shadowRoot.innerHTML.indexOf("</style>") + 8);
 if (!glareMarkup.includes("Blendschutz") || glareMarkup.includes("Schutzzone")) throw new Error("Advanced card did not keep glare visible while reserving protected-zone diagnostics for Details");
+if (glareMarkup.includes('class="important"')) throw new Error("Advanced card repeated the long room-level Glare Protection reason below its compact mode badge");
 if (!glareMarkup.includes('class="target-line"><strong>Blendschutz</strong>')) throw new Error("The affected cover row did not show its Glare Protection mode");
 const glareDialog = new Dialog();
 glareDialog._hass = hass;

@@ -1630,7 +1630,6 @@ class SmartShadingV4Card extends HTMLElement {
     const mode = roomState.state;
     if (mode === "safety") return localizedReason(attrs.reason, this._hass?.language, L.safety);
     if (mode === "heat") return localizedReason(attrs.reason, this._hass?.language, L.heat);
-    if (mode === "glare") return localizedReason(attrs.reason, this._hass?.language, L.glare);
     if (mode === "paused") return attrs.pause_until ? `${L.pauseUntil} ${this._formatDate(attrs.pause_until)}` : L.paused;
     if (mode === "disabled") return L.disabled;
     if (attrs.schedule_active === false) return localizedReason(attrs.schedule_reason, this._hass?.language, L.schedule);
