@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+
+## 2026.8.5b2 - 2026-08-28
+
 - Keep the Advanced Card compact during Glare Protection by omitting the
   redundant long room-level reason below the title. The mode badge, affected
   cover decision, target and full Details diagnostics remain visible.
+
 
 ## 2026.8.5b1 - 2026-08-27
 
