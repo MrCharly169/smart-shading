@@ -91,6 +91,7 @@ from .logic import (
     parse_numeric_value,
     sun_presence_step,
 )
+from .notification_style import notification_title
 from .flow_contract import sun_source_for_sector, working_config
 from .execution import (
     CommandContext,
@@ -632,7 +633,7 @@ class SmartShadingEngine:
             )
             await self.hass.services.async_call(
                 "persistent_notification", "create",
-                {"title": title, "message": message, "notification_id": notification_id},
+                {"title": notification_title(title), "message": message, "notification_id": notification_id},
                 blocking=False,
             )
         else:
@@ -778,7 +779,7 @@ class SmartShadingEngine:
                     "persistent_notification",
                     "create",
                     {
-                        "title": title,
+                        "title": notification_title(title),
                         "message": message,
                         "notification_id": notification_id,
                     },

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Adopt ecosystem policy 1.8 and prefix every persistent Smart Shading message
+  with the stable shading symbol used by the MeyersHaff notification style.
+
+- Keep the Advanced Card compact during Glare Protection by omitting the
+  redundant long room-level reason below the title. The mode badge, affected
+  cover decision, target and full Details diagnostics remain visible.
+- Adopt ecosystem policy 1.7: author technical Home Assistant artifacts in
+  English regardless of the conversation language, and keep one identical
+  explicit HTTPS target across external notification navigation fields.
+
 
 ## 2026.8.5b2 - 2026-08-28
 

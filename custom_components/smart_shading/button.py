@@ -5,6 +5,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
 from .entity import SmartShadingEntity, localized
+from .notification_style import notification_title
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -234,7 +235,7 @@ class ExportDiagnosticsButton(SmartShadingEntity, ButtonEntity):
     async def async_press(self):
         url = await self.engine.async_export_diagnostics()
         await self.engine.hass.services.async_call("persistent_notification", "create", {
-            "title": localized(self.engine, "Smart Shading log exported", "Smart Shading Log exportiert"),
+            "title": notification_title(localized(self.engine, "Smart Shading log exported", "Smart Shading Log exportiert")),
             "message": f"[Diagnoselog herunterladen]({url})\n\n`{url}`",
             "notification_id": f"smart_shading_export_{self.entry.entry_id}",
         }, blocking=False)
@@ -259,7 +260,7 @@ class ExportRoomDiagnosticsButton(SmartShadingEntity, ButtonEntity):
     async def async_press(self):
         url = await self.engine.async_export_diagnostics(self.room_id)
         await self.engine.hass.services.async_call("persistent_notification", "create", {
-            "title": localized(self.engine, "Smart Shading room log exported", "Smart Shading Raum-Log exportiert"),
+            "title": notification_title(localized(self.engine, "Smart Shading room log exported", "Smart Shading Raum-Log exportiert")),
             "message": f"[Raum-Diagnoselog herunterladen]({url})\n\n`{url}`",
             "notification_id": f"smart_shading_export_{self.entry.entry_id}_{self.room_id}",
         }, blocking=False)

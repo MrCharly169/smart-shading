@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.7.0
+Policy-Version: 1.8.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -101,6 +101,35 @@ native Home Assistant concerns.
   comparable stores, integration-generated notifications, and known YAML-only
   sources. Inaccessible or dynamically templated sources remain explicit audit
   findings rather than being reported as verified.
+
+## Notification presentation contract
+
+Every presented MeyersHaff notification uses one stable semantic category so
+the same event is recognizable before its text is read.
+
+- The title starts with exactly one category-specific emoji. This is the
+  cross-platform identifier and remains visible on Apple platforms where a
+  standard notification cannot replace the Home Assistant application icon.
+- Mobile App payloads set a category-specific Material Design Icon in Android
+  `notification_icon` and a restrained semantic `color`. A source may override
+  either value deliberately; an image attachment may replace Android's visible
+  large icon according to the Companion App's native behavior.
+- Reusable sources pass an explicit stable category to a compatible central
+  router or apply the category style themselves. The central MeyersHaff router
+  may infer a category from legacy content only as a compatibility fallback;
+  unknown content receives the neutral bell style.
+- Semantic categories describe the real source or event, for example chicken
+  coop, vacuum, door station, security, access, plant light, activity, task,
+  clock, shading, irrigation or system. Titles do not use arbitrary decorative
+  emoji or a product logo unrelated to that category.
+- `clear_notification`, Companion App command messages and other invisible
+  background pushes are never given a display title, icon or color. Existing
+  tags, actions, priority, sound, attachment and navigation fields are
+  preserved when presentation styling is applied.
+- The notification inventory reports both source-level styling and the
+  effective style supplied by the central router. Tests cover the semantic
+  mapping, Apple title fallback, Android icon/color, explicit overrides,
+  command bypass and idempotence.
 
 ## Living customer documentation contract
 

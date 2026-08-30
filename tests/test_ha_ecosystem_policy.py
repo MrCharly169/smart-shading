@@ -9,8 +9,9 @@ class EcosystemPolicyTests(unittest.TestCase):
     def test_policy_contract_is_present(self):
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         policy = (ROOT / "docs" / "HA_ECOSYSTEM_POLICY.md").read_text(encoding="utf-8")
-        self.assertIn("Policy-Version: 1.7.0", agents)
-        self.assertIn("Policy-Version: 1.7.0", policy)
+        self.assertIn("Policy-Version: 1.8.0", agents)
+        self.assertIn("Policy-Version: 1.8.0", policy)
+        self.assertIn("Notification presentation contract", policy)
         self.assertIn("Notification navigation contract", policy)
         self.assertIn("Home Assistant language contract", policy)
         self.assertIn("regardless of the conversation language", policy)
@@ -28,6 +29,15 @@ class EcosystemPolicyTests(unittest.TestCase):
         self.assertIn("Durable progress and release handoff", policy)
         self.assertIn("fresh release workspace", policy)
         self.assertIn("explicit user authorization", policy)
+
+    def test_persistent_notifications_use_the_shading_title_style(self) -> None:
+        component = ROOT / "custom_components" / "smart_shading"
+        style = (component / "notification_style.py").read_text(encoding="utf-8")
+        engine = (component / "engine.py").read_text(encoding="utf-8")
+        button = (component / "button.py").read_text(encoding="utf-8")
+        self.assertIn('value.startswith("🪟")', style)
+        self.assertIn("notification_title(title)", engine)
+        self.assertIn("notification_title(localized", button)
 
 
 if __name__ == "__main__":
