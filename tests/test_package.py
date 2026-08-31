@@ -123,6 +123,57 @@ class PackageTests(unittest.TestCase):
             self.assertIn(name, number)
         self.assertIn("_configured_pause_duration", engine)
 
+    def test_glare_light_profiles_cover_low_to_midday_sun(self):
+        self.assertEqual(
+            const.PROTECTED_ZONE_SUN_PRESET_OPTIONS,
+            [
+                "sensitive",
+                "low_sun",
+                "balanced",
+                "strong_sun",
+                "intense_sun",
+                "custom",
+            ],
+        )
+        expected_lux = {
+            "sensitive": (5000.0, 3000.0),
+            "low_sun": (10000.0, 6000.0),
+            "balanced": (20000.0, 12000.0),
+            "strong_sun": (35000.0, 20000.0),
+            "intense_sun": (60000.0, 35000.0),
+        }
+        for preset, (on_threshold, off_threshold) in expected_lux.items():
+            values = const.PROTECTED_ZONE_SUN_PRESETS[preset]["illuminance"]
+            self.assertEqual(values, {"on": on_threshold, "off": off_threshold})
+            self.assertLess(values["off"], values["on"])
+
+    def test_glare_light_profile_labels_explain_use_case_and_cloud_limit(self):
+        labels = {
+            "de": {
+                "sensitive": "Sehr tiefe Sonne (Morgen/Abend)",
+                "balanced": "Helles Tageslicht (Standard)",
+                "intense_sun": "Starke Mittagssonne",
+                "cloud_warning": "Helle Wolken",
+            },
+            "en": {
+                "sensitive": "Very low sun (morning/evening)",
+                "balanced": "Bright daylight (standard)",
+                "intense_sun": "Strong midday sun",
+                "cloud_warning": "Bright clouds",
+            },
+        }
+        for language, expected in labels.items():
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            options = data["selector"]["protected_zone_sun_preset"]["options"]
+            for preset in ("sensitive", "balanced", "intense_sun"):
+                self.assertEqual(options[preset], expected[preset])
+            serialized = json.dumps(data, ensure_ascii=False)
+            self.assertIn(expected["cloud_warning"], serialized)
+
     def test_temperature_controls_exist_only_with_a_room_sensor(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         number = (COMP / "number.py").read_text(encoding="utf-8")

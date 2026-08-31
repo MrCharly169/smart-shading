@@ -277,7 +277,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "keep_current": "Bestehende Ausrichtung beibehalten",
     },
     "sun_preset": {"low": "Nur starke Sonne", "medium": "Ausgewogen", "high": "Früher beschatten", "custom": "Benutzerdefiniert", "keep_current": "Bestehendes Lux-Profil beibehalten"},
-    "protected_zone_sun_preset": {"sensitive": "Sensibel", "balanced": "Ausgewogen", "strong_sun": "Nur starke Sonne", "custom": "Benutzerdefiniert"},
+    "protected_zone_sun_preset": {"sensitive": "Sehr tiefe Sonne (Morgen/Abend)", "low_sun": "Tiefe Sonne", "balanced": "Helles Tageslicht (Standard)", "strong_sun": "Direkte Sonne", "intense_sun": "Starke Mittagssonne", "custom": "Benutzerdefiniert"},
     "sun_source": {"geometry": "Nur Sonnenstand", "lux": "Fassadenbezogener Außensensor (empfohlen)", "external": "Externer Ein/Aus-Sensor"},
     "tilt_preset": {"glare": "Mehr Blendschutz", "balanced": "Ausgewogen", "daylight": "Mehr Tageslicht", "custom": "Benutzerdefiniert"},
     "device_type": {
@@ -305,7 +305,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
 SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "direction_preset": {"north": "North (N)", "northeast": "Northeast (NE)", "east": "East (E)", "southeast": "Southeast (SE)", "south": "South (S)", "southwest": "Southwest (SW)", "west": "West (W)", "northwest": "Northwest (NW)", "custom": "Custom", "keep_current": "Keep existing direction"},
     "sun_preset": {"low": "Strong sunlight only", "medium": "Balanced", "high": "Shade earlier", "custom": "Custom", "keep_current": "Keep existing Lux profile"},
-    "protected_zone_sun_preset": {"sensitive": "Sensitive", "balanced": "Balanced", "strong_sun": "Strong sunlight only", "custom": "Custom"},
+    "protected_zone_sun_preset": {"sensitive": "Very low sun (morning/evening)", "low_sun": "Low sun", "balanced": "Bright daylight (standard)", "strong_sun": "Direct sunlight", "intense_sun": "Strong midday sun", "custom": "Custom"},
     "sun_source": {"geometry": "Sun position only", "lux": "Facade-related outdoor sensor (recommended)", "external": "External on/off sensor"},
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},

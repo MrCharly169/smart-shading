@@ -758,14 +758,14 @@
             "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
               "local_sun_sensor": "Local outdoor sun sensor",
-              "local_sun_preset": "Sensitivity",
+              "local_sun_preset": "Light profile",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
               "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
-              "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
+              "local_sun_preset": "Profiles classify measured outdoor brightness, not direct sun: Very low sun 5,000/3,000 lx or 75/40 W/m²; Low sun 10,000/6,000 lx or 120/70 W/m²; Bright daylight 20,000/12,000 lx or 200/120 W/m²; Direct sunlight 35,000/20,000 lx or 400/250 W/m²; Strong midday sun 60,000/35,000 lx or 650/400 W/m². Bright clouds can meet the lower profiles. Custom uses the two values below.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
               "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
@@ -916,14 +916,14 @@
             "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
               "local_sun_sensor": "Local outdoor sun sensor",
-              "local_sun_preset": "Sensitivity",
+              "local_sun_preset": "Light profile",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
               "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
-              "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
+              "local_sun_preset": "Profiles classify measured outdoor brightness, not direct sun: Very low sun 5,000/3,000 lx or 75/40 W/m²; Low sun 10,000/6,000 lx or 120/70 W/m²; Bright daylight 20,000/12,000 lx or 200/120 W/m²; Direct sunlight 35,000/20,000 lx or 400/250 W/m²; Strong midday sun 60,000/35,000 lx or 650/400 W/m². Bright clouds can meet the lower profiles. Custom uses the two values below.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
               "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
@@ -2293,14 +2293,14 @@
             "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
               "local_sun_sensor": "Local outdoor sun sensor",
-              "local_sun_preset": "Sensitivity",
+              "local_sun_preset": "Light profile",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
               "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
-              "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
+              "local_sun_preset": "Profiles classify measured outdoor brightness, not direct sun: Very low sun 5,000/3,000 lx or 75/40 W/m²; Low sun 10,000/6,000 lx or 120/70 W/m²; Bright daylight 20,000/12,000 lx or 200/120 W/m²; Direct sunlight 35,000/20,000 lx or 400/250 W/m²; Strong midday sun 60,000/35,000 lx or 650/400 W/m². Bright clouds can meet the lower profiles. Custom uses the two values below.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
               "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
@@ -2451,14 +2451,14 @@
             "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
               "local_sun_sensor": "Local outdoor sun sensor",
-              "local_sun_preset": "Sensitivity",
+              "local_sun_preset": "Light profile",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
               "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
-              "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
+              "local_sun_preset": "Profiles classify measured outdoor brightness, not direct sun: Very low sun 5,000/3,000 lx or 75/40 W/m²; Low sun 10,000/6,000 lx or 120/70 W/m²; Bright daylight 20,000/12,000 lx or 200/120 W/m²; Direct sunlight 35,000/20,000 lx or 400/250 W/m²; Strong midday sun 60,000/35,000 lx or 650/400 W/m². Bright clouds can meet the lower profiles. Custom uses the two values below.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
               "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
@@ -2639,9 +2639,11 @@
     },
     "protected_zone_sun_preset": {
       "options": {
-        "sensitive": "Sensitive",
-        "balanced": "Balanced",
-        "strong_sun": "Strong sunlight only",
+        "sensitive": "Very low sun (morning/evening)",
+        "low_sun": "Low sun",
+        "balanced": "Bright daylight (standard)",
+        "strong_sun": "Direct sunlight",
+        "intense_sun": "Strong midday sun",
         "custom": "Custom"
       }
     },

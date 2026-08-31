@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 2026.8.7b2 - 2026-08-31
+
+- Replace the ambiguous local-sun sensitivity names with five use-case light
+  profiles from very low morning/evening sun through strong midday sun. Keep
+  the existing `sensitive` ID compatible as the explicit 5,000/3,000 lx
+  low-angle profile.
+- Align the general daylight profile with the common 20,000 lx shading level,
+  start the direct-sun profile at 35,000 lx, and add a 60,000 lx strong-midday
+  profile. Every illuminance and irradiance profile retains separate ON/OFF
+  hysteresis thresholds.
+- Explain in the setup wizard that one global brightness measurement cannot
+  prove direct sunlight and that bright clouds may satisfy low-sun profiles.
+  Weather remains an availability-only fallback for an invalid local sensor.
+
 ## 2026.8.7b1 - 2026-08-31
 
 - Simplify local sun evidence to exactly one freely selected illuminance or
