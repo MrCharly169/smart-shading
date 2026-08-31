@@ -92,7 +92,7 @@ def _compact_room_configuration(room: dict) -> dict:
                             "calculation_mode",
                             "condition_activation_delay_seconds",
                             "condition_release_delay_seconds",
-                            "local_sun_sensors",
+                            "local_sun_sensor",
                             "local_sun_preset",
                             "local_sun_on_threshold",
                             "local_sun_off_threshold",
