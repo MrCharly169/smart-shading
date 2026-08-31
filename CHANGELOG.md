@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2026.8.7b1 - 2026-08-31
+
+- Simplify local sun evidence to exactly one freely selected illuminance or
+  irradiance sensor per glare zone. Its value is used directly without sensor
+  aggregation or directional sensor logic.
+- Keep `sunny` from the optional local weather entity as an availability-only
+  fallback. It is consulted only when the selected sensor has no valid value.
+- Migrate the short-lived beta list format deterministically by using its first
+  configured sensor only, and expose the singular choice throughout the setup
+  wizard, diagnostics and release documentation.
+
 ## 2026.8.7b0 - 2026-08-31
 
 - Add local sun evidence to protected zones. One global outdoor illuminance or

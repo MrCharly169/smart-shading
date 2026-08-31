@@ -2353,14 +2353,11 @@ class SmartShadingEngine:
                                 )
                             )
                         )
-                        local_sensors = zone.get("local_sun_sensors", [])
-                        if isinstance(local_sensors, str):
-                            local_sensors = [local_sensors]
-                        result.update(
-                            str(entity_id)
-                            for entity_id in local_sensors
-                            if str(entity_id)
+                        local_sensor = self._protected_zone_local_sun_sensor(
+                            zone
                         )
+                        if local_sensor:
+                            result.add(local_sensor)
                         if zone.get("weather_fallback_entity"):
                             result.add(str(zone["weather_fallback_entity"]))
                 for key in ("lux_sensor", CONF_SUN_PRESENCE_ENTITY):
@@ -4068,7 +4065,7 @@ class SmartShadingEngine:
                         continue
                     conditions = values.get("conditions") or []
                     has_sun_evidence = bool(
-                        values.get("local_sun_sensors")
+                        self._protected_zone_local_sun_sensor(values)
                         or values.get("weather_fallback_entity")
                     )
                     if not conditions and not has_sun_evidence:
@@ -4275,6 +4272,22 @@ class SmartShadingEngine:
         return None
 
     @staticmethod
+    def _protected_zone_local_sun_sensor(values: dict[str, Any]) -> str:
+        """Return exactly one configured sensor, including beta migration."""
+        configured = str(values.get("local_sun_sensor") or "").strip()
+        if configured:
+            return configured
+        legacy = values.get("local_sun_sensors") or []
+        if isinstance(legacy, str):
+            return legacy.strip()
+        if isinstance(legacy, list):
+            return next(
+                (str(entity_id).strip() for entity_id in legacy if str(entity_id).strip()),
+                "",
+            )
+        return ""
+
+    @staticmethod
     def _protected_zone_sun_thresholds(
         values: dict[str, Any], family: str
     ) -> tuple[float, float] | None:
@@ -4311,12 +4324,7 @@ class SmartShadingEngine:
         self, key: str, values: dict[str, Any]
     ) -> tuple[bool | None, dict[str, Any]]:
         """Prefer valid local measurements and use weather only as fallback."""
-        configured = values.get("local_sun_sensors") or []
-        if isinstance(configured, str):
-            configured = [configured]
-        sensor_ids = tuple(
-            dict.fromkeys(str(entity_id) for entity_id in configured if str(entity_id))
-        )
+        sensor_id = self._protected_zone_local_sun_sensor(values)
         runtime = self._protected_zone_condition_runtime.setdefault(
             key,
             {
@@ -4329,10 +4337,8 @@ class SmartShadingEngine:
                 "sun_evidence_active": False,
             },
         )
-        valid: list[tuple[str, float, str, str]] = []
-        unavailable: list[str] = []
-        for entity_id in sensor_ids:
-            state = self.hass.states.get(entity_id)
+        if sensor_id:
+            state = self.hass.states.get(sensor_id)
             family = self._protected_zone_sun_unit_family(state)
             measurement = parse_numeric_value(state.state if state else None)
             if (
@@ -4341,36 +4347,19 @@ class SmartShadingEngine:
                 or family is None
                 or measurement is None
             ):
-                unavailable.append(entity_id)
-                continue
-            valid.append(
-                (
-                    entity_id,
-                    float(measurement),
-                    family,
-                    str(state.attributes.get("unit_of_measurement") or ""),
-                )
-            )
+                measurement = None
+            else:
+                measurement = float(measurement)
 
-        if valid:
-            families = {item[2] for item in valid}
-            if len(families) != 1:
-                return None, {
-                    "sun_evidence_source": "local_sensor",
-                    "sun_evidence_status": "mixed_units",
-                    "sun_evidence_entity_ids": sensor_ids,
-                }
-            family = next(iter(families))
+        if sensor_id and measurement is not None:
             thresholds = self._protected_zone_sun_thresholds(values, family)
             if thresholds is None:
                 return None, {
                     "sun_evidence_source": "local_sensor",
                     "sun_evidence_status": "invalid_thresholds",
-                    "sun_evidence_entity_ids": sensor_ids,
+                    "sun_evidence_entity_id": sensor_id,
                 }
             on_threshold, off_threshold = thresholds
-            selected = max(valid, key=lambda item: item[1])
-            measurement = selected[1]
             previous = bool(runtime.get("sun_evidence_active", False))
             if measurement >= on_threshold:
                 active = True
@@ -4387,10 +4376,10 @@ class SmartShadingEngine:
                 "sun_evidence_status": threshold_state,
                 "sun_evidence_active": active,
                 "sun_evidence_value": measurement,
-                "sun_evidence_unit": selected[3],
-                "sun_evidence_entity_id": selected[0],
-                "sun_evidence_entity_ids": sensor_ids,
-                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+                "sun_evidence_unit": str(
+                    state.attributes.get("unit_of_measurement") or ""
+                ),
+                "sun_evidence_entity_id": sensor_id,
                 "sun_evidence_preset": str(
                     values.get(
                         "local_sun_preset",
@@ -4420,17 +4409,15 @@ class SmartShadingEngine:
                 "sun_evidence_active": active,
                 "sun_evidence_weather_entity": weather_entity,
                 "sun_evidence_weather_state": weather_state,
-                "sun_evidence_entity_ids": sensor_ids,
-                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+                "sun_evidence_entity_id": sensor_id,
             }
 
-        if sensor_ids:
+        if sensor_id:
             return None, {
                 "sun_evidence_source": "local_sensor",
                 "sun_evidence_status": "local_unavailable",
                 "sun_evidence_active": None,
-                "sun_evidence_entity_ids": sensor_ids,
-                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+                "sun_evidence_entity_id": sensor_id,
             }
         return True, {
             "sun_evidence_source": "not_configured",

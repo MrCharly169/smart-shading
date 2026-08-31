@@ -755,20 +755,20 @@
           },
           "protected_zone_sun_evidence": {
             "name": "Local sun evidence",
-            "description": "Use one directionless outdoor sensor or several weather-station channels. The highest valid local value wins. Weather is consulted only while every selected local sensor is unavailable.",
+            "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
-              "local_sun_sensors": "Local outdoor sun sensors",
+              "local_sun_sensor": "Local outdoor sun sensor",
               "local_sun_preset": "Sensitivity",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
-              "local_sun_sensors": "Select an outdoor illuminance or irradiance sensor. Multiple directional station channels are combined by their highest valid value and therefore work as one directionless local signal.",
+              "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
               "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
-              "weather_fallback_entity": "Optional. A sunny weather state is used only when all selected local sensors are unavailable; it never overrides a valid low local reading."
+              "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
             }
           },
           "protected_zone_conditions": {
@@ -913,20 +913,20 @@
           },
           "protected_zone_sun_evidence": {
             "name": "Local sun evidence",
-            "description": "Use one directionless outdoor sensor or several weather-station channels. The highest valid local value wins. Weather is consulted only while every selected local sensor is unavailable.",
+            "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
-              "local_sun_sensors": "Local outdoor sun sensors",
+              "local_sun_sensor": "Local outdoor sun sensor",
               "local_sun_preset": "Sensitivity",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
-              "local_sun_sensors": "Select an outdoor illuminance or irradiance sensor. Multiple directional station channels are combined by their highest valid value and therefore work as one directionless local signal.",
+              "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
               "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
-              "weather_fallback_entity": "Optional. A sunny weather state is used only when all selected local sensors are unavailable; it never overrides a valid low local reading."
+              "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
             }
           },
           "protected_zone_conditions": {
@@ -1286,8 +1286,7 @@
       "protected_zone_conditions_invalid": "Add valid Home Assistant conditions or leave the condition field empty.",
       "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°.",
       "protected_zone_condition_delay_range": "Set both condition delays between 0 and 86,400 seconds.",
-      "protected_zone_local_sun_sensor_invalid": "Select only available outdoor illuminance or irradiance sensors.",
-      "protected_zone_local_sun_sensor_units_mixed": "All local sun sensors must use the same physical unit family.",
+      "protected_zone_local_sun_sensor_invalid": "Select an available outdoor illuminance or irradiance sensor.",
       "protected_zone_local_sun_preset_invalid": "Select a valid local sun sensitivity.",
       "protected_zone_local_sun_threshold_range": "For Custom, the sun-on threshold must be above the sun-off threshold.",
       "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback."
@@ -2291,20 +2290,20 @@
           },
           "protected_zone_sun_evidence": {
             "name": "Local sun evidence",
-            "description": "Use one directionless outdoor sensor or several weather-station channels. The highest valid local value wins. Weather is consulted only while every selected local sensor is unavailable.",
+            "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
-              "local_sun_sensors": "Local outdoor sun sensors",
+              "local_sun_sensor": "Local outdoor sun sensor",
               "local_sun_preset": "Sensitivity",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
-              "local_sun_sensors": "Select an outdoor illuminance or irradiance sensor. Multiple directional station channels are combined by their highest valid value and therefore work as one directionless local signal.",
+              "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
               "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
-              "weather_fallback_entity": "Optional. A sunny weather state is used only when all selected local sensors are unavailable; it never overrides a valid low local reading."
+              "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
             }
           },
           "protected_zone_conditions": {
@@ -2449,20 +2448,20 @@
           },
           "protected_zone_sun_evidence": {
             "name": "Local sun evidence",
-            "description": "Use one directionless outdoor sensor or several weather-station channels. The highest valid local value wins. Weather is consulted only while every selected local sensor is unavailable.",
+            "description": "Select exactly one local outdoor illuminance or irradiance sensor. Weather is consulted only while this sensor has no valid reading.",
             "data": {
-              "local_sun_sensors": "Local outdoor sun sensors",
+              "local_sun_sensor": "Local outdoor sun sensor",
               "local_sun_preset": "Sensitivity",
               "local_sun_on_threshold": "Custom sun-on threshold",
               "local_sun_off_threshold": "Custom sun-off threshold",
               "weather_fallback_entity": "Optional weather fallback"
             },
             "data_description": {
-              "local_sun_sensors": "Select an outdoor illuminance or irradiance sensor. Multiple directional station channels are combined by their highest valid value and therefore work as one directionless local signal.",
+              "local_sun_sensor": "Select exactly one local outdoor illuminance or irradiance sensor. Smart Shading uses its reading directly and does not combine sensor values.",
               "local_sun_preset": "Sensitive also recognizes low-angle sun; Balanced needs more local light; Strong sunlight only uses the highest thresholds. Custom uses the two values below in the selected sensor's native unit.",
               "local_sun_on_threshold": "Custom only. Local sun becomes active at or above this value.",
               "local_sun_off_threshold": "Custom only. Local sun clears at or below this lower value.",
-              "weather_fallback_entity": "Optional. A sunny weather state is used only when all selected local sensors are unavailable; it never overrides a valid low local reading."
+              "weather_fallback_entity": "Optional. A sunny weather state is used only when the local sensor has no valid reading; it never overrides a valid low local reading."
             }
           },
           "protected_zone_conditions": {
@@ -2563,7 +2562,6 @@
       "protected_zone_minimum_elevation_range": "Set the minimum sun elevation between 0° and 90°.",
       "protected_zone_condition_delay_range": "Set both condition delays between 0 and 86,400 seconds.",
       "protected_zone_local_sun_sensor_invalid": "Select only available outdoor illuminance or irradiance sensors.",
-      "protected_zone_local_sun_sensor_units_mixed": "All local sun sensors must use the same physical unit family.",
       "protected_zone_local_sun_preset_invalid": "Select a valid local sun sensitivity.",
       "protected_zone_local_sun_threshold_range": "For Custom, the sun-on threshold must be above the sun-off threshold.",
       "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback."

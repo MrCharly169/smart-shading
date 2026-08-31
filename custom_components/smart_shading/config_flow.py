@@ -1377,9 +1377,18 @@ class _SmartShadingWizardMixin:
         ]
         sun_evidence = {
             vol.Optional(
-                "local_sun_sensors",
-                default=list(zone.get("local_sun_sensors") or []),
-            ): _entity("sensor", multiple=True),
+                "local_sun_sensor",
+                default=(
+                    str(zone.get("local_sun_sensor") or "")
+                    or (
+                        str(zone.get("local_sun_sensors"))
+                        if isinstance(zone.get("local_sun_sensors"), str)
+                        else next(
+                            iter(zone.get("local_sun_sensors") or []), ""
+                        )
+                    )
+                ),
+            ): _entity("sensor"),
             vol.Required(
                 "local_sun_preset",
                 default=str(
@@ -1429,7 +1438,8 @@ class _SmartShadingWizardMixin:
                 vol.Schema(sun_evidence),
                 {
                     "collapsed": not bool(
-                        zone.get("local_sun_sensors")
+                        zone.get("local_sun_sensor")
+                        or zone.get("local_sun_sensors")
                         or zone.get("weather_fallback_entity")
                     )
                 },
@@ -1559,27 +1569,14 @@ class _SmartShadingWizardMixin:
         conditions = values.get("conditions") or []
         if not isinstance(conditions, list):
             errors["base"] = "protected_zone_conditions_invalid"
-        local_sun_sensors = values.get("local_sun_sensors") or []
-        if isinstance(local_sun_sensors, str):
-            local_sun_sensors = [local_sun_sensors]
-        if not isinstance(local_sun_sensors, list):
-            local_sun_sensors = []
-            errors["base"] = "protected_zone_local_sun_sensor_invalid"
-        local_sun_sensors = [
-            str(entity_id).strip()
-            for entity_id in local_sun_sensors
-            if str(entity_id).strip()
-        ]
-        sensor_families: set[str] = set()
-        for entity_id in local_sun_sensors:
-            state = self.hass.states.get(entity_id)
-            family = self._protected_zone_sun_unit_family(state)
-            if state is None or family is None:
+        local_sun_sensor = str(values.get("local_sun_sensor") or "").strip()
+        if local_sun_sensor:
+            state = self.hass.states.get(local_sun_sensor)
+            if (
+                state is None
+                or self._protected_zone_sun_unit_family(state) is None
+            ):
                 errors["base"] = "protected_zone_local_sun_sensor_invalid"
-                break
-            sensor_families.add(family)
-        if len(sensor_families) > 1:
-            errors["base"] = "protected_zone_local_sun_sensor_units_mixed"
         local_sun_preset = str(
             values.get(
                 "local_sun_preset", PROTECTED_ZONE_SUN_PRESET_BALANCED
@@ -1662,7 +1659,7 @@ class _SmartShadingWizardMixin:
             "condition_activation_delay_seconds": float(activation_delay),
             "condition_release_delay_seconds": float(release_delay),
             "conditions": list(conditions),
-            "local_sun_sensors": list(dict.fromkeys(local_sun_sensors)),
+            "local_sun_sensor": local_sun_sensor,
             "local_sun_preset": local_sun_preset,
             "local_sun_on_threshold": float(local_sun_on or 0.0),
             "local_sun_off_threshold": float(local_sun_off or 0.0),

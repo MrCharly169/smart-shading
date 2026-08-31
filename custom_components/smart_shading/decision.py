@@ -684,7 +684,8 @@ class ProtectedZone:
                 len(values.get("conditions") or ())
                 + int(
                     bool(
-                        values.get("local_sun_sensors")
+                        values.get("local_sun_sensor")
+                        or values.get("local_sun_sensors")
                         or values.get("weather_fallback_entity")
                     )
                 )
@@ -694,6 +695,7 @@ class ProtectedZone:
                 "not_configured"
                 if not (
                     values.get("conditions")
+                    or values.get("local_sun_sensor")
                     or values.get("local_sun_sensors")
                     or values.get("weather_fallback_entity")
                 )

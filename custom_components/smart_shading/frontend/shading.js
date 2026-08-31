@@ -820,7 +820,6 @@ class SmartShadingV4Dialog extends HTMLElement {
       weather_not_sunny: de ? "Wetter nicht sunny" : "Weather is not sunny",
       weather_unavailable: de ? "Wetter nicht verfügbar" : "Weather unavailable",
       local_unavailable: de ? "Lokaler Sensor nicht verfügbar" : "Local sensor unavailable",
-      mixed_units: de ? "Unterschiedliche Sensoreinheiten" : "Mixed sensor units",
       invalid_thresholds: de ? "Ungültige Grenzwerte" : "Invalid thresholds",
       protected_zone_invalid: "Zone geometry is invalid",
       protected_zone_valid: "Zone geometry is valid", protected_zone_sector_context_required: "Sun-sector context is required",

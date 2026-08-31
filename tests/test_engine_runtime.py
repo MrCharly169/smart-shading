@@ -2056,11 +2056,11 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-    async def test_glare_local_sun_uses_highest_station_channel_with_hysteresis(self):
+    async def test_glare_local_sun_uses_single_sensor_with_hysteresis(self):
         sector = self.engine.sector_config("south")
         values = {
             "id": "desk",
-            "local_sun_sensors": ["sensor.station_s", "sensor.station_w"],
+            "local_sun_sensor": "sensor.station_s",
             "local_sun_preset": "sensitive",
             "condition_activation_delay_seconds": 0,
             "condition_release_delay_seconds": 0,
@@ -2071,7 +2071,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     "2000", device_class="illuminance", unit_of_measurement="lx"
                 ),
                 "sensor.station_w": FakeState(
-                    "6000", device_class="illuminance", unit_of_measurement="lx"
+                    "90000", device_class="illuminance", unit_of_measurement="lx"
                 ),
             }
         )
@@ -2080,25 +2080,34 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         active, _, _, evidence = self.engine._protected_zone_conditions_met(
             "room", sector, values, now
         )
-        self.assertTrue(active)
         self.assertEqual(evidence["sun_evidence_source"], "local_sensor")
-        self.assertEqual(evidence["sun_evidence_value"], 6000)
+        self.assertFalse(active)
+        self.assertEqual(evidence["sun_evidence_value"], 2000)
         self.assertEqual(evidence["sun_evidence_on_threshold"], 5000)
 
-        self.hass.states.values["sensor.station_w"] = FakeState(
-            "4000", device_class="illuminance", unit_of_measurement="lx"
+        self.hass.states.values["sensor.station_s"] = FakeState(
+            "6000", device_class="illuminance", unit_of_measurement="lx"
         )
         active, _, _, evidence = self.engine._protected_zone_conditions_met(
             "room", sector, values, now + timedelta(seconds=1)
         )
         self.assertTrue(active)
-        self.assertEqual(evidence["sun_evidence_status"], "hysteresis_active")
+        self.assertEqual(evidence["sun_evidence_status"], "on_threshold_met")
 
-        self.hass.states.values["sensor.station_w"] = FakeState(
-            "2500", device_class="illuminance", unit_of_measurement="lx"
+        self.hass.states.values["sensor.station_s"] = FakeState(
+            "4000", device_class="illuminance", unit_of_measurement="lx"
         )
         active, _, _, evidence = self.engine._protected_zone_conditions_met(
             "room", sector, values, now + timedelta(seconds=2)
+        )
+        self.assertTrue(active)
+        self.assertEqual(evidence["sun_evidence_status"], "hysteresis_active")
+
+        self.hass.states.values["sensor.station_s"] = FakeState(
+            "2500", device_class="illuminance", unit_of_measurement="lx"
+        )
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now + timedelta(seconds=3)
         )
         self.assertFalse(active)
         self.assertEqual(evidence["sun_evidence_status"], "off_threshold_met")
@@ -2107,7 +2116,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         sector = self.engine.sector_config("south")
         values = {
             "id": "desk",
-            "local_sun_sensors": ["sensor.station_global"],
+            "local_sun_sensor": "sensor.station_global",
             "local_sun_preset": "sensitive",
             "weather_fallback_entity": "weather.home",
             "condition_activation_delay_seconds": 0,
@@ -2140,7 +2149,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         sector["protected_zones"] = [
             {
                 "id": "desk",
-                "local_sun_sensors": ["sensor.station_s", "sensor.station_w"],
+                "local_sun_sensor": "sensor.station_s",
                 "weather_fallback_entity": "weather.home",
             }
         ]
@@ -2148,8 +2157,32 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         referenced = self.engine.referenced_entities()
 
         self.assertIn("sensor.station_s", referenced)
-        self.assertIn("sensor.station_w", referenced)
+        self.assertNotIn("sensor.station_w", referenced)
         self.assertIn("weather.home", referenced)
+
+    async def test_glare_legacy_sensor_list_uses_first_entry_only(self):
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "desk",
+            "local_sun_sensors": ["sensor.first", "sensor.brighter"],
+            "local_sun_preset": "sensitive",
+            "condition_activation_delay_seconds": 0,
+            "condition_release_delay_seconds": 0,
+        }
+        self.hass.states.values["sensor.first"] = FakeState(
+            "2000", device_class="illuminance", unit_of_measurement="lx"
+        )
+        self.hass.states.values["sensor.brighter"] = FakeState(
+            "90000", device_class="illuminance", unit_of_measurement="lx"
+        )
+
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, datetime(2026, 8, 31, tzinfo=timezone.utc)
+        )
+
+        self.assertFalse(active)
+        self.assertEqual(evidence["sun_evidence_entity_id"], "sensor.first")
+        self.assertEqual(evidence["sun_evidence_value"], 2000)
 
     async def test_general_schedule_blocks_standalone_glare(self):
         room = self.engine.room_config("room")
