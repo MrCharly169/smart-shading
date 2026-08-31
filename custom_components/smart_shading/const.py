@@ -193,29 +193,43 @@ SUN_PRESETS = {
 SUN_PRESET_OPTIONS = [PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH, PRESET_CUSTOM]
 
 PROTECTED_ZONE_SUN_PRESET_SENSITIVE = "sensitive"
+PROTECTED_ZONE_SUN_PRESET_LOW_SUN = "low_sun"
 PROTECTED_ZONE_SUN_PRESET_BALANCED = "balanced"
 PROTECTED_ZONE_SUN_PRESET_STRONG = "strong_sun"
+PROTECTED_ZONE_SUN_PRESET_INTENSE = "intense_sun"
 PROTECTED_ZONE_SUN_PRESET_CUSTOM = "custom"
 PROTECTED_ZONE_SUN_PRESETS = {
-    # A directionless local station signal must still recognize low-angle sun.
+    # These presets classify measured outdoor brightness, not direct sunlight.
+    # Low values retain late low-angle glare while higher profiles reduce the
+    # chance that bright diffuse or overcast daylight is accepted as sun.
     # The two unit families intentionally use different physical ranges.
     PROTECTED_ZONE_SUN_PRESET_SENSITIVE: {
         "illuminance": {"on": 5000.0, "off": 3000.0},
         "irradiance": {"on": 75.0, "off": 40.0},
     },
+    PROTECTED_ZONE_SUN_PRESET_LOW_SUN: {
+        "illuminance": {"on": 10000.0, "off": 6000.0},
+        "irradiance": {"on": 120.0, "off": 70.0},
+    },
     PROTECTED_ZONE_SUN_PRESET_BALANCED: {
-        "illuminance": {"on": 15000.0, "off": 8000.0},
+        "illuminance": {"on": 20000.0, "off": 12000.0},
         "irradiance": {"on": 200.0, "off": 120.0},
     },
     PROTECTED_ZONE_SUN_PRESET_STRONG: {
-        "illuminance": {"on": 30000.0, "off": 18000.0},
+        "illuminance": {"on": 35000.0, "off": 20000.0},
         "irradiance": {"on": 400.0, "off": 250.0},
+    },
+    PROTECTED_ZONE_SUN_PRESET_INTENSE: {
+        "illuminance": {"on": 60000.0, "off": 35000.0},
+        "irradiance": {"on": 650.0, "off": 400.0},
     },
 }
 PROTECTED_ZONE_SUN_PRESET_OPTIONS = [
     PROTECTED_ZONE_SUN_PRESET_SENSITIVE,
+    PROTECTED_ZONE_SUN_PRESET_LOW_SUN,
     PROTECTED_ZONE_SUN_PRESET_BALANCED,
     PROTECTED_ZONE_SUN_PRESET_STRONG,
+    PROTECTED_ZONE_SUN_PRESET_INTENSE,
     PROTECTED_ZONE_SUN_PRESET_CUSTOM,
 ]
 

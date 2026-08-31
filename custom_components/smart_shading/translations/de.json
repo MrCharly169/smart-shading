@@ -1015,14 +1015,14 @@
             "description": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Wetter wird nur verwendet, solange dieser Sensor keinen gültigen Wert liefert.",
             "data": {
               "local_sun_sensor": "Lokaler Außensensor für Sonne",
-              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_preset": "Lichtprofil",
               "local_sun_on_threshold": "Eigene Einschaltgrenze",
               "local_sun_off_threshold": "Eigene Ausschaltgrenze",
               "weather_fallback_entity": "Optionaler Wetter-Fallback"
             },
             "data_description": {
               "local_sun_sensor": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Smart Shading verwendet dessen Wert direkt und führt keine Sensorwerte zusammen.",
-              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_preset": "Die Profile bewerten gemessene Außenhelligkeit, nicht direkte Sonne: Sehr tiefe Sonne 5.000/3.000 lx oder 75/40 W/m²; Tiefe Sonne 10.000/6.000 lx oder 120/70 W/m²; Helles Tageslicht 20.000/12.000 lx oder 200/120 W/m²; Direkte Sonne 35.000/20.000 lx oder 400/250 W/m²; Starke Mittagssonne 60.000/35.000 lx oder 650/400 W/m². Helle Wolken können die niedrigen Profile erreichen. Benutzerdefiniert verwendet die beiden Werte unten.",
               "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
               "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
               "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn der lokale Sensor keinen gültigen Wert liefert; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
@@ -1173,14 +1173,14 @@
             "description": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Wetter wird nur verwendet, solange dieser Sensor keinen gültigen Wert liefert.",
             "data": {
               "local_sun_sensor": "Lokaler Außensensor für Sonne",
-              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_preset": "Lichtprofil",
               "local_sun_on_threshold": "Eigene Einschaltgrenze",
               "local_sun_off_threshold": "Eigene Ausschaltgrenze",
               "weather_fallback_entity": "Optionaler Wetter-Fallback"
             },
             "data_description": {
               "local_sun_sensor": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Smart Shading verwendet dessen Wert direkt und führt keine Sensorwerte zusammen.",
-              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_preset": "Die Profile bewerten gemessene Außenhelligkeit, nicht direkte Sonne: Sehr tiefe Sonne 5.000/3.000 lx oder 75/40 W/m²; Tiefe Sonne 10.000/6.000 lx oder 120/70 W/m²; Helles Tageslicht 20.000/12.000 lx oder 200/120 W/m²; Direkte Sonne 35.000/20.000 lx oder 400/250 W/m²; Starke Mittagssonne 60.000/35.000 lx oder 650/400 W/m². Helle Wolken können die niedrigen Profile erreichen. Benutzerdefiniert verwendet die beiden Werte unten.",
               "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
               "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
               "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn der lokale Sensor keinen gültigen Wert liefert; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
@@ -2293,14 +2293,14 @@
             "description": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Wetter wird nur verwendet, solange dieser Sensor keinen gültigen Wert liefert.",
             "data": {
               "local_sun_sensor": "Lokaler Außensensor für Sonne",
-              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_preset": "Lichtprofil",
               "local_sun_on_threshold": "Eigene Einschaltgrenze",
               "local_sun_off_threshold": "Eigene Ausschaltgrenze",
               "weather_fallback_entity": "Optionaler Wetter-Fallback"
             },
             "data_description": {
               "local_sun_sensor": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Smart Shading verwendet dessen Wert direkt und führt keine Sensorwerte zusammen.",
-              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_preset": "Die Profile bewerten gemessene Außenhelligkeit, nicht direkte Sonne: Sehr tiefe Sonne 5.000/3.000 lx oder 75/40 W/m²; Tiefe Sonne 10.000/6.000 lx oder 120/70 W/m²; Helles Tageslicht 20.000/12.000 lx oder 200/120 W/m²; Direkte Sonne 35.000/20.000 lx oder 400/250 W/m²; Starke Mittagssonne 60.000/35.000 lx oder 650/400 W/m². Helle Wolken können die niedrigen Profile erreichen. Benutzerdefiniert verwendet die beiden Werte unten.",
               "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
               "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
               "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn der lokale Sensor keinen gültigen Wert liefert; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
@@ -2451,14 +2451,14 @@
             "description": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Wetter wird nur verwendet, solange dieser Sensor keinen gültigen Wert liefert.",
             "data": {
               "local_sun_sensor": "Lokaler Außensensor für Sonne",
-              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_preset": "Lichtprofil",
               "local_sun_on_threshold": "Eigene Einschaltgrenze",
               "local_sun_off_threshold": "Eigene Ausschaltgrenze",
               "weather_fallback_entity": "Optionaler Wetter-Fallback"
             },
             "data_description": {
               "local_sun_sensor": "Wählen Sie genau einen lokalen Außen-Helligkeits- oder Einstrahlungssensor. Smart Shading verwendet dessen Wert direkt und führt keine Sensorwerte zusammen.",
-              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_preset": "Die Profile bewerten gemessene Außenhelligkeit, nicht direkte Sonne: Sehr tiefe Sonne 5.000/3.000 lx oder 75/40 W/m²; Tiefe Sonne 10.000/6.000 lx oder 120/70 W/m²; Helles Tageslicht 20.000/12.000 lx oder 200/120 W/m²; Direkte Sonne 35.000/20.000 lx oder 400/250 W/m²; Starke Mittagssonne 60.000/35.000 lx oder 650/400 W/m². Helle Wolken können die niedrigen Profile erreichen. Benutzerdefiniert verwendet die beiden Werte unten.",
               "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
               "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
               "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn der lokale Sensor keinen gültigen Wert liefert; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
@@ -2639,9 +2639,11 @@
     },
     "protected_zone_sun_preset": {
       "options": {
-        "sensitive": "Sensibel",
-        "balanced": "Ausgewogen",
-        "strong_sun": "Nur starke Sonne",
+        "sensitive": "Sehr tiefe Sonne (Morgen/Abend)",
+        "low_sun": "Tiefe Sonne",
+        "balanced": "Helles Tageslicht (Standard)",
+        "strong_sun": "Direkte Sonne",
+        "intense_sun": "Starke Mittagssonne",
         "custom": "Benutzerdefiniert"
       }
     },
