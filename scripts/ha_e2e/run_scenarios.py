@@ -1720,6 +1720,11 @@ def assert_calculated_glare_zone_flow(
         "minimum_sun_elevation_degrees",
         "condition_activation_delay_seconds",
         "condition_release_delay_seconds",
+        "local_sun_sensors",
+        "local_sun_preset",
+        "local_sun_on_threshold",
+        "local_sun_off_threshold",
+        "weather_fallback_entity",
     ):
         if required not in fields:
             raise AssertionError(
@@ -1754,6 +1759,12 @@ def assert_calculated_glare_zone_flow(
             "minimum_sun_elevation_degrees": 2.5,
             "condition_activation_delay_seconds": 60,
             "condition_release_delay_seconds": 300,
+        },
+        "protected_zone_sun_evidence": {
+            "local_sun_sensors": ["sensor.advanced_lux"],
+            "local_sun_preset": "sensitive",
+            "local_sun_on_threshold": 5000,
+            "local_sun_off_threshold": 3000,
         },
     }
     result = submit_options_flow(
@@ -1843,6 +1854,10 @@ def assert_calculated_glare_zone_flow(
         raise AssertionError(f"Glare activation delay was not persisted: {zone}")
     if zone.get("condition_release_delay_seconds") != 300.0:
         raise AssertionError(f"Glare release delay was not persisted: {zone}")
+    if zone.get("local_sun_sensors") != ["sensor.advanced_lux"]:
+        raise AssertionError(f"Glare local sun sensors were not persisted: {zone}")
+    if zone.get("local_sun_preset") != "sensitive":
+        raise AssertionError(f"Glare local sun preset was not persisted: {zone}")
     if "group_ids" in zone or "calculated" in zone:
         raise AssertionError(f"Glare zone persisted obsolete switches: {zone}")
     LIVE_WIZARD_TRANSITIONS.add(

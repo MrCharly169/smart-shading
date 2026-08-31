@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 2026.8.7b0 - 2026-08-31
+
+- Add local sun evidence to protected zones. One global outdoor illuminance or
+  irradiance sensor can be used directly, while several directional weather-
+  station channels are combined through their highest valid measurement.
+- Add Sensitive, Balanced and Strong-sun presets with separate ON/OFF
+  thresholds and restart-safe hysteresis. This keeps low-angle glare usable
+  without depending on a weather provider and avoids rapid pumping around a
+  single threshold.
+- Make an optional weather entity a strict availability fallback: `sunny` is
+  consulted only when every configured local sensor is unavailable and never
+  overrides a valid low local measurement.
+- Show the evidence source, selected sensor, live value, unit, thresholds and
+  hysteresis/fallback state in the Advanced Card decision trace.
+
+
 ## 2026.8.6b0 - 2026-08-30
 
 - Adopt ecosystem policy 1.8 and prefix every persistent Smart Shading message

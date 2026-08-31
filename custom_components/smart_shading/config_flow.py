@@ -89,6 +89,10 @@ from .const import (
     PAUSE_DURATION_STEP_HOURS,
     PRESET_CUSTOM,
     PRESET_MEDIUM,
+    PROTECTED_ZONE_SUN_PRESET_BALANCED,
+    PROTECTED_ZONE_SUN_PRESET_CUSTOM,
+    PROTECTED_ZONE_SUN_PRESET_OPTIONS,
+    PROTECTED_ZONE_SUN_PRESETS,
     PROFILE_DEFAULTS,
     profile_supports_position,
     profile_supports_tilt,
@@ -273,6 +277,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "keep_current": "Bestehende Ausrichtung beibehalten",
     },
     "sun_preset": {"low": "Nur starke Sonne", "medium": "Ausgewogen", "high": "Früher beschatten", "custom": "Benutzerdefiniert", "keep_current": "Bestehendes Lux-Profil beibehalten"},
+    "protected_zone_sun_preset": {"sensitive": "Sensibel", "balanced": "Ausgewogen", "strong_sun": "Nur starke Sonne", "custom": "Benutzerdefiniert"},
     "sun_source": {"geometry": "Nur Sonnenstand", "lux": "Fassadenbezogener Außensensor (empfohlen)", "external": "Externer Ein/Aus-Sensor"},
     "tilt_preset": {"glare": "Mehr Blendschutz", "balanced": "Ausgewogen", "daylight": "Mehr Tageslicht", "custom": "Benutzerdefiniert"},
     "device_type": {
@@ -300,6 +305,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
 SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "direction_preset": {"north": "North (N)", "northeast": "Northeast (NE)", "east": "East (E)", "southeast": "Southeast (SE)", "south": "South (S)", "southwest": "Southwest (SW)", "west": "West (W)", "northwest": "Northwest (NW)", "custom": "Custom", "keep_current": "Keep existing direction"},
     "sun_preset": {"low": "Strong sunlight only", "medium": "Balanced", "high": "Shade earlier", "custom": "Custom", "keep_current": "Keep existing Lux profile"},
+    "protected_zone_sun_preset": {"sensitive": "Sensitive", "balanced": "Balanced", "strong_sun": "Strong sunlight only", "custom": "Custom"},
     "sun_source": {"geometry": "Sun position only", "lux": "Facade-related outdoor sensor (recommended)", "external": "External on/off sensor"},
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
@@ -1162,6 +1168,19 @@ class _SmartShadingWizardMixin:
                     }
         return covers
 
+    @staticmethod
+    def _protected_zone_sun_unit_family(state) -> str | None:
+        """Return the supported physical family for one local sun sensor."""
+        if state is None:
+            return None
+        device_class = str(state.attributes.get("device_class") or "").lower()
+        unit = str(state.attributes.get("unit_of_measurement") or "").lower()
+        if device_class == "illuminance" or unit in {"lx", "lux"}:
+            return "illuminance"
+        if device_class == "irradiance" or "w/m" in unit:
+            return "irradiance"
+        return None
+
     def _protected_zone_cover_selector(self):
         """Build a single-cover selector from the current sector."""
         german = self._is_german()
@@ -1353,6 +1372,43 @@ class _SmartShadingWizardMixin:
                 ),
             ): _number(0, 86400, 1, "s", mode="box"),
         }
+        sensitive_defaults = PROTECTED_ZONE_SUN_PRESETS["sensitive"][
+            "illuminance"
+        ]
+        sun_evidence = {
+            vol.Optional(
+                "local_sun_sensors",
+                default=list(zone.get("local_sun_sensors") or []),
+            ): _entity("sensor", multiple=True),
+            vol.Required(
+                "local_sun_preset",
+                default=str(
+                    zone.get(
+                        "local_sun_preset",
+                        PROTECTED_ZONE_SUN_PRESET_BALANCED,
+                    )
+                ),
+            ): _select(
+                PROTECTED_ZONE_SUN_PRESET_OPTIONS,
+                "protected_zone_sun_preset",
+            ),
+            vol.Required(
+                "local_sun_on_threshold",
+                default=_stored_number(
+                    "local_sun_on_threshold", sensitive_defaults["on"]
+                ),
+            ): _number(0, 200000, 1, "", mode="box"),
+            vol.Required(
+                "local_sun_off_threshold",
+                default=_stored_number(
+                    "local_sun_off_threshold", sensitive_defaults["off"]
+                ),
+            ): _number(0, 200000, 1, "", mode="box"),
+            _optional_marker(
+                "weather_fallback_entity",
+                zone.get("weather_fallback_entity"),
+            ): _entity("weather"),
+        }
         sections: dict[Any, Any] = {
             vol.Required("protected_zone_identity"): section(
                 vol.Schema(identity), {"collapsed": False}
@@ -1368,6 +1424,15 @@ class _SmartShadingWizardMixin:
             vol.Required("protected_zone_activation"): section(
                 vol.Schema(activation),
                 {"collapsed": False},
+            ),
+            vol.Optional("protected_zone_sun_evidence"): section(
+                vol.Schema(sun_evidence),
+                {
+                    "collapsed": not bool(
+                        zone.get("local_sun_sensors")
+                        or zone.get("weather_fallback_entity")
+                    )
+                },
             ),
             vol.Optional("protected_zone_conditions"): section(
                 vol.Schema(
@@ -1494,6 +1559,58 @@ class _SmartShadingWizardMixin:
         conditions = values.get("conditions") or []
         if not isinstance(conditions, list):
             errors["base"] = "protected_zone_conditions_invalid"
+        local_sun_sensors = values.get("local_sun_sensors") or []
+        if isinstance(local_sun_sensors, str):
+            local_sun_sensors = [local_sun_sensors]
+        if not isinstance(local_sun_sensors, list):
+            local_sun_sensors = []
+            errors["base"] = "protected_zone_local_sun_sensor_invalid"
+        local_sun_sensors = [
+            str(entity_id).strip()
+            for entity_id in local_sun_sensors
+            if str(entity_id).strip()
+        ]
+        sensor_families: set[str] = set()
+        for entity_id in local_sun_sensors:
+            state = self.hass.states.get(entity_id)
+            family = self._protected_zone_sun_unit_family(state)
+            if state is None or family is None:
+                errors["base"] = "protected_zone_local_sun_sensor_invalid"
+                break
+            sensor_families.add(family)
+        if len(sensor_families) > 1:
+            errors["base"] = "protected_zone_local_sun_sensor_units_mixed"
+        local_sun_preset = str(
+            values.get(
+                "local_sun_preset", PROTECTED_ZONE_SUN_PRESET_BALANCED
+            )
+        )
+        if local_sun_preset not in PROTECTED_ZONE_SUN_PRESET_OPTIONS:
+            errors["base"] = "protected_zone_local_sun_preset_invalid"
+        local_sun_on, local_sun_on_valid = _number_value(
+            "local_sun_on_threshold", 5000.0
+        )
+        local_sun_off, local_sun_off_valid = _number_value(
+            "local_sun_off_threshold", 3000.0
+        )
+        if (
+            local_sun_preset == PROTECTED_ZONE_SUN_PRESET_CUSTOM
+            and (
+                not local_sun_on_valid
+                or local_sun_on is None
+                or not local_sun_off_valid
+                or local_sun_off is None
+                or not 0 <= local_sun_off < local_sun_on <= 200000
+            )
+        ):
+            errors["base"] = "protected_zone_local_sun_threshold_range"
+        weather_fallback_entity = str(
+            values.get("weather_fallback_entity") or ""
+        ).strip()
+        if weather_fallback_entity and not weather_fallback_entity.startswith(
+            "weather."
+        ):
+            errors["base"] = "protected_zone_weather_fallback_invalid"
         minimum_elevation, minimum_elevation_valid = _number_value(
             "minimum_sun_elevation_degrees"
         )
@@ -1545,6 +1662,11 @@ class _SmartShadingWizardMixin:
             "condition_activation_delay_seconds": float(activation_delay),
             "condition_release_delay_seconds": float(release_delay),
             "conditions": list(conditions),
+            "local_sun_sensors": list(dict.fromkeys(local_sun_sensors)),
+            "local_sun_preset": local_sun_preset,
+            "local_sun_on_threshold": float(local_sun_on or 0.0),
+            "local_sun_off_threshold": float(local_sun_off or 0.0),
+            "weather_fallback_entity": weather_fallback_entity,
             "window_width_m": float(window_width_m),
             "window_height_m": float(window_height_m),
             "window_sill_height_m": float(window_sill_height_m),

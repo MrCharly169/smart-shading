@@ -75,6 +75,9 @@ from .const import (
     PAUSE_TIMED,
     PRESET_CUSTOM,
     PRESET_MEDIUM,
+    PROTECTED_ZONE_SUN_PRESET_BALANCED,
+    PROTECTED_ZONE_SUN_PRESET_CUSTOM,
+    PROTECTED_ZONE_SUN_PRESETS,
     PROFILE_DEFAULTS,
     SHARED_FEATURES,
     profile_supports_position,
@@ -403,6 +406,9 @@ class SmartShadingEngine:
                     else None
                 ),
                 "status": str(values.get("status") or "unavailable"),
+                "sun_evidence_active": bool(
+                    values.get("sun_evidence_active", False)
+                ),
             }
 
     def _rebuild_runtime(self) -> None:
@@ -2347,6 +2353,16 @@ class SmartShadingEngine:
                                 )
                             )
                         )
+                        local_sensors = zone.get("local_sun_sensors", [])
+                        if isinstance(local_sensors, str):
+                            local_sensors = [local_sensors]
+                        result.update(
+                            str(entity_id)
+                            for entity_id in local_sensors
+                            if str(entity_id)
+                        )
+                        if zone.get("weather_fallback_entity"):
+                            result.add(str(zone["weather_fallback_entity"]))
                 for key in ("lux_sensor", CONF_SUN_PRESENCE_ENTITY):
                     if sector.get(key):
                         result.add(sector[key])
@@ -4051,12 +4067,18 @@ class SmartShadingEngine:
                     if not isinstance(values, dict):
                         continue
                     conditions = values.get("conditions") or []
-                    if not conditions:
+                    has_sun_evidence = bool(
+                        values.get("local_sun_sensors")
+                        or values.get("weather_fallback_entity")
+                    )
+                    if not conditions and not has_sun_evidence:
                         continue
                     key = self._protected_zone_condition_key(
                         str(room.get("id") or ""), sector, values
                     )
                     configured_keys.add(key)
+                    if not conditions:
+                        continue
                     try:
                         validated = await condition_helper.async_validate_conditions_config(
                             self.hass, list(conditions)
@@ -4120,6 +4142,9 @@ class SmartShadingEngine:
             "pending_until": _serialize_datetime(runtime.get("pending_until")),
             "last_raw": runtime.get("last_raw"),
             "status": str(runtime.get("status") or "inactive"),
+            "sun_evidence_active": bool(
+                runtime.get("sun_evidence_active", False)
+            ),
         }
         persisted = self.store.data.setdefault(
             "protected_zone_condition_runtime", {}
@@ -4150,6 +4175,7 @@ class SmartShadingEngine:
                 "pending_until": None,
                 "last_raw": None,
                 "status": "unavailable",
+                "sun_evidence_active": False,
             },
         )
         active = bool(runtime.get("active", False))
@@ -4235,32 +4261,224 @@ class SmartShadingEngine:
         )
         return effective, status, pending_until
 
+    @staticmethod
+    def _protected_zone_sun_unit_family(state) -> str | None:
+        """Classify one supported local sun measurement without guessing."""
+        if state is None:
+            return None
+        device_class = str(state.attributes.get("device_class") or "").lower()
+        unit = str(state.attributes.get("unit_of_measurement") or "").lower()
+        if device_class == "illuminance" or unit in {"lx", "lux"}:
+            return "illuminance"
+        if device_class == "irradiance" or "w/m" in unit:
+            return "irradiance"
+        return None
+
+    @staticmethod
+    def _protected_zone_sun_thresholds(
+        values: dict[str, Any], family: str
+    ) -> tuple[float, float] | None:
+        """Return one strict on/off pair in the sensor's physical family."""
+        preset = str(
+            values.get(
+                "local_sun_preset", PROTECTED_ZONE_SUN_PRESET_BALANCED
+            )
+        )
+        if preset == PROTECTED_ZONE_SUN_PRESET_CUSTOM:
+            try:
+                on_threshold = float(values.get("local_sun_on_threshold"))
+                off_threshold = float(values.get("local_sun_off_threshold"))
+            except (TypeError, ValueError):
+                return None
+        else:
+            thresholds = PROTECTED_ZONE_SUN_PRESETS.get(preset, {}).get(
+                family
+            )
+            if not thresholds:
+                return None
+            on_threshold = float(thresholds["on"])
+            off_threshold = float(thresholds["off"])
+        if (
+            not math.isfinite(on_threshold)
+            or not math.isfinite(off_threshold)
+            or off_threshold < 0
+            or on_threshold <= off_threshold
+        ):
+            return None
+        return on_threshold, off_threshold
+
+    def _protected_zone_sun_evidence(
+        self, key: str, values: dict[str, Any]
+    ) -> tuple[bool | None, dict[str, Any]]:
+        """Prefer valid local measurements and use weather only as fallback."""
+        configured = values.get("local_sun_sensors") or []
+        if isinstance(configured, str):
+            configured = [configured]
+        sensor_ids = tuple(
+            dict.fromkeys(str(entity_id) for entity_id in configured if str(entity_id))
+        )
+        runtime = self._protected_zone_condition_runtime.setdefault(
+            key,
+            {
+                "active": False,
+                "pending_target": None,
+                "pending_since": None,
+                "pending_until": None,
+                "last_raw": None,
+                "status": "unavailable",
+                "sun_evidence_active": False,
+            },
+        )
+        valid: list[tuple[str, float, str, str]] = []
+        unavailable: list[str] = []
+        for entity_id in sensor_ids:
+            state = self.hass.states.get(entity_id)
+            family = self._protected_zone_sun_unit_family(state)
+            measurement = parse_numeric_value(state.state if state else None)
+            if (
+                state is None
+                or state.state in {"unknown", "unavailable", "none"}
+                or family is None
+                or measurement is None
+            ):
+                unavailable.append(entity_id)
+                continue
+            valid.append(
+                (
+                    entity_id,
+                    float(measurement),
+                    family,
+                    str(state.attributes.get("unit_of_measurement") or ""),
+                )
+            )
+
+        if valid:
+            families = {item[2] for item in valid}
+            if len(families) != 1:
+                return None, {
+                    "sun_evidence_source": "local_sensor",
+                    "sun_evidence_status": "mixed_units",
+                    "sun_evidence_entity_ids": sensor_ids,
+                }
+            family = next(iter(families))
+            thresholds = self._protected_zone_sun_thresholds(values, family)
+            if thresholds is None:
+                return None, {
+                    "sun_evidence_source": "local_sensor",
+                    "sun_evidence_status": "invalid_thresholds",
+                    "sun_evidence_entity_ids": sensor_ids,
+                }
+            on_threshold, off_threshold = thresholds
+            selected = max(valid, key=lambda item: item[1])
+            measurement = selected[1]
+            previous = bool(runtime.get("sun_evidence_active", False))
+            if measurement >= on_threshold:
+                active = True
+                threshold_state = "on_threshold_met"
+            elif measurement <= off_threshold:
+                active = False
+                threshold_state = "off_threshold_met"
+            else:
+                active = previous
+                threshold_state = "hysteresis_active" if active else "hysteresis_inactive"
+            runtime["sun_evidence_active"] = active
+            return active, {
+                "sun_evidence_source": "local_sensor",
+                "sun_evidence_status": threshold_state,
+                "sun_evidence_active": active,
+                "sun_evidence_value": measurement,
+                "sun_evidence_unit": selected[3],
+                "sun_evidence_entity_id": selected[0],
+                "sun_evidence_entity_ids": sensor_ids,
+                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+                "sun_evidence_preset": str(
+                    values.get(
+                        "local_sun_preset",
+                        PROTECTED_ZONE_SUN_PRESET_BALANCED,
+                    )
+                ),
+                "sun_evidence_on_threshold": on_threshold,
+                "sun_evidence_off_threshold": off_threshold,
+            }
+
+        weather_entity = str(
+            values.get("weather_fallback_entity") or ""
+        ).strip()
+        if weather_entity:
+            state = self.hass.states.get(weather_entity)
+            if state is None or state.state in {"unknown", "unavailable", "none"}:
+                active = None
+                status = "weather_unavailable"
+                weather_state = state.state if state else None
+            else:
+                weather_state = str(state.state)
+                active = weather_state == "sunny"
+                status = "weather_sunny" if active else "weather_not_sunny"
+            return active, {
+                "sun_evidence_source": "weather_fallback",
+                "sun_evidence_status": status,
+                "sun_evidence_active": active,
+                "sun_evidence_weather_entity": weather_entity,
+                "sun_evidence_weather_state": weather_state,
+                "sun_evidence_entity_ids": sensor_ids,
+                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+            }
+
+        if sensor_ids:
+            return None, {
+                "sun_evidence_source": "local_sensor",
+                "sun_evidence_status": "local_unavailable",
+                "sun_evidence_active": None,
+                "sun_evidence_entity_ids": sensor_ids,
+                "sun_evidence_unavailable_entity_ids": tuple(unavailable),
+            }
+        return True, {
+            "sun_evidence_source": "not_configured",
+            "sun_evidence_status": "not_configured",
+            "sun_evidence_active": True,
+        }
+
     def _protected_zone_conditions_met(
         self,
         room_id: str,
         sector: dict[str, Any],
         values: dict[str, Any],
         now: datetime,
-    ) -> tuple[bool | None, str, datetime | None]:
+    ) -> tuple[bool | None, str, datetime | None, dict[str, Any]]:
         """Return the debounced aggregate result and its diagnostic state."""
-        if not values.get("conditions"):
-            return True, "not_configured", None
         key = self._protected_zone_condition_key(room_id, sector, values)
-        if key in self._protected_zone_condition_errors:
+        if values.get("conditions"):
+            if key in self._protected_zone_condition_errors:
+                native_raw: bool | None = None
+            else:
+                checker = self._protected_zone_condition_checkers.get(key)
+                if checker is None:
+                    native_raw = None
+                else:
+                    try:
+                        native_raw = bool(checker.async_check())
+                    except Exception:
+                        _LOGGER.exception(
+                            "Could not evaluate conditions for protected zone %s",
+                            key,
+                        )
+                        native_raw = None
+        else:
+            native_raw = True
+        sun_raw, evidence = self._protected_zone_sun_evidence(key, values)
+        if native_raw is False or sun_raw is False:
+            raw: bool | None = False
+        elif native_raw is True and sun_raw is True:
+            raw = True
+        else:
             raw = None
-            return self._protected_zone_condition_latch(key, raw, values, now)
-        checker = self._protected_zone_condition_checkers.get(key)
-        if checker is None:
-            raw = None
-            return self._protected_zone_condition_latch(key, raw, values, now)
-        try:
-            raw = bool(checker.async_check())
-        except Exception:
-            _LOGGER.exception(
-                "Could not evaluate conditions for protected zone %s", key
-            )
-            raw = None
-        return self._protected_zone_condition_latch(key, raw, values, now)
+        effective, status, deadline = self._protected_zone_condition_latch(
+            key, raw, values, now
+        )
+        return effective, status, deadline, {
+            **evidence,
+            "native_conditions_state": native_raw,
+        }
 
     def _advanced_protected_zones(
         self,
@@ -4293,7 +4511,12 @@ class SmartShadingEngine:
                         ),
                     )
                 if zone.condition_count:
-                    conditions_met, condition_status, condition_deadline = (
+                    (
+                        conditions_met,
+                        condition_status,
+                        condition_deadline,
+                        activation_details,
+                    ) = (
                         self._protected_zone_conditions_met(
                             room_id,
                             sector,
@@ -4306,6 +4529,7 @@ class SmartShadingEngine:
                         conditions_met=conditions_met,
                         condition_status=condition_status,
                         condition_deadline=_serialize_datetime(condition_deadline),
+                        activation_details=activation_details,
                     )
                 if layer is not None and not supports_tilt and zone.target_tilt is not None:
                     # A protected zone may narrow position for every profile,

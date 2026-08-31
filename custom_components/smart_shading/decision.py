@@ -615,6 +615,7 @@ class ProtectedZone:
     conditions_met: bool | None = True
     condition_status: str = "not_configured"
     condition_deadline: str | None = None
+    activation_details: Mapping[str, Any] = field(default_factory=dict)
     sun_confirmation_enabled: bool = True
     minimum_sun_elevation_degrees: float | None = None
 
@@ -629,6 +630,9 @@ class ProtectedZone:
             self,
             "group_ids",
             tuple(str(group) for group in (self.group_ids or ()) if str(group)),
+        )
+        object.__setattr__(
+            self, "activation_details", _freeze_mapping(self.activation_details)
         )
 
     @classmethod
@@ -676,10 +680,24 @@ class ProtectedZone:
             object_width_m=values.get("object_width_m"),
             target_lateral_center_m=values.get("target_lateral_center_m"),
             target_lateral_width_m=values.get("target_lateral_width_m"),
-            condition_count=len(values.get("conditions") or ()),
+            condition_count=(
+                len(values.get("conditions") or ())
+                + int(
+                    bool(
+                        values.get("local_sun_sensors")
+                        or values.get("weather_fallback_entity")
+                    )
+                )
+            ),
             conditions_met=(True if not values.get("conditions") else None),
             condition_status=(
-                "not_configured" if not values.get("conditions") else "unavailable"
+                "not_configured"
+                if not (
+                    values.get("conditions")
+                    or values.get("local_sun_sensors")
+                    or values.get("weather_fallback_entity")
+                )
+                else "unavailable"
             ),
             sun_confirmation_enabled=(
                 True
@@ -1161,6 +1179,7 @@ def evaluate_protected_zone(
                 "conditions_met": zone.conditions_met,
                 "condition_status": zone.condition_status,
                 "condition_deadline": zone.condition_deadline,
+                **dict(zone.activation_details),
             },
         )
 
@@ -1253,6 +1272,7 @@ def evaluate_protected_zone(
         "conditions_met": zone.conditions_met,
         "condition_status": zone.condition_status,
         "condition_deadline": zone.condition_deadline,
+        **dict(zone.activation_details),
         "distance_m": distance,
         "protected_height_range_m": (lower, upper),
         "window_height_range_m": (window_lower, window_upper),
