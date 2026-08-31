@@ -555,6 +555,13 @@ glareStatus.attributes.targets[0] = {
       calculation: "top_down",
       relative_azimuth_degrees: 15,
       projected_height_range_m: [0.35, 0.92],
+      sun_evidence_source: "local_sensor",
+      sun_evidence_status: "on_threshold_met",
+      sun_evidence_value: 5084.16,
+      sun_evidence_unit: "lx",
+      sun_evidence_entity_id: "sensor.station_south",
+      sun_evidence_on_threshold: 5000,
+      sun_evidence_off_threshold: 3000,
     },
   }],
 };
@@ -576,6 +583,10 @@ if (!glareDialog.shadowRoot.innerHTML.includes("Aktuelle Berechnung")
   || !glareDialog.shadowRoot.innerHTML.includes("Schutzziel")
   || !glareDialog.shadowRoot.innerHTML.includes("Endgültiges Ziel")
   || !glareDialog.shadowRoot.innerHTML.includes("Schreibtisch")
+  || !glareDialog.shadowRoot.innerHTML.includes("Lokale Sonnenbestätigung")
+  || !glareDialog.shadowRoot.innerHTML.includes("Station South")
+  || !glareDialog.shadowRoot.innerHTML.includes("5084 lx")
+  || !glareDialog.shadowRoot.innerHTML.includes("ON ≥ 5000")
   || !glareDialog.shadowRoot.innerHTML.includes("28%")) throw new Error("Glare diagnostics did not show the calculation, ordinary target, zone target, and final target");
 
 const unknownCoverState = hass.states["cover.internal_identifier"];

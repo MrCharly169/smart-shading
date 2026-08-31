@@ -1010,6 +1010,24 @@
               "condition_release_delay_seconds": "Wird eine Bedingung falsch oder nicht verfügbar, bleibt eine bereits aktive Blendschutzzone noch so viele Sekunden eingerastet. Verlässt die Sonne geometrisch die Zone, endet der Blendschutz weiterhin sofort."
             }
           },
+          "protected_zone_sun_evidence": {
+            "name": "Lokale Sonnenbestätigung",
+            "description": "Nutzen Sie einen richtungsneutralen Außensensor oder mehrere Kanäle der Wetterstation. Der höchste gültige lokale Wert zählt. Wetter wird nur verwendet, solange alle ausgewählten lokalen Sensoren nicht verfügbar sind.",
+            "data": {
+              "local_sun_sensors": "Lokale Außensensoren für Sonne",
+              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_on_threshold": "Eigene Einschaltgrenze",
+              "local_sun_off_threshold": "Eigene Ausschaltgrenze",
+              "weather_fallback_entity": "Optionaler Wetter-Fallback"
+            },
+            "data_description": {
+              "local_sun_sensors": "Wählen Sie einen Außen-Helligkeits- oder Einstrahlungssensor. Mehrere Richtungskanäle werden über ihren höchsten gültigen Wert zu einem richtungsneutralen lokalen Signal zusammengefasst.",
+              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
+              "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
+              "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn alle lokalen Sensoren nicht verfügbar sind; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -1150,6 +1168,24 @@
               "condition_release_delay_seconds": "Wird eine Bedingung falsch oder nicht verfügbar, bleibt eine bereits aktive Blendschutzzone noch so viele Sekunden eingerastet. Verlässt die Sonne geometrisch die Zone, endet der Blendschutz weiterhin sofort."
             }
           },
+          "protected_zone_sun_evidence": {
+            "name": "Lokale Sonnenbestätigung",
+            "description": "Nutzen Sie einen richtungsneutralen Außensensor oder mehrere Kanäle der Wetterstation. Der höchste gültige lokale Wert zählt. Wetter wird nur verwendet, solange alle ausgewählten lokalen Sensoren nicht verfügbar sind.",
+            "data": {
+              "local_sun_sensors": "Lokale Außensensoren für Sonne",
+              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_on_threshold": "Eigene Einschaltgrenze",
+              "local_sun_off_threshold": "Eigene Ausschaltgrenze",
+              "weather_fallback_entity": "Optionaler Wetter-Fallback"
+            },
+            "data_description": {
+              "local_sun_sensors": "Wählen Sie einen Außen-Helligkeits- oder Einstrahlungssensor. Mehrere Richtungskanäle werden über ihren höchsten gültigen Wert zu einem richtungsneutralen lokalen Signal zusammengefasst.",
+              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
+              "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
+              "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn alle lokalen Sensoren nicht verfügbar sind; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -1249,7 +1285,12 @@
       "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
       "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer.",
       "protected_zone_minimum_elevation_range": "Stellen Sie eine minimale Sonnenhöhe zwischen 0° und 90° ein.",
-      "protected_zone_condition_delay_range": "Stellen Sie beide Bedingungsverzögerungen zwischen 0 und 86.400 Sekunden ein."
+      "protected_zone_condition_delay_range": "Stellen Sie beide Bedingungsverzögerungen zwischen 0 und 86.400 Sekunden ein.",
+      "protected_zone_local_sun_sensor_invalid": "Wählen Sie nur verfügbare Außen-Helligkeits- oder Einstrahlungssensoren.",
+      "protected_zone_local_sun_sensor_units_mixed": "Alle lokalen Sonnensensoren müssen dieselbe physikalische Einheitenfamilie verwenden.",
+      "protected_zone_local_sun_preset_invalid": "Wählen Sie eine gültige lokale Sonnenempfindlichkeit.",
+      "protected_zone_local_sun_threshold_range": "Benutzerdefiniert muss die Einschaltgrenze über der Ausschaltgrenze liegen.",
+      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -2248,6 +2289,24 @@
               "condition_release_delay_seconds": "Wird eine Bedingung falsch oder nicht verfügbar, bleibt eine bereits aktive Blendschutzzone noch so viele Sekunden eingerastet. Verlässt die Sonne geometrisch die Zone, endet der Blendschutz weiterhin sofort."
             }
           },
+          "protected_zone_sun_evidence": {
+            "name": "Lokale Sonnenbestätigung",
+            "description": "Nutzen Sie einen richtungsneutralen Außensensor oder mehrere Kanäle der Wetterstation. Der höchste gültige lokale Wert zählt. Wetter wird nur verwendet, solange alle ausgewählten lokalen Sensoren nicht verfügbar sind.",
+            "data": {
+              "local_sun_sensors": "Lokale Außensensoren für Sonne",
+              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_on_threshold": "Eigene Einschaltgrenze",
+              "local_sun_off_threshold": "Eigene Ausschaltgrenze",
+              "weather_fallback_entity": "Optionaler Wetter-Fallback"
+            },
+            "data_description": {
+              "local_sun_sensors": "Wählen Sie einen Außen-Helligkeits- oder Einstrahlungssensor. Mehrere Richtungskanäle werden über ihren höchsten gültigen Wert zu einem richtungsneutralen lokalen Signal zusammengefasst.",
+              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
+              "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
+              "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn alle lokalen Sensoren nicht verfügbar sind; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -2388,6 +2447,24 @@
               "condition_release_delay_seconds": "Wird eine Bedingung falsch oder nicht verfügbar, bleibt eine bereits aktive Blendschutzzone noch so viele Sekunden eingerastet. Verlässt die Sonne geometrisch die Zone, endet der Blendschutz weiterhin sofort."
             }
           },
+          "protected_zone_sun_evidence": {
+            "name": "Lokale Sonnenbestätigung",
+            "description": "Nutzen Sie einen richtungsneutralen Außensensor oder mehrere Kanäle der Wetterstation. Der höchste gültige lokale Wert zählt. Wetter wird nur verwendet, solange alle ausgewählten lokalen Sensoren nicht verfügbar sind.",
+            "data": {
+              "local_sun_sensors": "Lokale Außensensoren für Sonne",
+              "local_sun_preset": "Empfindlichkeit",
+              "local_sun_on_threshold": "Eigene Einschaltgrenze",
+              "local_sun_off_threshold": "Eigene Ausschaltgrenze",
+              "weather_fallback_entity": "Optionaler Wetter-Fallback"
+            },
+            "data_description": {
+              "local_sun_sensors": "Wählen Sie einen Außen-Helligkeits- oder Einstrahlungssensor. Mehrere Richtungskanäle werden über ihren höchsten gültigen Wert zu einem richtungsneutralen lokalen Signal zusammengefasst.",
+              "local_sun_preset": "Sensibel erkennt auch tief stehende Sonne; Ausgewogen verlangt mehr lokales Licht; Nur starke Sonne nutzt die höchsten Grenzen. Benutzerdefiniert verwendet die beiden Werte unten in der Einheit des Sensors.",
+              "local_sun_on_threshold": "Nur benutzerdefiniert. Ab diesem Wert gilt lokale Sonne als aktiv.",
+              "local_sun_off_threshold": "Nur benutzerdefiniert. Unterhalb dieser niedrigeren Grenze endet die lokale Sonnenbestätigung.",
+              "weather_fallback_entity": "Optional. Sunny wird nur verwendet, wenn alle lokalen Sensoren nicht verfügbar sind; ein gültiger niedriger lokaler Wert wird niemals durch Wetter überschrieben."
+            }
+          },
           "protected_zone_conditions": {
             "name": "Optionale Aktivierungsbedingungen",
             "description": "Der Blendschutz dieser Zone ist nur aktiv, wenn alle eingestellten Bedingungen erfüllt sind. Leer lassen, wenn nur Sonne und Geometrie gelten sollen.",
@@ -2484,7 +2561,12 @@
       "protected_zone_object_geometry_range": "Geben Sie gültige Werte für Abstand, Mittelpunkt, Breite und Höhe des Objekts ein. Das Objekt muss über dem Boden liegen.",
       "protected_zone_conditions_invalid": "Fügen Sie gültige Home-Assistant-Bedingungen hinzu oder lassen Sie das Bedingungsfeld leer.",
       "protected_zone_minimum_elevation_range": "Stellen Sie eine minimale Sonnenhöhe zwischen 0° und 90° ein.",
-      "protected_zone_condition_delay_range": "Stellen Sie beide Bedingungsverzögerungen zwischen 0 und 86.400 Sekunden ein."
+      "protected_zone_condition_delay_range": "Stellen Sie beide Bedingungsverzögerungen zwischen 0 und 86.400 Sekunden ein.",
+      "protected_zone_local_sun_sensor_invalid": "Wählen Sie nur verfügbare Außen-Helligkeits- oder Einstrahlungssensoren.",
+      "protected_zone_local_sun_sensor_units_mixed": "Alle lokalen Sonnensensoren müssen dieselbe physikalische Einheitenfamilie verwenden.",
+      "protected_zone_local_sun_preset_invalid": "Wählen Sie eine gültige lokale Sonnenempfindlichkeit.",
+      "protected_zone_local_sun_threshold_range": "Benutzerdefiniert muss die Einschaltgrenze über der Ausschaltgrenze liegen.",
+      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden."
@@ -2555,6 +2637,14 @@
         "high": "Früher beschatten",
         "custom": "Benutzerdefiniert",
         "keep_current": "Bestehendes Lux-Profil beibehalten"
+      }
+    },
+    "protected_zone_sun_preset": {
+      "options": {
+        "sensitive": "Sensibel",
+        "balanced": "Ausgewogen",
+        "strong_sun": "Nur starke Sonne",
+        "custom": "Benutzerdefiniert"
       }
     },
     "sun_source": {

@@ -2056,6 +2056,101 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    async def test_glare_local_sun_uses_highest_station_channel_with_hysteresis(self):
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "desk",
+            "local_sun_sensors": ["sensor.station_s", "sensor.station_w"],
+            "local_sun_preset": "sensitive",
+            "condition_activation_delay_seconds": 0,
+            "condition_release_delay_seconds": 0,
+        }
+        self.hass.states.values.update(
+            {
+                "sensor.station_s": FakeState(
+                    "2000", device_class="illuminance", unit_of_measurement="lx"
+                ),
+                "sensor.station_w": FakeState(
+                    "6000", device_class="illuminance", unit_of_measurement="lx"
+                ),
+            }
+        )
+        now = datetime(2026, 8, 31, 17, 0, tzinfo=timezone.utc)
+
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now
+        )
+        self.assertTrue(active)
+        self.assertEqual(evidence["sun_evidence_source"], "local_sensor")
+        self.assertEqual(evidence["sun_evidence_value"], 6000)
+        self.assertEqual(evidence["sun_evidence_on_threshold"], 5000)
+
+        self.hass.states.values["sensor.station_w"] = FakeState(
+            "4000", device_class="illuminance", unit_of_measurement="lx"
+        )
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now + timedelta(seconds=1)
+        )
+        self.assertTrue(active)
+        self.assertEqual(evidence["sun_evidence_status"], "hysteresis_active")
+
+        self.hass.states.values["sensor.station_w"] = FakeState(
+            "2500", device_class="illuminance", unit_of_measurement="lx"
+        )
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now + timedelta(seconds=2)
+        )
+        self.assertFalse(active)
+        self.assertEqual(evidence["sun_evidence_status"], "off_threshold_met")
+
+    async def test_glare_weather_is_only_fallback_for_unavailable_local_sensor(self):
+        sector = self.engine.sector_config("south")
+        values = {
+            "id": "desk",
+            "local_sun_sensors": ["sensor.station_global"],
+            "local_sun_preset": "sensitive",
+            "weather_fallback_entity": "weather.home",
+            "condition_activation_delay_seconds": 0,
+            "condition_release_delay_seconds": 0,
+        }
+        now = datetime(2026, 8, 31, 17, 0, tzinfo=timezone.utc)
+        self.hass.states.values["weather.home"] = FakeState("sunny")
+        self.hass.states.values["sensor.station_global"] = FakeState(
+            "2000", device_class="illuminance", unit_of_measurement="lx"
+        )
+
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now
+        )
+        self.assertFalse(active)
+        self.assertEqual(evidence["sun_evidence_source"], "local_sensor")
+
+        self.hass.states.values["sensor.station_global"] = FakeState(
+            "unavailable", device_class="illuminance", unit_of_measurement="lx"
+        )
+        active, _, _, evidence = self.engine._protected_zone_conditions_met(
+            "room", sector, values, now + timedelta(seconds=1)
+        )
+        self.assertTrue(active)
+        self.assertEqual(evidence["sun_evidence_source"], "weather_fallback")
+        self.assertEqual(evidence["sun_evidence_status"], "weather_sunny")
+
+    async def test_glare_local_sun_sources_are_reactive_entities(self):
+        sector = self.engine.sector_config("south")
+        sector["protected_zones"] = [
+            {
+                "id": "desk",
+                "local_sun_sensors": ["sensor.station_s", "sensor.station_w"],
+                "weather_fallback_entity": "weather.home",
+            }
+        ]
+
+        referenced = self.engine.referenced_entities()
+
+        self.assertIn("sensor.station_s", referenced)
+        self.assertIn("sensor.station_w", referenced)
+        self.assertIn("weather.home", referenced)
+
     async def test_general_schedule_blocks_standalone_glare(self):
         room = self.engine.room_config("room")
         room.setdefault("advanced_features", []).append("glare_protection")

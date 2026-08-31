@@ -492,6 +492,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       ordinaryTarget: "Normales Ziel",
       zoneTarget: "Schutzziel",
       finalTarget: "Endgültiges Ziel",
+      localSunEvidence: "Lokale Sonnenbestätigung",
       calculationReady: "Berechnung bereit",
       calculationUnavailable: "Keine gültige Berechnung",
       noTrace: "Noch keine Entscheidungsdaten vorhanden.",
@@ -575,6 +576,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       ordinaryTarget: "Ordinary target",
       zoneTarget: "Protected target",
       finalTarget: "Final target",
+      localSunEvidence: "Local sun evidence",
       calculationReady: "Calculation ready",
       calculationUnavailable: "No valid calculation",
       noTrace: "No decision data is available yet.",
@@ -807,6 +809,19 @@ class SmartShadingV4Dialog extends HTMLElement {
       protected_zone_disabled: "Zone disabled",
       protected_zone_conditions_not_met: "Activation conditions are not met",
       protected_zone_conditions_unavailable: "Activation conditions are unavailable",
+      local_sensor: de ? "Lokaler Sensor" : "Local sensor",
+      weather_fallback: de ? "Wetter-Fallback" : "Weather fallback",
+      not_configured: de ? "Nicht eingerichtet" : "Not configured",
+      on_threshold_met: de ? "Einschaltgrenze erreicht" : "On threshold reached",
+      off_threshold_met: de ? "Ausschaltgrenze erreicht" : "Off threshold reached",
+      hysteresis_active: de ? "Innerhalb Hysterese, aktiv" : "Inside hysteresis, active",
+      hysteresis_inactive: de ? "Innerhalb Hysterese, inaktiv" : "Inside hysteresis, inactive",
+      weather_sunny: de ? "Sunny bestätigt" : "Sunny confirmed",
+      weather_not_sunny: de ? "Wetter nicht sunny" : "Weather is not sunny",
+      weather_unavailable: de ? "Wetter nicht verfügbar" : "Weather unavailable",
+      local_unavailable: de ? "Lokaler Sensor nicht verfügbar" : "Local sensor unavailable",
+      mixed_units: de ? "Unterschiedliche Sensoreinheiten" : "Mixed sensor units",
+      invalid_thresholds: de ? "Ungültige Grenzwerte" : "Invalid thresholds",
       protected_zone_invalid: "Zone geometry is invalid",
       protected_zone_valid: "Zone geometry is valid", protected_zone_sector_context_required: "Sun-sector context is required",
       protected_zone_other_sector: "Assigned to another sun sector", protected_zone_group_context_required: "Cover-group context is required",
@@ -1037,6 +1052,29 @@ class SmartShadingV4Dialog extends HTMLElement {
           ? `${Math.round(Number(details.relative_azimuth_degrees))}°`
           : "",
       ].filter(Boolean);
+      const evidenceValue = asNumber(details.sun_evidence_value, null);
+      const evidenceUnit = String(details.sun_evidence_unit || "").trim();
+      const evidenceSource = String(details.sun_evidence_source || "").trim();
+      const evidenceStatus = String(details.sun_evidence_status || "").trim();
+      const evidenceEntityId = String(details.sun_evidence_entity_id || "").trim();
+      const evidenceEntityName = evidenceEntityId
+        ? cleanDisplayName(
+          this.hass?.states?.[evidenceEntityId]?.attributes?.friendly_name,
+          humanizeToken(evidenceEntityId.split(".").pop(), evidenceEntityId),
+        )
+        : "";
+      const evidenceParts = [
+        evidenceSource ? this._traceText(evidenceSource) : "",
+        evidenceEntityName,
+        evidenceValue != null ? `${Math.round(evidenceValue)}${evidenceUnit ? ` ${evidenceUnit}` : ""}` : "",
+        asNumber(details.sun_evidence_on_threshold, null) != null
+          ? `ON ≥ ${Math.round(Number(details.sun_evidence_on_threshold))}`
+          : "",
+        asNumber(details.sun_evidence_off_threshold, null) != null
+          ? `OFF ≤ ${Math.round(Number(details.sun_evidence_off_threshold))}`
+          : "",
+        evidenceStatus ? this._traceText(evidenceStatus) : "",
+      ].filter(Boolean);
       const zoneTarget = zone.target || (
         calculatedPosition != null || calculatedTilt != null
           ? { position: calculatedPosition, tilt: calculatedTilt }
@@ -1046,6 +1084,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <strong>${htmlEscape(`${cleanDisplayName(zone.name, humanizeToken(zone.zone_id, L.protectedZones))}${zone.cover_name ? ` · ${zone.cover_name}` : zone.layer_name ? ` · ${zone.layer_name}` : ""}`)}</strong>
         <span class="trace-status ${status === "hit" ? "ok" : "warn"}">${htmlEscape(this._traceText(status))}</span>
         <small>${htmlEscape(this._traceText(zone.reason_code))}${calculationParts.length ? ` · ${htmlEscape(calculationParts.join(" · "))}` : ""}</small>
+        ${evidenceParts.length ? `<small data-zone-sun-evidence>${htmlEscape(`${L.localSunEvidence}: ${evidenceParts.join(" · ")}`)}</small>` : ""}
         <small data-zone-targets>${htmlEscape(`${L.ordinaryTarget}: ${this._traceTarget(zone.ordinary_target, L)} · ${L.zoneTarget}: ${this._traceTarget(zoneTarget, L)} · ${L.finalTarget}: ${this._traceTarget(zone.final_target, L)}`)}</small>
       </div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noProtectedZones)}</div>`;
