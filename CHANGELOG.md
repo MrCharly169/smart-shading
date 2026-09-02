@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2026.9.0b0 - 2026-09-02
+
+- Preserve native Badge-editor selectors, their long-list scroll and keyboard
+  focus across Home Assistant state refreshes, without moving the Dashboard.
+- Restore Badge keyboard focus after a relevant live-state repaint and adopt
+  ecosystem policy 1.9 for refresh-stable frontend interactions.
+
 ## 2026.8.7b2 - 2026-08-31
 
 - Replace the ambiguous local-sun sensitivity names with five use-case light

@@ -2118,6 +2118,13 @@ class SmartShadingBadge extends HTMLElement {
     });
   }
 
+  _restoreBadgeFocus(hadFocus) {
+    if (!hadFocus) return;
+    const badge = this.shadowRoot?.querySelector?.("ha-badge");
+    badge?.focus?.({ preventScroll: true });
+    queueMicrotask(() => badge?.focus?.({ preventScroll: true }));
+  }
+
   _labels() {
     const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
     const modes = de ? {
@@ -2226,17 +2233,19 @@ class SmartShadingBadge extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    const hadFocus = this.shadowRoot.activeElement === this.shadowRoot.querySelector?.("ha-badge");
     const L = this._labels();
     const state = this._hass?.states?.[this._config.entity];
     if (!this._config.entity || !state) {
       this.shadowRoot.innerHTML = `
-        <style>:host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px)}ha-badge{--badge-color:var(--error-color,var(--red-color,#db4437))}.badge-symbol{position:relative;display:grid;place-items:center;width:22px;height:22px;color:var(--badge-color)}.cover-symbol{--mdc-icon-size:20px}.state-marker{position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 0 0 1px var(--ha-card-border-color,var(--divider-color,#ddd));color:var(--badge-color)}.state-marker ha-icon{--mdc-icon-size:9px}</style>
+        <style>:host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px);overflow-anchor:none}ha-badge{--badge-color:var(--error-color,var(--red-color,#db4437))}.badge-symbol{position:relative;display:grid;place-items:center;width:22px;height:22px;color:var(--badge-color)}.cover-symbol{--mdc-icon-size:20px}.state-marker{position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:var(--ha-card-background,var(--card-background-color,#fff));box-shadow:0 0 0 1px var(--ha-card-border-color,var(--divider-color,#ddd));color:var(--badge-color)}.state-marker ha-icon{--mdc-icon-size:9px}</style>
         <ha-badge icon-only title="${htmlEscape(L.choose)}" aria-label="${htmlEscape(L.choose)}">
           <span slot="icon" class="badge-symbol">
             <ha-icon class="cover-symbol" icon="mdi:blinds-horizontal"></ha-icon>
             <span class="state-marker"><ha-icon icon="mdi:alert-circle-outline"></ha-icon></span>
           </span>
         </ha-badge>`;
+      this._restoreBadgeFocus(hadFocus);
       return;
     }
     const status = this._status(state, L);
@@ -2244,7 +2253,7 @@ class SmartShadingBadge extends HTMLElement {
     const tooltip = [name, status.label, status.title !== status.label ? status.title : ""].filter(Boolean).join(" · ");
     this.shadowRoot.innerHTML = `
       <style>
-        :host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px)}
+        :host{display:block;width:var(--ha-badge-size,36px);height:var(--ha-badge-size,36px);overflow-anchor:none}
         ha-badge{--badge-color:${htmlEscape(this._color(status.mode))}}
         .badge-symbol{position:relative;display:grid;place-items:center;width:22px;height:22px;color:var(--badge-color)}
         .cover-symbol{--mdc-icon-size:20px}
@@ -2258,6 +2267,7 @@ class SmartShadingBadge extends HTMLElement {
         </span>
       </ha-badge>`;
     this._bindInteraction();
+    this._restoreBadgeFocus(hadFocus);
   }
 }
 
@@ -2297,7 +2307,7 @@ class SmartShadingBadgeEditor extends HTMLElement {
   _ensureStructure() {
     if (!this.shadowRoot || this._form) return;
     this.shadowRoot.innerHTML = `
-      <style>:host{display:block;padding:4px 0}.help{margin-top:12px;font-size:11px;line-height:1.4;color:var(--secondary-text-color)}</style>
+      <style>:host{display:block;padding:4px 0;overflow-anchor:none}.help{margin-top:12px;font-size:11px;line-height:1.4;color:var(--secondary-text-color)}</style>
       <div class="editor">
         <ha-form></ha-form>
         <div class="help"></div>

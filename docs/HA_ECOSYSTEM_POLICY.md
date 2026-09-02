@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.8.0
+Policy-Version: 1.9.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -58,6 +58,13 @@ Visibility conditions whenever they can express the required behavior.
 - A Custom Badge editor may expose only its native entity selector and
   presentation-specific fields. Entity selection uses Home Assistant selectors;
   action and Visibility editing remain in Home Assistant's surrounding tabs.
+- Custom Cards, Badges, and their editors preserve the user's active interaction
+  state across Home Assistant refreshes. Open selectors and disclosure dialogs,
+  keyboard focus, long-list scroll offsets, and the surrounding Dashboard scroll
+  position must not reset on relevant or unrelated state updates. Editors keep
+  their native form element stable; disclosure lists either keep stable DOM or
+  explicitly restore their keyed focus and exact scroll offsets after a rebuild.
+  Runtime tests cover repeated refreshes while these controls are open.
 - Future scheduled or announced occurrences remain planning context, never an
   active waiting presentation. Compact schedule labels use the local time only
   for today, then tomorrow, a weekday or a date; when that label occupies the

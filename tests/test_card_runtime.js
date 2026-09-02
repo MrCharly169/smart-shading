@@ -145,7 +145,11 @@ global.window = {
 global.navigator = { clipboard: { writeText: async () => {} } };
 
 const cardPath = path.join(__dirname, "..", "custom_components", "smart_shading", "frontend", "shading.js");
-vm.runInThisContext(fs.readFileSync(cardPath, "utf8"), { filename: cardPath });
+const cardSource = fs.readFileSync(cardPath, "utf8");
+const badgeConstructorSource = cardSource.split("class SmartShadingBadge extends HTMLElement", 2)[1].split("static getStubConfig", 1)[0];
+const badgeEditorConstructorSource = cardSource.split("class SmartShadingBadgeEditor extends HTMLElement", 2)[1].split("this._handleFormChange", 1)[0];
+if (badgeConstructorSource.includes("this.style") || badgeEditorConstructorSource.includes("this.style")) throw new Error("Custom Badge constructors must not add host attributes before browser upgrade completes");
+vm.runInThisContext(cardSource, { filename: cardPath });
 
 const Card = registry.get("smart-shading-card");
 const Editor = registry.get("smart-shading-card-editor");
@@ -350,6 +354,14 @@ if (!roomBadge.shadowRoot.innerHTML.includes('<ha-badge type="button" icon-only 
   || !roomBadge.shadowRoot.innerHTML.includes('class="state-marker"><ha-icon icon="mdi:pause"')
   || !roomBadge.shadowRoot.innerHTML.includes("Paused until")
   || !roomBadge.shadowRoot.innerHTML.includes("Raum A")) throw new Error("Room badge was not rendered as a native round timed-pause badge");
+const focusedBadgeBeforeRefresh = roomBadge.shadowRoot.querySelector("ha-badge");
+roomBadge.shadowRoot.activeElement = focusedBadgeBeforeRefresh;
+dashboardScrollTop = 760;
+roomBadge.hass = { ...hass, language: "en", states: {
+  ...hass.states,
+  "sensor.room_status": { ...roomStatus, state: "heat" },
+} };
+if (!roomBadge.shadowRoot.querySelector("ha-badge")?.focused || dashboardScrollTop !== 760) throw new Error("Badge refresh lost keyboard focus or changed Dashboard scroll");
 roomBadge.shadowRoot.querySelector("ha-badge")?.listeners.get("click")?.(new FakeEvent("click"));
 if (roomBadge.dispatchedEvents.at(-1)?.type !== "hass-action"
   || roomBadge.dispatchedEvents.at(-1)?.detail?.action !== "tap"
@@ -378,13 +390,17 @@ if (badgeEditor.shadowRoot.innerHTML.includes("<select")) throw new Error("Badge
 const stableBadgeForm = badgeEditor.shadowRoot.querySelector("ha-form");
 const badgeEditorWrites = badgeEditor.shadowRoot.writeCount;
 stableBadgeForm.selectorOpen = true;
+stableBadgeForm.listScrollTop = 620;
 stableBadgeForm.focused = true;
+dashboardScrollTop = 760;
 badgeEditor.hass = { ...hass, language: "en", states: { ...hass.states, "sensor.extra_status": roomStatus } };
 badgeEditor.hass = { ...hass, language: "en", states: { ...hass.states, "sensor.room_status": { ...roomStatus, state: "heat" } } };
 if (badgeEditor.shadowRoot.querySelector("ha-form") !== stableBadgeForm
   || badgeEditor.shadowRoot.writeCount !== badgeEditorWrites
   || stableBadgeForm.selectorOpen !== true
-  || stableBadgeForm.focused !== true) throw new Error("Badge editor recreated or disturbed its open native entity selector during hass updates");
+  || stableBadgeForm.listScrollTop !== 620
+  || stableBadgeForm.focused !== true
+  || dashboardScrollTop !== 760) throw new Error("Badge editor recreated or disturbed its open native entity selector, list scroll, focus, or Dashboard scroll during hass updates");
 stableBadgeForm.listeners.get("value-changed")?.({ detail: { value: { entity: "sensor.room_status" } } });
 if (badgeEditor.dispatchedEvents.at(-1)?.detail?.config?.entity !== "sensor.room_status") throw new Error("Stable badge editor did not emit the selected status entity");
 
