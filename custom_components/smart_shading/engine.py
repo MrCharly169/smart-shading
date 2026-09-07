@@ -5509,12 +5509,12 @@ class SmartShadingEngine:
             night_active=night_active,
             heat_active=heat_active,
             schedule_hold_active=(not schedule_active and not heat_active and not open_active),
+            # Glare is an occupant-protection mode, not a thermal shading
+            # season.  The room schedule still suppresses Solar and Comfort,
+            # while an eligible protected zone remains available all year.
             glare_allowed=bool(
-                schedule_active
-                and (
-                    glare_confirmation_bypass
-                    or (sector_sun and not source_unavailable)
-                )
+                glare_confirmation_bypass
+                or (sector_sun and not source_unavailable)
             ),
             solar_active=solar_active,
             comfort_active=comfort_active,
@@ -6991,40 +6991,12 @@ class SmartShadingEngine:
             await self._save_room_runtime(runtime)
             return
 
+        # Do not return early outside the thermal shading schedule.  The
+        # shared decision pipeline suppresses Solar and Comfort there, but it
+        # must still calculate year-round protected-zone glare geometry.
         if not schedule_active:
             runtime.night_morning_handover_pending = False
             runtime.night_morning_hold_until = None
-            behavior = room.get("outside_schedule_behavior", OUTSIDE_OPEN)
-            schedule_facts = self._advanced_decision_facts(
-                schedule_hold_active=behavior != OUTSIDE_OPEN,
-                open_active=behavior == OUTSIDE_OPEN,
-                idle_active=behavior != OUTSIDE_OPEN,
-            )
-            schedule_result = self._resolve_advanced_decision(
-                room, runtime, now, facts=schedule_facts
-            )
-            runtime.mode = schedule_result.mode
-            self._decision_room_facts[runtime.room_id] = schedule_facts
-            if runtime.mode == MODE_OPEN:
-                runtime.reason = f"{schedule_reason}; covers moved to neutral/open position"
-                await self._apply_room_mode(
-                    room,
-                    runtime,
-                    runtime.mode,
-                    elevation,
-                    facts=schedule_facts,
-                )
-            else:
-                await self._cancel_pending_normal_lifecycles(
-                    runtime.room_id,
-                    "schedule_outside_hold",
-                )
-                runtime.reason = f"{schedule_reason}; cover positions held"
-            self._mark_room_sectors(
-                room, status="schedule_blocked", reason=runtime.reason, mode=runtime.mode, active=False
-            )
-            await self._save_room_runtime(runtime)
-            return
 
         occupied = not room.get("occupancy_sensor") or _is_on(
             self.hass, room.get("occupancy_sensor", "")

@@ -156,11 +156,12 @@ Für Advanced-Entscheidungen ist die durch Code und Tests verifizierte, unverän
 3. Hold bei nicht verfügbarer konfigurierter Safety- oder Night-Quelle;
 4. **Night**;
 5. **Heat Protection**;
-6. Zeitplan- oder Eingangsqualitäts-Hold;
+6. Eingangsqualitäts-Hold;
 7. **Glare Protection**;
-8. **Solar**;
-9. **Comfort**;
-10. **Open** oder Idle-Hold.
+8. Zeitplan-Hold;
+9. **Solar**;
+10. **Comfort**;
+11. **Open** oder Idle-Hold.
 
 Jeder passende und abgelehnte Kandidat bleibt im Advanced-Trace mit stabilem Grund und normalisierter Eingangsqualität erhalten. Die Befehlsplanung folgt erst danach. Ein neueres Ziel mit höherer Priorität verwirft veraltete verzögerte Arbeit. Die vollständigen technischen Verträge stehen unter [Advanced behavior](../ADVANCED_MODE.md) und [Mode architecture](../MODE_ARCHITECTURE.md).
 
@@ -168,7 +169,7 @@ Jeder passende und abgelehnte Kandidat bleibt im Advanced-Trace mit stabilem Gru
 
 Eine Advanced-Schutzzone gehört zu genau einem physischen Behang und beschreibt das lichte Fenster sowie den Tisch, Sitzplatz, Bildschirm oder anderen Bereich, der nicht direkt von der Sonne getroffen werden soll. Seitlich laufende Vorhänge können mittig, von links nach rechts oder von rechts nach links schließen. Bei einem einseitigen Vorhang begrenzt Smart Shading den berechneten Sonnenkorridor auf die echte Fensteröffnung und folgt dessen wandernder Kante. Die aktuelle 3D-Sonnengeometrie bestimmt direkt das aktuelle Prozentziel. Wird eine Anwesenheitsbedingung erst erfüllt, nachdem die Sonne weiter in den Schutzbereich gewandert ist, erhält der Behang deshalb sofort das geometrisch erforderliche Ziel, zum Beispiel 45% oder 30%, statt einer künstlichen Zwischenstufe. Ein strengeres normales Solar- oder Safety-Ziel behält seinen Vorrang.
 
-Dieselbe Zone kann eine oder mehrere native Home-Assistant-Bedingungen enthalten. So kann zum Beispiel ein binärer Präsenzbereich verlangen, dass jemand am Tisch sitzt, eine Wetterbedingung `sunny` verlangen und ein numerischer Grenzwert in UND-, ODER- oder NICHT-Gruppen eingebunden werden. Zonenbezogene Ein- und Ausschaltverzögerungen entprellen diese Bedingungen: Neue Zonen verlangen standardmäßig 60 Sekunden ununterbrochen erfüllte Bedingungen und halten nach einer falschen oder nicht verfügbaren Bedingung noch 300 Sekunden nach. Die Verriegelung übersteht Neustarts, verzögert aber niemals das geometrische Verlassen der Fassade, des Höhenbereichs oder der Schutzzone. Jede Zone erhält außerdem eine eigene minimale Sonnenhöhe und kann die Lux- oder externe Sonnenbestätigung ausdrücklich nur für den Blendschutz ignorieren; Fassadenrichtung, Geometrie, Zeitplan und Zonenbedingungen gelten weiterhin. Die Advanced Card beschriftet das Ziel jedes einzelnen Behangs mit seinem aktiven Modus, etwa **Blendschutz** oder **Sonnenschutz**.
+Dieselbe Zone kann eine oder mehrere native Home-Assistant-Bedingungen enthalten. So kann zum Beispiel ein binärer Präsenzbereich verlangen, dass jemand am Tisch sitzt, eine Wetterbedingung `sunny` verlangen und ein numerischer Grenzwert in UND-, ODER- oder NICHT-Gruppen eingebunden werden. Zonenbezogene Ein- und Ausschaltverzögerungen entprellen diese Bedingungen: Neue Zonen verlangen standardmäßig 60 Sekunden ununterbrochen erfüllte Bedingungen und halten nach einer falschen oder nicht verfügbaren Bedingung noch 300 Sekunden nach. Die Verriegelung übersteht Neustarts, verzögert aber niemals das geometrische Verlassen der Fassade, des Höhenbereichs oder der Schutzzone. Jede Zone erhält außerdem eine eigene minimale Sonnenhöhe und kann die Lux- oder externe Sonnenbestätigung ausdrücklich nur für den Blendschutz ignorieren; Fassadenrichtung, Geometrie und Zonenbedingungen gelten weiterhin. Der Blendschutz wird ganzjährig und ganztägig unabhängig vom allgemeinen thermischen Beschattungszeitplan ausgewertet. Die Advanced Card beschriftet das Ziel jedes einzelnen Behangs mit seinem aktiven Modus, etwa **Blendschutz** oder **Sonnenschutz**.
 
 Für die lokale Sonnenbestätigung wählt jede Blendschutzzone genau einen frei wählbaren Außen-Helligkeits- oder Einstrahlungssensor. Smart Shading verwendet dessen Messwert direkt, ohne Sensoren zusammenzuführen oder eine Richtungslogik einzubauen. Fünf anwendungsbezogene Lichtprofile reichen von **Sehr tiefe Sonne (Morgen/Abend)** mit 5.000/3.000 lx bis **Starke Mittagssonne** mit 60.000/35.000 lx; **Helles Tageslicht (Standard)** verwendet 20.000/12.000 lx. Einstrahlungssensoren erhalten eigene Grenzwerte in W/m². Die Werte bewerten Außenhelligkeit und können direkte Sonne nicht beweisen: Helle Wolken können ein niedriges Profil erreichen, weshalb bei gewünschter strengerer Wolkenunterdrückung ein höheres Profil oder eigene Grenzen gewählt werden sollten. Eine Wetterentität bleibt optionaler Fallback und wird nur verwendet, wenn der gewählte Sensor keinen gültigen Wert liefert. Die Advanced Card zeigt Sensor, Messwert, Einheit, Ein-/Ausschaltgrenze, Hysteresezustand und einen verwendeten Wetter-Fallback.
 
@@ -196,7 +197,7 @@ Für die Cover-Position gilt die Home-Assistant-Semantik: `0%` geschlossen und `
 - Genau eine Sonnenquelle pro Sektor. Quellen werden nicht kombiniert und es gibt keinen versteckten Fallback.
 - Ohne Außentemperatursensor wird die Außentemperatur ignoriert. Ist ein ausgewählter Sensor nicht verfügbar, gilt seine Bedingung nicht als erfüllt.
 - Easy/Advanced ist pro Konfigurationseintrag fest.
-- Der allgemeine Advanced-Beschattungszeitplan erlaubt alle Tagesmodi; Night besitzt eine unabhängige Quelle oder einen sonnenbezogenen Zeitraum.
+- Der allgemeine Advanced-Beschattungszeitplan erlaubt normale Beschattung, Comfort, Solar und den Start von Heat Protection. Glare Protection wird ganzjährig ausgewertet; Night besitzt eine unabhängige Quelle oder einen sonnenbezogenen Zeitraum.
 - Berechnete Objekt-Blendschutzgeometrie gibt es nur für kompatible Advanced-Profile; Außenjalousien und Markisen werden vom Rechner nicht angeboten, Ergebnisse für Vertikallamellen sind Näherungen.
 - Softwareautomation ersetzt keine physischen Endlagen, Aktorschutzfunktionen oder geeignete Wind-/Frostsicherung. Prüfe Ziele und Fail-safe-Verhalten für deine Anlage.
 

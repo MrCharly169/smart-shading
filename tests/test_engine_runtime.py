@@ -2184,7 +2184,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(evidence["sun_evidence_entity_id"], "sensor.first")
         self.assertEqual(evidence["sun_evidence_value"], 2000)
 
-    async def test_general_schedule_blocks_standalone_glare(self):
+    async def test_general_schedule_does_not_block_year_round_glare(self):
         room = self.engine.room_config("room")
         room.setdefault("advanced_features", []).append("glare_protection")
         room.update(
@@ -2198,21 +2198,63 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         sector = self.engine.sector_config("south")
+        sector["layers"][0]["profile"] = "roller_shutter"
         sector["protected_zones"] = [
             {
                 "id": "desk",
                 "name": "Desk",
                 "sector_id": "south",
-                "group_ids": ["layer"],
+                "cover_entity": "cover.one",
                 "enabled": True,
                 "distance_m": 1.5,
-                "lower_height_m": 0.2,
-                "upper_height_m": 0.8,
-                "target_position": 15,
-                "target_tilt": 95,
+                "lower_height_m": 0.1,
+                "upper_height_m": 0.3,
+                "calculation_mode": "top_down",
+                "window_width_m": 1.6,
+                "window_height_m": 2.0,
+                "window_sill_height_m": 0.8,
+                "object_distance_m": 1.5,
+                "object_center_height_m": 0.2,
+                "object_height_m": 0.2,
+                "object_lateral_center_m": 0.0,
+                "object_width_m": 0.5,
+                "target_lateral_center_m": 0.0,
+                "target_lateral_width_m": 0.5,
+                "sun_confirmation_enabled": False,
+                "minimum_sun_elevation_degrees": 2.5,
             }
         ]
         self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 36000
+        self.hass.services.calls.clear()
+
+        await self.engine._evaluate_room(
+            room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        )
+
+        self.assertEqual(
+            self.engine.rooms["room"].mode,
+            "glare",
+            self.engine.rooms["room"].decision_trace,
+        )
+        self.assertTrue(
+            any(call[0] == "cover" for call in self.hass.services.calls)
+        )
+
+    async def test_general_schedule_still_holds_solar_without_glare_hit(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "schedule_enabled": True,
+                "schedule_profile": "custom",
+                "active_months": [1],
+                "active_weekdays": list(range(7)),
+                "day_window": "all_day",
+                "outside_schedule_behavior": "hold",
+            }
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 36000
         self.hass.services.calls.clear()
 
         await self.engine._evaluate_room(

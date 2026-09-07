@@ -398,7 +398,7 @@ class ProtectedZoneTests(unittest.TestCase):
         self.assertEqual(result.target.position, 20)
         self.assertEqual(result.target.tilt, 90)
 
-    def test_schedule_hold_and_heat_keep_priority_over_glare(self):
+    def test_glare_overrides_schedule_hold_but_not_heat(self):
         glare_context = {
             "glare_allowed": True,
             "sun_geometry": self.geometry,
@@ -411,7 +411,7 @@ class ProtectedZoneTests(unittest.TestCase):
             base_context(heat_active=True, **glare_context)
         )
 
-        self.assertEqual(held.mode, MODE_IDLE)
+        self.assertEqual(held.mode, MODE_GLARE)
         self.assertEqual(heated.mode, MODE_HEAT)
 
     def test_zone_can_be_constructed_from_persisted_wizard_values(self):

@@ -355,7 +355,7 @@
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
-            "description": "Der allgemeine Beschattungszeitplan gibt alle automatischen Tagesfunktionen frei: adaptive Beschattung, Komfort, Sonnenschutz, Blendschutz und Hitzeschutz. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
+            "description": "Der allgemeine Beschattungszeitplan gibt die thermisch gesteuerten Tagesfunktionen frei: adaptive Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
               "schedule_profile": "Aktivitätsprofil",
@@ -367,14 +367,14 @@
               "outside_schedule_behavior": "Außerhalb des Zeitplans"
             },
             "data_description": {
-              "schedule_enabled": "Aus bedeutet, dass alle automatischen Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Die Nachtfunktion bleibt unabhängig.",
+              "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben unabhängig.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
               "day_window": "Wählen Sie ganztägig oder ein festes tägliches Zeitfenster.",
               "start_time": "Nur bei festem Zeitfenster; über Mitternacht ist möglich.",
               "end_time": "Nur bei festem Zeitfenster.",
-              "outside_schedule_behavior": "Außerhalb der Freigabe werden die Behänge geöffnet oder unverändert gehalten. Die unabhängige Nachtfunktion und Sicherheitsbedingungen behalten Vorrang."
+              "outside_schedule_behavior": "Außerhalb der Freigabe werden die Behänge geöffnet oder unverändert gehalten, sofern nicht der ganzjährige Blendschutz, die unabhängige Nachtfunktion oder eine höherrangige Sicherheitsbedingung greift."
             }
           },
           "temperature_settings": {
@@ -1837,7 +1837,7 @@
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
-            "description": "Der allgemeine Beschattungszeitplan ist die Hauptfreigabe für jede automatische Tagesfunktion: normale Beschattung, Komfort, Sonnenschutz, Blendschutz und Hitzeschutz. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
+            "description": "Der allgemeine Beschattungszeitplan ist die Hauptfreigabe für thermisch gesteuerte Tagesfunktionen: normale Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
               "schedule_profile": "Aktivitätsprofil",
@@ -1849,14 +1849,14 @@
               "outside_schedule_behavior": "Außerhalb des Zeitplans"
             },
             "data_description": {
-              "schedule_enabled": "Aus bedeutet, dass die Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Die Nachtfunktion bleibt davon unabhängig.",
+              "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben davon unabhängig.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
               "day_window": "Wählen Sie ganztägig oder ein festes tägliches Zeitfenster.",
               "start_time": "Nur bei festem Zeitfenster; über Mitternacht ist möglich.",
               "end_time": "Nur bei festem Zeitfenster.",
-              "outside_schedule_behavior": "Legt fest, ob Behänge außerhalb der Tagesfreigabe öffnen oder ihre aktuelle Position halten. Die Nachtfunktion und Sicherheitsbedingungen werden separat ausgewertet."
+              "outside_schedule_behavior": "Legt fest, ob Behänge außerhalb der Tagesfreigabe öffnen oder ihre aktuelle Position halten. Ganzjähriger Blendschutz, Nachtfunktion und höherrangige Sicherheitsbedingungen werden separat ausgewertet."
             }
           },
           "temperature_settings": {

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2026.9.1b0 - 2026-09-07
+
+- Evaluate calculated protected-zone glare all year and all day, independently
+  of the general seasonal and daily shading schedule.
+- Let a valid glare hit override the configured outside-schedule open or hold
+  behavior, while Safety, manual/pause states, unavailable required inputs,
+  Night and an active Heat Protection cycle retain priority.
+- Keep ordinary shading, Comfort, Solar and the start of Heat Protection under
+  the existing general schedule and expose the year-round behavior clearly in
+  the setup wizard and release documentation.
+
 ## 2026.9.0b0 - 2026-09-02
 
 - Preserve native Badge-editor selectors, their long-list scroll and keyboard

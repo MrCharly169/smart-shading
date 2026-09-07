@@ -370,7 +370,7 @@
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "The general shading schedule enables every automatic daytime function: adaptive shading, Comfort, Solar, glare protection and heat protection. Night Mode uses its own independent period.",
+            "description": "The general shading schedule enables the thermally driven daytime functions: adaptive shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night Mode uses its own independent period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -382,14 +382,14 @@
               "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
-              "schedule_enabled": "When off, every automatic daytime function is available all year and all day. Night remains independent.",
+              "schedule_enabled": "When off, the thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Outside the permitted period, covers open or hold their current position. Independent Night Mode and safety constraints keep priority."
+              "outside_schedule_behavior": "Outside the permitted period, covers open or hold unless year-round glare protection, independent Night Mode or a higher-priority safety constraint applies."
             }
           },
           "temperature_settings": {
@@ -1852,7 +1852,7 @@
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
-            "description": "The general shading schedule is the master permission for every daytime automatic function: normal shading, Comfort, Solar, glare protection and heat protection. Night uses its own period.",
+            "description": "The general shading schedule is the master permission for thermally driven daytime functions: normal shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night uses its own period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
               "schedule_profile": "Activity profile",
@@ -1864,14 +1864,14 @@
               "outside_schedule_behavior": "Outside the schedule"
             },
             "data_description": {
-              "schedule_enabled": "When off, daytime functions are available all year and all day. Night remains independent.",
+              "schedule_enabled": "When off, thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
               "day_window": "Choose all day or a fixed daily time window.",
               "start_time": "Used only for a fixed time window; overnight windows are supported.",
               "end_time": "Used only for a fixed time window.",
-              "outside_schedule_behavior": "Choose whether covers open or hold their current position outside daytime permission. Night and safety conditions are evaluated separately."
+              "outside_schedule_behavior": "Choose whether covers open or hold outside daytime permission. Year-round glare protection, Night and higher-priority safety conditions are evaluated separately."
             }
           },
           "temperature_settings": {
