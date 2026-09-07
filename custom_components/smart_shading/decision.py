@@ -81,6 +81,7 @@ class DecisionPriority(IntEnum):
     OPEN = 200
     COMFORT = 300
     SOLAR = 400
+    SCHEDULE_HOLD = 410
     GLARE = 425
     INPUT_HOLD = 450
     HEAT = 500
@@ -1644,7 +1645,7 @@ class DecisionResolver:
             "night": DecisionPriority.NIGHT,
             "heat_protection": DecisionPriority.HEAT,
             "heat": DecisionPriority.HEAT,
-            "schedule_hold": DecisionPriority.INPUT_HOLD,
+            "schedule_hold": DecisionPriority.SCHEDULE_HOLD,
             "input_quality_hold": DecisionPriority.INPUT_HOLD,
             "glare_protection": DecisionPriority.GLARE,
             "solar": DecisionPriority.SOLAR,

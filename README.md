@@ -156,11 +156,12 @@ For Advanced decisions, the immutable order verified by code and tests is:
 3. hold for an unavailable configured Safety or Night source;
 4. **Night**;
 5. **Heat Protection**;
-6. schedule or normal-input-quality hold;
+6. normal-input-quality hold;
 7. **Glare Protection**;
-8. **Solar**;
-9. **Comfort**;
-10. **Open** or idle hold.
+8. schedule hold;
+9. **Solar**;
+10. **Comfort**;
+11. **Open** or idle hold.
 
 Every matching and rejected candidate is retained in the Advanced trace with a stable reason and normalized input quality. Command planning happens afterwards. A newer higher-priority target cancels obsolete delayed work. See [Advanced behavior](docs/ADVANCED_MODE.md) and the [mode architecture](docs/MODE_ARCHITECTURE.md) for the full technical contract.
 
@@ -170,7 +171,7 @@ An Advanced protected zone belongs to one physical cover and measures the clear 
 
 The same zone can contain one or more native Home Assistant conditions. A binary presence zone can require somebody to be at a desk, for example, and numeric-state thresholds can be combined through AND, OR, or NOT groups. Per-zone activation and release delays debounce these conditions: new zones default to 60 seconds continuously true before starting and a 300-second grace after a condition becomes false or unavailable. The latch survives restarts, but it never delays a geometric exit from the facade, elevation range, or protected footprint.
 
-Local sun evidence uses exactly one freely selected outdoor illuminance or irradiance sensor per glare zone. Smart Shading reads that sensor directly; it does not aggregate sensors or apply directional sensor logic. Five use-case profiles range from **Very low sun (morning/evening)** at 5,000/3,000 lx to **Strong midday sun** at 60,000/35,000 lx, with **Bright daylight (standard)** using the common 20,000/12,000 lx shading range. Irradiance sensors receive equivalent unit-specific thresholds. Every profile has a separate ON and OFF threshold, so short fluctuations do not make the protection pump. These values classify measured outdoor brightness and cannot prove direct sunlight; bright clouds may reach a low-sun profile, so customers who need stricter cloud rejection should select a higher profile or custom thresholds. A weather entity is optional and is consulted only when the selected local sensor has no valid reading; `sunny` never overrides a valid low local measurement. The Advanced Card exposes the selected sensor, live value, unit, thresholds, hysteresis state, and whether the weather fallback was used. Each zone also has its own minimum sun elevation and may explicitly ignore the sector's facade-related Lux or external direct-sun confirmation for low-sun glare; facade azimuth, geometry, schedule and all zone activation gates still apply. The Advanced Card labels every individual cover target with its active mode, such as **Glare protection** or **Solar shading**.
+Local sun evidence uses exactly one freely selected outdoor illuminance or irradiance sensor per glare zone. Smart Shading reads that sensor directly; it does not aggregate sensors or apply directional sensor logic. Five use-case profiles range from **Very low sun (morning/evening)** at 5,000/3,000 lx to **Strong midday sun** at 60,000/35,000 lx, with **Bright daylight (standard)** using the common 20,000/12,000 lx shading range. Irradiance sensors receive equivalent unit-specific thresholds. Every profile has a separate ON and OFF threshold, so short fluctuations do not make the protection pump. These values classify measured outdoor brightness and cannot prove direct sunlight; bright clouds may reach a low-sun profile, so customers who need stricter cloud rejection should select a higher profile or custom thresholds. A weather entity is optional and is consulted only when the selected local sensor has no valid reading; `sunny` never overrides a valid low local measurement. The Advanced Card exposes the selected sensor, live value, unit, thresholds, hysteresis state, and whether the weather fallback was used. Each zone also has its own minimum sun elevation and may explicitly ignore the sector's facade-related Lux or external direct-sun confirmation for low-sun glare; facade azimuth, geometry and all zone activation gates still apply. Glare protection is evaluated all year and all day, independently of the general thermal shading schedule. The Advanced Card labels every individual cover target with its active mode, such as **Glare protection** or **Solar shading**.
 
 ## Supported cover profiles
 
@@ -196,7 +197,7 @@ Home Assistant cover position semantics are `0%` closed and `100%` open. Smart S
 - Exactly one sun source per sector. Sources are not combined and there is no hidden fallback.
 - Without an outdoor-temperature sensor, outdoor temperature is ignored. If a selected sensor is unavailable, its configured condition is not treated as satisfied.
 - Easy/Advanced is fixed per config entry.
-- The general Advanced shading schedule permits all daytime modes; Night has its own independent source or Sun-relative period.
+- The general Advanced shading schedule permits ordinary shading, Comfort, Solar and the start of Heat Protection. Glare Protection is evaluated all year; Night has its own independent source or Sun-relative period.
 - Calculated object-glare geometry is available only for compatible Advanced profiles; exterior Venetian blinds and awnings are not offered by that calculator, and vertical-slat results are approximate.
 - Software automation cannot replace physical end stops, actuator protections, or appropriate wind/frost safeguards. Validate targets and fail-safe behavior for your installation.
 
