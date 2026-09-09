@@ -399,14 +399,34 @@ def continue_past_legacy_global_settings(
     api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
 ) -> dict[str, Any]:
     """Submit the retired Sun form when bootstrapping an older release."""
-    if result.get("step_id") != "global_settings":
-        return result
-    return submit_flow(
-        api,
-        flow_id,
-        "global_settings",
-        {"sun_entity": "sun.sun"},
-    )
+    if result.get("step_id") == "global_settings":
+        result = submit_flow(
+            api,
+            flow_id,
+            "global_settings",
+            {"sun_entity": "sun.sun"},
+        )
+    if result.get("step_id") == "global_operating_policy":
+        return submit_flow(
+            api,
+            flow_id,
+            "global_operating_policy",
+            {
+                "house_policy": {
+                    "operating_profile": "automatic",
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                    "active_months": [str(value) for value in range(1, 13)],
+                    "active_weekdays": [str(value) for value in range(7)],
+                    "start_time": "06:00:00",
+                    "end_time": "22:00:00",
+                    "outside_schedule_behavior": "open",
+                    "global_glare_protection_enabled": True,
+                    "global_night_enabled": True,
+                }
+            },
+        )
+    return result
 
 
 def continue_past_initial_structure_hub(
@@ -696,6 +716,7 @@ def create_advanced_entry(
             "setup_type": "complete",
         },
     )
+    supports_global_policy = result.get("step_id") == "global_operating_policy"
     result = continue_past_legacy_global_settings(api, flow_id, result)
     expect_step(result, "room_setup")
     room_details = {
@@ -932,23 +953,26 @@ def create_advanced_entry(
         supported_form_data(result, advanced_features),
     )
     expect_step(result, "manage_automation")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {
-                "schedule_profile": "custom",
-                "day_window": "fixed_time",
-                "active_months": [str(value) for value in range(1, 13)],
-                "active_weekdays": [str(value) for value in range(7)],
-                "start_time": "06:00:00",
-                "end_time": "22:00:00",
-                "outside_schedule_behavior": "open",
+    if not supports_global_policy:
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {
+                "schedule_settings": {
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                    "active_months": [
+                        str(value) for value in range(1, 13)
+                    ],
+                    "active_weekdays": [str(value) for value in range(7)],
+                    "start_time": "06:00:00",
+                    "end_time": "22:00:00",
+                    "outside_schedule_behavior": "open",
+                }
             },
-        },
-    )
-    expect_step(result, "manage_automation")
+        )
+        expect_step(result, "manage_automation")
     result = submit_flow(
         api,
         flow_id,
@@ -1422,64 +1446,13 @@ def assert_existing_room_night_transition(
 def assert_existing_room_schedule_transition(
     api: HomeAssistantApi, entry_id: str
 ) -> None:
-    """Persist both states of the dedicated Schedule feature."""
-    configuration = entry_room_state(api, entry_id).get(
-        "attributes", {}
-    ).get("configuration", {})
-    flow_id, feature_form = replay_options_path(
-        api, entry_id, "choose_advanced_features"
+    """Persist a room schedule exception and return it to global inheritance."""
+    flow_id, result = replay_advanced_feature(
+        api, entry_id, "manage_schedule", "manage_automation"
     )
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "choose_advanced_features",
-        advanced_feature_payload(
-            configuration,
-            remove=("schedule",),
-            visible_fields=_schema_fields(
-                feature_form.get("data_schema", [])
-            ),
-        ),
-    )
-    expect_step(result, "advanced_features_hub")
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "advanced_features_hub",
-        {"next_step_id": "back_to_room"},
-    )
-    save_options_from_room_hub(api, flow_id, result)
-    reload_entry(api, entry_id)
-    configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
-        "configuration", {}
-    )
-    if configuration.get("schedule_enabled") is not False:
-        raise AssertionError(
-            "Schedule disable was not persisted for an existing room: "
-            f"{configuration}"
-        )
-
-    explore_options_surfaces(api, entry_id)
-    configuration = entry_room_state(api, entry_id).get(
-        "attributes", {}
-    ).get("configuration", {})
-    flow_id, feature_form = replay_options_path(
-        api, entry_id, "choose_advanced_features"
-    )
-    result = submit_options_flow(
-        api,
-        flow_id,
-        "choose_advanced_features",
-        advanced_feature_payload(
-            configuration,
-            add=("schedule",),
-            visible_fields=_schema_fields(
-                feature_form.get("data_schema", [])
-            ),
-        ),
-    )
-    expect_step(result, "manage_automation")
     schedule_values = {
+        "operating_profile": "inherit",
+        "schedule_scope": "custom",
         "schedule_profile": "custom",
         "day_window": "fixed_time",
         "active_months": [str(value) for value in range(1, 13)],
@@ -1488,6 +1461,28 @@ def assert_existing_room_schedule_transition(
         "end_time": "22:00:00",
         "outside_schedule_behavior": "open",
     }
+    result = submit_options_flow(
+        api,
+        flow_id,
+        "manage_automation",
+        {"schedule_settings": schedule_values},
+    )
+    save_options_from_room_hub(api, flow_id, result)
+    reload_entry(api, entry_id)
+    configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
+        "configuration", {}
+    )
+    if configuration.get("schedule_scope") != "custom":
+        raise AssertionError(
+            "Custom room schedule was not persisted for an existing room: "
+            f"{configuration}"
+        )
+
+    explore_options_surfaces(api, entry_id)
+    flow_id, result = replay_advanced_feature(
+        api, entry_id, "manage_schedule", "manage_automation"
+    )
+    schedule_values["schedule_scope"] = "inherit"
     result = submit_options_flow(
         api,
         flow_id,
@@ -1506,13 +1501,13 @@ def assert_existing_room_schedule_transition(
     configuration = entry_room_state(api, entry_id).get("attributes", {}).get(
         "configuration", {}
     )
-    if not configuration.get("schedule_enabled"):
+    if configuration.get("schedule_scope") != "inherit":
         raise AssertionError(
-            "Schedule enable was not persisted for an existing room: "
+            "Global schedule inheritance was not restored for an existing room: "
             f"{configuration}"
         )
     LIVE_WIZARD_TRANSITIONS.add(
-        "existing_room.schedule_enabled.on_to_off_to_on.save_reload"
+        "existing_room.schedule_scope.inherit_to_custom_to_inherit.save_reload"
     )
 
 
@@ -2299,6 +2294,8 @@ def probe_choice_matrix(
         )
         try:
             initial_schedule = {
+                "operating_profile": "inherit",
+                "schedule_scope": "custom",
                 "schedule_profile": profile,
                 "day_window": "all_day",
                 "active_months": ["1"],
@@ -2332,6 +2329,8 @@ def probe_choice_matrix(
     )
     try:
         fixed_schedule = {
+            "operating_profile": "inherit",
+            "schedule_scope": "custom",
             "schedule_profile": "custom",
             "day_window": "fixed_time",
             "active_months": ["1"],

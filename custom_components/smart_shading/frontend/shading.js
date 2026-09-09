@@ -46,6 +46,10 @@ const cardRoomAttributes = (attrs) => ({
   night_source: attrs.night_source,
   night_entity: attrs.night_entity,
   schedule_active: attrs.schedule_active,
+  operating_profile: attrs.operating_profile,
+  operating_profile_source: attrs.operating_profile_source,
+  house_operating_profile: attrs.house_operating_profile,
+  safety_always_active: attrs.safety_always_active,
   temperature_settings: attrs.temperature_settings,
   easy_confirmation_state: attrs.easy_confirmation_state,
   easy_source_summary: attrs.easy_source_summary,
@@ -453,9 +457,10 @@ class SmartShadingV4Dialog extends HTMLElement {
       reason: "Grund",
       schedule: "Zeitplan",
       operatingProfile: "Betriebsprofil",
-      profileAutomatic: "Automatisch",
+      profileAutomatic: "Nach Saison und Zeitplan",
       profileProtectionOnly: "Nur Schutz",
       profileYearRound: "Ganzjährig",
+      profileGlobal: "Global",
       active: "aktiv",
       inactive: "inaktiv",
       pauseUntil: "Pausiert bis",
@@ -541,9 +546,10 @@ class SmartShadingV4Dialog extends HTMLElement {
       reason: "Reason",
       schedule: "Schedule",
       operatingProfile: "Operating profile",
-      profileAutomatic: "Automatic",
+      profileAutomatic: "By season and schedule",
       profileProtectionOnly: "Protection only",
       profileYearRound: "Year-round",
+      profileGlobal: "Global",
       active: "active",
       inactive: "inactive",
       pauseUntil: "Paused until",
@@ -1268,12 +1274,19 @@ class SmartShadingV4Dialog extends HTMLElement {
     const evaluate = this._control("evaluate");
     const exportLog = this._control("export_room_diagnostics") || this._control("export_diagnostics");
     const master = this._control("manual_master");
-    const operatingProfileControl = this._control("operating_profile");
+    const operatingProfileControl = this._control(
+      attrs.operating_profile_source === "house"
+        ? "house_operating_profile"
+        : "operating_profile"
+    );
     const operatingProfileLabel = ({
       automatic: L.profileAutomatic,
       protection_only: L.profileProtectionOnly,
       year_round: L.profileYearRound,
     })[attrs.operating_profile] || L.profileAutomatic;
+    const operatingProfileDisplay = attrs.operating_profile_source === "house"
+      ? `${operatingProfileLabel} · ${L.profileGlobal}`
+      : operatingProfileLabel;
     const configuredNightSource = attrs.night_source === "entity" ? attrs.night_entity : "";
     const nightSource = configuredNightSource && this._hass?.states?.[configuredNightSource]
       ? configuredNightSource
@@ -1347,7 +1360,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(this._roomState.state))}</strong></div>
         <div><small>${htmlEscape(L.reason)}</small><strong>${htmlEscape(localizedReason(attrs.reason, this._hass?.language, L.noReason))}</strong></div>
         <div><small>${htmlEscape(L.schedule)}</small><strong>${attrs.schedule_active === false ? L.inactive : L.active}</strong></div>
-        <div><small>${htmlEscape(L.operatingProfile)}</small><strong>${htmlEscape(operatingProfileLabel)}</strong></div>
+        <div><small>${htmlEscape(L.operatingProfile)}</small><strong>${htmlEscape(operatingProfileDisplay)}</strong></div>
         <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
       </div></section>
       ${decisionHtml}
@@ -1357,7 +1370,7 @@ class SmartShadingV4Dialog extends HTMLElement {
           ? (resume?.entity_id ? `<button data-press="${htmlEscape(resume.entity_id)}">${iconBox("mdi:play", "action-icon")}${htmlEscape(L.resume)}</button>` : "")
           : (pause?.entity_id ? `<button data-press="${htmlEscape(pause.entity_id)}">${iconBox("mdi:pause", "action-icon")}${htmlEscape(L.pause)}</button>` : "")}
         ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}">${iconBox("mdi:hand-back-right", "action-icon")}${htmlEscape(L.master)}</button>` : ""}
-        ${operatingProfileControl?.entity_id ? `<button data-more="${htmlEscape(operatingProfileControl.entity_id)}">${iconBox("mdi:home-switch", "action-icon")}${htmlEscape(`${L.operatingProfile}: ${operatingProfileControl.state}`)}</button>` : ""}
+        ${operatingProfileControl?.entity_id ? `<button data-more="${htmlEscape(operatingProfileControl.entity_id)}">${iconBox("mdi:home-switch", "action-icon")}${htmlEscape(`${L.operatingProfile}: ${operatingProfileDisplay}`)}</button>` : ""}
       </div></section>
       <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
       <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
@@ -1600,6 +1613,7 @@ class SmartShadingV4Card extends HTMLElement {
       sunUnavailable: "Sonnenstatus nicht verfügbar",
       roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
       operatingProfile: "Betriebsprofil",
+      profileAutomatic: "Nach Saison und Zeitplan", profileProtectionOnly: "Nur Schutz", profileYearRound: "Ganzjährig", profileGlobal: "Global", safetyAlways: "Sicherheit immer aktiv",
       decision: "Entscheidung", winner: "Gewinner", command: "Befehl", quality: "Datenqualität", protectedZones: "Schutzzonen",
       simulation: "Simulation", runSimulation: "Simulation ausführen", previewDay: "Tagvorschau berechnen", simulationActive: "Simulation aktiv",
     } : {
@@ -1618,6 +1632,7 @@ class SmartShadingV4Card extends HTMLElement {
       sunUnavailable: "Sun status unavailable",
       roomContext: "Room", scheduleContext: "Schedule", overrideContext: "Override",
       operatingProfile: "Operating profile",
+      profileAutomatic: "By season and schedule", profileProtectionOnly: "Protection only", profileYearRound: "Year-round", profileGlobal: "Global", safetyAlways: "Safety always active",
       decision: "Decision", winner: "Winner", command: "Command", quality: "Input quality", protectedZones: "Protected zones",
       simulation: "Simulation", runSimulation: "Run simulation", previewDay: "Calculate day preview", simulationActive: "Simulation active",
     };
@@ -1654,7 +1669,10 @@ class SmartShadingV4Card extends HTMLElement {
     const allowed = new Set(["number", "select", "switch", "button", "binary_sensor"]);
     return Object.values(this._hass.states || {}).filter((state) => {
       const domain = String(state?.entity_id || "").split(".")[0];
-      return state?.attributes?.smart_shading_entry_id === entryId && state?.attributes?.smart_shading_room_id === roomId && allowed.has(domain);
+      const sameEntry = state?.attributes?.smart_shading_entry_id === entryId;
+      const sameRoom = state?.attributes?.smart_shading_room_id === roomId;
+      const houseControl = state?.attributes?.smart_shading_control_key === "house_operating_profile";
+      return sameEntry && (sameRoom || houseControl) && allowed.has(domain);
     });
   }
 
@@ -1993,7 +2011,20 @@ class SmartShadingV4Card extends HTMLElement {
     const simulateButton = this._control(controls, "simulate");
     const previewButton = this._control(controls, "preview_day");
     const masterButton = this._control(controls, "manual_master");
-    const operatingProfileButton = this._control(controls, "operating_profile");
+    const operatingProfileButton = this._control(
+      controls,
+      attrs.operating_profile_source === "house"
+        ? "house_operating_profile"
+        : "operating_profile",
+    );
+    const operatingProfileLabel = ({
+      automatic: L.profileAutomatic,
+      protection_only: L.profileProtectionOnly,
+      year_round: L.profileYearRound,
+    })[attrs.operating_profile] || L.profileAutomatic;
+    const operatingProfileDisplay = attrs.operating_profile_source === "house"
+      ? `${operatingProfileLabel} · ${L.profileGlobal}`
+      : operatingProfileLabel;
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
     const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
 
@@ -2033,10 +2064,11 @@ class SmartShadingV4Card extends HTMLElement {
           <div class="chips">
             ${covers.length ? `<span class="chip">${iconBox("mdi:autorenew", "chip-icon")}<span class="parts">${coverChips}</span></span>` : ""}
             ${safetyChips}
+            <span class="chip" title="${htmlEscape(L.safetyAlways)}">${iconBox("mdi:shield-check-outline", "chip-icon")}${htmlEscape(L.safety)}</span>
             ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}">${iconBox("mdi:window-closed-variant", "chip-icon")}<span class="parts">${windowParts}</span></span>` : ""}
             ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
-            ${operatingProfileButton?.entity_id ? `<button class="chip" data-more="${htmlEscape(operatingProfileButton.entity_id)}">${iconBox("mdi:home-switch", "chip-icon")}${htmlEscape(operatingProfileButton.state || L.operatingProfile)}</button>` : ""}
+            ${operatingProfileButton?.entity_id ? `<button class="chip" data-more="${htmlEscape(operatingProfileButton.entity_id)}">${iconBox("mdi:home-switch", "chip-icon")}${htmlEscape(operatingProfileDisplay)}</button>` : ""}
           </div>
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</span><span>${sunAvailable ? `Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°` : htmlEscape(L.sunUnavailable)}</span></div><div class="track">${sectorBars}${sunAvailable ? `<span class="sun-dot ${effectiveSunActive ? "calm-pulse" : ""}"></span>` : ""}</div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
           ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}

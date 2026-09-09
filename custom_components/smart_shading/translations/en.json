@@ -14,6 +14,40 @@
           "setup_type": "Easy asks only for the essentials. Advanced adds selectable comfort and protection functions."
         }
       },
+      "global_operating_policy": {
+        "title": "Operation and protection",
+        "description": "This global setting is the default for every room. Thermal shading can follow season and schedule, run year-round, or remain disabled. Glare Protection and Night Mode are independent and can operate year-round. Configured safety sources always remain active and take priority over every comfort function.",
+        "sections": {
+          "house_policy": {
+            "name": "Global schedule and year-round functions",
+            "description": "Rooms inherit this setting automatically. A room-specific exception remains available later in the detailed settings.",
+            "data": {
+              "operating_profile": "Thermal shading",
+              "schedule_profile": "Season",
+              "day_window": "Daily time window",
+              "active_months": "Active months",
+              "active_weekdays": "Active weekdays",
+              "start_time": "Start time",
+              "end_time": "End time",
+              "outside_schedule_behavior": "Outside the schedule",
+              "global_glare_protection_enabled": "Allow Glare Protection year-round",
+              "global_night_enabled": "Allow Night Mode year-round"
+            },
+            "data_description": {
+              "operating_profile": "By season and schedule uses the calendar below. Protection only disables Solar, Comfort and Heat shading. Year-round ignores months and weekdays but retains a fixed daily window.",
+              "schedule_profile": "A predefined season or custom calendar for thermal shading.",
+              "day_window": "All day or a fixed time window.",
+              "active_months": "Used by the custom calendar.",
+              "active_weekdays": "Used by the custom calendar.",
+              "start_time": "Beginning of the fixed daily window.",
+              "end_time": "End of the fixed daily window.",
+              "outside_schedule_behavior": "Defines the resting position outside thermal shading time.",
+              "global_glare_protection_enabled": "Allows configured protected zones independently of the thermal season. Room assignment and its conditions remain required.",
+              "global_night_enabled": "Allows configured Night Mode independently of the thermal season. The room's schedule or sun reference remains required."
+            }
+          }
+        }
+      },
       "room_setup": {
         "title": "Set up the first room",
         "description": "Choose the room, first facade, cover group and covers.",
@@ -250,6 +284,7 @@
         "description": "Add or open a room, configure optional functions, or review the setup.",
         "menu_options": {
           "add_room": "Add room",
+          "global_operating_policy": "Operation and protection",
           "global_settings": "House settings",
           "diagnostics_settings": "Diagnostics and support",
           "finish": "Review and start"
@@ -373,7 +408,8 @@
             "description": "The general shading schedule enables the thermally driven daytime functions: adaptive shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night Mode uses its own independent period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
-              "operating_profile": "Operating profile",
+              "operating_profile": "Room exception",
+              "schedule_scope": "Schedule source",
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
               "active_weekdays": "Active weekdays",
@@ -384,7 +420,8 @@
             },
             "data_description": {
               "schedule_enabled": "When off, the thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
-              "operating_profile": "Automatic follows the configured calendar. Protection only disables thermal shading while Safety, Night and Glare remain active. Year-round ignores seasonal months and weekdays but keeps the daily time window.",
+              "operating_profile": "Global setting inherits the house mode. The other choices override only this room.",
+              "schedule_scope": "Use the global house calendar or maintain a separate calendar for this room.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
@@ -1300,6 +1337,40 @@
   },
   "options": {
     "step": {
+      "global_operating_policy": {
+        "title": "Operation and protection",
+        "description": "This global setting applies to every room that inherits it. Thermal shading, Glare Protection and Night Mode are controlled together; configured safety sources always remain active and take priority.",
+        "sections": {
+          "house_policy": {
+            "name": "Global schedule and year-round functions",
+            "description": "Existing room exceptions are preserved. Rooms using the global setting inherit changes after saving.",
+            "data": {
+              "operating_profile": "Thermal shading",
+              "schedule_profile": "Season",
+              "day_window": "Daily time window",
+              "active_months": "Active months",
+              "active_weekdays": "Active weekdays",
+              "start_time": "Start time",
+              "end_time": "End time",
+              "outside_schedule_behavior": "Outside the schedule",
+              "global_glare_protection_enabled": "Allow Glare Protection year-round",
+              "global_night_enabled": "Allow Night Mode year-round"
+            },
+            "data_description": {
+              "operating_profile": "By season and schedule uses the calendar below. Protection only disables Solar, Comfort and Heat shading. Year-round ignores months and weekdays but retains a fixed daily window.",
+              "schedule_profile": "A predefined season or custom calendar for thermal shading.",
+              "day_window": "All day or a fixed time window.",
+              "active_months": "Used by the custom calendar.",
+              "active_weekdays": "Used by the custom calendar.",
+              "start_time": "Beginning of the fixed daily window.",
+              "end_time": "End of the fixed daily window.",
+              "outside_schedule_behavior": "Defines the resting position outside thermal shading time.",
+              "global_glare_protection_enabled": "Allows configured protected zones independently of the thermal season. Room assignment and its conditions remain required.",
+              "global_night_enabled": "Allows configured Night Mode independently of the thermal season. The room's schedule or sun reference remains required."
+            }
+          }
+        }
+      },
       "choose_advanced_features": {
         "title": "Choose optional features",
         "description": "Choose the optional features available for this room and the selected setup scope. The wizard then guides you through every selected feature in order. A feature can be changed or deselected later.",
@@ -1804,6 +1875,7 @@
         "description": "Choose a room or a house-wide task. Each room opens a short task overview.",
         "menu_options": {
           "add_room": "Add room",
+          "global_operating_policy": "Operation and protection",
           "global_settings": "House settings",
           "diagnostics_settings": "Diagnostics and support",
           "finish": "Save changes and reload"
@@ -1857,7 +1929,8 @@
             "description": "The general shading schedule is the master permission for thermally driven daytime functions: normal shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night uses its own period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
-              "operating_profile": "Operating profile",
+              "operating_profile": "Room exception",
+              "schedule_scope": "Schedule source",
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
               "active_weekdays": "Active weekdays",
@@ -1868,7 +1941,8 @@
             },
             "data_description": {
               "schedule_enabled": "When off, thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
-              "operating_profile": "Automatic follows the configured calendar. Protection only disables thermal shading while Safety, Night and Glare remain active. Year-round ignores seasonal months and weekdays but keeps the daily time window.",
+              "operating_profile": "Global setting inherits the house mode. The other choices override only this room.",
+              "schedule_scope": "Use the global house calendar or maintain a separate calendar for this room.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
@@ -2685,9 +2759,16 @@
     },
     "operating_profile": {
       "options": {
-        "automatic": "Automatic",
+        "inherit": "Global setting",
+        "automatic": "By season and schedule",
         "protection_only": "Protection only",
         "year_round": "Year-round"
+      }
+    },
+    "schedule_scope": {
+      "options": {
+        "inherit": "Use global house schedule",
+        "custom": "Custom room schedule"
       }
     },
     "schedule_profile": {
@@ -2806,15 +2887,15 @@
   "services": {
     "set_operating_profile": {
       "name": "Set operating profile",
-      "description": "Changes the complete room operating profile with one call. Safety, Night, Glare protection and hard device limits remain active in every profile.",
+      "description": "Changes the global operating policy or one room exception. Safety and hard device limits remain active; enabled Night and Glare functions operate independently of the thermal season.",
       "fields": {
         "room_id": {
           "name": "Room ID",
-          "description": "Stable Smart Shading room ID from the room status entity."
+          "description": "Optional. Leave empty to change the global house setting, or provide a room ID to change only that room exception."
         },
         "profile": {
           "name": "Operating profile",
-          "description": "Automatic follows the configured calendar, Protection only disables thermal shading, and Year-round ignores seasonal months and weekdays."
+          "description": "By season and schedule follows the calendar, Protection only disables thermal shading, and Year-round ignores seasonal months and weekdays. Global setting is valid only with a room ID."
         },
         "entry_id": {
           "name": "Configuration entry ID",

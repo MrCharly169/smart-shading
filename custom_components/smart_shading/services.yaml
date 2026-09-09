@@ -15,7 +15,7 @@ preview_day:
 set_operating_profile:
   fields:
     room_id:
-      required: true
+      required: false
       selector:
         text:
     profile:
@@ -24,6 +24,7 @@ set_operating_profile:
         select:
           translation_key: operating_profile
           options:
+            - inherit
             - automatic
             - protection_only
             - year_round

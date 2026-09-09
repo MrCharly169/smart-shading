@@ -14,6 +14,40 @@
           "setup_type": "Easy fragt nur das Wesentliche ab. Advanced ergänzt auswählbare Komfort- und Schutzfunktionen."
         }
       },
+      "global_operating_policy": {
+        "title": "Betriebsweise und Schutz",
+        "description": "Diese globale Einstellung gilt als Standard für alle Räume. Thermische Beschattung folgt wahlweise Saison und Zeitplan, arbeitet ganzjährig oder bleibt ausgeschaltet. Blendschutz und Nachtfunktion sind davon unabhängig und können ganzjährig arbeiten. Konfigurierte Sicherheitsquellen bleiben immer aktiv und haben vor jeder Komfortfunktion Vorrang.",
+        "sections": {
+          "house_policy": {
+            "name": "Globaler Zeitplan und ganzjährige Funktionen",
+            "description": "Räume übernehmen diese Einstellung automatisch. Eine abweichende Raumeinstellung ist später in den Detaileinstellungen möglich.",
+            "data": {
+              "operating_profile": "Thermische Beschattung",
+              "schedule_profile": "Saison",
+              "day_window": "Tägliches Zeitfenster",
+              "active_months": "Aktive Monate",
+              "active_weekdays": "Aktive Wochentage",
+              "start_time": "Startzeit",
+              "end_time": "Endzeit",
+              "outside_schedule_behavior": "Außerhalb des Zeitplans",
+              "global_glare_protection_enabled": "Blendschutz ganzjährig freigeben",
+              "global_night_enabled": "Nachtfunktion ganzjährig freigeben"
+            },
+            "data_description": {
+              "operating_profile": "Nach Saison und Zeitplan verwendet den Kalender unten. Nur Schutz deaktiviert Solar-, Komfort- und Hitzebeschattung. Ganzjährig ignoriert Monate und Wochentage, behält aber ein festes tägliches Zeitfenster bei.",
+              "schedule_profile": "Vordefinierte Saison oder eigener Kalender für die thermische Beschattung.",
+              "day_window": "Ganztägig oder eine feste Uhrzeit.",
+              "active_months": "Wird beim benutzerdefinierten Kalender ausgewertet.",
+              "active_weekdays": "Wird beim benutzerdefinierten Kalender ausgewertet.",
+              "start_time": "Beginn des festen täglichen Zeitfensters.",
+              "end_time": "Ende des festen täglichen Zeitfensters.",
+              "outside_schedule_behavior": "Legt die Ruheposition außerhalb der thermischen Beschattungszeit fest.",
+              "global_glare_protection_enabled": "Erlaubt konfigurierte Blendzonen unabhängig von der thermischen Saison. Die Raumzuordnung und ihre Bedingungen bleiben erforderlich.",
+              "global_night_enabled": "Erlaubt konfigurierte Nachtfunktionen unabhängig von der thermischen Saison. Der Zeitplan oder Sonnenbezug des Raums bleibt erforderlich."
+            }
+          }
+        }
+      },
       "room_setup": {
         "title": "Ersten Raum einrichten",
         "description": "Wählen Sie Raum, erste Fassade, Behanggruppe und Behänge.",
@@ -250,6 +284,7 @@
         "description": "Fügen Sie einen Raum hinzu, öffnen Sie einen Raum oder prüfen Sie die Einrichtung.",
         "menu_options": {
           "add_room": "Raum hinzufügen",
+          "global_operating_policy": "Betriebsweise und Schutz",
           "global_settings": "Hauseinstellungen",
           "diagnostics_settings": "Diagnose und Support",
           "finish": "Prüfen und starten"
@@ -358,7 +393,8 @@
             "description": "Der allgemeine Beschattungszeitplan gibt die thermisch gesteuerten Tagesfunktionen frei: adaptive Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
-              "operating_profile": "Betriebsprofil",
+              "operating_profile": "Raum-Ausnahme",
+              "schedule_scope": "Zeitplanquelle",
               "schedule_profile": "Aktivitätsprofil",
               "active_months": "Aktive Monate",
               "active_weekdays": "Aktive Wochentage",
@@ -369,7 +405,8 @@
             },
             "data_description": {
               "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben unabhängig.",
-              "operating_profile": "Automatisch folgt dem eingestellten Kalender. Nur Schutz deaktiviert die thermische Beschattung; Safety, Nacht und Blendschutz bleiben aktiv. Ganzjährig ignoriert Saisonmonate und Wochentage, behält aber das tägliche Zeitfenster bei.",
+              "operating_profile": "Globale Einstellung übernimmt die Betriebsweise des Hauses. Die anderen Werte überschreiben nur diesen Raum.",
+              "schedule_scope": "Globalen Haus-Kalender übernehmen oder einen eigenen Kalender für diesen Raum pflegen.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
@@ -1300,6 +1337,40 @@
   },
   "options": {
     "step": {
+      "global_operating_policy": {
+        "title": "Betriebsweise und Schutz",
+        "description": "Diese globale Einstellung gilt für alle Räume mit globaler Vererbung. Thermische Beschattung, Blendschutz und Nachtfunktion werden gemeinsam übersichtlich gesteuert; konfigurierte Sicherheitsquellen bleiben immer aktiv und haben Vorrang.",
+        "sections": {
+          "house_policy": {
+            "name": "Globaler Zeitplan und ganzjährige Funktionen",
+            "description": "Bestehende Raum-Ausnahmen bleiben erhalten. Räume mit Globaler Einstellung übernehmen Änderungen sofort nach dem Speichern.",
+            "data": {
+              "operating_profile": "Thermische Beschattung",
+              "schedule_profile": "Saison",
+              "day_window": "Tägliches Zeitfenster",
+              "active_months": "Aktive Monate",
+              "active_weekdays": "Aktive Wochentage",
+              "start_time": "Startzeit",
+              "end_time": "Endzeit",
+              "outside_schedule_behavior": "Außerhalb des Zeitplans",
+              "global_glare_protection_enabled": "Blendschutz ganzjährig freigeben",
+              "global_night_enabled": "Nachtfunktion ganzjährig freigeben"
+            },
+            "data_description": {
+              "operating_profile": "Nach Saison und Zeitplan verwendet den Kalender unten. Nur Schutz deaktiviert Solar-, Komfort- und Hitzebeschattung. Ganzjährig ignoriert Monate und Wochentage, behält aber ein festes tägliches Zeitfenster bei.",
+              "schedule_profile": "Vordefinierte Saison oder eigener Kalender für die thermische Beschattung.",
+              "day_window": "Ganztägig oder eine feste Uhrzeit.",
+              "active_months": "Wird beim benutzerdefinierten Kalender ausgewertet.",
+              "active_weekdays": "Wird beim benutzerdefinierten Kalender ausgewertet.",
+              "start_time": "Beginn des festen täglichen Zeitfensters.",
+              "end_time": "Ende des festen täglichen Zeitfensters.",
+              "outside_schedule_behavior": "Legt die Ruheposition außerhalb der thermischen Beschattungszeit fest.",
+              "global_glare_protection_enabled": "Erlaubt konfigurierte Blendzonen unabhängig von der thermischen Saison. Die Raumzuordnung und ihre Bedingungen bleiben erforderlich.",
+              "global_night_enabled": "Erlaubt konfigurierte Nachtfunktionen unabhängig von der thermischen Saison. Der Zeitplan oder Sonnenbezug des Raums bleibt erforderlich."
+            }
+          }
+        }
+      },
       "choose_advanced_features": {
         "title": "Zusatzfunktionen auswählen",
         "description": "Wählen Sie die optionalen Funktionen, die für diesen Raum und den gewählten Einrichtungsumfang verfügbar sind. Danach führt Sie der Assistent nacheinander durch jede gewählte Funktion. Eine Funktion kann später jederzeit geändert oder abgewählt werden.",
@@ -1789,6 +1860,7 @@
         "description": "Wählen Sie einen Raum oder eine hausweite Aufgabe. Jeder Raum öffnet eine kurze Aufgabenübersicht.",
         "menu_options": {
           "add_room": "Raum hinzufügen",
+          "global_operating_policy": "Betriebsweise und Schutz",
           "global_settings": "Hauseinstellungen",
           "diagnostics_settings": "Diagnose und Support",
           "finish": "Änderungen speichern und neu laden"
@@ -1842,7 +1914,8 @@
             "description": "Der allgemeine Beschattungszeitplan ist die Hauptfreigabe für thermisch gesteuerte Tagesfunktionen: normale Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
-              "operating_profile": "Betriebsprofil",
+              "operating_profile": "Raum-Ausnahme",
+              "schedule_scope": "Zeitplanquelle",
               "schedule_profile": "Aktivitätsprofil",
               "active_months": "Aktive Monate",
               "active_weekdays": "Aktive Wochentage",
@@ -1853,7 +1926,8 @@
             },
             "data_description": {
               "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben davon unabhängig.",
-              "operating_profile": "Automatisch folgt dem eingestellten Kalender. Nur Schutz deaktiviert die thermische Beschattung; Safety, Nacht und Blendschutz bleiben aktiv. Ganzjährig ignoriert Saisonmonate und Wochentage, behält aber das tägliche Zeitfenster bei.",
+              "operating_profile": "Globale Einstellung übernimmt die Betriebsweise des Hauses. Die anderen Werte überschreiben nur diesen Raum.",
+              "schedule_scope": "Globalen Haus-Kalender übernehmen oder einen eigenen Kalender für diesen Raum pflegen.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
@@ -2685,9 +2759,16 @@
     },
     "operating_profile": {
       "options": {
-        "automatic": "Automatisch",
+        "inherit": "Globale Einstellung",
+        "automatic": "Nach Saison und Zeitplan",
         "protection_only": "Nur Schutz",
         "year_round": "Ganzjährig"
+      }
+    },
+    "schedule_scope": {
+      "options": {
+        "inherit": "Globalen Haus-Zeitplan verwenden",
+        "custom": "Eigener Raum-Zeitplan"
       }
     },
     "schedule_profile": {
@@ -2806,15 +2887,15 @@
   "services": {
     "set_operating_profile": {
       "name": "Betriebsprofil setzen",
-      "description": "Ändert mit einem Aufruf das vollständige Betriebsprofil des Raums. Safety, Nacht, Blendschutz und harte Gerätegrenzen bleiben in jedem Profil aktiv.",
+      "description": "Ändert die globale Betriebsweise oder eine Raum-Ausnahme. Safety und harte Gerätegrenzen bleiben immer aktiv; freigegebene Nacht- und Blendschutzfunktionen arbeiten unabhängig von der thermischen Saison.",
       "fields": {
         "room_id": {
           "name": "Raum-ID",
-          "description": "Stabile Smart-Shading-Raum-ID aus der Raumstatus-Entität."
+          "description": "Optional. Leer ändert die globale Hauseinstellung; eine Raum-ID ändert nur diese Raum-Ausnahme."
         },
         "profile": {
           "name": "Betriebsprofil",
-          "description": "Automatisch folgt dem Kalender, Nur Schutz deaktiviert thermische Beschattung und Ganzjährig ignoriert Saisonmonate und Wochentage."
+          "description": "Nach Saison und Zeitplan folgt dem Kalender, Nur Schutz deaktiviert thermische Beschattung und Ganzjährig ignoriert Saisonmonate und Wochentage. Globale Einstellung ist nur zusammen mit einer Raum-ID gültig."
         },
         "entry_id": {
           "name": "Konfigurationseintrags-ID",

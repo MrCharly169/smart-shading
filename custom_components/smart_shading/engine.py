@@ -27,7 +27,10 @@ from .const import (
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
+    CONF_GLOBAL_GLARE_PROTECTION_ENABLED,
+    CONF_GLOBAL_NIGHT_ENABLED,
     CONF_ROOMS,
+    CONF_SCHEDULE_SCOPE,
     CONF_SUN_PRESENCE_ENTITY,
     DAY_WINDOW_ALL_DAY,
     DAY_WINDOW_FIXED,
@@ -65,6 +68,7 @@ from .const import (
     MODE_SAFETY,
     MODE_SOLAR,
     OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_INHERIT,
     OPERATING_PROFILE_OPTIONS,
     OPERATING_PROFILE_PROTECTION_ONLY,
     OPERATING_PROFILE_YEAR_ROUND,
@@ -84,6 +88,7 @@ from .const import (
     PROTECTED_ZONE_SUN_PRESETS,
     PROFILE_DEFAULTS,
     SHARED_FEATURES,
+    SCHEDULE_SCOPE_INHERIT,
     profile_supports_position,
     SUN_PRESETS,
     VERSION,
@@ -361,6 +366,7 @@ class SmartShadingEngine:
 
     async def async_initialize(self) -> None:
         await self.store.async_load()
+        await self._async_migrate_house_policy_overrides()
         self._restore_protected_zone_condition_runtime()
         try:
             self.command_planner.restore_ledger(
@@ -385,6 +391,26 @@ class SmartShadingEngine:
             if runtime is not None:
                 self._schedule_heat_release_timer(room, runtime, now)
                 self._schedule_geometry_boundary_timer(room, now)
+
+    async def _async_migrate_house_policy_overrides(self) -> None:
+        """Fold equivalent legacy room selects into the new global control."""
+        if int(self.store.data.get("runtime_schema", 1)) >= 7:
+            return
+        overrides = self.store.data.setdefault("overrides", {})
+        room_overrides = overrides.setdefault("room", {})
+        house_profile = str(
+            self.config.get("operating_profile", OPERATING_PROFILE_AUTOMATIC)
+        )
+        for room in self.config.get(CONF_ROOMS, []):
+            if room.get("operating_profile") != OPERATING_PROFILE_INHERIT:
+                continue
+            values = room_overrides.get(str(room.get("id") or ""))
+            if not isinstance(values, dict):
+                continue
+            if values.get("operating_profile") == house_profile:
+                values["operating_profile"] = OPERATING_PROFILE_INHERIT
+        self.store.data["runtime_schema"] = 7
+        await self.store.async_save()
 
     def reload_config(self) -> None:
         self.config = working_config(self.entry.data, self.entry.options)
@@ -2719,6 +2745,10 @@ class SmartShadingEngine:
         """
         if not self.advanced_mode and feature not in SHARED_FEATURES:
             return False
+        if feature == FEATURE_GLARE_PROTECTION and not bool(
+            self.house_value(CONF_GLOBAL_GLARE_PROTECTION_ENABLED, True)
+        ):
+            return False
         room = self.room_config(room_id)
         features = room.get(CONF_ADVANCED_FEATURES)
         # Runtime fixtures and entries loaded before schema 17 may not yet
@@ -2772,6 +2802,12 @@ class SmartShadingEngine:
             "room", room_id, key, room.get(key, default)
         )
 
+    def house_value(self, key: str, default: Any = None) -> Any:
+        """Resolve an immediate house control over persisted configuration."""
+        return self.store.get_override(
+            "house", "house", key, self.config.get(key, default)
+        )
+
     def sector_value(self, sector_id: str, key: str, default: Any = None) -> Any:
         sector = self.sector_config(sector_id)
         return self.store.get_override(
@@ -2791,15 +2827,26 @@ class SmartShadingEngine:
         await self.async_evaluate_all(f"room_setting:{key}")
 
     async def async_set_operating_profile(
-        self, room_id: str, profile: str
+        self, room_id: str | None, profile: str
     ) -> None:
-        """Persist and immediately apply one bundled room operating profile."""
-        if room_id not in self.rooms:
-            raise ValueError(f"Unknown Smart Shading room: {room_id}")
-        if profile not in OPERATING_PROFILE_OPTIONS:
+        """Persist and immediately apply a house policy or room override."""
+        allowed = (
+            [OPERATING_PROFILE_INHERIT, *OPERATING_PROFILE_OPTIONS]
+            if room_id is not None
+            else OPERATING_PROFILE_OPTIONS
+        )
+        if profile not in allowed:
             raise ValueError(
                 f"Unsupported Smart Shading operating profile: {profile}"
             )
+        if room_id is None:
+            await self.store.async_set_override(
+                "house", "house", "operating_profile", profile
+            )
+            await self.async_evaluate_all("house_setting:operating_profile")
+            return
+        if room_id not in self.rooms:
+            raise ValueError(f"Unknown Smart Shading room: {room_id}")
         await self.async_set_room_value(room_id, "operating_profile", profile)
 
     async def async_set_sector_value(
@@ -3522,42 +3569,83 @@ class SmartShadingEngine:
             self.room_value(
                 room["id"],
                 "operating_profile",
-                OPERATING_PROFILE_AUTOMATIC,
+                OPERATING_PROFILE_INHERIT,
             )
         )
+        if profile == OPERATING_PROFILE_INHERIT:
+            profile = str(
+                self.house_value(
+                    "operating_profile", OPERATING_PROFILE_AUTOMATIC
+                )
+            )
         return (
             profile
             if profile in OPERATING_PROFILE_OPTIONS
             else OPERATING_PROFILE_AUTOMATIC
         )
 
+    def _operating_profile_source(self, room: dict[str, Any]) -> str:
+        override = str(
+            self.room_value(
+                room["id"], "operating_profile", OPERATING_PROFILE_INHERIT
+            )
+        )
+        return "house" if override == OPERATING_PROFILE_INHERIT else "room"
+
+    def _schedule_value(
+        self, room: dict[str, Any], key: str, default: Any
+    ) -> Any:
+        """Resolve the global schedule unless this room explicitly overrides it."""
+        scope = str(
+            self.room_value(
+                room["id"], CONF_SCHEDULE_SCOPE, SCHEDULE_SCOPE_INHERIT
+            )
+        )
+        if scope == SCHEDULE_SCOPE_INHERIT:
+            return self.house_value(key, room.get(key, default))
+        return room.get(key, default)
+
     def _schedule_active_at(self, room: dict[str, Any], when: datetime) -> bool:
         operating_profile = self._operating_profile(room)
         if operating_profile == OPERATING_PROFILE_PROTECTION_ONLY:
             return False
         if operating_profile == OPERATING_PROFILE_YEAR_ROUND:
-            window = room.get("day_window", DAY_WINDOW_ALL_DAY)
+            window = self._schedule_value(
+                room, "day_window", DAY_WINDOW_ALL_DAY
+            )
             if window == DAY_WINDOW_FIXED:
                 return self._time_inside(
                     when,
-                    room.get("start_time", "00:00:00"),
-                    room.get("end_time", "23:59:59"),
+                    self._schedule_value(room, "start_time", "00:00:00"),
+                    self._schedule_value(room, "end_time", "23:59:59"),
                 )
             return True
-        if not bool(room.get("schedule_enabled", False)):
+        if not bool(
+            self._schedule_value(room, "schedule_enabled", True)
+        ):
             return True
-        months = {int(value) for value in room.get("active_months", range(1, 13))}
-        weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
+        months = {
+            int(value)
+            for value in self._schedule_value(
+                room, "active_months", range(1, 13)
+            )
+        }
+        weekdays = {
+            int(value)
+            for value in self._schedule_value(
+                room, "active_weekdays", range(7)
+            )
+        }
         if when.month not in months or when.weekday() not in weekdays:
             return False
-        window = room.get("day_window", "sector_sun")
+        window = self._schedule_value(room, "day_window", DAY_WINDOW_ALL_DAY)
         if window in {DAY_WINDOW_ALL_DAY, "sector_sun"}:
             return True
         if window == DAY_WINDOW_FIXED:
             return self._time_inside(
                 when,
-                room.get("start_time", "00:00:00"),
-                room.get("end_time", "23:59:59"),
+                self._schedule_value(room, "start_time", "00:00:00"),
+                self._schedule_value(room, "end_time", "23:59:59"),
             )
         return True
 
@@ -3578,9 +3666,17 @@ class SmartShadingEngine:
     ) -> datetime | None:
         """Find the next schedule boundary without creating another automation."""
         candidates: set[datetime] = set()
-        fixed = room.get("day_window", "sector_sun") == DAY_WINDOW_FIXED
-        start_parts = self._clock_parts(room.get("start_time", "00:00:00"), (0, 0, 0))
-        end_parts = self._clock_parts(room.get("end_time", "23:59:59"), (23, 59, 59))
+        fixed = self._schedule_value(
+            room, "day_window", DAY_WINDOW_ALL_DAY
+        ) == DAY_WINDOW_FIXED
+        start_parts = self._clock_parts(
+            self._schedule_value(room, "start_time", "00:00:00"),
+            (0, 0, 0),
+        )
+        end_parts = self._clock_parts(
+            self._schedule_value(room, "end_time", "23:59:59"),
+            (23, 59, 59),
+        )
 
         # One full year plus margin covers seasonal and weekday profiles.
         for offset in range(0, 380):
@@ -3611,7 +3707,9 @@ class SmartShadingEngine:
             return False, "Protection-only profile; thermal shading inactive", None
         if operating_profile == OPERATING_PROFILE_YEAR_ROUND:
             active = self._schedule_active_at(room, now)
-            if room.get("day_window", DAY_WINDOW_ALL_DAY) == DAY_WINDOW_FIXED:
+            if self._schedule_value(
+                room, "day_window", DAY_WINDOW_ALL_DAY
+            ) == DAY_WINDOW_FIXED:
                 reason = (
                     "Year-round profile inside fixed shading time"
                     if active
@@ -3619,16 +3717,30 @@ class SmartShadingEngine:
                 )
                 return active, reason, self._next_schedule_change(room, now, active)
             return True, "Year-round thermal profile", None
-        if not bool(room.get("schedule_enabled", False)):
+        if not bool(
+            self._schedule_value(room, "schedule_enabled", True)
+        ):
             return True, "Schedule not enabled", None
-        months = {int(value) for value in room.get("active_months", range(1, 13))}
-        weekdays = {int(value) for value in room.get("active_weekdays", range(7))}
+        months = {
+            int(value)
+            for value in self._schedule_value(
+                room, "active_months", range(1, 13)
+            )
+        }
+        weekdays = {
+            int(value)
+            for value in self._schedule_value(
+                room, "active_weekdays", range(7)
+            )
+        }
         active = self._schedule_active_at(room, now)
         if now.month not in months:
             reason = "Month outside shading season"
         elif now.weekday() not in weekdays:
             reason = "Weekday outside shading schedule"
-        elif room.get("day_window", "sector_sun") == DAY_WINDOW_FIXED:
+        elif self._schedule_value(
+            room, "day_window", DAY_WINDOW_ALL_DAY
+        ) == DAY_WINDOW_FIXED:
             reason = "Inside fixed shading time" if active else "Outside fixed shading time"
         else:
             reason = "Schedule permits normal shading"
@@ -3640,6 +3752,8 @@ class SmartShadingEngine:
         """Return active, blocked, reason, source state and next transition."""
         if not self.config.get(CONF_ADVANCED_MODE, False):
             return False, False, "Night function is not available in this setup", None, None
+        if not bool(self.house_value(CONF_GLOBAL_NIGHT_ENABLED, True)):
+            return False, False, "Night Mode disabled by house policy", None, None
         if not room.get("night_enabled", False):
             return False, False, "Night Mode disabled", None, None
 
@@ -5549,7 +5663,9 @@ class SmartShadingEngine:
             idle_active = holding
 
         if not schedule_active and not heat_active:
-            behavior = room.get("outside_schedule_behavior", OUTSIDE_OPEN)
+            behavior = self._schedule_value(
+                room, "outside_schedule_behavior", OUTSIDE_OPEN
+            )
             solar_active = comfort_active = False
             open_active = behavior == OUTSIDE_OPEN
             idle_active = behavior != OUTSIDE_OPEN
@@ -6017,18 +6133,22 @@ class SmartShadingEngine:
         coordinates(day_start)
         solar_source = source_cache.get(day_start, "unavailable")
         boundaries: set[datetime] = {day_start, day_end}
-        if room.get("schedule_enabled", False) and room.get(
-            "day_window", "sector_sun"
+        if bool(
+            self._schedule_value(room, "schedule_enabled", True)
+        ) and self._schedule_value(
+            room, "day_window", DAY_WINDOW_ALL_DAY
         ) == DAY_WINDOW_FIXED:
             boundaries.add(
                 self._preview_boundary_time(
-                    day_start, room.get("start_time", "00:00:00"), (0, 0, 0)
+                    day_start,
+                    self._schedule_value(room, "start_time", "00:00:00"),
+                    (0, 0, 0),
                 )
             )
             boundaries.add(
                 self._preview_boundary_time(
                     day_start,
-                    room.get("end_time", "23:59:59"),
+                    self._schedule_value(room, "end_time", "23:59:59"),
                     (23, 59, 59),
                     after=timedelta(seconds=1),
                 )
@@ -6852,7 +6972,9 @@ class SmartShadingEngine:
                 return
             release_opens = bool(
                 schedule_active
-                or room.get("outside_schedule_behavior", OUTSIDE_OPEN)
+                or self._schedule_value(
+                    room, "outside_schedule_behavior", OUTSIDE_OPEN
+                )
                 == OUTSIDE_OPEN
             )
             release_facts = self._advanced_decision_facts(

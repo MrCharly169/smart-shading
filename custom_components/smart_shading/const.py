@@ -59,6 +59,9 @@ CONF_EXTERNAL_MOVEMENT_DETECTION = "external_movement_detection"
 CONF_WEATHER_ENTITY = "weather_entity"
 CONF_SUN_PRESENCE_ENTITY = "sun_presence_entity"
 CONF_ROOMS = "rooms"
+CONF_GLOBAL_GLARE_PROTECTION_ENABLED = "global_glare_protection_enabled"
+CONF_GLOBAL_NIGHT_ENABLED = "global_night_enabled"
+CONF_SCHEDULE_SCOPE = "schedule_scope"
 
 DEFAULT_EVALUATION_INTERVAL = 1200
 # The interval above deliberately remains a slow recovery watchdog.  Normal
@@ -499,11 +502,20 @@ SCHEDULE_OPTIONS = [SCHEDULE_YEAR_ROUND, SCHEDULE_SUMMER, SCHEDULE_CUSTOM]
 OPERATING_PROFILE_AUTOMATIC = "automatic"
 OPERATING_PROFILE_PROTECTION_ONLY = "protection_only"
 OPERATING_PROFILE_YEAR_ROUND = "year_round"
+OPERATING_PROFILE_INHERIT = "inherit"
 OPERATING_PROFILE_OPTIONS = [
     OPERATING_PROFILE_AUTOMATIC,
     OPERATING_PROFILE_PROTECTION_ONLY,
     OPERATING_PROFILE_YEAR_ROUND,
 ]
+ROOM_OPERATING_PROFILE_OPTIONS = [
+    OPERATING_PROFILE_INHERIT,
+    *OPERATING_PROFILE_OPTIONS,
+]
+
+SCHEDULE_SCOPE_INHERIT = "inherit"
+SCHEDULE_SCOPE_CUSTOM = "custom"
+SCHEDULE_SCOPE_OPTIONS = [SCHEDULE_SCOPE_INHERIT, SCHEDULE_SCOPE_CUSTOM]
 
 DAY_WINDOW_FIXED = "fixed_time"
 DAY_WINDOW_ALL_DAY = "all_day"
@@ -512,6 +524,22 @@ DAY_WINDOW_OPTIONS = [DAY_WINDOW_ALL_DAY, DAY_WINDOW_FIXED]
 OUTSIDE_OPEN = "open"
 OUTSIDE_HOLD = "hold"
 OUTSIDE_OPTIONS = [OUTSIDE_OPEN, OUTSIDE_HOLD]
+
+# The house policy is the first Advanced setup decision. Rooms inherit these
+# values unless a customer deliberately enables a room-specific schedule.
+HOUSE_POLICY_DEFAULTS = {
+    "operating_profile": OPERATING_PROFILE_AUTOMATIC,
+    "schedule_enabled": True,
+    "schedule_profile": SCHEDULE_YEAR_ROUND,
+    "active_months": list(range(1, 13)),
+    "active_weekdays": list(range(7)),
+    "day_window": DAY_WINDOW_ALL_DAY,
+    "start_time": "00:00:00",
+    "end_time": "23:59:59",
+    "outside_schedule_behavior": OUTSIDE_OPEN,
+    CONF_GLOBAL_GLARE_PROTECTION_ENABLED: False,
+    CONF_GLOBAL_NIGHT_ENABLED: False,
+}
 
 ADVANCED_EXECUTION_ROOM_DEFAULTS = {
     # These controls intentionally belong only to Advanced Mode.  Keeping
@@ -565,7 +593,8 @@ ROOM_DEFAULTS = {
     "comfort_requires_occupancy": False,
     "safety_behavior": "move_safe",
     "schedule_enabled": False,
-    "operating_profile": OPERATING_PROFILE_AUTOMATIC,
+    "operating_profile": OPERATING_PROFILE_INHERIT,
+    CONF_SCHEDULE_SCOPE: SCHEDULE_SCOPE_INHERIT,
     "schedule_profile": SCHEDULE_YEAR_ROUND,
     "active_months": list(range(1, 13)),
     "active_weekdays": list(range(7)),

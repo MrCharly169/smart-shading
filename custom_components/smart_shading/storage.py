@@ -41,7 +41,7 @@ class RuntimeStore:
             "queued_commands": [],
             "card_notification_ids": [],
             "day_key": None,
-            "runtime_schema": 6,
+            "runtime_schema": 7,
         }
 
     async def async_load(self) -> None:

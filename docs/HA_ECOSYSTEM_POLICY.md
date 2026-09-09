@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.16.0
+Policy-Version: 1.17.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -129,11 +129,14 @@ Visibility conditions whenever they can express the required behavior.
   are not acceptable for full application navigation. Native content cards
   such as a map may retain their aspect ratio when their controls and the
   surrounding page remain reachable; document and test that distinction.
-- Full-panel applications use the measured card top, native panel bounds and
-  visualViewport where available. Use dynamic viewport CSS as a fallback.
-  Account for the actual HA header and safe-area insets on the bottom and both
-  sides. Do not assume one phone model, one orientation or a constant browser
-  toolbar height. Missing measurement APIs must leave a usable layout.
+- Full-panel applications fill the visible webview from their actual top edge
+  to the visualViewport bottom (innerHeight fallback), without wrapper padding,
+  margins, minimum heights, secondary panel-height deductions or legacy height
+  caps. The native app and embedded application own safe-area handling; do not
+  reserve it again in the wrapper. Keep the native HA header and back action.
+  Use a plain borderless container, no animated ha-card shell, no decorative
+  transitions and no application-background sampling or DOM theme observer.
+  Do not assume one phone model, orientation or constant browser toolbar height.
 - Explicitly distinguish viewport-filling panels from cards in a scrolling
   dashboard. A flow card below other content must not collapse or change its
   height as the surrounding dashboard scrolls. The embedded application owns

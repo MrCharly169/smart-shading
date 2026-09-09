@@ -9,6 +9,7 @@ from .const import (
     DIAGNOSTIC_OFF,
     DIAGNOSTIC_OPTIONS,
     OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_INHERIT,
     OPERATING_PROFILE_OPTIONS,
     OPERATING_PROFILE_PROTECTION_ONLY,
     OPERATING_PROFILE_YEAR_ROUND,
@@ -29,7 +30,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     if not engine.advanced_mode:
         async_add_entities([])
         return
-    entities = [DiagnosticLoggingSelect(engine)]
+    entities = [DiagnosticLoggingSelect(engine), HouseOperatingProfileSelect(engine)]
     for room_id in engine.rooms:
         entities.append(RoomOperatingProfileSelect(engine, room_id))
         entities.append(RoomPauseSelect(engine, room_id))
@@ -118,8 +119,73 @@ class RoomOperatingProfileSelect(SmartShadingEntity, SelectEntity):
         self._attr_name = localized(engine, "Operating profile", "Betriebsprofil")
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_operating_profile"
         self._labels = {
+            OPERATING_PROFILE_INHERIT: localized(
+                engine, "Global setting", "Globale Einstellung"
+            ),
             OPERATING_PROFILE_AUTOMATIC: localized(
-                engine, "Automatic", "Automatisch"
+                engine,
+                "By season and schedule",
+                "Nach Saison und Zeitplan",
+            ),
+            OPERATING_PROFILE_PROTECTION_ONLY: localized(
+                engine, "Protection only", "Nur Schutz"
+            ),
+            OPERATING_PROFILE_YEAR_ROUND: localized(
+                engine, "Year-round", "Ganzjährig"
+            ),
+        }
+        self._reverse = {label: key for key, label in self._labels.items()}
+        self._attr_options = [
+            self._labels[key]
+            for key in [OPERATING_PROFILE_INHERIT, *OPERATING_PROFILE_OPTIONS]
+        ]
+
+    @property
+    def current_option(self):
+        key = str(
+            self.engine.room_value(
+                self.room_id,
+                "operating_profile",
+                OPERATING_PROFILE_INHERIT,
+            )
+        )
+        return self._labels.get(key, self._labels[OPERATING_PROFILE_INHERIT])
+
+    @property
+    def extra_state_attributes(self):
+        attrs = super().extra_state_attributes
+        attrs["smart_shading_control_key"] = "operating_profile"
+        attrs["operating_profile_key"] = str(
+            self.engine.room_value(
+                self.room_id,
+                "operating_profile",
+                OPERATING_PROFILE_INHERIT,
+            )
+        )
+        return attrs
+
+    async def async_select_option(self, option: str) -> None:
+        await self.engine.async_set_operating_profile(
+            self.room_id, self._reverse.get(option, option)
+        )
+
+
+class HouseOperatingProfileSelect(SmartShadingEntity, SelectEntity):
+    """Expose the global thermal policy as one HA and voice control."""
+
+    _attr_icon = "mdi:home-shield"
+
+    def __init__(self, engine) -> None:
+        super().__init__(engine)
+        self._attr_name = localized(
+            engine, "Operation and protection", "Betriebsweise und Schutz"
+        )
+        self._attr_unique_id = f"{self.entry.entry_id}_operating_profile"
+        self._labels = {
+            OPERATING_PROFILE_AUTOMATIC: localized(
+                engine,
+                "By season and schedule",
+                "Nach Saison und Zeitplan",
             ),
             OPERATING_PROFILE_PROTECTION_ONLY: localized(
                 engine, "Protection only", "Nur Schutz"
@@ -136,10 +202,8 @@ class RoomOperatingProfileSelect(SmartShadingEntity, SelectEntity):
     @property
     def current_option(self):
         key = str(
-            self.engine.room_value(
-                self.room_id,
-                "operating_profile",
-                OPERATING_PROFILE_AUTOMATIC,
+            self.engine.house_value(
+                "operating_profile", OPERATING_PROFILE_AUTOMATIC
             )
         )
         return self._labels.get(key, self._labels[OPERATING_PROFILE_AUTOMATIC])
@@ -147,19 +211,17 @@ class RoomOperatingProfileSelect(SmartShadingEntity, SelectEntity):
     @property
     def extra_state_attributes(self):
         attrs = super().extra_state_attributes
-        attrs["smart_shading_control_key"] = "operating_profile"
+        attrs["smart_shading_control_key"] = "house_operating_profile"
         attrs["operating_profile_key"] = str(
-            self.engine.room_value(
-                self.room_id,
-                "operating_profile",
-                OPERATING_PROFILE_AUTOMATIC,
+            self.engine.house_value(
+                "operating_profile", OPERATING_PROFILE_AUTOMATIC
             )
         )
         return attrs
 
     async def async_select_option(self, option: str) -> None:
         await self.engine.async_set_operating_profile(
-            self.room_id, self._reverse.get(option, option)
+            None, self._reverse.get(option, option)
         )
 
 

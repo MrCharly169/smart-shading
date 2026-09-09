@@ -272,6 +272,9 @@ const roomStatus = {
     },
     schedule_active: true,
     operating_profile: "automatic",
+    operating_profile_source: "house",
+    house_operating_profile: "automatic",
+    safety_always_active: true,
     pause_mode: "auto",
     manual_master_active: false,
     cover_pauses: [{ entity_id: "cover.internal_identifier", name: "Fenstergruppe", short: "B1", active: true, until: "2026-07-16T05:30:00+02:00", reason: "external_or_physical_control" }],
@@ -326,6 +329,7 @@ const hass = {
     "button.preview": { entity_id: "button.preview", state: "unknown", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "preview_day" } },
     "switch.master": { entity_id: "switch.master", state: "off", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "manual_master" } },
     "select.operating_profile": { entity_id: "select.operating_profile", state: "Automatisch", attributes: { smart_shading_entry_id: "entry", smart_shading_room_id: "room", smart_shading_control_key: "operating_profile", operating_profile_key: "automatic" } },
+    "select.house_operating_profile": { entity_id: "select.house_operating_profile", state: "Nach Saison und Zeitplan", attributes: { smart_shading_entry_id: "entry", smart_shading_control_key: "house_operating_profile", operating_profile_key: "automatic" } },
   },
   calls: [],
   wsCalls: [],
@@ -466,7 +470,8 @@ if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes(
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
 if (!html.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced card did not expose the Night schedule shortcut");
-if (!html.includes('data-more="select.operating_profile"') || !html.includes("Automatisch")) throw new Error("Advanced card did not expose the bundled operating profile");
+if (!html.includes('data-more="select.house_operating_profile"') || !html.includes("Nach Saison und Zeitplan · Global")) throw new Error("Advanced card did not expose the inherited house operating policy");
+if (!html.includes("Sicherheit immer aktiv")) throw new Error("Advanced card did not show the subtle always-on safety marker");
 if (!html.includes("@keyframes calmPulse") || html.includes("@keyframes cardGlow") || html.includes("@keyframes sunPulse") || html.includes("filter:brightness")) throw new Error("Card did not use the single calm opacity/transform pulse");
 if (!html.includes("@media(prefers-reduced-motion:reduce)") || !html.includes("@container shading-card")) throw new Error("Reduced-motion or container-query fallback is missing");
 if (!html.includes("Sonne · Sonnensensor")) throw new Error("Advanced sun feedback did not name its effective source");
@@ -669,7 +674,7 @@ if (simulationRows.length !== 2
 if (!dialog.shadowRoot.innerHTML.includes('data-tool-press="button.simulate"') || !dialog.shadowRoot.innerHTML.includes("data-preview-day") || dialog.shadowRoot.innerHTML.includes("data-preview-fallback")) throw new Error("Advanced dialog missed explicit simulation or selected-date preview controls");
 if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
-if (!dialog.shadowRoot.innerHTML.includes("Betriebsprofil") || !dialog.shadowRoot.innerHTML.includes("Automatisch")) throw new Error("Advanced dialog did not explain the bundled operating profile");
+if (!dialog.shadowRoot.innerHTML.includes("Betriebsprofil") || !dialog.shadowRoot.innerHTML.includes("Nach Saison und Zeitplan · Global")) throw new Error("Advanced dialog did not explain the inherited house operating policy");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
 if (!dialog.shadowRoot.innerHTML.includes("overflow:auto;overflow-anchor:none")) throw new Error("Advanced dialog did not disable native scroll anchoring during live content replacement");
 if (!dialog.shadowRoot.innerHTML.includes("Raumstatus aktualisiert") || !dialog.shadowRoot.innerHTML.includes("Modus: Sonnenschutz") || !dialog.shadowRoot.innerHTML.includes("Behangziele: 1") || dialog.shadowRoot.innerHTML.includes("room_evaluated")) throw new Error("Diagnostic journal did not present room evaluation events in customer-friendly language");
