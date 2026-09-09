@@ -70,6 +70,7 @@ def _compact_room_configuration(room: dict) -> dict:
             "normal_shading_temperature", "comfort_temperature",
             "heat_temperature", "advanced_features", "night_enabled",
             "night_source", "schedule_enabled", "operating_profile",
+            "schedule_scope",
         )
         if room.get(key) not in (None, "")
     } | {

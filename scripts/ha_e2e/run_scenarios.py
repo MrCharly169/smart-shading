@@ -716,6 +716,7 @@ def create_advanced_entry(
             "setup_type": "complete",
         },
     )
+    supports_global_policy = result.get("step_id") == "global_operating_policy"
     result = continue_past_legacy_global_settings(api, flow_id, result)
     expect_step(result, "room_setup")
     room_details = {
@@ -952,6 +953,26 @@ def create_advanced_entry(
         supported_form_data(result, advanced_features),
     )
     expect_step(result, "manage_automation")
+    if not supports_global_policy:
+        result = submit_flow(
+            api,
+            flow_id,
+            "manage_automation",
+            {
+                "schedule_settings": {
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                    "active_months": [
+                        str(value) for value in range(1, 13)
+                    ],
+                    "active_weekdays": [str(value) for value in range(7)],
+                    "start_time": "06:00:00",
+                    "end_time": "22:00:00",
+                    "outside_schedule_behavior": "open",
+                }
+            },
+        )
+        expect_step(result, "manage_automation")
     result = submit_flow(
         api,
         flow_id,
