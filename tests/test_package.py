@@ -485,9 +485,8 @@ class PackageTests(unittest.TestCase):
         switch = (COMP / "switch.py").read_text(encoding="utf-8")
         select = (COMP / "select.py").read_text(encoding="utf-8")
         binary = (COMP / "binary_sensor.py").read_text(encoding="utf-8")
-        self.assertIn("sector.get('name'", switch)
-        self.assertIn("sector.get('name'", select)
-        self.assertIn("sector.get('name'", binary)
+        for source in (switch, select, binary):
+            self.assertIn('_attr_translation_placeholders = {"scope": str(sector.get("name"', source)
         self.assertNotIn("if not engine.advanced_mode", binary)
         self.assertIn('if sector.get("lux_sensor")', binary)
 
@@ -736,12 +735,12 @@ class PackageTests(unittest.TestCase):
             "feature_progress", "feature_description", "next_feature",
             "zone_name", "calculation_status", "geometry_summary",
             "current_sun", "calculated_target", "calculation_reason",
-            "new_features", "temperature_behavior",
+            "new_features", "temperature_behavior", "scope", "navigation_context",
         }
         pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
         for language in ("de", "en"):
             data = json.loads((COMP / "translations" / f"{language}.json").read_text(encoding="utf-8"))
-            found = set(pattern.findall(json.dumps(data, ensure_ascii=False)))
+            found = {re.sub(r"__(en|de)$", "", key) for key in pattern.findall(json.dumps(data, ensure_ascii=False))}
             self.assertTrue(found.issubset(allowed), (language, found))
 
     def test_mode_names_are_customer_visible_only_at_first_choice(self):

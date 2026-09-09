@@ -3,6 +3,7 @@
   "description": "Every customer-facing config/options-flow surface must stay assigned to a real HA or browser scenario.",
   "unique_setting_ownership": true,
   "all_surfaces": [
+    "native_navigation",
     "user",
     "global_operating_policy",
     "diagnostics_settings",
@@ -56,6 +57,7 @@
     "finish"
   ],
   "live_required": [
+    "native_navigation",
     "user",
     "global_operating_policy",
     "room_setup",

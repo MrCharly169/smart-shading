@@ -428,7 +428,6 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 
 class HouseStatusSensor(SmartShadingEntity, SensorEntity):
-    _attr_name = "House status"
     _attr_icon = "mdi:home-analytics"
     _attr_translation_key = "house_status"
     _attr_device_class = SensorDeviceClass.ENUM
@@ -436,7 +435,7 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self._attr_name = localized(engine, "House status", "Hausstatus")
+        self._attr_translation_key = 'house_status'
         self._attr_unique_id = f"{self.entry.entry_id}_house_status"
 
     @property
@@ -502,14 +501,13 @@ class HouseStatusSensor(SmartShadingEntity, SensorEntity):
 
 
 class RoomStatusSensor(SmartShadingEntity, SensorEntity):
-    _attr_name = "Status"
     _attr_translation_key = "room_status"
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = STATUS_OPTIONS
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Room status", "Raumstatus")
+        self._attr_translation_key = 'room_status'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_status"
 
     @property
@@ -869,7 +867,8 @@ class SectorStatusSensor(SmartShadingEntity, SensorEntity):
         super().__init__(engine, room_id=room_id, sector_id=sector_id)
         sector = engine.sector_config(sector_id)
         suffix = localized(engine, "sector status", "Sektorstatus")
-        self._attr_name = f"{sector.get('name', '')} · {suffix}"
+        self._attr_translation_key = 'sector_status'
+        self._attr_translation_placeholders = {"scope": str(sector.get("name", ""))}
         self._attr_unique_id = f"{self.entry.entry_id}_{sector_id}_status"
 
     @property

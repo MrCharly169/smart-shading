@@ -751,7 +751,7 @@ class WizardRouteContractTests(unittest.TestCase):
 
         self.assertIn("DEVICE_VENETIAN", helper)
         self.assertIn("has_other_profiles", helper)
-        self.assertIn('"temperature_behavior"', automation)
+        self.assertIn('f"temperature_behavior__{language}"', automation)
 
     def test_advanced_creation_configures_only_selected_features_in_order(self):
         compact_calls = _async_step_calls(

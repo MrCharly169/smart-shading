@@ -43,6 +43,7 @@ RETIRED_LEGACY_OPTIONAL_BUTTON_SUFFIXES = (
 )
 NON_SETTING_SCHEMA_FIELDS = {
     "next_step_id",
+    "route",
     "name",
     "short",
     "room_details",
@@ -92,6 +93,7 @@ class HomeAssistantApi:
     def __init__(self, base_url: str, token: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
+        self.native_navigation_flows: set[str] = set()
 
     def request(
         self,
@@ -104,6 +106,10 @@ class HomeAssistantApi:
     ) -> Any:
         headers: dict[str, str] = {}
         payload = None
+        flow_id = path.rsplit("/", 1)[-1]
+        if (method == "POST" and flow_id in self.native_navigation_flows
+                and data is not None and "next_step_id" in data):
+            data = {"route": data["next_step_id"]}
         if data is not None:
             if form:
                 payload = urlencode(data).encode()
@@ -119,7 +125,18 @@ class HomeAssistantApi:
         try:
             with urlopen(request, timeout=20) as response:
                 body = response.read().decode()
-                return json.loads(body) if body else None
+                result = json.loads(body) if body else None
+                if isinstance(result, dict) and result.get("flow_id"):
+                    current_flow = str(result["flow_id"])
+                    if result.get("step_id") == "native_navigation":
+                        self.native_navigation_flows.add(current_flow)
+                        # Keep scenario traversal semantic while exercising the
+                        # real native selector form and its schema on the wire.
+                        record_flow_surface(result)
+                        result = navigation_surface(result)
+                    else:
+                        self.native_navigation_flows.discard(current_flow)
+                return result
         except HTTPError as exc:
             body = exc.read().decode(errors="replace")
             raise ApiError(method, path, exc.code, body) from exc
@@ -141,6 +158,25 @@ class HomeAssistantApi:
 
     def call_service(self, domain: str, service: str, data: dict[str, Any]) -> Any:
         return self.post(f"/api/services/{domain}/{service}", data)
+
+
+def navigation_surface(result: dict[str, Any]) -> dict[str, Any]:
+    """Adapt a native navigation form for the existing route walker, strictly."""
+    fields = result.get("data_schema", [])
+    route = next(field for field in fields if field.get("name") == "route")
+    selector_config = route["selector"]["select"]
+    if selector_config.get("translation_key") != "navigation_action":
+        raise AssertionError(f"Unexpected navigation selector: {selector_config}")
+    options = {}
+    for option in selector_config["options"]:
+        if isinstance(option, str):
+            options[option] = ("+ " if option.startswith("add_") else "") + option
+        else:
+            options[option["value"]] = option["label"]
+    step = result.get("description_placeholders", {}).get("navigation_step")
+    if not step or not options:
+        raise AssertionError(f"Incomplete native navigation: {result}")
+    return {**result, "type": "menu", "step_id": step, "menu_options": options}
 
 
 def wait_for_home_assistant(api: HomeAssistantApi, timeout: int = 180) -> None:

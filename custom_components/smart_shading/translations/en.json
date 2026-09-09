@@ -157,7 +157,7 @@
       },
       "new_optional_feature_available": {
         "title": "New optional feature for {room_name}",
-        "description": "The newly added cover makes this optional feature available: {new_features}. You can configure it now or continue with the room structure.",
+        "description": "The newly added cover makes this optional feature available: {new_features__en}. You can configure it now or continue with the room structure.",
         "data": {
           "open_optional_features": "Open optional features now"
         },
@@ -167,19 +167,36 @@
       },
       "advanced_features_hub": {
         "title": "Optional features",
-        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope."
+        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope.",
+        "menu_options": {
+          "back_to_room": "Back to room",
+          "choose_advanced_features": "Choose features",
+          "manage_schedule": "Schedule",
+          "manage_temperature": "Temperature and heat protection",
+          "manage_night": "Night mode",
+          "manage_safety": "Wind, frost and window safety",
+          "manage_weather_conditions": "Weather and occupancy",
+          "glare_protection_hub": "Glare protection",
+          "maximum_opening_hub": "Maximum opening limit",
+          "manage_dashboard_badges": "Set up dashboard badges",
+          "manage_execution": "Expert command settings",
+          "manage_pause": "Pause and manual control"
+        }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature}"
+        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
+        "description": "{feature_description__en}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature__en}"
       },
       "glare_protection_hub": {
         "title": "Glare protection",
-        "description": "Open the facade whose protected areas should be configured or changed."
+        "description": "Open the facade whose protected areas should be configured or changed.",
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "initial_glare_protection": {
-        "title": "{feature_context} · Glare protection · Choose facade",
-        "description": "{feature_description} Choose the facade containing the window in front of the first protected area. {next_feature}",
+        "title": "{feature_context__en} · Glare protection · Choose facade",
+        "description": "{feature_description__en} Choose the facade containing the window in front of the first protected area. {next_feature__en}",
         "data": {
           "sector_id": "Facade"
         },
@@ -287,7 +304,8 @@
           "global_operating_policy": "Operation and protection",
           "global_settings": "House settings",
           "diagnostics_settings": "Diagnostics and support",
-          "finish": "Review and start"
+          "finish": "Save and start Smart Shading",
+          "save_changes": "Save changes"
         }
       },
       "compact_cover_details": {
@@ -322,23 +340,29 @@
         "title": "Manage room",
         "description": "Room details and automation stay separate from the complete sector → group → cover structure.",
         "menu_options": {
-          "back_to_overview": "Back to room list"
+          "back_to_overview": "Back to overview"
         }
       },
       "structure_hub": {
         "title": "Shading structure",
         "description": "Open a complete sun sector branch or add a new area. New areas are saved only after a group and at least one cover are configured.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "sector_hub": {
         "title": "Sun sector",
         "description": "Configure this sector and open only the cover groups that belong to it.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_structure": "Back to shading structure"
+        }
       },
       "group_hub": {
         "title": "Cover group",
         "description": "Configure this group and the covers assigned to it. Every cover in this list inherits the group profile.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Back to sun sector"
+        }
       },
       "cover_hub": {
         "title": "Individual covers",
@@ -400,8 +424,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} {next_feature}",
+        "title": "{room_name} · {feature_name__en}",
+        "description": "{feature_context__en}. {feature_description__en} {next_feature__en}",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
@@ -433,7 +457,7 @@
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
+            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior__en} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
@@ -482,8 +506,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} Choose a dedicated time source or sunset-to-sunrise offsets. Night positions belong to each cover group's profile settings. {next_feature}",
+        "title": "{room_name} · {feature_name__en}",
+        "description": "{feature_context__en}. {feature_description__en} Choose a dedicated time source or sunset-to-sunrise offsets. Night positions belong to each cover group's profile settings. {next_feature__en}",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -522,8 +546,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} {next_feature}",
+        "title": "{room_name} · {feature_name__en}",
+        "description": "{feature_context__en}. {feature_description__en} {next_feature__en}",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -560,8 +584,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context} · {feature_name} · Target position · {group_name}",
-        "description": "{feature_description} Set the safety position for this cover group now. {next_feature}",
+        "title": "{feature_context__en} · {feature_name__en} · Target position · {group_name}",
+        "description": "{feature_description__en} Set the safety position for this cover group now. {next_feature__en}",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -687,7 +711,9 @@
       "protected_zones_hub": {
         "title": "Glare protection",
         "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Back to sun sector"
+        }
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
@@ -824,7 +850,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
-        "description": "{calculation_status}\n\n{geometry_summary}\n\nCurrent sun position: {current_sun}\n\nCurrently calculated target: {calculated_target}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "description": "{calculation_status__en}\n\n{geometry_summary__en}\n\nCurrent sun position: {current_sun__en}\n\nCurrently calculated target: {calculated_target__en}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
         "data": {
           "confirm_protected_zone": "Save protected zone"
         },
@@ -833,8 +859,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context} · Maximum opening · {cover_name}",
-        "description": "{feature_description} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature}",
+        "title": "{feature_context__en} · Maximum opening · {cover_name}",
+        "description": "{feature_description__en} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature__en}",
         "data": {
           "enforce_max_open_position": "Enforce a maximum opening",
           "max_open_position": "Maximum opening"
@@ -846,7 +872,10 @@
       },
       "maximum_opening_hub": {
         "title": "Maximum opening limits",
-        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately."
+        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately.",
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
@@ -1280,13 +1309,24 @@
       },
       "finish": {
         "title": "Review and start",
-        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources}\n\nActive functions: {active_functions}\n\n{review_warnings}",
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources__en}\n\nActive functions: {active_functions__en}\n\n{review_warnings__en}",
         "data": {
           "confirm_start": "Start Smart Shading"
         },
         "data_description": {
           "confirm_start": "Confirm that you reviewed the setup and want to start automation. The dashboard editor then provides the Smart Shading room card plus small round Home Assistant badges for the house and rooms. The main symbol shows the cover type; the state marker and color show the current mode. Select one to open every detail, including pauses and their end time."
         }
+      },
+      "native_navigation": {
+        "title": "Smart Shading",
+        "description": "{navigation_context}",
+        "data": {
+          "route": "Choose an object or action"
+        },
+        "data_description": {
+          "route": "Select the item to configure, then continue."
+        },
+        "submit": "Continue"
       }
     },
     "error": {
@@ -1328,7 +1368,8 @@
       "protected_zone_local_sun_sensor_invalid": "Select an available outdoor illuminance or irradiance sensor.",
       "protected_zone_local_sun_preset_invalid": "Select a valid local sun sensitivity.",
       "protected_zone_local_sun_threshold_range": "For Custom, the sun-on threshold must be above the sun-off threshold.",
-      "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback."
+      "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback.",
+      "invalid_navigation": "This choice is no longer available. Select an item from the current list."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet.",
@@ -1408,7 +1449,7 @@
       },
       "new_optional_feature_available": {
         "title": "New optional feature for {room_name}",
-        "description": "The newly added cover makes this optional feature available: {new_features}. You can configure it now or continue with the room structure.",
+        "description": "The newly added cover makes this optional feature available: {new_features__en}. You can configure it now or continue with the room structure.",
         "data": {
           "open_optional_features": "Open optional features now"
         },
@@ -1418,19 +1459,36 @@
       },
       "advanced_features_hub": {
         "title": "Optional features",
-        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope."
+        "description": "Open the feature whose setup you want to inspect or change. The available dashboard, automation and protection choices follow the selected setup scope.",
+        "menu_options": {
+          "back_to_room": "Back to room",
+          "choose_advanced_features": "Choose features",
+          "manage_schedule": "Schedule",
+          "manage_temperature": "Temperature and heat protection",
+          "manage_night": "Night mode",
+          "manage_safety": "Wind, frost and window safety",
+          "manage_weather_conditions": "Weather and occupancy",
+          "glare_protection_hub": "Glare protection",
+          "maximum_opening_hub": "Maximum opening limit",
+          "manage_dashboard_badges": "Set up dashboard badges",
+          "manage_execution": "Expert command settings",
+          "manage_pause": "Pause and manual control"
+        }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature}"
+        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
+        "description": "{feature_description__en}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature__en}"
       },
       "glare_protection_hub": {
         "title": "Glare protection",
-        "description": "Open the facade whose protected areas should be configured or changed."
+        "description": "Open the facade whose protected areas should be configured or changed.",
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "initial_glare_protection": {
-        "title": "{feature_context} · Glare protection · Choose facade",
-        "description": "{feature_description} Choose the facade containing the window in front of the first protected area. {next_feature}",
+        "title": "{feature_context__en} · Glare protection · Choose facade",
+        "description": "{feature_description__en} Choose the facade containing the window in front of the first protected area. {next_feature__en}",
         "data": {
           "sector_id": "Facade"
         },
@@ -1439,8 +1497,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context} · {feature_name} · Target position · {group_name}",
-        "description": "{feature_description} Set the safety position for this cover group now. {next_feature}",
+        "title": "{feature_context__en} · {feature_name__en} · Target position · {group_name}",
+        "description": "{feature_description__en} Set the safety position for this cover group now. {next_feature__en}",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -1546,23 +1604,29 @@
         "title": "Manage room",
         "description": "Room details and automation stay separate from the complete sector → group → cover structure.",
         "menu_options": {
-          "back_to_overview": "Back to room list"
+          "back_to_overview": "Back to overview"
         }
       },
       "structure_hub": {
         "title": "Shading structure",
         "description": "Open a complete sun sector branch or add a new area. New areas are saved only after a group and at least one cover are configured.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "sector_hub": {
         "title": "Sun sector",
         "description": "Configure this sector and open only the cover groups that belong to it.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_structure": "Back to shading structure"
+        }
       },
       "group_hub": {
         "title": "Cover group",
         "description": "Configure this group and the covers assigned to it. Every cover in this list inherits the group profile.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Back to sun sector"
+        }
       },
       "manage_sector": {
         "title": "{room_name} · Sun sector · {sector_name}",
@@ -1878,7 +1942,8 @@
           "global_operating_policy": "Operation and protection",
           "global_settings": "House settings",
           "diagnostics_settings": "Diagnostics and support",
-          "finish": "Save changes and reload"
+          "finish": "Save and start Smart Shading",
+          "save_changes": "Save changes"
         }
       },
       "cover_hub": {
@@ -1921,8 +1986,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nYou are now editing {feature_name} for {room_name}. {next_feature}",
+        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
+        "description": "{feature_description__en}\n\nYou are now editing {feature_name__en} for {room_name}. {next_feature__en}",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
@@ -1954,7 +2019,7 @@
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
+            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior__en} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
@@ -2003,8 +2068,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nNight has its own period and remains available outside the general shading schedule. Each cover group uses the Night position stored in its profile settings. {next_feature}",
+        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
+        "description": "{feature_description__en}\n\nNight has its own period and remains available outside the general shading schedule. Each cover group uses the Night position stored in its profile settings. {next_feature__en}",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -2043,8 +2108,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nYou are now editing the inputs for {feature_name}. Optional empty sources are ignored. {next_feature}",
+        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
+        "description": "{feature_description__en}\n\nYou are now editing the inputs for {feature_name__en}. Optional empty sources are ignored. {next_feature__en}",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -2130,7 +2195,7 @@
       },
       "finish": {
         "title": "Configuration incomplete",
-        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources}\n\nActive functions: {active_functions}\n\n{review_warnings}"
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources__en}\n\nActive functions: {active_functions__en}\n\n{review_warnings__en}"
       },
       "room_setup": {
         "title": "Set up the first room",
@@ -2261,7 +2326,9 @@
       "protected_zones_hub": {
         "title": "Glare protection",
         "description": "Available only in the complete setup. Manage the protected zones that apply to this sun sector.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Back to sun sector"
+        }
       },
       "add_protected_zone": {
         "title": "{sector_name} · Add protected zone",
@@ -2398,7 +2465,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
-        "description": "{calculation_status}\n\n{geometry_summary}\n\nCurrent sun position: {current_sun}\n\nCurrently calculated target: {calculated_target}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "description": "{calculation_status__en}\n\n{geometry_summary__en}\n\nCurrent sun position: {current_sun__en}\n\nCurrently calculated target: {calculated_target__en}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
         "data": {
           "confirm_protected_zone": "Save protected zone"
         },
@@ -2407,8 +2474,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context} · Maximum opening · {cover_name}",
-        "description": "{feature_description} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature}",
+        "title": "{feature_context__en} · Maximum opening · {cover_name}",
+        "description": "{feature_description__en} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature__en}",
         "data": {
           "enforce_max_open_position": "Enforce a maximum opening",
           "max_open_position": "Maximum opening"
@@ -2420,7 +2487,10 @@
       },
       "maximum_opening_hub": {
         "title": "Maximum opening limits",
-        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately."
+        "description": "Choose a position-controlled cover to set or disable its hard opening limit. The card and diagnostics show the normal target, limit and resulting effective target separately.",
+        "menu_options": {
+          "back_to_room": "Back to room"
+        }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Protected zone",
@@ -2604,6 +2674,17 @@
         "data_description": {
           "cover_entities": "The selected covers inherit this group’s physical profile and targets."
         }
+      },
+      "native_navigation": {
+        "title": "Smart Shading",
+        "description": "{navigation_context}",
+        "data": {
+          "route": "Choose an object or action"
+        },
+        "data_description": {
+          "route": "Select the item to configure, then continue."
+        },
+        "submit": "Continue"
       }
     },
     "error": {
@@ -2642,7 +2723,8 @@
       "protected_zone_local_sun_sensor_invalid": "Select only available outdoor illuminance or irradiance sensors.",
       "protected_zone_local_sun_preset_invalid": "Select a valid local sun sensitivity.",
       "protected_zone_local_sun_threshold_range": "For Custom, the sun-on threshold must be above the sun-off threshold.",
-      "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback."
+      "protected_zone_weather_fallback_invalid": "Select a valid weather entity for the fallback.",
+      "invalid_navigation": "This choice is no longer available. Select an item from the current list."
     },
     "abort": {
       "no_rooms": "No rooms have been configured yet."
@@ -2681,6 +2763,247 @@
           "disabled": "Manual",
           "finished": "Day finished"
         }
+      },
+      "sector_status": {
+        "name": "{scope} · sector status"
+      }
+    },
+    "button": {
+      "evaluate_all_rooms_now": {
+        "name": "Evaluate all rooms now"
+      },
+      "pause_automation": {
+        "name": "Pause automation"
+      },
+      "resume_automation": {
+        "name": "Resume automation"
+      },
+      "evaluate_now": {
+        "name": "Evaluate now"
+      },
+      "test_evaluation_does_not_move_covers": {
+        "name": "Test evaluation (does not move covers)"
+      },
+      "preview_today_does_not_move_covers": {
+        "name": "Preview today (does not move covers)"
+      },
+      "reset_finished_today_state": {
+        "name": "Reset finished-today state"
+      },
+      "reset_sun_detection": {
+        "name": "{scope} · Reset sun detection"
+      },
+      "export_diagnostic_log": {
+        "name": "Export diagnostic log"
+      },
+      "export_room_diagnostic_log": {
+        "name": "Export room diagnostic log"
+      }
+    },
+    "switch": {
+      "manual_master_override": {
+        "name": "Manual master override"
+      },
+      "sector_enabled": {
+        "name": "{scope} · Sector enabled"
+      }
+    },
+    "binary_sensor": {
+      "sun_detected": {
+        "name": "{scope} · sun detected"
+      }
+    },
+    "select": {
+      "diagnostic_logging": {
+        "name": "Diagnostic logging",
+        "state": {
+          "Diagnostic logging": "Diagnostic logging",
+          "Diagnoseprotokoll": "Diagnostic logging",
+          "Off": "Off",
+          "Aus": "Off",
+          "Events": "Events",
+          "Ereignisse": "Events",
+          "Full": "Full",
+          "Vollständig": "Full"
+        }
+      },
+      "pause_mode": {
+        "name": "Pause mode",
+        "state": {
+          "Pause mode": "Pause mode",
+          "Pausenmodus": "Pause mode",
+          "Not paused": "Not paused",
+          "Nicht pausiert": "Not paused",
+          "Until next morning": "Until next morning",
+          "Bis zum nächsten Morgen": "Until next morning",
+          "Until next sunset": "Until next sunset",
+          "Bis zum nächsten Sonnenuntergang": "Until next sunset",
+          "Until the end of the next Night": "Until the end of the next Night",
+          "Bis zum Ende der nächsten Nacht": "Until the end of the next Night",
+          "For a fixed duration": "For a fixed duration",
+          "Für eine feste Dauer": "For a fixed duration",
+          "Until manually resumed": "Until manually resumed",
+          "Bis manuell fortgesetzt": "Until manually resumed"
+        }
+      },
+      "operating_profile": {
+        "name": "Operating profile",
+        "state": {
+          "Operating profile": "Operating profile",
+          "Betriebsprofil": "Operating profile",
+          "Global setting": "Global setting",
+          "Globale Einstellung": "Global setting",
+          "By season and schedule": "By season and schedule",
+          "Nach Saison und Zeitplan": "By season and schedule",
+          "Protection only": "Protection only",
+          "Nur Schutz": "Protection only",
+          "Year-round": "Year-round",
+          "Ganzjährig": "Year-round"
+        }
+      },
+      "operation_and_protection": {
+        "name": "Operation and protection",
+        "state": {
+          "Operation and protection": "Operation and protection",
+          "Betriebsweise und Schutz": "Operation and protection",
+          "By season and schedule": "By season and schedule",
+          "Nach Saison und Zeitplan": "By season and schedule",
+          "Protection only": "Protection only",
+          "Nur Schutz": "Protection only",
+          "Year-round": "Year-round",
+          "Ganzjährig": "Year-round"
+        }
+      },
+      "sun_sensitivity": {
+        "name": "{scope} · Sun sensitivity",
+        "state": {
+          "Less sensitive": "Less sensitive",
+          "Weniger empfindlich": "Less sensitive",
+          "Balanced": "Balanced",
+          "Ausgewogen": "Balanced",
+          "Sensitive": "Sensitive",
+          "Empfindlich": "Sensitive",
+          "Custom": "Custom",
+          "Benutzerdefiniert": "Custom",
+          "Sun sensitivity": "Sun sensitivity",
+          "Sonnenempfindlichkeit": "Sun sensitivity"
+        }
+      }
+    },
+    "number": {
+      "setting_normal_shading_temperature": {
+        "name": "{scope}Normal shading temperature"
+      },
+      "setting_comfort_temperature": {
+        "name": "{scope}Comfort temperature"
+      },
+      "setting_solar_temperature": {
+        "name": "{scope}Solar temperature"
+      },
+      "setting_heat_temperature": {
+        "name": "{scope}Heat protection start"
+      },
+      "setting_reopen_temperature": {
+        "name": "{scope}Cool-room reopen threshold"
+      },
+      "setting_outdoor_minimum": {
+        "name": "{scope}Minimum outdoor temperature"
+      },
+      "setting_irradiance_minimum": {
+        "name": "{scope}Minimum irradiance"
+      },
+      "setting_cloud_cover_maximum": {
+        "name": "{scope}Maximum cloud cover"
+      },
+      "setting_azimuth_start": {
+        "name": "{scope}Azimuth start"
+      },
+      "setting_azimuth_end": {
+        "name": "{scope}Azimuth end"
+      },
+      "setting_elevation_min": {
+        "name": "{scope}Minimum sun elevation"
+      },
+      "setting_sun_on_lux": {
+        "name": "{scope}Sun ON lux threshold"
+      },
+      "setting_sun_off_lux": {
+        "name": "{scope}Sun OFF lux threshold"
+      },
+      "setting_sun_on_delay": {
+        "name": "{scope}Sun ON delay"
+      },
+      "setting_sun_off_delay": {
+        "name": "{scope}Sun OFF delay"
+      },
+      "setting_open_position": {
+        "name": "{scope}Open position"
+      },
+      "setting_open_tilt": {
+        "name": "{scope}Open tilt"
+      },
+      "setting_comfort_position": {
+        "name": "{scope}Comfort position"
+      },
+      "setting_comfort_tilt": {
+        "name": "{scope}Comfort tilt"
+      },
+      "setting_solar_position": {
+        "name": "{scope}Solar position"
+      },
+      "setting_solar_tilt": {
+        "name": "{scope}Solar tilt"
+      },
+      "setting_heat_position": {
+        "name": "{scope}Heat position"
+      },
+      "setting_heat_tilt": {
+        "name": "{scope}Heat tilt"
+      },
+      "setting_night_position": {
+        "name": "{scope}Night position"
+      },
+      "setting_night_tilt": {
+        "name": "{scope}Night slat position"
+      },
+      "setting_safety_position": {
+        "name": "{scope}Safety position"
+      },
+      "setting_safety_tilt": {
+        "name": "{scope}Safety tilt"
+      },
+      "setting_tilt_elevation_1": {
+        "name": "{scope}Very low sun elevation"
+      },
+      "setting_tilt_value_1": {
+        "name": "{scope}Very low sun slat position"
+      },
+      "setting_tilt_elevation_2": {
+        "name": "{scope}Low sun elevation"
+      },
+      "setting_tilt_value_2": {
+        "name": "{scope}Low sun slat position"
+      },
+      "setting_tilt_elevation_3": {
+        "name": "{scope}Medium sun elevation"
+      },
+      "setting_tilt_value_3": {
+        "name": "{scope}Medium sun slat position"
+      },
+      "setting_tilt_elevation_4": {
+        "name": "{scope}High sun elevation"
+      },
+      "setting_tilt_value_4": {
+        "name": "{scope}High sun slat position"
+      },
+      "setting_pause_duration": {
+        "name": "{scope}Pause duration"
+      },
+      "setting_pause_sun_offset": {
+        "name": "{scope}Pause sun offset"
+      },
+      "setting_awning_open_position": {
+        "name": "{scope}Retracted / neutral position"
       }
     }
   },
@@ -2881,6 +3204,77 @@
       "options": {
         "simple": "Easy",
         "complete": "Advanced"
+      }
+    },
+    "navigation_action": {
+      "options": {
+        "finish": "Save and start Smart Shading",
+        "save_changes": "Save changes",
+        "add_room": "Add room",
+        "global_settings": "House settings",
+        "global_operating_policy": "Operation and protection",
+        "diagnostics_settings": "Diagnostics and support",
+        "back_to_overview": "Back to overview",
+        "back_to_room": "Back to room",
+        "back_to_structure": "Back to shading structure",
+        "back_to_sector": "Back to sun sector",
+        "back_to_group": "Back to cover group",
+        "manage_room_details": "Room details",
+        "structure_hub": "Shading structure",
+        "advanced_features_hub": "Features and protection",
+        "manage_room_maintenance": "Remove room",
+        "add_sector_flat": "Add complete shading area",
+        "manage_sector": "Sector settings",
+        "manage_sector_source": "Sun source",
+        "protected_zones_hub": "Glare protection",
+        "add_layer_flat": "Add cover group",
+        "add_protected_zone": "Add protected zone",
+        "manage_layer": "Group and cover type",
+        "manage_layer_profile": "Profile settings",
+        "add_covers_flat": "Add covers",
+        "manage_cover": "Cover settings",
+        "choose_advanced_features": "Choose features",
+        "manage_schedule": "Schedule",
+        "manage_temperature": "Temperature and heat protection",
+        "manage_night": "Night mode",
+        "manage_safety": "Wind, frost and window safety",
+        "manage_weather_conditions": "Weather and occupancy",
+        "glare_protection_hub": "Glare protection",
+        "maximum_opening_hub": "Maximum opening limit",
+        "manage_dashboard_badges": "Set up dashboard badges",
+        "manage_execution": "Expert command settings",
+        "manage_pause": "Pause and manual control"
+      }
+    },
+    "sun_preset_advanced": {
+      "options": {
+        "low": "Strong sunlight only · 50,000/35,000 lx · 10/30 min",
+        "medium": "Balanced · 35,000/30,000 lx · 10/30 min",
+        "high": "Shade earlier · 25,000/18,000 lx · 5/15 min",
+        "custom": "Custom",
+        "keep_current": "Keep existing Lux profile"
+      }
+    },
+    "tilt_preset_advanced": {
+      "options": {
+        "glare": "More glare protection · 10°/95% · 20°/80% · 40°/55% · 60°/35%",
+        "balanced": "Balanced · 10°/90% · 20°/65% · 40°/35% · 60°/15%",
+        "daylight": "More daylight · 10°/80% · 20°/50% · 40°/20% · 60°/5%",
+        "custom": "Custom"
+      }
+    },
+    "schedule_profile_advanced": {
+      "options": {
+        "year_round": "All year · January–December · Monday–Sunday",
+        "summer": "Summer season · May–September · Monday–Sunday",
+        "custom": "Custom schedule"
+      }
+    },
+    "curtain_movement": {
+      "options": {
+        "symmetric": "Centre / symmetric",
+        "left_to_right": "Closes from left to right",
+        "right_to_left": "Closes from right to left"
       }
     }
   },

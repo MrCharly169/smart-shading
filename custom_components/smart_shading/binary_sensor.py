@@ -21,14 +21,14 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 
 class SectorSunPresenceBinarySensor(SmartShadingEntity, BinarySensorEntity):
-    _attr_name = "Sun presence"
     _attr_icon = "mdi:white-balance-sunny"
 
     def __init__(self, engine, room_id: str, sector_id: str) -> None:
         super().__init__(engine, room_id=room_id, sector_id=sector_id)
         sector = engine.sector_config(sector_id)
         suffix = localized(engine, "sun detected", "Sonne erkannt")
-        self._attr_name = f"{sector.get('name', '')} · {suffix}"
+        self._attr_translation_key = 'sun_detected'
+        self._attr_translation_placeholders = {"scope": str(sector.get("name", ""))}
         self._attr_unique_id = (
             f"{self.entry.entry_id}_{sector_id}_sun_presence"
         )

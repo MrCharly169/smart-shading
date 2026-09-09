@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 2026.9.4b1 - 2026-09-09
+
+- Use native per-user Home Assistant translations for setup and options actions,
+  Advanced profile values, curtain movement choices and dynamic feature/review
+  summaries, even when the server language differs from the viewing app.
+- Keep room, sector, cover-group, cover and protected-zone names unchanged in
+  native navigation. Preserve the original task handlers and saved settings.
+- Use native entity-name and select-state translation keys without renaming
+  entity IDs or changing existing select values. Entity names remain shared
+  Home Assistant registry metadata; they are not per-app display text.
+- Add conflicting app/server-language regression tests and native navigation
+  E2E ownership. Adopt ecosystem policy 1.19 and paired-copy audits.
+
 
 ## 2026.9.4b0 - 2026-09-09
 

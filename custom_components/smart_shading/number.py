@@ -193,43 +193,18 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
     def __init__(self, engine, definition: NumberDefinition, **kwargs) -> None:
         super().__init__(engine, **kwargs)
         self.definition = definition
-        self._attr_name = localized(engine, definition.name, {
-            "Normal shading temperature": "Normale Beschattung ab",
-            "Comfort temperature": "Comfort-Temperatur",
-            "Solar temperature": "Solar-Temperatur",
-            "Heat protection start": "Heat-Protection-Start",
-            "Cool-room reopen threshold": "Wiederöffnungs-Temperatur",
-            "Minimum outdoor temperature": "Mindestaußentemperatur",
-            "Minimum irradiance": "Mindesteinstrahlung",
-            "Maximum cloud cover": "Maximale Bewölkung",
-            "Azimuth start": "Azimut Start",
-            "Azimuth end": "Azimut Ende",
-            "Minimum sun elevation": "Minimale Sonnenhöhe",
-            "Sun ON lux threshold": "Sun-ON-Luxgrenze",
-            "Sun OFF lux threshold": "Sun-OFF-Luxgrenze",
-            "Sun ON delay": "Sun-ON-Verzögerung",
-            "Sun OFF delay": "Sun-OFF-Verzögerung",
-            "Open position": "Öffnungsposition",
-            "Open tilt": "Öffnungs-Lamelle",
-            "Comfort position": "Comfort-Position",
-            "Comfort tilt": "Comfort-Lamelle",
-            "Solar position": "Solar-Position",
-            "Solar tilt": "Solar-Lamelle",
-            "Heat position": "Heat-Position",
-            "Night position": "Nachtposition",
-            "Night slat position": "Nacht-Lamellenposition",
-            "Heat tilt": "Heat-Lamelle",
-            "Safety position": "Safety-Position",
-            "Safety tilt": "Safety-Lamelle",
-            "Very low sun elevation": "Tiefe Sonne – Sonnenhöhe",
-            "Very low sun slat position": "Tiefe Sonne – Lamellenposition",
-            "Low sun elevation": "Niedrige Sonne – Sonnenhöhe",
-            "Low sun slat position": "Niedrige Sonne – Lamellenposition",
-            "Medium sun elevation": "Mittlere Sonne – Sonnenhöhe",
-            "Medium sun slat position": "Mittlere Sonne – Lamellenposition",
-            "High sun elevation": "Hohe Sonne – Sonnenhöhe",
-            "High sun slat position": "Hohe Sonne – Lamellenposition",
-        }.get(definition.name, definition.name))
+        translation_key = definition.key
+        if self.layer_id:
+            layer = engine.layer_config(self.layer_id)
+            scope = str(layer.get("name") or "")
+            if layer.get("profile") == DEVICE_AWNING and definition.key == "open_position":
+                translation_key = "awning_open_position"
+        elif self.sector_id:
+            scope = str(engine.sector_config(self.sector_id).get("name") or "")
+        else:
+            scope = ""
+        self._attr_translation_key = f"setting_{translation_key}"
+        self._attr_translation_placeholders = {"scope": f"{scope} · " if scope else ""}
         self._attr_native_min_value = definition.minimum
         self._attr_native_max_value = definition.maximum
         self._attr_native_step = definition.step
@@ -244,7 +219,6 @@ class BaseSettingNumber(SmartShadingEntity, NumberEntity):
 
 
 class PauseHoursNumber(SmartShadingEntity, NumberEntity):
-    _attr_name = "Pause duration"
     _attr_native_min_value = PAUSE_DURATION_MIN_HOURS
     _attr_native_max_value = PAUSE_DURATION_MAX_HOURS
     _attr_native_step = PAUSE_DURATION_STEP_HOURS
@@ -254,7 +228,8 @@ class PauseHoursNumber(SmartShadingEntity, NumberEntity):
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Pause duration", "Pausendauer")
+        self._attr_translation_key = "setting_pause_duration"
+        self._attr_translation_placeholders = {"scope": ""}
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_pause_hours"
 
     @property
@@ -276,7 +251,6 @@ class PauseHoursNumber(SmartShadingEntity, NumberEntity):
 
 
 class PauseSunOffsetNumber(SmartShadingEntity, NumberEntity):
-    _attr_name = "Pause sun offset"
     _attr_native_min_value = -120
     _attr_native_max_value = 240
     _attr_native_step = 5
@@ -287,7 +261,8 @@ class PauseSunOffsetNumber(SmartShadingEntity, NumberEntity):
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Pause sun offset", "Pausen-Offset zur Sonne")
+        self._attr_translation_key = "setting_pause_sun_offset"
+        self._attr_translation_placeholders = {"scope": ""}
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_pause_sun_offset"
 
     @property
