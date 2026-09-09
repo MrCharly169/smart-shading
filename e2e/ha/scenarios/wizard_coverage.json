@@ -91,7 +91,7 @@
   "live_transitions": [
     "existing_room.night_enabled.on_to_off.save_reload",
     "existing_room.night_enabled.off_to_on.configure.save_reload.runtime",
-    "existing_room.schedule_enabled.on_to_off_to_on.save_reload",
+    "existing_room.schedule_scope.inherit_to_custom_to_inherit.save_reload",
     "existing_room.glare_zone.single_cover.create_edit.save_reload",
     "existing_cover.enforce_max_open_position.on_to_off_to_on.save_reload"
   ],
