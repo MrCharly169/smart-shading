@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.17.0
+Policy-Version: 1.18.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -64,9 +64,22 @@ Customer-visible presentation follows a separately verified language contract.
   services. Native frontend controls retain Home Assistant's user-language
   behavior. Only the scoped presentation exception above is allowed; never
   intercept native controls or silently change user profiles.
+- Config and options flows must not compose customer-visible labels from the
+  installation/system language. Static choices use Home Assistant translation
+  keys; dynamic choices contain only unchanged user-provided proper names or
+  language-neutral values. If a flow needs translated prose, redesign it as a
+  native translated step instead of hard-coding one backend language.
+  A pre-existing legacy flow that cannot be migrated in the current bounded
+  change must carry an explicit, exact and non-increasing registry migration
+  budget; the audit rejects every additional system-language reference.
 - Owned custom cards must document their language source and explicit overrides.
   Existing cards using the system language are migration findings until adapted
   and tested; translation files alone do not prove app-language parity.
+- Backend states, reasons and action values remain stable machine identifiers.
+  Cards and badges map every supported identifier to the active presentation
+  language. An unknown identifier uses a same-language generic message and may
+  expose its raw value only inside explicitly technical diagnostics; it must not
+  leak English or an internal token into normal German presentation.
 - Automatic reconciliation must retain stable source bindings, preserve concurrent
   edits, and verify language changes in both directions without guessing a source
   from ambiguous translated text. New text must have reviewed English and German
@@ -78,6 +91,10 @@ Customer-visible presentation follows a separately verified language contract.
   Audit all three public integrations and local sources before claiming complete
   coverage. Migrate existing surfaces in measured, explicitly named batches;
   distinguish generated previews, installed changes and device-tested behavior.
+- Every registered HACS or local integration ships `translations/en.json` and
+  `translations/de.json` with identical leaf keys and placeholder sets. The
+  ecosystem audit blocks missing files, missing or extra keys, empty German
+  values and placeholder drift before release or installation.
 - The living customer documentation retains its separate five-language and
   explicit/browser/profile language selection contract. Do not regress it while
   changing the installation-language presentation of Home Assistant.

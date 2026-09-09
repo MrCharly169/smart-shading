@@ -78,7 +78,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Karte-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -89,7 +89,7 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
@@ -142,7 +142,7 @@
           "safety": "Gibt Wind-, Frost- oder Fenstersignalen Vorrang vor dem Komfortbetrieb. Bei Gefahr blockiert Smart Shading Fahrten oder fährt festgelegte sichere Positionen an.",
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
-          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Sicherheit behält Vorrang.",
           "dashboard_badges": "Führt durch die Einrichtung der kleinen runden Haus- und Raumstatus-Badges. Behangsymbol, Zustandsmarkierung und Farbe zeigen den aktuellen Smart-Shading-Modus ohne dauerhaften Text.",
           "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
@@ -237,7 +237,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Karte-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -248,7 +248,7 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
@@ -594,7 +594,7 @@
               "sun_off_delay": "Ausschaltverzögerung"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
               "lux_sensor": "Wählen Sie den Lux-Sensor, der direkte Sonne bestätigt.",
               "sun_presence_entity": "Wählen Sie eine vorhandene Ein/Aus-Entität, bei der Ein direkte Sonne bedeutet.",
               "sun_preset": "Wählt Helligkeitsgrenzen und Verzögerungen.",
@@ -788,7 +788,7 @@
       },
       "manage_cover_special": {
         "title": "Maximale Öffnung · {cover_name}",
-        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Safety-Fahrten behalten Vorrang.",
+        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Sicherheit-Fahrten behalten Vorrang.",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung aktiv durchsetzen",
           "max_open_position": "Maximale Öffnung"
@@ -1097,13 +1097,13 @@
           "max_open_position": "Maximale Öffnung"
         },
         "data_description": {
-          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Safety-Fahrten behalten Vorrang.",
+          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Sicherheit-Fahrten behalten Vorrang.",
           "max_open_position": "Überschreitet die gemeldete Position diesen Wert außerhalb der engen Toleranz, fährt Smart Shading den Behang auf die Grenze zurück."
         }
       },
       "maximum_opening_hub": {
         "title": "Maximale Öffnungsbegrenzungen",
-        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Card und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
@@ -1393,7 +1393,7 @@
           "safety": "Gibt Wind-, Frost- oder Fenstersignalen Vorrang vor dem Komfortbetrieb. Bei Gefahr blockiert Smart Shading Fahrten oder fährt festgelegte sichere Positionen an.",
           "conditions": "Bezieht Wetter- und Anwesenheitssignale ein, damit Komfortfahrten nur bei passenden Bedingungen stattfinden. Sicherheits- und Hitzeschutzregeln behalten Vorrang.",
           "glare_protection": "Schützt einen festgelegten Bereich wie Bildschirm, Tisch oder Sitzplatz vor direkter Sonne. Smart Shading berechnet die erforderliche Position aus Sonne, Fenster und Schutzzone.",
-          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Safety behält Vorrang.",
+          "maximum_opening": "Hält ausgewählte positionsfähige Behänge auch nach externen KNX- oder Tasterfahrten unter ihrer festen Öffnungsgrenze. Die Rückmeldung wird sofort und alle 30 Sekunden geprüft; Sicherheit behält Vorrang.",
           "dashboard_badges": "Führt durch die Einrichtung der kleinen runden Haus- und Raumstatus-Badges. Behangsymbol, Zustandsmarkierung und Farbe zeigen den aktuellen Smart-Shading-Modus ohne dauerhaften Text.",
           "test_tools": "Erstellt nach dem Speichern und erneuten Laden Vorschau- und Diagnosewerkzeuge. Dafür gibt es keinen zusätzlichen Einrichtungsschritt; Testläufe bewegen niemals Behänge.",
           "expert_execution": "Passt Befehlsabstände, Warteschlangen und Zielprüfungen an. Das hilft bei langsamen Antrieben, großen Gruppen oder unzuverlässigen Rückmeldungen."
@@ -1500,7 +1500,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Karte-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -1511,7 +1511,7 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
@@ -1587,7 +1587,7 @@
               "sun_off_delay": "Ausschaltverzögerung"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten.",
               "lux_sensor": "Wählen Sie den Lux-Sensor, der direkte Sonne bestätigt.",
               "sun_presence_entity": "Wählen Sie eine vorhandene Ein/Aus-Entität, bei der Ein direkte Sonne bedeutet.",
               "sun_preset": "Wählt Helligkeitsgrenzen und Verzögerungen.",
@@ -1781,7 +1781,7 @@
       },
       "manage_cover_special": {
         "title": "Maximale Öffnung · {cover_name}",
-        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Safety-Fahrten behalten Vorrang.",
+        "description": "Diese eigenständige Schutzfunktion setzt eine feste Öffnungsgrenze für den gewählten Behang. Normale Zielposition und Öffnungsgrenze bleiben getrennt; Sicherheit-Fahrten behalten Vorrang.",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung aktiv durchsetzen",
           "max_open_position": "Maximale Öffnung"
@@ -2147,7 +2147,7 @@
               "name": "Wird als Raumname in Home Assistant und auf der Dashboard-Karte angezeigt.",
               "direction": "Legt fest, wann die Sonne diese Fassade erreicht.",
               "group_name": "Name für Behänge mit gemeinsamem Verhalten und gemeinsamen Zielpositionen.",
-              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Card-Darstellung.",
+              "profile": "Bestimmt für die ganze Gruppe Bewegungslogik, sichere Standardwerte, verfügbare Einstellungen und die Karte-Darstellung.",
               "cover_entities": "Wählen Sie mindestens einen noch nicht zugeordneten Home-Assistant-Behang."
             }
           },
@@ -2158,7 +2158,7 @@
               "sun_source": "Sonnenquelle"
             },
             "data_description": {
-              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sun Presence. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
+              "sun_source": "Der Sonnenstand nutzt nur die Geometrie. Ein fassadenbezogener Außensensor wird empfohlen und erzeugt Smart Shadings Sonnenerkennung. Alternativ geht ein externer Ein/Aus-Sensor; Ein muss direkte Sonne bedeuten."
             }
           },
           "optional_improvements": {
@@ -2414,13 +2414,13 @@
           "max_open_position": "Maximale Öffnung"
         },
         "data_description": {
-          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Safety-Fahrten behalten Vorrang.",
+          "enforce_max_open_position": "Prüft externe Fahrtrückmeldungen sofort und zusätzlich alle 30 Sekunden. Sicherheit-Fahrten behalten Vorrang.",
           "max_open_position": "Überschreitet die gemeldete Position diesen Wert außerhalb der engen Toleranz, fährt Smart Shading den Behang auf die Grenze zurück."
         }
       },
       "maximum_opening_hub": {
         "title": "Maximale Öffnungsbegrenzungen",
-        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Card und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
@@ -2887,7 +2887,7 @@
   "services": {
     "set_operating_profile": {
       "name": "Betriebsprofil setzen",
-      "description": "Ändert die globale Betriebsweise oder eine Raum-Ausnahme. Safety und harte Gerätegrenzen bleiben immer aktiv; freigegebene Nacht- und Blendschutzfunktionen arbeiten unabhängig von der thermischen Saison.",
+      "description": "Ändert die globale Betriebsweise oder eine Raum-Ausnahme. Sicherheit und harte Gerätegrenzen bleiben immer aktiv; freigegebene Nacht- und Blendschutzfunktionen arbeiten unabhängig von der thermischen Saison.",
       "fields": {
         "room_id": {
           "name": "Raum-ID",

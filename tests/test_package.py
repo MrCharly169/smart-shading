@@ -560,6 +560,23 @@ class PackageTests(unittest.TestCase):
             key_paths(translations["de"]),
         )
 
+    def test_customer_language_is_native_and_never_mixed(self):
+        frontend = (FRONTEND / "shading.js").read_text(encoding="utf-8")
+        german = (COMP / "translations" / "de.json").read_text(encoding="utf-8")
+        self.assertIn("customerPresentationLanguage", frontend)
+        self.assertNotRegex(
+            frontend,
+            r"hass\??\.config\??\.language|navigator\??\.language|\.startsWith\([\"']de[\"']\)",
+        )
+        for english_term in (
+            "Heat Protection",
+            "Sun Presence",
+            "Glare Protection",
+            "Night Mode",
+            "Safety",
+        ):
+            self.assertNotIn(english_term, german)
+
     def test_primary_setup_fields_have_customer_help_in_both_languages(self):
         required = {
             ("config", "room_setup", "room_and_covers"): {
