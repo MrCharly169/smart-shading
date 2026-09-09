@@ -47,7 +47,7 @@ class DiagnosticLoggingSelect(SmartShadingEntity, SelectEntity):
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self._attr_name = localized(engine, "Diagnostic logging", "Diagnoseprotokoll")
+        self._attr_translation_key = 'diagnostic_logging'
         self._attr_unique_id = f"{self.entry.entry_id}_diagnostic_level"
         self._labels = {
             DIAGNOSTIC_OFF: localized(engine, "Off", "Aus"),
@@ -73,12 +73,11 @@ class DiagnosticLoggingSelect(SmartShadingEntity, SelectEntity):
 
 
 class RoomPauseSelect(SmartShadingEntity, SelectEntity):
-    _attr_name = "Pause mode"
     _attr_icon = "mdi:pause-circle-outline"
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Pause mode", "Pausenmodus")
+        self._attr_translation_key = 'pause_mode'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_pause"
         self._labels = {
             PAUSE_AUTO: localized(engine, "Not paused", "Nicht pausiert"),
@@ -116,7 +115,7 @@ class RoomOperatingProfileSelect(SmartShadingEntity, SelectEntity):
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Operating profile", "Betriebsprofil")
+        self._attr_translation_key = 'operating_profile'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_operating_profile"
         self._labels = {
             OPERATING_PROFILE_INHERIT: localized(
@@ -177,9 +176,7 @@ class HouseOperatingProfileSelect(SmartShadingEntity, SelectEntity):
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self._attr_name = localized(
-            engine, "Operation and protection", "Betriebsweise und Schutz"
-        )
+        self._attr_translation_key = 'operation_and_protection'
         self._attr_unique_id = f"{self.entry.entry_id}_operating_profile"
         self._labels = {
             OPERATING_PROFILE_AUTOMATIC: localized(
@@ -226,14 +223,14 @@ class HouseOperatingProfileSelect(SmartShadingEntity, SelectEntity):
 
 
 class SunSensitivitySelect(SmartShadingEntity, SelectEntity):
-    _attr_name = "Sun sensitivity preset"
     _attr_icon = "mdi:weather-sunny-alert"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, engine, room_id: str, sector_id: str) -> None:
         super().__init__(engine, room_id=room_id, sector_id=sector_id)
         sector = engine.sector_config(sector_id)
-        self._attr_name = f"{sector.get('name', '')} · {localized(engine, 'Sun sensitivity', 'Sonnenempfindlichkeit')}"
+        self._attr_translation_key = 'sun_sensitivity'
+        self._attr_translation_placeholders = {"scope": str(sector.get("name", ""))}
         self._attr_unique_id = f"{self.entry.entry_id}_{sector_id}_sun_preset"
         self._labels = {
             "low": localized(engine, "Less sensitive", "Weniger empfindlich"),

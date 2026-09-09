@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.18.0
+Policy-Version: 1.19.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -72,6 +72,20 @@ Customer-visible presentation follows a separately verified language contract.
   A pre-existing legacy flow that cannot be migrated in the current bounded
   change must carry an explicit, exact and non-increasing registry migration
   budget; the audit rejects every additional system-language reference.
+- Dynamic flow summaries may provide paired `name__en` / `name__de` description
+  placeholders. Both are computed synchronously from the same inputs; each
+  native translation selects only its own suffix. Neutral names, measurements,
+  routing and validation semantics stay unchanged. Audit the semantic placeholder
+  sets and reject missing pairs or use of the opposite language's suffix.
+  Dynamic object navigation uses unchanged user names; actions use native
+  translated selector options. Test the real submitted selector and all routes.
+- Native entity names are shared registry metadata: Home Assistant generates
+  them in the backend language, not separately for each app. Use native name
+  translation keys without `_attr_name` overrides, preserve user overrides and
+  existing entity IDs, and do not claim that registry names switch per user.
+  Entity states, selectors, flow descriptions and custom-card copy must still
+  follow the viewing app. Legacy translated select values remain accepted and
+  gain native state translations; never break their existing automations.
 - Owned custom cards must document their language source and explicit overrides.
   Existing cards using the system language are migration findings until adapted
   and tested; translation files alone do not prove app-language parity.
@@ -93,7 +107,8 @@ Customer-visible presentation follows a separately verified language contract.
   distinguish generated previews, installed changes and device-tested behavior.
 - Every registered HACS or local integration ships `translations/en.json` and
   `translations/de.json` with identical leaf keys and placeholder sets. The
-  ecosystem audit blocks missing files, missing or extra keys, empty German
+  explicitly paired flow-copy suffixes above count as the same semantic key.
+  The ecosystem audit blocks missing files, missing or extra keys, empty German
   values and placeholder drift before release or installation.
 - The living customer documentation retains its separate five-language and
   explicit/browser/profile language selection contract. Do not regress it while

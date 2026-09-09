@@ -157,7 +157,7 @@
       },
       "new_optional_feature_available": {
         "title": "Neue Zusatzfunktion für {room_name}",
-        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
+        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features__de}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
         "data": {
           "open_optional_features": "Zusatzfunktionen jetzt öffnen"
         },
@@ -167,19 +167,36 @@
       },
       "advanced_features_hub": {
         "title": "Optionale Funktionen",
-        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang."
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum",
+          "choose_advanced_features": "Funktionen auswählen",
+          "manage_schedule": "Zeitplan",
+          "manage_temperature": "Temperatur und Hitzeschutz",
+          "manage_night": "Nachtfunktion",
+          "manage_safety": "Sicherheit für Wind, Frost und Fenster",
+          "manage_weather_conditions": "Wetter und Anwesenheit",
+          "glare_protection_hub": "Blendschutz",
+          "maximum_opening_hub": "Maximale Öffnungsbegrenzung",
+          "manage_dashboard_badges": "Dashboard-Badges einrichten",
+          "manage_execution": "Experteneinstellungen für Fahrbefehle",
+          "manage_pause": "Pause und manuelle Bedienung"
+        }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature}"
+        "title": "{room_name} · {feature_name__de} · {feature_progress__de}",
+        "description": "{feature_description__de}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature__de}"
       },
       "glare_protection_hub": {
         "title": "Blendschutz",
-        "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen."
+        "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "initial_glare_protection": {
-        "title": "{feature_context} · Blendschutz · Fassade wählen",
-        "description": "{feature_description} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature}",
+        "title": "{feature_context__de} · Blendschutz · Fassade wählen",
+        "description": "{feature_description__de} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature__de}",
         "data": {
           "sector_id": "Fassade"
         },
@@ -287,7 +304,8 @@
           "global_operating_policy": "Betriebsweise und Schutz",
           "global_settings": "Hauseinstellungen",
           "diagnostics_settings": "Diagnose und Support",
-          "finish": "Prüfen und starten"
+          "finish": "Speichern und Smart Shading starten",
+          "save_changes": "Änderungen speichern"
         }
       },
       "compact_cover_details": {
@@ -322,18 +340,22 @@
         "title": "Raum verwalten",
         "description": "Raumdaten und Automatik bleiben von der vollständigen Struktur Sektor → Gruppe → Behang getrennt.",
         "menu_options": {
-          "back_to_overview": "Zur Raumübersicht"
+          "back_to_overview": "Zur Übersicht"
         }
       },
       "sector_hub": {
         "title": "Sonnensektor",
         "description": "Konfigurieren Sie diesen Sektor und öffnen Sie nur die ihm zugeordneten Behanggruppen.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_structure": "Zurück zur Beschattungsstruktur"
+        }
       },
       "group_hub": {
         "title": "Behanggruppe",
         "description": "Konfigurieren Sie diese Gruppe und ihre Behänge. Jeder Behang in dieser Liste übernimmt das Gruppenprofil.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Zurück zum Sonnensektor"
+        }
       },
       "cover_hub": {
         "title": "Einzelne Behänge",
@@ -385,8 +407,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} {next_feature}",
+        "title": "{room_name} · {feature_name__de}",
+        "description": "{feature_context__de}. {feature_description__de} {next_feature__de}",
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
@@ -418,7 +440,7 @@
           },
           "temperature_settings": {
             "name": "Temperaturen und Hitzeschutz",
-            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
+            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior__de} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
             "data": {
               "indoor_temperature": "Raumtemperatursensor",
               "normal_shading_temperature": "Normale Beschattung ab",
@@ -467,8 +489,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} Wählen Sie eine eigene Zeitsteuerung oder Sonnenuntergang bis Sonnenaufgang mit Offset. Die Nachtposition gehört in die Profileinstellungen der jeweiligen Behanggruppe. {next_feature}",
+        "title": "{room_name} · {feature_name__de}",
+        "description": "{feature_context__de}. {feature_description__de} Wählen Sie eine eigene Zeitsteuerung oder Sonnenuntergang bis Sonnenaufgang mit Offset. Die Nachtposition gehört in die Profileinstellungen der jeweiligen Behanggruppe. {next_feature__de}",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
@@ -507,8 +529,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name}",
-        "description": "{feature_context}. {feature_description} {next_feature}",
+        "title": "{room_name} · {feature_name__de}",
+        "description": "{feature_context__de}. {feature_description__de} {next_feature__de}",
         "data": {
           "safety_blockers": "Gefahrensensoren (optional)",
           "irradiance_sensor": "Globalstrahlungssensor",
@@ -545,8 +567,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context} · {feature_name} · Zielposition · {group_name}",
-        "description": "{feature_description} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature}",
+        "title": "{feature_context__de} · {feature_name__de} · Zielposition · {group_name}",
+        "description": "{feature_description__de} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature__de}",
         "data": {
           "safety_position": "Sicherheitsposition",
           "safety_tilt": "Sicherheits-Lamellenposition"
@@ -864,7 +886,7 @@
       },
       "finish": {
         "title": "Prüfen und starten",
-        "description": "Räume: {room_count} · Sonnensektoren: {sector_count} · Behanggruppen: {group_count} · Behänge: {cover_count}\n\nSonnenquellen: {sun_sources}\n\nAktive Funktionen: {active_functions}\n\n{review_warnings}",
+        "description": "Räume: {room_count} · Sonnensektoren: {sector_count} · Behanggruppen: {group_count} · Behänge: {cover_count}\n\nSonnenquellen: {sun_sources__de}\n\nAktive Funktionen: {active_functions__de}\n\n{review_warnings__de}",
         "data": {
           "confirm_start": "Smart Shading starten"
         },
@@ -875,7 +897,9 @@
       "structure_hub": {
         "title": "Beschattungsstruktur",
         "description": "Öffnen Sie einen vollständigen Sonnensektor oder fügen Sie einen Bereich hinzu. Neue Bereiche werden erst mit einer Gruppe und mindestens einem Behang gespeichert.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "configure_outdoor_temperature": {
         "title": "Außentemperatur-Bedingung",
@@ -944,7 +968,9 @@
       "protected_zones_hub": {
         "title": "Blendschutz",
         "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Zurück zum Sonnensektor"
+        }
       },
       "add_protected_zone": {
         "title": "{sector_name} · Schutzzone hinzufügen",
@@ -1081,7 +1107,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Blendschutz · Berechnung prüfen · {zone_name}",
-        "description": "{calculation_status}\n\n{geometry_summary}\n\nAktueller Sonnenstand: {current_sun}\n\nAktuelles berechnetes Ziel: {calculated_target}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
+        "description": "{calculation_status__de}\n\n{geometry_summary__de}\n\nAktueller Sonnenstand: {current_sun__de}\n\nAktuelles berechnetes Ziel: {calculated_target__de}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
         "data": {
           "confirm_protected_zone": "Schutzzone speichern"
         },
@@ -1090,8 +1116,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context} · Maximale Öffnung · {cover_name}",
-        "description": "{feature_description} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature}",
+        "title": "{feature_context__de} · Maximale Öffnung · {cover_name}",
+        "description": "{feature_description__de} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature__de}",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung erzwingen",
           "max_open_position": "Maximale Öffnung"
@@ -1103,7 +1129,10 @@
       },
       "maximum_opening_hub": {
         "title": "Maximale Öffnungsbegrenzungen",
-        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
@@ -1287,6 +1316,17 @@
         "data_description": {
           "cover_entities": "Die ausgewählten Behänge übernehmen das physische Profil und die Zielwerte dieser Gruppe."
         }
+      },
+      "native_navigation": {
+        "title": "Smart Shading",
+        "description": "{navigation_context}",
+        "data": {
+          "route": "Objekt oder Aktion auswählen"
+        },
+        "data_description": {
+          "route": "Wähle den Eintrag zum Einrichten und fahre fort."
+        },
+        "submit": "Weiter"
       }
     },
     "error": {
@@ -1328,7 +1368,8 @@
       "protected_zone_local_sun_sensor_invalid": "Wählen Sie einen verfügbaren Außen-Helligkeits- oder Einstrahlungssensor.",
       "protected_zone_local_sun_preset_invalid": "Wählen Sie eine gültige lokale Sonnenempfindlichkeit.",
       "protected_zone_local_sun_threshold_range": "Benutzerdefiniert muss die Einschaltgrenze über der Ausschaltgrenze liegen.",
-      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback."
+      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback.",
+      "invalid_navigation": "Diese Auswahl ist nicht mehr verfügbar. Wähle einen Eintrag aus der aktuellen Liste."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden.",
@@ -1408,7 +1449,7 @@
       },
       "new_optional_feature_available": {
         "title": "Neue Zusatzfunktion für {room_name}",
-        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
+        "description": "Durch den neu hinzugefügten Behang ist diese Zusatzfunktion verfügbar: {new_features__de}. Sie können sie jetzt einrichten oder mit der Raumstruktur fortfahren.",
         "data": {
           "open_optional_features": "Zusatzfunktionen jetzt öffnen"
         },
@@ -1418,19 +1459,36 @@
       },
       "advanced_features_hub": {
         "title": "Optionale Funktionen",
-        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang."
+        "description": "Öffnen Sie die Funktion, deren Einrichtung Sie prüfen oder ändern möchten. Die verfügbaren Dashboard-, Automatik- und Schutzfunktionen richten sich nach dem gewählten Einrichtungsumfang.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum",
+          "choose_advanced_features": "Funktionen auswählen",
+          "manage_schedule": "Zeitplan",
+          "manage_temperature": "Temperatur und Hitzeschutz",
+          "manage_night": "Nachtfunktion",
+          "manage_safety": "Sicherheit für Wind, Frost und Fenster",
+          "manage_weather_conditions": "Wetter und Anwesenheit",
+          "glare_protection_hub": "Blendschutz",
+          "maximum_opening_hub": "Maximale Öffnungsbegrenzung",
+          "manage_dashboard_badges": "Dashboard-Badges einrichten",
+          "manage_execution": "Experteneinstellungen für Fahrbefehle",
+          "manage_pause": "Pause und manuelle Bedienung"
+        }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature}"
+        "title": "{room_name} · {feature_name__de} · {feature_progress__de}",
+        "description": "{feature_description__de}\n\nNach dem Speichern stellt Home Assistant einen Einrichtungshinweis mit Haus- und Raum-Badge bereit. Anschließend fügen Sie das native runde Badge über Dashboard bearbeiten → Badge hinzufügen → Smart Shading status ein. Smart Shading verändert ein bestehendes Dashboard niemals ohne Ihre Bestätigung. {next_feature__de}"
       },
       "glare_protection_hub": {
         "title": "Blendschutz",
-        "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen."
+        "description": "Öffnen Sie die Fassade, für die Schutzbereiche eingerichtet oder geändert werden sollen.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "initial_glare_protection": {
-        "title": "{feature_context} · Blendschutz · Fassade wählen",
-        "description": "{feature_description} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature}",
+        "title": "{feature_context__de} · Blendschutz · Fassade wählen",
+        "description": "{feature_description__de} Wählen Sie die Fassade mit dem Fenster vor dem ersten Schutzbereich. {next_feature__de}",
         "data": {
           "sector_id": "Fassade"
         },
@@ -1439,8 +1497,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context} · {feature_name} · Zielposition · {group_name}",
-        "description": "{feature_description} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature}",
+        "title": "{feature_context__de} · {feature_name__de} · Zielposition · {group_name}",
+        "description": "{feature_description__de} Legen Sie jetzt die Sicherheitsposition dieser Behanggruppe fest. {next_feature__de}",
         "data": {
           "safety_position": "Sicherheitsposition",
           "safety_tilt": "Sicherheits-Lamellenposition"
@@ -1546,7 +1604,7 @@
         "title": "Raum verwalten",
         "description": "Raumdaten und Automatik bleiben von der vollständigen Struktur Sektor → Gruppe → Behang getrennt.",
         "menu_options": {
-          "back_to_overview": "Zur Raumübersicht"
+          "back_to_overview": "Zur Übersicht"
         }
       },
       "manage_sector": {
@@ -1863,18 +1921,23 @@
           "global_operating_policy": "Betriebsweise und Schutz",
           "global_settings": "Hauseinstellungen",
           "diagnostics_settings": "Diagnose und Support",
-          "finish": "Änderungen speichern und neu laden"
+          "finish": "Speichern und Smart Shading starten",
+          "save_changes": "Änderungen speichern"
         }
       },
       "sector_hub": {
         "title": "Sonnensektor",
         "description": "Konfigurieren Sie diesen Sektor und öffnen Sie nur die ihm zugeordneten Behanggruppen.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_structure": "Zurück zur Beschattungsstruktur"
+        }
       },
       "group_hub": {
         "title": "Behanggruppe",
         "description": "Konfigurieren Sie diese Gruppe und ihre Behänge. Jeder Behang in dieser Liste übernimmt das Gruppenprofil.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Zurück zum Sonnensektor"
+        }
       },
       "cover_hub": {
         "title": "Einzelne Behänge",
@@ -1906,8 +1969,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nSie bearbeiten jetzt {feature_name} für {room_name}. {next_feature}",
+        "title": "{room_name} · {feature_name__de} · {feature_progress__de}",
+        "description": "{feature_description__de}\n\nSie bearbeiten jetzt {feature_name__de} für {room_name}. {next_feature__de}",
         "sections": {
           "schedule_settings": {
             "name": "Zeitplan",
@@ -1939,7 +2002,7 @@
           },
           "temperature_settings": {
             "name": "Temperaturen und Hitzeschutz",
-            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
+            "description": "Die temperaturabhängige Tagesbeschattung ist nur innerhalb des allgemeinen Beschattungszeitplans aktiv. {temperature_behavior__de} Der Hitzeschutz kann höchstens einmal pro Kalendertag starten und endet an der frühesten eingestellten Abendgrenze.",
             "data": {
               "indoor_temperature": "Raumtemperatursensor",
               "normal_shading_temperature": "Normale Beschattung ab",
@@ -1988,8 +2051,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nDie Nachtfunktion besitzt einen eigenen Zeitraum und bleibt auch außerhalb des allgemeinen Beschattungszeitplans verfügbar. Jede Behanggruppe verwendet die Nachtposition aus ihren eigenen Profileinstellungen. {next_feature}",
+        "title": "{room_name} · {feature_name__de} · {feature_progress__de}",
+        "description": "{feature_description__de}\n\nDie Nachtfunktion besitzt einen eigenen Zeitraum und bleibt auch außerhalb des allgemeinen Beschattungszeitplans verfügbar. Jede Behanggruppe verwendet die Nachtposition aus ihren eigenen Profileinstellungen. {next_feature__de}",
         "data": {
           "night_enabled": "Nachtfunktion aktivieren",
           "night_source": "Nachtquelle",
@@ -2028,8 +2091,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name} · {feature_progress}",
-        "description": "{feature_description}\n\nSie bearbeiten jetzt die Eingänge für {feature_name}. Optionale leere Quellen werden ignoriert. {next_feature}",
+        "title": "{room_name} · {feature_name__de} · {feature_progress__de}",
+        "description": "{feature_description__de}\n\nSie bearbeiten jetzt die Eingänge für {feature_name__de}. Optionale leere Quellen werden ignoriert. {next_feature__de}",
         "data": {
           "safety_blockers": "Gefahrensensoren (optional)",
           "irradiance_sensor": "Globalstrahlungssensor",
@@ -2115,7 +2178,7 @@
       },
       "finish": {
         "title": "Konfiguration unvollständig",
-        "description": "Räume: {room_count} · Sonnensektoren: {sector_count} · Behanggruppen: {group_count} · Behänge: {cover_count}\n\nSonnenquellen: {sun_sources}\n\nAktive Funktionen: {active_functions}\n\n{review_warnings}"
+        "description": "Räume: {room_count} · Sonnensektoren: {sector_count} · Behanggruppen: {group_count} · Behänge: {cover_count}\n\nSonnenquellen: {sun_sources__de}\n\nAktive Funktionen: {active_functions__de}\n\n{review_warnings__de}"
       },
       "room_setup": {
         "title": "Ersten Raum einrichten",
@@ -2192,7 +2255,9 @@
       "structure_hub": {
         "title": "Beschattungsstruktur",
         "description": "Öffnen Sie einen vollständigen Sonnensektor oder fügen Sie einen Bereich hinzu. Neue Bereiche werden erst mit einer Gruppe und mindestens einem Behang gespeichert.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "configure_outdoor_temperature": {
         "title": "Außentemperatur-Bedingung",
@@ -2261,7 +2326,9 @@
       "protected_zones_hub": {
         "title": "Blendschutz",
         "description": "Nur in der vollständigen Konfiguration. Verwalten Sie die Schutzzonen dieses Sonnensektors.",
-        "menu_options": {}
+        "menu_options": {
+          "back_to_sector": "Zurück zum Sonnensektor"
+        }
       },
       "add_protected_zone": {
         "title": "{sector_name} · Schutzzone hinzufügen",
@@ -2398,7 +2465,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Blendschutz · Berechnung prüfen · {zone_name}",
-        "description": "{calculation_status}\n\n{geometry_summary}\n\nAktueller Sonnenstand: {current_sun}\n\nAktuelles berechnetes Ziel: {calculated_target}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
+        "description": "{calculation_status__de}\n\n{geometry_summary__de}\n\nAktueller Sonnenstand: {current_sun__de}\n\nAktuelles berechnetes Ziel: {calculated_target__de}\n\nTechnischer Grund: {calculation_reason}\n\nSpeichern Sie erst, wenn Fenster, Behang und Schutzobjekt korrekt zugeordnet sind. Aus kehrt zur Einmessung zurück, ohne die Zone zu speichern.",
         "data": {
           "confirm_protected_zone": "Schutzzone speichern"
         },
@@ -2407,8 +2474,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context} · Maximale Öffnung · {cover_name}",
-        "description": "{feature_description} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature}",
+        "title": "{feature_context__de} · Maximale Öffnung · {cover_name}",
+        "description": "{feature_description__de} Behang {current} von {count}. Aktivieren Sie die feste Grenze nur dort, wo der Behang nicht weiter als bis zum gewählten Wert geöffnet bleiben darf. Das normale Öffnungsziel darf 100 % bleiben; Smart Shading bildet das wirksame Ziel aus dem kleineren Wert. {next_feature__de}",
         "data": {
           "enforce_max_open_position": "Maximale Öffnung erzwingen",
           "max_open_position": "Maximale Öffnung"
@@ -2420,7 +2487,10 @@
       },
       "maximum_opening_hub": {
         "title": "Maximale Öffnungsbegrenzungen",
-        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt."
+        "description": "Wählen Sie einen positionsfähigen Behang, um seine feste Öffnungsgrenze einzustellen oder auszuschalten. Karte und Diagnose zeigen normales Ziel, Grenze und daraus entstehendes wirksames Ziel getrennt.",
+        "menu_options": {
+          "back_to_room": "Zurück zum Raum"
+        }
       },
       "manage_protected_zone": {
         "title": "{sector_name} · Schutzzone",
@@ -2604,6 +2674,17 @@
         "data_description": {
           "cover_entities": "Die ausgewählten Behänge übernehmen das physische Profil und die Zielwerte dieser Gruppe."
         }
+      },
+      "native_navigation": {
+        "title": "Smart Shading",
+        "description": "{navigation_context}",
+        "data": {
+          "route": "Objekt oder Aktion auswählen"
+        },
+        "data_description": {
+          "route": "Wähle den Eintrag zum Einrichten und fahre fort."
+        },
+        "submit": "Weiter"
       }
     },
     "error": {
@@ -2642,7 +2723,8 @@
       "protected_zone_local_sun_sensor_invalid": "Wählen Sie nur verfügbare Außen-Helligkeits- oder Einstrahlungssensoren.",
       "protected_zone_local_sun_preset_invalid": "Wählen Sie eine gültige lokale Sonnenempfindlichkeit.",
       "protected_zone_local_sun_threshold_range": "Benutzerdefiniert muss die Einschaltgrenze über der Ausschaltgrenze liegen.",
-      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback."
+      "protected_zone_weather_fallback_invalid": "Wählen Sie eine gültige Wetterentität für den Fallback.",
+      "invalid_navigation": "Diese Auswahl ist nicht mehr verfügbar. Wähle einen Eintrag aus der aktuellen Liste."
     },
     "abort": {
       "no_rooms": "Es sind noch keine Räume vorhanden."
@@ -2681,6 +2763,247 @@
           "disabled": "Manuell",
           "finished": "Tag beendet"
         }
+      },
+      "sector_status": {
+        "name": "{scope} · Sektorstatus"
+      }
+    },
+    "button": {
+      "evaluate_all_rooms_now": {
+        "name": "Alle Räume jetzt auswerten"
+      },
+      "pause_automation": {
+        "name": "Automatik pausieren"
+      },
+      "resume_automation": {
+        "name": "Automatik fortsetzen"
+      },
+      "evaluate_now": {
+        "name": "Jetzt auswerten"
+      },
+      "test_evaluation_does_not_move_covers": {
+        "name": "Testauswertung (bewegt keine Behänge)"
+      },
+      "preview_today_does_not_move_covers": {
+        "name": "Tagvorschau (bewegt keine Behänge)"
+      },
+      "reset_finished_today_state": {
+        "name": "Heute-abgeschlossen zurücksetzen"
+      },
+      "reset_sun_detection": {
+        "name": "{scope} · Sonnenerkennung zurücksetzen"
+      },
+      "export_diagnostic_log": {
+        "name": "Diagnoselog exportieren"
+      },
+      "export_room_diagnostic_log": {
+        "name": "Raum-Diagnoselog exportieren"
+      }
+    },
+    "switch": {
+      "manual_master_override": {
+        "name": "Manueller Master-Override"
+      },
+      "sector_enabled": {
+        "name": "{scope} · Sonnensektor aktiviert"
+      }
+    },
+    "binary_sensor": {
+      "sun_detected": {
+        "name": "{scope} · Sonne erkannt"
+      }
+    },
+    "select": {
+      "diagnostic_logging": {
+        "name": "Diagnoseprotokoll",
+        "state": {
+          "Diagnostic logging": "Diagnoseprotokoll",
+          "Diagnoseprotokoll": "Diagnoseprotokoll",
+          "Off": "Aus",
+          "Aus": "Aus",
+          "Events": "Ereignisse",
+          "Ereignisse": "Ereignisse",
+          "Full": "Vollständig",
+          "Vollständig": "Vollständig"
+        }
+      },
+      "pause_mode": {
+        "name": "Pausenmodus",
+        "state": {
+          "Pause mode": "Pausenmodus",
+          "Pausenmodus": "Pausenmodus",
+          "Not paused": "Nicht pausiert",
+          "Nicht pausiert": "Nicht pausiert",
+          "Until next morning": "Bis zum nächsten Morgen",
+          "Bis zum nächsten Morgen": "Bis zum nächsten Morgen",
+          "Until next sunset": "Bis zum nächsten Sonnenuntergang",
+          "Bis zum nächsten Sonnenuntergang": "Bis zum nächsten Sonnenuntergang",
+          "Until the end of the next Night": "Bis zum Ende der nächsten Nacht",
+          "Bis zum Ende der nächsten Nacht": "Bis zum Ende der nächsten Nacht",
+          "For a fixed duration": "Für eine feste Dauer",
+          "Für eine feste Dauer": "Für eine feste Dauer",
+          "Until manually resumed": "Bis manuell fortgesetzt",
+          "Bis manuell fortgesetzt": "Bis manuell fortgesetzt"
+        }
+      },
+      "operating_profile": {
+        "name": "Betriebsprofil",
+        "state": {
+          "Operating profile": "Betriebsprofil",
+          "Betriebsprofil": "Betriebsprofil",
+          "Global setting": "Globale Einstellung",
+          "Globale Einstellung": "Globale Einstellung",
+          "By season and schedule": "Nach Saison und Zeitplan",
+          "Nach Saison und Zeitplan": "Nach Saison und Zeitplan",
+          "Protection only": "Nur Schutz",
+          "Nur Schutz": "Nur Schutz",
+          "Year-round": "Ganzjährig",
+          "Ganzjährig": "Ganzjährig"
+        }
+      },
+      "operation_and_protection": {
+        "name": "Betriebsweise und Schutz",
+        "state": {
+          "Operation and protection": "Betriebsweise und Schutz",
+          "Betriebsweise und Schutz": "Betriebsweise und Schutz",
+          "By season and schedule": "Nach Saison und Zeitplan",
+          "Nach Saison und Zeitplan": "Nach Saison und Zeitplan",
+          "Protection only": "Nur Schutz",
+          "Nur Schutz": "Nur Schutz",
+          "Year-round": "Ganzjährig",
+          "Ganzjährig": "Ganzjährig"
+        }
+      },
+      "sun_sensitivity": {
+        "name": "{scope} · Sonnenempfindlichkeit",
+        "state": {
+          "Less sensitive": "Weniger empfindlich",
+          "Weniger empfindlich": "Weniger empfindlich",
+          "Balanced": "Ausgewogen",
+          "Ausgewogen": "Ausgewogen",
+          "Sensitive": "Empfindlich",
+          "Empfindlich": "Empfindlich",
+          "Custom": "Benutzerdefiniert",
+          "Benutzerdefiniert": "Benutzerdefiniert",
+          "Sun sensitivity": "Sonnenempfindlichkeit",
+          "Sonnenempfindlichkeit": "Sonnenempfindlichkeit"
+        }
+      }
+    },
+    "number": {
+      "setting_normal_shading_temperature": {
+        "name": "{scope}Normale Beschattung ab"
+      },
+      "setting_comfort_temperature": {
+        "name": "{scope}Komfort-Temperatur"
+      },
+      "setting_solar_temperature": {
+        "name": "{scope}Sonnenschutz-Temperatur"
+      },
+      "setting_heat_temperature": {
+        "name": "{scope}Hitzeschutz-Start"
+      },
+      "setting_reopen_temperature": {
+        "name": "{scope}Wiederöffnungs-Temperatur"
+      },
+      "setting_outdoor_minimum": {
+        "name": "{scope}Mindestaußentemperatur"
+      },
+      "setting_irradiance_minimum": {
+        "name": "{scope}Mindesteinstrahlung"
+      },
+      "setting_cloud_cover_maximum": {
+        "name": "{scope}Maximale Bewölkung"
+      },
+      "setting_azimuth_start": {
+        "name": "{scope}Azimut Start"
+      },
+      "setting_azimuth_end": {
+        "name": "{scope}Azimut Ende"
+      },
+      "setting_elevation_min": {
+        "name": "{scope}Minimale Sonnenhöhe"
+      },
+      "setting_sun_on_lux": {
+        "name": "{scope}Sun-ON-Luxgrenze"
+      },
+      "setting_sun_off_lux": {
+        "name": "{scope}Sun-OFF-Luxgrenze"
+      },
+      "setting_sun_on_delay": {
+        "name": "{scope}Sun-ON-Verzögerung"
+      },
+      "setting_sun_off_delay": {
+        "name": "{scope}Sun-OFF-Verzögerung"
+      },
+      "setting_open_position": {
+        "name": "{scope}Öffnungsposition"
+      },
+      "setting_open_tilt": {
+        "name": "{scope}Öffnungs-Lamelle"
+      },
+      "setting_comfort_position": {
+        "name": "{scope}Komfort-Position"
+      },
+      "setting_comfort_tilt": {
+        "name": "{scope}Komfort-Lamelle"
+      },
+      "setting_solar_position": {
+        "name": "{scope}Sonnenschutz-Position"
+      },
+      "setting_solar_tilt": {
+        "name": "{scope}Sonnenschutz-Lamelle"
+      },
+      "setting_heat_position": {
+        "name": "{scope}Hitzeschutz-Position"
+      },
+      "setting_heat_tilt": {
+        "name": "{scope}Hitzeschutz-Lamelle"
+      },
+      "setting_night_position": {
+        "name": "{scope}Nachtposition"
+      },
+      "setting_night_tilt": {
+        "name": "{scope}Nacht-Lamellenposition"
+      },
+      "setting_safety_position": {
+        "name": "{scope}Sicherheit-Position"
+      },
+      "setting_safety_tilt": {
+        "name": "{scope}Sicherheit-Lamelle"
+      },
+      "setting_tilt_elevation_1": {
+        "name": "{scope}Tiefe Sonne – Sonnenhöhe"
+      },
+      "setting_tilt_value_1": {
+        "name": "{scope}Tiefe Sonne – Lamellenposition"
+      },
+      "setting_tilt_elevation_2": {
+        "name": "{scope}Niedrige Sonne – Sonnenhöhe"
+      },
+      "setting_tilt_value_2": {
+        "name": "{scope}Niedrige Sonne – Lamellenposition"
+      },
+      "setting_tilt_elevation_3": {
+        "name": "{scope}Mittlere Sonne – Sonnenhöhe"
+      },
+      "setting_tilt_value_3": {
+        "name": "{scope}Mittlere Sonne – Lamellenposition"
+      },
+      "setting_tilt_elevation_4": {
+        "name": "{scope}Hohe Sonne – Sonnenhöhe"
+      },
+      "setting_tilt_value_4": {
+        "name": "{scope}Hohe Sonne – Lamellenposition"
+      },
+      "setting_pause_duration": {
+        "name": "{scope}Pausendauer"
+      },
+      "setting_pause_sun_offset": {
+        "name": "{scope}Pausen-Offset zur Sonne"
+      },
+      "setting_awning_open_position": {
+        "name": "{scope}Eingefahrene Ruheposition"
       }
     }
   },
@@ -2881,6 +3204,77 @@
       "options": {
         "simple": "Easy",
         "complete": "Advanced"
+      }
+    },
+    "navigation_action": {
+      "options": {
+        "finish": "Speichern und Smart Shading starten",
+        "save_changes": "Änderungen speichern",
+        "add_room": "Raum hinzufügen",
+        "global_settings": "Hauseinstellungen",
+        "global_operating_policy": "Betriebsweise und Schutz",
+        "diagnostics_settings": "Diagnose und Support",
+        "back_to_overview": "Zur Übersicht",
+        "back_to_room": "Zurück zum Raum",
+        "back_to_structure": "Zurück zur Beschattungsstruktur",
+        "back_to_sector": "Zurück zum Sonnensektor",
+        "back_to_group": "Zurück zur Behanggruppe",
+        "manage_room_details": "Raumdaten",
+        "structure_hub": "Beschattungsstruktur",
+        "advanced_features_hub": "Funktionen und Schutz",
+        "manage_room_maintenance": "Raum entfernen",
+        "add_sector_flat": "Vollständigen Beschattungsbereich hinzufügen",
+        "manage_sector": "Sektoreinstellungen",
+        "manage_sector_source": "Sonnenquelle",
+        "protected_zones_hub": "Blendschutz",
+        "add_layer_flat": "Behanggruppe hinzufügen",
+        "add_protected_zone": "Schutzzone hinzufügen",
+        "manage_layer": "Gruppe und Behangtyp",
+        "manage_layer_profile": "Profileinstellungen",
+        "add_covers_flat": "Behänge hinzufügen",
+        "manage_cover": "Behangeinstellungen",
+        "choose_advanced_features": "Funktionen auswählen",
+        "manage_schedule": "Zeitplan",
+        "manage_temperature": "Temperatur und Hitzeschutz",
+        "manage_night": "Nachtfunktion",
+        "manage_safety": "Sicherheit für Wind, Frost und Fenster",
+        "manage_weather_conditions": "Wetter und Anwesenheit",
+        "glare_protection_hub": "Blendschutz",
+        "maximum_opening_hub": "Maximale Öffnungsbegrenzung",
+        "manage_dashboard_badges": "Dashboard-Badges einrichten",
+        "manage_execution": "Experteneinstellungen für Fahrbefehle",
+        "manage_pause": "Pause und manuelle Bedienung"
+      }
+    },
+    "sun_preset_advanced": {
+      "options": {
+        "low": "Nur starke Sonne · 50.000/35.000 lx · 10/30 min",
+        "medium": "Ausgewogen · 35.000/30.000 lx · 10/30 min",
+        "high": "Früher beschatten · 25.000/18.000 lx · 5/15 min",
+        "custom": "Benutzerdefiniert",
+        "keep_current": "Bestehendes Lux-Profil beibehalten"
+      }
+    },
+    "tilt_preset_advanced": {
+      "options": {
+        "glare": "Mehr Blendschutz · 10°/95% · 20°/80% · 40°/55% · 60°/35%",
+        "balanced": "Ausgewogen · 10°/90% · 20°/65% · 40°/35% · 60°/15%",
+        "daylight": "Mehr Tageslicht · 10°/80% · 20°/50% · 40°/20% · 60°/5%",
+        "custom": "Benutzerdefiniert"
+      }
+    },
+    "schedule_profile_advanced": {
+      "options": {
+        "year_round": "Ganzjährig · Januar–Dezember · Montag–Sonntag",
+        "summer": "Sommersaison · Mai–September · Montag–Sonntag",
+        "custom": "Benutzerdefinierter Zeitplan"
+      }
+    },
+    "curtain_movement": {
+      "options": {
+        "symmetric": "Mittig / symmetrisch",
+        "left_to_right": "Schließt von links nach rechts",
+        "right_to_left": "Schließt von rechts nach links"
       }
     }
   },

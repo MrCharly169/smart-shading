@@ -49,13 +49,12 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 
 class EvaluateHouseButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Evaluate all rooms now"
     _attr_icon = "mdi:calculator-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self._attr_name = localized(engine, "Evaluate all rooms now", "Alle Räume jetzt auswerten")
+        self._attr_translation_key = 'evaluate_all_rooms_now'
         self._attr_unique_id = f"{self.entry.entry_id}_evaluate_all"
 
     async def async_press(self):
@@ -63,12 +62,11 @@ class EvaluateHouseButton(SmartShadingEntity, ButtonEntity):
 
 
 class PauseRoomButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Pause automation"
     _attr_icon = "mdi:pause-circle"
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Pause automation", "Automatik pausieren")
+        self._attr_translation_key = 'pause_automation'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_pause_default"
 
     @property
@@ -82,12 +80,11 @@ class PauseRoomButton(SmartShadingEntity, ButtonEntity):
 
 
 class ResumeRoomButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Resume automation"
     _attr_icon = "mdi:play-circle"
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Resume automation", "Automatik fortsetzen")
+        self._attr_translation_key = 'resume_automation'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_resume"
 
     @property
@@ -101,13 +98,12 @@ class ResumeRoomButton(SmartShadingEntity, ButtonEntity):
 
 
 class EvaluateRoomButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Evaluate now"
     _attr_icon = "mdi:calculator-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Evaluate now", "Jetzt auswerten")
+        self._attr_translation_key = 'evaluate_now'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_evaluate"
 
     @property
@@ -123,17 +119,12 @@ class EvaluateRoomButton(SmartShadingEntity, ButtonEntity):
 class SimulateRoomButton(SmartShadingEntity, ButtonEntity):
     """Run the non-executing production decision simulation for one room."""
 
-    _attr_name = "Run decision simulation"
     _attr_icon = "mdi:flask-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(
-            engine,
-            "Test evaluation (does not move covers)",
-            "Testauswertung (bewegt keine Behänge)",
-        )
+        self._attr_translation_key = 'test_evaluation_does_not_move_covers'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_simulate"
 
     @property
@@ -155,17 +146,12 @@ class SimulateRoomButton(SmartShadingEntity, ButtonEntity):
 class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
     """Calculate a non-executing day preview through the same pipeline."""
 
-    _attr_name = "Preview today"
     _attr_icon = "mdi:calendar-search-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(
-            engine,
-            "Preview today (does not move covers)",
-            "Tagvorschau (bewegt keine Behänge)",
-        )
+        self._attr_translation_key = 'preview_today_does_not_move_covers'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_preview_day"
 
     @property
@@ -184,13 +170,12 @@ class PreviewRoomDayButton(SmartShadingEntity, ButtonEntity):
 
 
 class ResetFinishedButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Reset finished-today state"
     _attr_icon = "mdi:calendar-refresh"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Reset finished-today state", "Heute-abgeschlossen zurücksetzen")
+        self._attr_translation_key = 'reset_finished_today_state'
         self._attr_unique_id = (
             f"{self.entry.entry_id}_{room_id}_reset_finished"
         )
@@ -200,14 +185,14 @@ class ResetFinishedButton(SmartShadingEntity, ButtonEntity):
 
 
 class ResetSunPresenceButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Reset sun detection"
     _attr_icon = "mdi:weather-sunny-off"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str, sector_id: str) -> None:
         super().__init__(engine, room_id=room_id, sector_id=sector_id)
         sector = engine.sector_config(sector_id)
-        self._attr_name = f"{sector['name']} · {localized(engine, 'Reset sun detection', 'Sonnenerkennung zurücksetzen')}"
+        self._attr_translation_key = 'reset_sun_detection'
+        self._attr_translation_placeholders = {"scope": str(sector.get("name", ""))}
         self._attr_unique_id = (
             f"{self.entry.entry_id}_{sector_id}_reset_sun_presence"
         )
@@ -217,13 +202,12 @@ class ResetSunPresenceButton(SmartShadingEntity, ButtonEntity):
 
 
 class ExportDiagnosticsButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Export diagnostic log"
     _attr_icon = "mdi:file-download-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self._attr_name = localized(engine, "Export diagnostic log", "Diagnoselog exportieren")
+        self._attr_translation_key = 'export_diagnostic_log'
         self._attr_unique_id = f"{self.entry.entry_id}_export_diagnostics"
 
     @property
@@ -242,13 +226,12 @@ class ExportDiagnosticsButton(SmartShadingEntity, ButtonEntity):
 
 
 class ExportRoomDiagnosticsButton(SmartShadingEntity, ButtonEntity):
-    _attr_name = "Export room diagnostic log"
     _attr_icon = "mdi:file-download-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, engine, room_id: str) -> None:
         super().__init__(engine, room_id=room_id)
-        self._attr_name = localized(engine, "Export room diagnostic log", "Raum-Diagnoselog exportieren")
+        self._attr_translation_key = 'export_room_diagnostic_log'
         self._attr_unique_id = f"{self.entry.entry_id}_{room_id}_export_diagnostics"
 
     @property

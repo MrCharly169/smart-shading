@@ -17,6 +17,8 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
+from .flow_language import bilingual_placeholders
+
 from .const import (
     ADVANCED_FEATURES,
     ADVANCED_EXECUTION_ROOM_DEFAULTS,
@@ -373,6 +375,71 @@ MENU_LABELS_EN: dict[str, str] = {
 class _SmartShadingWizardMixin:
     """Customer-first wizard and explicit advanced editing."""
 
+    def async_show_menu(self, *, step_id=None, menu_options, **kwargs):
+        """Use native translations for actions and unchanged names for objects.
+
+        HA treats a dict menu as already translated. Dynamic route IDs cannot
+        be translation keys, so mixed object/action lists use a native selector.
+        Static menus retain their immediate native menu interaction.
+        """
+        if not isinstance(menu_options, dict) or not any(
+            key.startswith("manage_") and key[7:] in getattr(self, "_option_routes", {})
+            for key in menu_options
+        ):
+            return super().async_show_menu(
+                step_id=step_id, menu_options=list(menu_options), **kwargs
+            )
+        choices = []
+        routes = {}
+        object_actions = {
+            "room_hub", "sector_hub", "group_hub", "cover_settings_hub",
+            "manage_protected_zone", "manage_maximum_opening_cover", "protected_zones_hub",
+        }
+        for key in menu_options:
+            route = self._option_routes.get(key[7:]) if key.startswith("manage_") else None
+            action = route["action"] if route else key
+            if route and action in object_actions:
+                room = next((r for r in self.rooms if r["id"] == route.get("room_id")), {})
+                sector = next((s for s in room.get("sectors", []) if s["id"] == route.get("sector_id")), {})
+                layer = next((g for g in sector.get("layers", []) if g["id"] == route.get("layer_id")), {})
+                zone = next((z for z in sector.get("protected_zones", []) if z.get("id") == route.get("zone_id")), {})
+                cover = next((c for c in layer.get("covers", []) if c.get("entity") == route.get("cover_entity")), {})
+                item = cover or zone or layer or sector or room
+                choices.append({"value": key, "label": str(item.get("name") or item.get("entity") or item.get("id") or "—")})
+                routes[key] = key
+            else:
+                choices.append({"value": action, "label": str(menu_options[key])})
+                routes[action] = key
+        self._native_navigation_routes = routes
+        self._native_navigation_step = step_id
+        names = self._option_placeholders() if self._room_id else {}
+        self._native_navigation_context = " / ".join(
+            str(names[key]) for key in ("room_name", "sector_name", "group_name", "cover_name") if names.get(key)
+        )
+        self._native_navigation_choices = choices
+        return self._native_navigation_form()
+
+    def _native_navigation_form(self, errors=None):
+        return self.async_show_form(
+            step_id="native_navigation",
+            data_schema=vol.Schema({vol.Required("route"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=self._native_navigation_choices,
+                    translation_key="navigation_action", mode="list"))}),
+            description_placeholders={
+                "navigation_context": self._native_navigation_context,
+                "navigation_step": self._native_navigation_step,
+            },
+            errors=errors or {},
+        )
+
+    async def async_step_native_navigation(self, user_input=None):
+        if user_input is None:
+            return self._native_navigation_form()
+        route = self._native_navigation_routes.get(user_input.get("route"))
+        if route is None:
+            return self._native_navigation_form({"base": "invalid_navigation"})
+        return await getattr(self, f"async_step_{route}")()
+
     def __getattr__(self, name: str):
         """Resolve a stable task route for both setup and later editing."""
         prefix = "async_step_manage_"
@@ -592,15 +659,17 @@ class _SmartShadingWizardMixin:
             ),
             description_placeholders={
                 **self._option_placeholders(),
-                "new_features": str(
-                    getattr(
-                        self,
-                        "_new_available_feature_labels",
-                        "",
-                    )
-                ),
+                **self._new_feature_placeholders(),
             },
         )
+
+    @bilingual_placeholders
+    def _new_feature_placeholders(self):
+        labels = self._feature_labels()
+        return {"new_features": ", ".join(
+            labels.get(feature, feature)
+            for feature in getattr(self, "_new_available_features", [])
+        )}
 
     def _feature_labels(self) -> dict[str, str]:
         """Keep the menu customer-facing even before a translation reload."""
@@ -630,6 +699,7 @@ class _SmartShadingWizardMixin:
             FEATURE_EXPERT_EXECUTION: "Expert command settings",
         }
 
+    @bilingual_placeholders
     def _feature_context_placeholders(
         self, feature: str
     ) -> dict[str, str]:
@@ -1009,7 +1079,7 @@ class _SmartShadingWizardMixin:
 
 
     def _is_german(self) -> bool:
-        return (getattr(self.hass.config, "language", "en") or "en").lower().startswith("de")
+        return getattr(self, "_copy_language", "en") == "de"
 
     def _menu(self, options: list[str]) -> dict[str, str]:
         labels = MENU_LABELS_DE if self._is_german() else MENU_LABELS_EN
@@ -1021,22 +1091,7 @@ class _SmartShadingWizardMixin:
             and self.advanced_mode
             and not multiple
         ):
-            profile_labels = self._advanced_profile_labels(key)
-            if profile_labels:
-                return selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {
-                                "value": str(option),
-                                "label": profile_labels.get(
-                                    str(option), str(option)
-                                ),
-                            }
-                            for option in options
-                        ],
-                        mode="dropdown",
-                    )
-                )
+            return _select(options, f"{key}_advanced", multiple=multiple)
         return _select(options, key, multiple=multiple)
 
     def _advanced_profile_labels(self, key: str) -> dict[str, str]:
@@ -1426,37 +1481,8 @@ class _SmartShadingWizardMixin:
                         "curtain_closes_right_to_left": "right_to_left",
                     }.get(str(zone.get("calculation_mode") or ""), "symmetric")
                 ),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        {
-                            "value": "symmetric",
-                            "label": (
-                                "Mittig / symmetrisch"
-                                if self._is_german()
-                                else "Centre / symmetric"
-                            ),
-                        },
-                        {
-                            "value": "left_to_right",
-                            "label": (
-                                "Schließt von links nach rechts"
-                                if self._is_german()
-                                else "Closes from left to right"
-                            ),
-                        },
-                        {
-                            "value": "right_to_left",
-                            "label": (
-                                "Schließt von rechts nach links"
-                                if self._is_german()
-                                else "Closes from right to left"
-                            ),
-                        },
-                    ],
-                    mode="dropdown",
-                    multiple=False,
-                )
+            ): self._choice(
+                ["symmetric", "left_to_right", "right_to_left"], "curtain_movement"
             ),
         }
         if include_maintenance:
@@ -1838,6 +1864,7 @@ class _SmartShadingWizardMixin:
         }
         return result, errors
 
+    @bilingual_placeholders
     def _protected_zone_preview(
         self, zone_values: dict[str, Any]
     ) -> dict[str, str]:
@@ -2146,7 +2173,7 @@ class _SmartShadingWizardMixin:
 
     def _direction_defaults(self, direction: str) -> dict[str, Any]:
         name, short = _direction_name(
-            direction, getattr(self.hass.config, "language", "en") or "en"
+            direction, "en"
         )
         return {
             "direction": direction,
@@ -3297,6 +3324,7 @@ class SmartShadingConfigFlow(
             description_placeholders={"entity_name": suggested_name, "current": str(index + 1), "count": str(len(entities))},
         )
 
+    @bilingual_placeholders
     def _review_snapshot(self) -> tuple[dict[str, str], list[str]]:
         """Build the final customer summary and reject incomplete object trees."""
         german = self._is_german()
@@ -4028,11 +4056,15 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         description_placeholders = self._feature_context_placeholders(
             scope or FEATURE_SCHEDULE
         )
-        description_placeholders["temperature_behavior"] = (
-            self._temperature_behavior_text(room)
-            if temperature_selected
-            else ""
-        )
+        previous_language = getattr(self, "_copy_language", "en")
+        try:
+            for language in ("en", "de"):
+                self._copy_language = language
+                description_placeholders[f"temperature_behavior__{language}"] = (
+                    self._temperature_behavior_text(room) if temperature_selected else ""
+                )
+        finally:
+            self._copy_language = previous_language
         return self.async_show_form(
             step_id="manage_automation",
             data_schema=self._form_schema(
@@ -5229,7 +5261,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             ),
         }
         default_name, default_short = _direction_name(
-            "south", getattr(self.hass.config, "language", "en") or "en"
+            "south", "en"
         )
         return self.async_show_form(
             step_id="add_sector_flat",

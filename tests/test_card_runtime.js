@@ -568,6 +568,17 @@ if (safetyMarkup.includes("sector-card active") || safetyMarkup.includes('class=
 if (!safetyMarkup.includes("Sicherheit · Blockiert") || safetyMarkup.includes("Sicherheit · stale sector")) throw new Error("Advanced mode label leaked stale active sectors or mixed an English mode into German copy");
 
 const fallbackStatus = JSON.parse(JSON.stringify(roomStatus));
+// The server locale and another user's client must never select this card's language.
+for (const [appLanguage, serverLanguage, expected, forbidden] of [
+  ["en", "de", "Sun · Sun sensor", "Sonne · Sonnensensor"],
+  ["de", "en", "Sonne · Sonnensensor", "Sun · Sun sensor"],
+]) {
+  const languageCard = new Card();
+  languageCard.setConfig({ entity: roomStatus.entity_id, advanced_mode: true });
+  languageCard.hass = { ...hass, language: appLanguage, config: { language: serverLanguage }, locale: { language: appLanguage } };
+  const markup = languageCard.shadowRoot.innerHTML;
+  if (!markup.includes(expected) || markup.includes(forbidden)) throw new Error(`Card ignored the ${appLanguage} user on the ${serverLanguage} server`);
+}
 fallbackStatus.entity_id = "sensor.fallback_language_status";
 fallbackStatus.state = "future_internal_mode";
 fallbackStatus.attributes.reason = "Future backend reason that has no customer translation";
