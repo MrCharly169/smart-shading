@@ -399,14 +399,34 @@ def continue_past_legacy_global_settings(
     api: HomeAssistantApi, flow_id: str, result: dict[str, Any]
 ) -> dict[str, Any]:
     """Submit the retired Sun form when bootstrapping an older release."""
-    if result.get("step_id") != "global_settings":
-        return result
-    return submit_flow(
-        api,
-        flow_id,
-        "global_settings",
-        {"sun_entity": "sun.sun"},
-    )
+    if result.get("step_id") == "global_settings":
+        return submit_flow(
+            api,
+            flow_id,
+            "global_settings",
+            {"sun_entity": "sun.sun"},
+        )
+    if result.get("step_id") == "global_operating_policy":
+        return submit_flow(
+            api,
+            flow_id,
+            "global_operating_policy",
+            {
+                "house_policy": {
+                    "operating_profile": "automatic",
+                    "schedule_profile": "custom",
+                    "day_window": "fixed_time",
+                    "active_months": [str(value) for value in range(1, 13)],
+                    "active_weekdays": [str(value) for value in range(7)],
+                    "start_time": "06:00:00",
+                    "end_time": "22:00:00",
+                    "outside_schedule_behavior": "open",
+                    "global_glare_protection_enabled": True,
+                    "global_night_enabled": True,
+                }
+            },
+        )
+    return result
 
 
 def continue_past_initial_structure_hub(
@@ -930,23 +950,6 @@ def create_advanced_entry(
         flow_id,
         "choose_advanced_features",
         supported_form_data(result, advanced_features),
-    )
-    expect_step(result, "manage_automation")
-    result = submit_flow(
-        api,
-        flow_id,
-        "manage_automation",
-        {
-            "schedule_settings": {
-                "schedule_profile": "custom",
-                "day_window": "fixed_time",
-                "active_months": [str(value) for value in range(1, 13)],
-                "active_weekdays": [str(value) for value in range(7)],
-                "start_time": "06:00:00",
-                "end_time": "22:00:00",
-                "outside_schedule_behavior": "open",
-            },
-        },
     )
     expect_step(result, "manage_automation")
     result = submit_flow(

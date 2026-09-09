@@ -199,9 +199,9 @@ class PackageTests(unittest.TestCase):
     def test_config_entry_schema_migrates_stable_v4_6_2_and_previous_betas(self):
         flow = (COMP / "config_flow.py").read_text(encoding="utf-8")
         migration = (COMP / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("VERSION = 20", flow)
-        self.assertIn("if entry.version >= 20", migration)
-        self.assertIn("version=20", migration.replace(" ", ""))
+        self.assertIn("VERSION = 21", flow)
+        self.assertIn("if entry.version >= 21", migration)
+        self.assertIn("version=21", migration.replace(" ", ""))
         self.assertIn("result[CONF_SUN_ENTITY] = DEFAULT_SUN_ENTITY", migration)
         self.assertIn("v4.6.2 already used entry schema 15", migration)
         self.assertIn("locked_advanced_mode(raw_data, raw_options)", migration)
@@ -629,6 +629,7 @@ class PackageTests(unittest.TestCase):
             "group_identity", "slat_curve", "target_positions",
             "group_maintenance", "cover_identity", "cover_automation",
             "cover_maintenance",
+            "house_policy",
         }
         fields -= section_keys
         for language in ("de", "en"):
@@ -857,7 +858,7 @@ class PackageTests(unittest.TestCase):
         global_source = ast.get_source_segment(flow, global_method) or ""
         init = source("async_step_init")
         self.assertIn("self._fixed_advanced_mode = advanced", user)
-        self.assertIn("return await self.async_step_advanced_room_setup()", user)
+        self.assertIn("return await self.async_step_global_operating_policy()", user)
         self.assertIn("return await self.async_step_easy_room_setup()", user)
         self.assertNotIn("async_step_global_settings", user)
         self.assertIn(
@@ -1441,6 +1442,11 @@ class PackageTests(unittest.TestCase):
             const.OPERATING_PROFILE_OPTIONS,
             ["automatic", "protection_only", "year_round"],
         )
+        self.assertEqual(
+            const.ROOM_OPERATING_PROFILE_OPTIONS,
+            ["inherit", "automatic", "protection_only", "year_round"],
+        )
+        self.assertIn("HouseOperatingProfileSelect", select)
         self.assertIn("RoomOperatingProfileSelect", select)
         self.assertIn('"operating_profile"', select)
         self.assertIn("async_set_operating_profile", engine)
@@ -1454,7 +1460,7 @@ class PackageTests(unittest.TestCase):
             )
             self.assertEqual(
                 set(data["selector"]["operating_profile"]["options"]),
-                set(const.OPERATING_PROFILE_OPTIONS),
+                set(const.ROOM_OPERATING_PROFILE_OPTIONS),
             )
             service = data["services"]["set_operating_profile"]
             self.assertEqual(

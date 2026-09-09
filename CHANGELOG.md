@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 2026.9.3b0 - 2026-09-09
+
+- Add one initial Advanced **Operation and protection** page that combines the
+  global thermal mode, seasonal/daily schedule, year-round Glare Protection,
+  year-round Night Mode and the immutable Safety priority in one place.
+- Let rooms inherit the house mode and schedule by default while retaining an
+  explicit Advanced room exception. Schema 21 promotes common existing room
+  settings to the house policy and preserves different room schedules as local
+  overrides without changing effective behaviour.
+- Add a native house-level Select for voice assistants and automations, retain
+  the existing room Select as an inheritance/override control, and let
+  `smart_shading.set_operating_profile` target either level.
+- Show the effective global or room policy and a subtle always-on Safety marker
+  on the Advanced Card while keeping active Safety, Night and Glare modes
+  visually prominent.
+
 ## 2026.9.2b0 - 2026-09-09
 
 - Add one room-level operating profile with Automatic, Protection only and

@@ -96,9 +96,9 @@ Do not copy only the frontend file; the integration, translations, services, and
 1. Go to **Settings → Devices & services → Add integration**.
 2. Search for **Smart Shading**.
 3. Choose **Easy** or **Advanced**. This choice is fixed for that config entry; create a new entry to use the other setup variant.
-4. Name the house or area and add a room.
-5. Add a facade sector, choose its single sun source, create a cover group, select its physical profile, and assign covers.
-6. In Advanced Mode, select only the optional capabilities the room actually needs.
+4. Name the house or area. In Advanced Mode, the next page combines the global thermal mode and calendar with the independent year-round Glare Protection and Night Mode permissions; configured Safety always remains enabled and highest priority.
+5. Add a room, facade sector, its single sun source, a cover group, its physical profile, and the covers.
+6. Select only the optional capabilities and assignments that this room actually needs. Rooms inherit the global mode and schedule unless you deliberately choose a room exception.
 7. Review and save. Incomplete sectors, groups, covers, or dependent options are rejected by the wizard.
 
 Home Assistant's `sun.sun` is used automatically. If the Sun integration is missing or unavailable, Smart Shading stops sector setup and reports what must be restored.
@@ -165,7 +165,9 @@ For Advanced decisions, the immutable order verified by code and tests is:
 
 Every matching and rejected candidate is retained in the Advanced trace with a stable reason and normalized input quality. Command planning happens afterwards. A newer higher-priority target cancels obsolete delayed work. See [Advanced behavior](docs/ADVANCED_MODE.md) and the [mode architecture](docs/MODE_ARCHITECTURE.md) for the full technical contract.
 
-Each Advanced room also exposes one native **Operating profile** Select. **Automatic** follows the configured seasonal calendar, **Protection only** disables thermally driven daytime shading, and **Year-round** ignores seasonal months and weekdays while retaining a configured daily time window. Safety, Night, calculated Glare Protection, input fail-safe holds, and hard device limits remain active in every profile. The same choice can be changed by a voice assistant or automation through the single `smart_shading.set_operating_profile` service; individual protection functions do not need to be toggled.
+Advanced setup begins with one global **Operation and protection** page. **By season and schedule** follows the house calendar, **Protection only** disables thermally driven daytime shading, and **Year-round** ignores seasonal months and weekdays while retaining a configured daily time window. Separate switches permit configured Glare Protection and Night Mode year-round. Configured Safety sources, input fail-safe holds and hard device limits are never disabled by this policy and Safety remains the highest priority.
+
+The house exposes one native **Operation and protection** Select for voice assistants and automations. Every room inherits it and the global calendar by default; an Advanced room can deliberately select its own mode or schedule. The existing `smart_shading.set_operating_profile` service changes the house when `room_id` is omitted, or one room override when it is supplied. The Advanced Card links to the effective control, labels it as global when inherited, and shows a quiet shield marker for the always-active Safety layer.
 
 ### Calculated glare protection
 

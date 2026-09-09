@@ -22,9 +22,12 @@ from .const import (
     DEFAULT_EVALUATION_DEBOUNCE_SECONDS,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
+    CONF_GLOBAL_GLARE_PROTECTION_ENABLED,
+    CONF_GLOBAL_NIGHT_ENABLED,
     CONF_SUN_ENTITY,
     CONF_SUN_PRESENCE_ENTITY,
     CONF_ROOMS,
+    CONF_SCHEDULE_SCOPE,
     CONF_TEST_MODE,
     CONF_WINDOW_RETURNS_TO_AUTOMATION,
     DAY_WINDOW_ALL_DAY,
@@ -45,13 +48,19 @@ from .const import (
     FEATURE_SAFETY,
     FEATURE_SCHEDULE,
     FEATURE_TEMPERATURE,
+    HOUSE_POLICY_DEFAULTS,
     PLATFORMS,
     OPENING_ORDER_OPTIONS,
+    OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_INHERIT,
+    OPERATING_PROFILE_OPTIONS,
     PROFILE_DEFAULTS,
     ROOM_DEFAULTS,
     SUN_PRESETS,
     STAGGER_SCOPE_OPTIONS,
     SHARED_FEATURES,
+    SCHEDULE_SCOPE_CUSTOM,
+    SCHEDULE_SCOPE_INHERIT,
     TILT_CURVE_PRESETS,
     TILT_PRESET_BALANCED,
     profile_supports_position,
@@ -105,25 +114,137 @@ async def _async_preview_day_service(hass: HomeAssistant, call) -> None:
 
 
 async def _async_set_operating_profile_service(hass: HomeAssistant, call) -> None:
-    """Apply one bundled operating profile to a persisted Smart Shading room."""
-    room_id = str(call.data["room_id"])
+    """Apply one bundled operating profile to a house or room override."""
+    room_id = str(call.data.get("room_id") or "")
     entry_id = str(call.data.get("entry_id") or "")
     profile = str(call.data["profile"])
     engines = hass.data.get(_ENGINE_REGISTRY, {})
+    if not room_id and not entry_id and len(engines) != 1:
+        raise ServiceValidationError(
+            "entry_id is required for a house profile when multiple Smart Shading entries are loaded"
+        )
     candidates = (
         [engines.get(entry_id)] if entry_id else list(engines.values())
     )
     for engine in candidates:
-        if engine is None or room_id not in getattr(engine, "rooms", {}):
+        if engine is None or (
+            room_id and room_id not in getattr(engine, "rooms", {})
+        ):
             continue
         try:
-            await engine.async_set_operating_profile(room_id, profile)
+            await engine.async_set_operating_profile(room_id or None, profile)
         except ValueError as err:
             raise ServiceValidationError(str(err)) from err
         return
     raise ServiceValidationError(
-        f"No loaded Smart Shading room matches entry_id={entry_id!r}, room_id={room_id!r}"
+        f"No loaded Smart Shading target matches entry_id={entry_id!r}, room_id={room_id!r}"
     )
+
+
+_HOUSE_SCHEDULE_KEYS = (
+    "schedule_enabled",
+    "schedule_profile",
+    "active_months",
+    "active_weekdays",
+    "day_window",
+    "start_time",
+    "end_time",
+    "outside_schedule_behavior",
+)
+
+
+def _schedule_signature(room: dict[str, Any]) -> tuple[Any, ...]:
+    """Return one stable legacy room schedule for migration comparison."""
+    values: list[Any] = []
+    for key in _HOUSE_SCHEDULE_KEYS:
+        value = room.get(key, ROOM_DEFAULTS[key])
+        values.append(tuple(value) if isinstance(value, list) else value)
+    return tuple(values)
+
+
+def _migrate_house_policy(config: dict[str, Any]) -> dict[str, Any]:
+    """Promote common room policy without changing any effective behaviour."""
+    result = deepcopy(config)
+    rooms = [
+        room
+        for room in result.get(CONF_ROOMS, [])
+        if isinstance(room, dict)
+    ]
+    profiles = [
+        str(room.get("operating_profile", OPERATING_PROFILE_AUTOMATIC))
+        for room in rooms
+    ]
+    valid_profiles = [
+        profile
+        for profile in profiles
+        if profile in OPERATING_PROFILE_OPTIONS
+    ]
+    global_profile = (
+        valid_profiles[0]
+        if valid_profiles and len(set(valid_profiles)) == 1
+        else OPERATING_PROFILE_AUTOMATIC
+    )
+    result.setdefault("operating_profile", global_profile)
+
+    schedule_source = rooms[0] if rooms else ROOM_DEFAULTS
+    global_signature = _schedule_signature(schedule_source)
+    for key in _HOUSE_SCHEDULE_KEYS:
+        result.setdefault(
+            key, deepcopy(schedule_source.get(key, ROOM_DEFAULTS[key]))
+        )
+
+    result.setdefault(
+        CONF_GLOBAL_GLARE_PROTECTION_ENABLED,
+        any(
+            FEATURE_GLARE_PROTECTION
+            in set(
+                room.get(CONF_ADVANCED_FEATURES)
+                if isinstance(
+                    room.get(CONF_ADVANCED_FEATURES),
+                    (list, tuple, set),
+                )
+                else []
+            )
+            or any(
+                sector.get("protected_zones")
+                for sector in room.get("sectors", [])
+                if isinstance(sector, dict)
+            )
+            for room in rooms
+        ),
+    )
+    result.setdefault(
+        CONF_GLOBAL_NIGHT_ENABLED,
+        any(bool(room.get("night_enabled", False)) for room in rooms),
+    )
+
+    for room in rooms:
+        profile = str(
+            room.get("operating_profile", OPERATING_PROFILE_AUTOMATIC)
+        )
+        room["operating_profile"] = (
+            OPERATING_PROFILE_INHERIT
+            if profile == result["operating_profile"]
+            else profile
+        )
+        room[CONF_SCHEDULE_SCOPE] = (
+            SCHEDULE_SCOPE_INHERIT
+            if _schedule_signature(room) == global_signature
+            else SCHEDULE_SCOPE_CUSTOM
+        )
+        if bool(result.get(CONF_ADVANCED_MODE, False)):
+            raw_features = room.get(CONF_ADVANCED_FEATURES)
+            if isinstance(raw_features, (list, tuple, set)):
+                features = [
+                    str(value)
+                    for value in raw_features
+                    if str(value) in ADVANCED_FEATURES
+                ]
+                for feature in (FEATURE_SCHEDULE, FEATURE_SAFETY):
+                    if feature not in features:
+                        features.append(feature)
+                room[CONF_ADVANCED_FEATURES] = features
+    return result
 
 
 def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -138,6 +259,16 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
     )
     result.pop(CONF_TEST_MODE, None)
     result.setdefault(CONF_EVALUATION_INTERVAL, DEFAULT_EVALUATION_INTERVAL)
+    for key, value in HOUSE_POLICY_DEFAULTS.items():
+        result.setdefault(key, deepcopy(value))
+    if result.get("operating_profile") not in OPERATING_PROFILE_OPTIONS:
+        result["operating_profile"] = OPERATING_PROFILE_AUTOMATIC
+    result[CONF_GLOBAL_GLARE_PROTECTION_ENABLED] = bool(
+        result.get(CONF_GLOBAL_GLARE_PROTECTION_ENABLED, False)
+    )
+    result[CONF_GLOBAL_NIGHT_ENABLED] = bool(
+        result.get(CONF_GLOBAL_NIGHT_ENABLED, False)
+    )
     # The interval is a recovery watchdog only.  Runtime input changes use a
     # small, persisted-as-config debounce to collapse one physical event burst
     # into one deterministic evaluation.
@@ -190,6 +321,16 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
             room["sunset_offset_minutes"] = legacy_sunset_offset
         for key, value in ROOM_DEFAULTS.items():
             room.setdefault(key, deepcopy(value))
+        if room.get("operating_profile") not in {
+            OPERATING_PROFILE_INHERIT,
+            *OPERATING_PROFILE_OPTIONS,
+        }:
+            room["operating_profile"] = OPERATING_PROFILE_INHERIT
+        if room.get(CONF_SCHEDULE_SCOPE) not in {
+            SCHEDULE_SCOPE_INHERIT,
+            SCHEDULE_SCOPE_CUSTOM,
+        }:
+            room[CONF_SCHEDULE_SCOPE] = SCHEDULE_SCOPE_INHERIT
         if advanced_mode:
             for key, value in ADVANCED_EXECUTION_ROOM_DEFAULTS.items():
                 room.setdefault(key, deepcopy(value))
@@ -267,6 +408,9 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
                 room[CONF_ADVANCED_FEATURES].append(
                     FEATURE_MAXIMUM_OPENING
                 )
+            for mandatory_feature in (FEATURE_SCHEDULE, FEATURE_SAFETY):
+                if mandatory_feature not in room[CONF_ADVANCED_FEATURES]:
+                    room[CONF_ADVANCED_FEATURES].append(mandatory_feature)
         else:
             # Issue #79 execution controls are an Advanced-only contract.
             # Remove crafted or beta-era values as well as avoiding new
@@ -469,7 +613,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async_handle_set_operating_profile,
             schema=vol.Schema(
                 {
-                    vol.Required("room_id"): str,
+                    vol.Optional("room_id"): str,
                     vol.Required("profile"): str,
                     vol.Optional("entry_id"): str,
                 }
@@ -480,7 +624,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate earlier beta entries to the current Smart Shading data model."""
-    if entry.version >= 20:
+    if entry.version >= 21:
         return True
     raw_data = dict(entry.data)
     raw_options = dict(entry.options)
@@ -512,11 +656,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # the general shading schedule now gates every daytime automation.
     # Schema 20 promotes the hard maximum opening into an explicit selected
     # Advanced feature while preserving every existing opt-in cover limit.
-    data = _normalize_config(data_source)
+    # Schema 21 promotes a common room mode and schedule to the house policy,
+    # while preserving genuinely different rooms as explicit local overrides.
+    data = _normalize_config(_migrate_house_policy(data_source))
     # Merge raw legacy values before adding defaults. This supports both the
     # old partial options format and the later full-snapshot format without an
     # injected ``rooms=[]`` masking the entry data.
-    effective = _normalize_config(effective_source)
+    effective = _normalize_config(_migrate_house_policy(effective_source))
     data[CONF_ADVANCED_MODE] = fixed_advanced_mode
     effective[CONF_ADVANCED_MODE] = fixed_advanced_mode
     options = editable_options(effective) if raw_options else {}
@@ -536,7 +682,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 room.get(CONF_EXTERNAL_MOVEMENT_DETECTION, fixed_advanced_mode)
             ) if fixed_advanced_mode else False
     hass.config_entries.async_update_entry(
-        entry, data=data, options=options, version=20
+        entry, data=data, options=options, version=21
     )
     return True
 

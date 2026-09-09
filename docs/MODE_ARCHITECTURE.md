@@ -43,11 +43,14 @@ calculation, ordinary target and final target remains in the per-cover trace.
 The general shading schedule is the master permission for thermally driven
 daytime modes: ordinary shading, Comfort, Solar and starting Heat Protection.
 Safety, Night and calculated Glare Protection remain independent and operate
-year-round. One native room Operating profile groups the thermal policy:
-Automatic follows the configured calendar, Protection only disables thermal
-daytime shading, and Year-round ignores seasonal months and weekdays while
-retaining the daily time window. The same profile is available through one
-service for automations and voice assistants. Heat Protection is latched to one
+year-round. One native house Operation and protection control groups the
+thermal policy: By season and schedule follows the global calendar, Protection
+only disables thermal daytime shading, and Year-round ignores seasonal months
+and weekdays while retaining the daily time window. Rooms inherit that mode and
+calendar unless an explicit Advanced room exception is selected. Separate
+house permissions gate configured Night and Glare year-round; the policy never
+disables Safety, input-quality holds or hard device limits. The same policy is
+available through one service for automations and voice assistants. Heat Protection is latched to one
 cycle per calendar day and releases at the earliest of the schedule end,
 sunset plus offset, or the absolute latest configured time.
 

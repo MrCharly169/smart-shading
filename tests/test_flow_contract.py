@@ -373,7 +373,7 @@ class WizardRouteContractTests(unittest.TestCase):
         )
         self.assertEqual(
             user_calls,
-            {"async_step_easy_room_setup", "async_step_advanced_room_setup"},
+            {"async_step_easy_room_setup", "async_step_global_operating_policy"},
         )
 
         init_calls = _async_step_calls(

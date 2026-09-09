@@ -402,7 +402,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             await migration_mod.async_migrate_entry(advanced_hass, advanced_entry)
         )
-        self.assertEqual(advanced_entry.version, 20)
+        self.assertEqual(advanced_entry.version, 21)
         self.assertEqual(advanced_entry.data["sun_entity"], "sun.sun")
         self.assertEqual(advanced_entry.options["sun_entity"], "sun.sun")
         self.assertEqual(len(advanced_hass.config_entries.updates), 1)
@@ -488,7 +488,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             await migration_mod.async_migrate_entry(easy_hass, easy_entry)
         )
-        self.assertEqual(easy_entry.version, 20)
+        self.assertEqual(easy_entry.version, 21)
         self.assertEqual(easy_entry.data["sun_entity"], "sun.sun")
         self.assertEqual(easy_entry.options["sun_entity"], "sun.sun")
         self.assertEqual(len(easy_hass.config_entries.updates), 1)
@@ -539,7 +539,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         hass = FakeMigrationHass()
 
         self.assertTrue(await migration_mod.async_migrate_entry(hass, entry))
-        self.assertEqual(entry.version, 20)
+        self.assertEqual(entry.version, 21)
         self.assertIn(
             migration_mod.FEATURE_GLARE_PROTECTION,
             entry.data["rooms"][0]["advanced_features"],
@@ -559,7 +559,7 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         hass = FakeMigrationHass()
 
         self.assertTrue(await migration_mod.async_migrate_entry(hass, entry))
-        self.assertEqual(entry.version, 20)
+        self.assertEqual(entry.version, 21)
         self.assertIn(
             migration_mod.FEATURE_MAXIMUM_OPENING,
             entry.data["rooms"][0]["advanced_features"],
@@ -569,6 +569,57 @@ class EntryMigrationRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(migrated_cover["enforce_max_open_position"])
         self.assertEqual(migrated_cover["max_open_position"], 90)
+
+    async def test_schema_21_promotes_common_policy_without_behavior_change(self):
+        data = self._schema_15_payload(advanced=True)
+        first = data["rooms"][0]
+        first.update(
+            {
+                "operating_profile": "automatic",
+                "schedule_enabled": True,
+                "schedule_profile": "summer",
+                "active_months": [5, 6, 7, 8, 9],
+                "active_weekdays": list(range(7)),
+                "day_window": "all_day",
+                "advanced_features": ["schedule", "glare_protection"],
+            }
+        )
+        second = deepcopy(first)
+        second["id"] = "second-room"
+        second["name"] = "Second room"
+        second["advanced_features"] = ["schedule", "night"]
+        second["night_enabled"] = True
+        data["rooms"].append(second)
+        entry = FakeMigrationEntry(data, {}, version=20)
+        hass = FakeMigrationHass()
+
+        self.assertTrue(await migration_mod.async_migrate_entry(hass, entry))
+
+        self.assertEqual(entry.version, 21)
+        self.assertEqual(entry.data["operating_profile"], "automatic")
+        self.assertEqual(entry.data["schedule_profile"], "summer")
+        self.assertEqual(entry.data["active_months"], [5, 6, 7, 8, 9])
+        self.assertTrue(entry.data["global_glare_protection_enabled"])
+        self.assertTrue(entry.data["global_night_enabled"])
+        for room in entry.data["rooms"]:
+            self.assertEqual(room["operating_profile"], "inherit")
+            self.assertEqual(room["schedule_scope"], "inherit")
+            self.assertIn("safety", room["advanced_features"])
+
+    async def test_schema_21_keeps_a_different_room_schedule_as_override(self):
+        data = self._schema_15_payload(advanced=True)
+        first = data["rooms"][0]
+        first.update({"schedule_enabled": True, "active_months": [5, 6]})
+        second = deepcopy(first)
+        second["id"] = "winter-room"
+        second["active_months"] = [1, 2]
+        data["rooms"].append(second)
+        entry = FakeMigrationEntry(data, {}, version=20)
+
+        await migration_mod.async_migrate_entry(FakeMigrationHass(), entry)
+
+        self.assertEqual(entry.data["rooms"][0]["schedule_scope"], "inherit")
+        self.assertEqual(entry.data["rooms"][1]["schedule_scope"], "custom")
 
     async def test_preview_service_routes_only_to_a_loaded_matching_room(self):
         """The Card-facing preview service is narrow, async, and non-actuating."""
@@ -1415,7 +1466,7 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         await store.async_load()
 
-        self.assertEqual(store.data["runtime_schema"], 6)
+        self.assertEqual(store.data["runtime_schema"], 7)
         self.assertIsInstance(store.data["room_runtime"], dict)
         self.assertEqual(store.data["queued_commands"], [])
 
@@ -2347,6 +2398,45 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
             )
         )
+
+    async def test_house_operating_profile_is_inherited_and_immediately_adjustable(self):
+        room = self.engine.room_config("room")
+        room["operating_profile"] = "inherit"
+        self.engine.config["operating_profile"] = "automatic"
+
+        await self.engine.async_set_operating_profile(None, "protection_only")
+
+        self.assertEqual(
+            self.engine.house_value("operating_profile"), "protection_only"
+        )
+        self.assertEqual(self.engine._operating_profile_source(room), "house")
+        self.assertFalse(
+            self.engine._schedule_active_at(
+                room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+            )
+        )
+
+    async def test_global_glare_and_night_gates_do_not_affect_safety(self):
+        room = self.engine.room_config("room")
+        room["advanced_features"] = ["glare_protection", "night", "safety"]
+        room["night_enabled"] = True
+        self.engine.config["global_glare_protection_enabled"] = False
+        self.engine.config["global_night_enabled"] = False
+
+        self.assertFalse(
+            self.engine.room_feature_enabled("room", "glare_protection")
+        )
+        night = self.engine._night_status(
+            room, datetime(2026, 12, 20, 23, 0, tzinfo=timezone.utc)
+        )
+        self.assertFalse(night[0])
+        self.assertIn("house policy", night[2])
+        room["safety_blockers"] = ["binary_sensor.frost_alarm"]
+        self.hass.states.values["binary_sensor.frost_alarm"] = FakeState("on")
+        await self.engine._evaluate_room(
+            room, datetime(2026, 12, 20, 23, 0, tzinfo=timezone.utc)
+        )
+        self.assertEqual(self.engine.rooms["room"].mode, "safety")
 
     async def test_quality_hold_prevents_new_solar_cover_service(self):
         room = self.engine.room_config("room")

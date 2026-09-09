@@ -127,8 +127,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
                     else []
                 ),
                 "schedule_active": runtime.schedule_active,
-                "operating_profile": engine.room_value(
-                    room_id, "operating_profile", "automatic"
+                "operating_profile": engine._operating_profile(
+                    engine.room_config(room_id)
+                ),
+                "operating_profile_source": engine._operating_profile_source(
+                    engine.room_config(room_id)
                 ),
                 "schedule_reason": runtime.schedule_reason,
                 "next_schedule_change": runtime.next_schedule_change,

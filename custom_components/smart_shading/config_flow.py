@@ -26,8 +26,11 @@ from .const import (
     CONF_DIAGNOSTIC_LEVEL,
     CONF_EVALUATION_INTERVAL,
     CONF_EXTERNAL_MOVEMENT_DETECTION,
+    CONF_GLOBAL_GLARE_PROTECTION_ENABLED,
+    CONF_GLOBAL_NIGHT_ENABLED,
     CONF_HOUSE_NAME,
     CONF_ROOMS,
+    CONF_SCHEDULE_SCOPE,
     CONF_SUN_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
     CONF_TEST_MODE,
@@ -76,6 +79,7 @@ from .const import (
     FEATURE_SCHEDULE,
     FEATURE_TEMPERATURE,
     FEATURE_TEST_TOOLS,
+    HOUSE_POLICY_DEFAULTS,
     OUTSIDE_OPEN,
     OUTSIDE_OPTIONS,
     OUTDOOR_MINIMUM_MAX_C,
@@ -83,7 +87,9 @@ from .const import (
     OUTDOOR_MINIMUM_STEP_C,
     OPENING_ORDER_OPTIONS,
     OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_INHERIT,
     OPERATING_PROFILE_OPTIONS,
+    ROOM_OPERATING_PROFILE_OPTIONS,
     PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_DURATION_MAX_HOURS,
@@ -105,6 +111,9 @@ from .const import (
     IRRADIANCE_MINIMUM_STEP,
     ROOM_DEFAULTS,
     SCHEDULE_CUSTOM,
+    SCHEDULE_SCOPE_CUSTOM,
+    SCHEDULE_SCOPE_INHERIT,
+    SCHEDULE_SCOPE_OPTIONS,
     SCHEDULE_OPTIONS,
     SCHEDULE_SUMMER,
     SCHEDULE_YEAR_ROUND,
@@ -289,7 +298,8 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "binary_cover": "Einfacher Auf/Zu-Behang",
     },
     "schedule_profile": {"year_round": "Ganzjährig automatisch", "summer": "Sommersaison (Mai–September)", "custom": "Benutzerdefinierter Zeitplan"},
-    "operating_profile": {"automatic": "Automatisch", "protection_only": "Nur Schutz", "year_round": "Ganzjährig"},
+    "operating_profile": {"inherit": "Globale Einstellung", "automatic": "Nach Saison und Zeitplan", "protection_only": "Nur Schutz", "year_round": "Ganzjährig"},
+    "schedule_scope": {"inherit": "Globalen Haus-Zeitplan verwenden", "custom": "Eigener Raum-Zeitplan"},
     "day_window": {"fixed_time": "Feste Uhrzeit", "all_day": "Ganztägig"},
     "outside_schedule_behavior": {"open": "In Ruheposition fahren", "hold": "Position unverändert lassen"},
     "feedback_policy": {"send": "Befehl senden", "skip": "Ohne Rückmeldung nicht senden"},
@@ -313,7 +323,8 @@ SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
     "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–September)", "custom": "Custom schedule"},
-    "operating_profile": {"automatic": "Automatic", "protection_only": "Protection only", "year_round": "Year-round"},
+    "operating_profile": {"inherit": "Global setting", "automatic": "By season and schedule", "protection_only": "Protection only", "year_round": "Year-round"},
+    "schedule_scope": {"inherit": "Use global house schedule", "custom": "Custom room schedule"},
     "day_window": {"fixed_time": "Fixed time", "all_day": "All day"},
     "outside_schedule_behavior": {"open": "Move to neutral/open position", "hold": "Keep current position"},
     "feedback_policy": {"send": "Send command", "skip": "Do not send without feedback"},
@@ -336,6 +347,7 @@ MENU_LABELS_DE: dict[str, str] = {
     "save_changes": "Änderungen speichern",
     "add_room": "Raum hinzufügen",
     "global_settings": "Hauseinstellungen",
+    "global_operating_policy": "Betriebsweise und Schutz",
     "diagnostics_settings": "Diagnose und Support",
     "back_to_overview": "Zur Übersicht",
     "back_to_room": "Zurück zum Raum",
@@ -348,6 +360,7 @@ MENU_LABELS_EN: dict[str, str] = {
     "save_changes": "Save changes",
     "add_room": "Add room",
     "global_settings": "House settings",
+    "global_operating_policy": "Operation and protection",
     "diagnostics_settings": "Diagnostics and support",
     "back_to_overview": "Back to overview",
     "back_to_room": "Back to room",
@@ -760,7 +773,16 @@ class _SmartShadingWizardMixin:
         return [
             feature
             for feature in ADVANCED_FEATURES
-            if feature in selected and feature != FEATURE_TEST_TOOLS
+            if feature in selected
+            and feature != FEATURE_TEST_TOOLS
+            and not (
+                getattr(self, "_initial_setup", False)
+                and feature == FEATURE_SCHEDULE
+                and self.room().get(
+                    CONF_SCHEDULE_SCOPE, SCHEDULE_SCOPE_INHERIT
+                )
+                == SCHEDULE_SCOPE_INHERIT
+            )
         ]
 
     async def _start_initial_feature_sequence(self) -> ConfigFlowResult:
@@ -873,6 +895,12 @@ class _SmartShadingWizardMixin:
             ADVANCED_FEATURES if self.advanced_mode else SHARED_FEATURES
         )
         selected = self._advanced_features(room) & set(allowed_features)
+        mandatory = (
+            {FEATURE_SCHEDULE, FEATURE_SAFETY}
+            if self.advanced_mode
+            else set()
+        )
+        selected.update(mandatory)
         glare_available = self._room_supports_glare_protection(room)
         maximum_opening_available = self._room_supports_maximum_opening(room)
         if user_input is not None:
@@ -880,7 +908,7 @@ class _SmartShadingWizardMixin:
             selected_features = [
                 feature
                 for feature in allowed_features
-                if user_input.get(feature, False)
+                if (feature in mandatory or user_input.get(feature, False))
                 and (
                     feature != FEATURE_GLARE_PROTECTION
                     or glare_available
@@ -945,6 +973,7 @@ class _SmartShadingWizardMixin:
         fields = {
             vol.Required(feature, default=feature in selected): selector.BooleanSelector()
             for feature in allowed_features
+            if feature not in mandatory
             if (
                 feature != FEATURE_GLARE_PROTECTION
                 or glare_available
@@ -1078,6 +1107,134 @@ class _SmartShadingWizardMixin:
     @property
     def rooms(self) -> list[dict[str, Any]]:
         return self._working.setdefault(CONF_ROOMS, [])
+
+    def _house_policy_value(self, key: str) -> Any:
+        return self._working.get(key, deepcopy(HOUSE_POLICY_DEFAULTS[key]))
+
+    async def async_step_global_operating_policy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure the one house policy before room-specific assignments."""
+        errors: dict[str, str] = {}
+        current_profile = str(
+            self._house_policy_value("operating_profile")
+        )
+        if current_profile not in OPERATING_PROFILE_OPTIONS:
+            current_profile = OPERATING_PROFILE_AUTOMATIC
+        current_schedule = str(
+            self._house_policy_value("schedule_profile")
+        )
+        if current_schedule not in SCHEDULE_OPTIONS:
+            current_schedule = SCHEDULE_YEAR_ROUND
+        current_window = str(self._house_policy_value("day_window"))
+        if current_window not in DAY_WINDOW_OPTIONS:
+            current_window = DAY_WINDOW_ALL_DAY
+
+        if user_input is not None:
+            values = _flatten_sections(user_input)
+            profile = str(values.get("operating_profile", current_profile))
+            schedule_profile = str(
+                values.get("schedule_profile", current_schedule)
+            )
+            day_window = str(values.get("day_window", current_window))
+            if (
+                profile not in OPERATING_PROFILE_OPTIONS
+                or schedule_profile not in SCHEDULE_OPTIONS
+                or day_window not in DAY_WINDOW_OPTIONS
+            ):
+                errors["base"] = "option_not_available"
+            elif schedule_profile == SCHEDULE_CUSTOM and (
+                not values.get("active_months")
+                or not values.get("active_weekdays")
+            ):
+                errors["base"] = "select_at_least_one"
+            if not errors:
+                self._working.update(values)
+                if schedule_profile == SCHEDULE_SUMMER:
+                    self._working["active_months"] = [5, 6, 7, 8, 9]
+                    self._working["active_weekdays"] = list(range(7))
+                elif schedule_profile != SCHEDULE_CUSTOM:
+                    self._working["active_months"] = list(range(1, 13))
+                    self._working["active_weekdays"] = list(range(7))
+                if getattr(self, "_initial_setup", False) and not self.rooms:
+                    return await self.async_step_advanced_room_setup()
+                return await self.async_step_init()
+
+        fields: dict[Any, Any] = {
+            vol.Required(
+                "operating_profile", default=current_profile
+            ): self._choice(OPERATING_PROFILE_OPTIONS, "operating_profile"),
+            vol.Required(
+                "schedule_profile", default=current_schedule
+            ): self._choice(SCHEDULE_OPTIONS, "schedule_profile"),
+            vol.Required(
+                "day_window", default=current_window
+            ): self._choice(DAY_WINDOW_OPTIONS, "day_window"),
+            vol.Required(
+                "active_months",
+                default=[
+                    str(value)
+                    for value in self._house_policy_value("active_months")
+                ],
+            ): self._choice(
+                [str(value) for value in range(1, 13)],
+                "months",
+                multiple=True,
+            ),
+            vol.Required(
+                "active_weekdays",
+                default=[
+                    str(value)
+                    for value in self._house_policy_value("active_weekdays")
+                ],
+            ): self._choice(
+                [str(value) for value in range(7)],
+                "weekdays",
+                multiple=True,
+            ),
+            vol.Required(
+                "start_time",
+                default=self._house_policy_value("start_time"),
+            ): selector.TimeSelector(),
+            vol.Required(
+                "end_time", default=self._house_policy_value("end_time")
+            ): selector.TimeSelector(),
+            vol.Required(
+                "outside_schedule_behavior",
+                default=self._house_policy_value(
+                    "outside_schedule_behavior"
+                ),
+            ): self._choice(OUTSIDE_OPTIONS, "outside_schedule_behavior"),
+            vol.Required(
+                CONF_GLOBAL_GLARE_PROTECTION_ENABLED,
+                default=bool(
+                    self._house_policy_value(
+                        CONF_GLOBAL_GLARE_PROTECTION_ENABLED
+                    )
+                ),
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_GLOBAL_NIGHT_ENABLED,
+                default=bool(
+                    self._house_policy_value(CONF_GLOBAL_NIGHT_ENABLED)
+                ),
+            ): selector.BooleanSelector(),
+        }
+        return self.async_show_form(
+            step_id="global_operating_policy",
+            data_schema=self._form_schema(
+                vol.Schema(
+                    {
+                        vol.Required("house_policy"): section(
+                            vol.Schema(fields), {"collapsed": False}
+                        )
+                    }
+                ),
+                user_input,
+                errors,
+            ),
+            errors=errors,
+        )
 
     def room(self) -> dict[str, Any]:
         return next(room for room in self.rooms if room["id"] == self._room_id)
@@ -2185,6 +2342,23 @@ class _SmartShadingWizardMixin:
         """Enter optional features only after the customer finishes structure."""
         if not getattr(self, "_initial_setup", False) or not self.advanced_mode:
             return await self.async_step_room_hub()
+        room = self.room()
+        selected = self._advanced_features(room)
+        selected.update({FEATURE_SCHEDULE, FEATURE_SAFETY})
+        if bool(self._working.get(CONF_GLOBAL_NIGHT_ENABLED, False)):
+            selected.add(FEATURE_NIGHT)
+        if (
+            bool(
+                self._working.get(
+                    CONF_GLOBAL_GLARE_PROTECTION_ENABLED, False
+                )
+            )
+            and self._room_supports_glare_protection(room)
+        ):
+            selected.add(FEATURE_GLARE_PROTECTION)
+        room[CONF_ADVANCED_FEATURES] = [
+            feature for feature in ADVANCED_FEATURES if feature in selected
+        ]
         return await self.async_step_choose_advanced_features()
 
     async def async_step_sector_hub(self, user_input=None) -> ConfigFlowResult:
@@ -2637,7 +2811,7 @@ class SmartShadingConfigFlow(
 ):
     """Initial customer setup. The entry is created after a complete first room."""
 
-    VERSION = 20
+    VERSION = 21
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -2662,6 +2836,7 @@ class SmartShadingConfigFlow(
                     CONF_EVALUATION_INTERVAL: DEFAULT_EVALUATION_INTERVAL,
                     CONF_ROOMS: [],
                 }
+                self._working.update(deepcopy(HOUSE_POLICY_DEFAULTS))
                 self._room_id = None
                 self._sector_id = None
                 self._layer_id = None
@@ -2692,7 +2867,7 @@ class SmartShadingConfigFlow(
                 self._option_routes = {}
                 self._initial_setup = True
                 if advanced:
-                    return await self.async_step_advanced_room_setup()
+                    return await self.async_step_global_operating_policy()
                 return await self.async_step_easy_room_setup()
         current_sun_state = "missing" if sun_state is None else sun_state.state
         return self.async_show_form(
@@ -2739,6 +2914,14 @@ class SmartShadingConfigFlow(
             room = deepcopy(ROOM_DEFAULTS)
             if self.advanced_mode:
                 room.update(deepcopy(ADVANCED_EXECUTION_ROOM_DEFAULTS))
+                room[CONF_ADVANCED_FEATURES] = [
+                    FEATURE_SCHEDULE,
+                    FEATURE_SAFETY,
+                ]
+                if bool(
+                    self._working.get(CONF_GLOBAL_NIGHT_ENABLED, False)
+                ):
+                    room[CONF_ADVANCED_FEATURES].append(FEATURE_NIGHT)
             room.update(
                 {
                     "id": _new_id(str(values["name"])),
@@ -2796,9 +2979,19 @@ class SmartShadingConfigFlow(
         if not hasattr(self, "_option_routes"):
             self._option_routes = {}
         labels = self._menu(
-            ["add_room", "diagnostics_settings", "finish"]
+            [
+                "global_operating_policy",
+                "add_room",
+                "diagnostics_settings",
+                "finish",
+            ]
         )
-        menu_options: dict[str, str] = {"add_room": labels["add_room"]}
+        menu_options: dict[str, str] = {}
+        if self.advanced_mode:
+            menu_options["global_operating_policy"] = labels[
+                "global_operating_policy"
+            ]
+        menu_options["add_room"] = labels["add_room"]
         for route in build_main_room_routes(self.rooms, german=self._is_german()):
             self._add_option_route(
                 menu_options,
@@ -3357,12 +3550,18 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             self._initial_setup = False
         labels = self._menu(
             [
+                "global_operating_policy",
                 "add_room",
                 "diagnostics_settings",
                 "save_changes",
             ]
         )
-        menu_options: dict[str, str] = {"add_room": labels["add_room"]}
+        menu_options: dict[str, str] = {}
+        if self.advanced_mode:
+            menu_options["global_operating_policy"] = labels[
+                "global_operating_policy"
+            ]
+        menu_options["add_room"] = labels["add_room"]
         for route in build_main_room_routes(
             self.rooms, german=self._is_german()
         ):
@@ -3541,12 +3740,20 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         )
         current_schedule_enabled = bool(room.get("schedule_enabled", False))
         stored_operating_profile = str(
-            room.get("operating_profile", OPERATING_PROFILE_AUTOMATIC)
+            room.get("operating_profile", OPERATING_PROFILE_INHERIT)
         )
         current_operating_profile = (
             stored_operating_profile
-            if stored_operating_profile in OPERATING_PROFILE_OPTIONS
-            else OPERATING_PROFILE_AUTOMATIC
+            if stored_operating_profile in ROOM_OPERATING_PROFILE_OPTIONS
+            else OPERATING_PROFILE_INHERIT
+        )
+        stored_schedule_scope = str(
+            room.get(CONF_SCHEDULE_SCOPE, SCHEDULE_SCOPE_INHERIT)
+        )
+        current_schedule_scope = (
+            stored_schedule_scope
+            if stored_schedule_scope in SCHEDULE_SCOPE_OPTIONS
+            else SCHEDULE_SCOPE_INHERIT
         )
         if user_input is not None:
             values = _flatten_sections(user_input)
@@ -3562,6 +3769,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 if configure_schedule
                 else current_operating_profile
             )
+            selected_schedule_scope = str(
+                values.get(CONF_SCHEDULE_SCOPE, current_schedule_scope)
+                if configure_schedule
+                else current_schedule_scope
+            )
             selected_window = str(values.get("day_window", current_window) if configure_schedule else current_window)
             selected_stagger_scope = str(
                 values.get(
@@ -3573,7 +3785,8 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 (configure_schedule and (
                     selected_profile not in SCHEDULE_OPTIONS
                     or selected_window not in DAY_WINDOW_OPTIONS
-                    or selected_operating_profile not in OPERATING_PROFILE_OPTIONS
+                    or selected_operating_profile not in ROOM_OPERATING_PROFILE_OPTIONS
+                    or selected_schedule_scope not in SCHEDULE_SCOPE_OPTIONS
                 ))
                 or (configure_execution and selected_stagger_scope not in STAGGER_SCOPE_OPTIONS)
             ):
@@ -3642,7 +3855,12 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                     vol.Required(
                         "operating_profile", default=current_operating_profile
                     ): self._choice(
-                        OPERATING_PROFILE_OPTIONS, "operating_profile"
+                        ROOM_OPERATING_PROFILE_OPTIONS, "operating_profile"
+                    ),
+                    vol.Required(
+                        CONF_SCHEDULE_SCOPE, default=current_schedule_scope
+                    ): self._choice(
+                        SCHEDULE_SCOPE_OPTIONS, "schedule_scope"
                     ),
                     vol.Required(
                         "schedule_profile", default=current_profile

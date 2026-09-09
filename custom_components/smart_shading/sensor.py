@@ -677,9 +677,17 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     and room.get("external_movement_detection", False)
                 ),
                 "schedule_active": self.runtime.schedule_active,
-                "operating_profile": self.engine.room_value(
-                    self.room_id, "operating_profile", "automatic"
+                "operating_profile": self.engine._operating_profile(room),
+                "operating_profile_source": (
+                    self.engine._operating_profile_source(room)
                 ),
+                "operating_profile_override": self.engine.room_value(
+                    self.room_id, "operating_profile", "inherit"
+                ),
+                "house_operating_profile": self.engine.house_value(
+                    "operating_profile", "automatic"
+                ),
+                "safety_always_active": True,
                 "schedule_reason": self.runtime.schedule_reason,
                 "next_schedule_change": self.runtime.next_schedule_change,
                 "night_enabled": bool(

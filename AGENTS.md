@@ -1,6 +1,6 @@
 # Home Assistant ecosystem project instructions
 
-Policy-Version: 1.16.0
+Policy-Version: 1.17.0
 
 Before changing this integration, read `docs/HA_ECOSYSTEM_POLICY.md` completely.
 Treat conventions that can affect another Home Assistant integration as

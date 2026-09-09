@@ -96,9 +96,9 @@ Kopiere nicht nur die Frontend-Datei; Integration, Übersetzungen, Services und 
 1. Öffne **Einstellungen → Geräte & Dienste → Integration hinzufügen**.
 2. Suche nach **Smart Shading**.
 3. Wähle **Easy** oder **Advanced**. Die Auswahl ist für diesen Konfigurationseintrag fest; für die andere Variante ist ein neuer Eintrag nötig.
-4. Benenne Haus oder Bereich und lege einen Raum an.
-5. Lege einen Fassadensektor an, wähle seine einzelne Sonnenquelle, erstelle eine Cover-Gruppe, wähle ihr physisches Profil und ordne Cover zu.
-6. Wähle in Advanced Mode nur die optionalen Fähigkeiten aus, die der Raum tatsächlich benötigt.
+4. Benenne Haus oder Bereich. Im Advanced-Modus bündelt die nächste Seite die globale thermische Betriebsweise und den Kalender mit den unabhängigen ganzjährigen Freigaben für Blendschutz und Nachtfunktion; konfigurierte Safety bleibt immer aktiv und hat höchste Priorität.
+5. Lege einen Raum und Fassadensektor an, wähle seine einzelne Sonnenquelle, erstelle eine Cover-Gruppe, wähle ihr physisches Profil und ordne Cover zu.
+6. Wähle nur die optionalen Fähigkeiten und Zuordnungen aus, die der Raum tatsächlich benötigt. Räume übernehmen Betriebsweise und Zeitplan global, solange nicht bewusst eine Raum-Ausnahme gewählt wird.
 7. Prüfe und speichere die Konfiguration. Unvollständige Sektoren, Gruppen, Cover oder abhängige Optionen weist der Assistent zurück.
 
 Home Assistants `sun.sun` wird automatisch verwendet. Fehlt die Sun-Integration oder ist sie nicht verfügbar, stoppt Smart Shading die Sektoreinrichtung und erklärt, was wiederhergestellt werden muss.
@@ -165,7 +165,9 @@ Für Advanced-Entscheidungen ist die durch Code und Tests verifizierte, unverän
 
 Jeder passende und abgelehnte Kandidat bleibt im Advanced-Trace mit stabilem Grund und normalisierter Eingangsqualität erhalten. Die Befehlsplanung folgt erst danach. Ein neueres Ziel mit höherer Priorität verwirft veraltete verzögerte Arbeit. Die vollständigen technischen Verträge stehen unter [Advanced behavior](../ADVANCED_MODE.md) und [Mode architecture](../MODE_ARCHITECTURE.md).
 
-Jeder Advanced-Raum erhält außerdem einen nativen Select **Betriebsprofil**. **Automatisch** folgt dem eingestellten Saisonkalender, **Nur Schutz** deaktiviert die thermisch gesteuerte Tagesbeschattung und **Ganzjährig** ignoriert Saisonmonate und Wochentage, behält aber ein eingestelltes tägliches Zeitfenster bei. Safety, Night, berechneter Blendschutz, Fail-safe-Holds bei ungültigen Quellen und harte Gerätegrenzen bleiben in jedem Profil aktiv. Ein Sprachassistent oder eine Automation kann dieselbe Auswahl mit dem einzelnen Service `smart_shading.set_operating_profile` ändern; die Schutzfunktionen müssen nicht einzeln geschaltet werden.
+Die Advanced-Einrichtung beginnt mit einer globalen Seite **Betriebsweise und Schutz**. **Nach Saison und Zeitplan** folgt dem Haus-Kalender, **Nur Schutz** deaktiviert thermisch gesteuerte Tagesbeschattung und **Ganzjährig** ignoriert Saisonmonate und Wochentage, behält aber ein eingestelltes tägliches Zeitfenster bei. Separate Schalter geben konfigurierte Blend- und Nachtfunktionen ganzjährig frei. Konfigurierte Safety-Quellen, Fail-safe-Holds bei ungültigen Quellen und harte Gerätegrenzen werden dadurch nie deaktiviert; Safety behält immer höchste Priorität.
+
+Das Haus erhält einen nativen Select **Betriebsweise und Schutz** für Sprachassistenten und Automationen. Jeder Raum übernimmt ihn und den globalen Kalender standardmäßig; im Advanced-Bereich kann bewusst eine eigene Betriebsweise oder ein eigener Raum-Zeitplan gewählt werden. Der Service `smart_shading.set_operating_profile` ändert ohne `room_id` das Haus und mit `room_id` nur die Raum-Ausnahme. Die Advanced Card öffnet die wirksame Steuerung, kennzeichnet geerbte Werte als global und zeigt die immer aktive Safety-Ebene mit einem dezenten Schild.
 
 ### Berechneter Blendschutz
 
