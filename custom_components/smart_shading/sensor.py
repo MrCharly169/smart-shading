@@ -69,7 +69,7 @@ def _compact_room_configuration(room: dict) -> dict:
             "id", "name", "indoor_temperature", "outdoor_temperature",
             "normal_shading_temperature", "comfort_temperature",
             "heat_temperature", "advanced_features", "night_enabled",
-            "night_source", "schedule_enabled",
+            "night_source", "schedule_enabled", "operating_profile",
         )
         if room.get(key) not in (None, "")
     } | {
@@ -677,6 +677,9 @@ class RoomStatusSensor(SmartShadingEntity, SensorEntity):
                     and room.get("external_movement_detection", False)
                 ),
                 "schedule_active": self.runtime.schedule_active,
+                "operating_profile": self.engine.room_value(
+                    self.room_id, "operating_profile", "automatic"
+                ),
                 "schedule_reason": self.runtime.schedule_reason,
                 "next_schedule_change": self.runtime.next_schedule_change,
                 "night_enabled": bool(

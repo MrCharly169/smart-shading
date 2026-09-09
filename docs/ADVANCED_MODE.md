@@ -35,6 +35,8 @@ Missing or invalid Safety and Night sources receive their own holds above the af
 
 The general shading schedule is the master permission for thermally driven daytime modes: ordinary shading, Comfort, Solar, and starting Heat Protection. Calculated glare is occupant protection and is evaluated all year and all day. Night is independent and uses either its configured entity or a Sun-relative period.
 
+One room-level Operating profile groups this policy for dashboards, automations and voice assistants. Automatic follows the configured seasonal calendar. Protection only forces thermally driven daytime modes off and immediately releases a latched Heat cycle. Year-round ignores seasonal months and weekdays while retaining the configured daily time window. Safety, source-quality holds, Night, calculated Glare Protection and hard device limits remain independent in all three profiles. The native Select and `smart_shading.set_operating_profile` service use the same persisted runtime override.
+
 Heat Protection can start at most once per local calendar day. It releases at the earliest of the shading-schedule end, sunset plus the configured offset, or the configured latest evening time. Night remains above Heat in the decision order.
 
 Each physical cover group owns its own Night height and, for slatted profiles, Night slat target. A mixed room can therefore close curtains, shutters, and blinds differently while sharing one room-level Night period.

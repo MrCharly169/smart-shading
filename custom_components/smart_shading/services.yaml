@@ -12,3 +12,22 @@ preview_day:
       required: false
       selector:
         text:
+set_operating_profile:
+  fields:
+    room_id:
+      required: true
+      selector:
+        text:
+    profile:
+      required: true
+      selector:
+        select:
+          translation_key: operating_profile
+          options:
+            - automatic
+            - protection_only
+            - year_round
+    entry_id:
+      required: false
+      selector:
+        text:

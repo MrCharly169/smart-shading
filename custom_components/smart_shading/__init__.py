@@ -74,6 +74,7 @@ type SmartShadingConfigEntry = ConfigEntry[SmartShadingEngine]
 
 _ENGINE_REGISTRY = f"{DOMAIN}_engines"
 SERVICE_PREVIEW_DAY = "preview_day"
+SERVICE_SET_OPERATING_PROFILE = "set_operating_profile"
 
 
 async def _async_preview_day_service(hass: HomeAssistant, call) -> None:
@@ -97,6 +98,28 @@ async def _async_preview_day_service(hass: HomeAssistant, call) -> None:
         if not callable(preview):
             break
         await preview(room_id, date=call.data.get("date"))
+        return
+    raise ServiceValidationError(
+        f"No loaded Smart Shading room matches entry_id={entry_id!r}, room_id={room_id!r}"
+    )
+
+
+async def _async_set_operating_profile_service(hass: HomeAssistant, call) -> None:
+    """Apply one bundled operating profile to a persisted Smart Shading room."""
+    room_id = str(call.data["room_id"])
+    entry_id = str(call.data.get("entry_id") or "")
+    profile = str(call.data["profile"])
+    engines = hass.data.get(_ENGINE_REGISTRY, {})
+    candidates = (
+        [engines.get(entry_id)] if entry_id else list(engines.values())
+    )
+    for engine in candidates:
+        if engine is None or room_id not in getattr(engine, "rooms", {}):
+            continue
+        try:
+            await engine.async_set_operating_profile(room_id, profile)
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
         return
     raise ServiceValidationError(
         f"No loaded Smart Shading room matches entry_id={entry_id!r}, room_id={room_id!r}"
@@ -432,6 +455,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 {
                     vol.Required("room_id"): str,
                     vol.Optional("date"): str,
+                    vol.Optional("entry_id"): str,
+                }
+            ),
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_OPERATING_PROFILE):
+        async def async_handle_set_operating_profile(call) -> None:
+            await _async_set_operating_profile_service(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_OPERATING_PROFILE,
+            async_handle_set_operating_profile,
+            schema=vol.Schema(
+                {
+                    vol.Required("room_id"): str,
+                    vol.Required("profile"): str,
                     vol.Optional("entry_id"): str,
                 }
             ),

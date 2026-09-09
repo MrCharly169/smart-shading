@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 2026.9.2b0 - 2026-09-09
+
+- Add one room-level operating profile with Automatic, Protection only and
+  Year-round choices. Safety, Night, Glare Protection and hard device limits
+  remain active in every profile; only thermally driven daytime shading is
+  bundled by the profile.
+- Expose the profile as a native Home Assistant Select, in the setup/options
+  wizard and in the Advanced Card. Add `smart_shading.set_operating_profile`
+  so voice assistants and automations can change the complete policy with one
+  call instead of toggling individual protection services.
+- Make Protection only release an active Heat Protection latch immediately,
+  while Year-round ignores seasonal months and weekdays but retains the
+  configured daily time window.
+
 ## 2026.9.1b0 - 2026-09-07
 
 - Evaluate calculated protected-zone glare all year and all day, independently

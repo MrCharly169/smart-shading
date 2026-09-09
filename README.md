@@ -165,6 +165,8 @@ For Advanced decisions, the immutable order verified by code and tests is:
 
 Every matching and rejected candidate is retained in the Advanced trace with a stable reason and normalized input quality. Command planning happens afterwards. A newer higher-priority target cancels obsolete delayed work. See [Advanced behavior](docs/ADVANCED_MODE.md) and the [mode architecture](docs/MODE_ARCHITECTURE.md) for the full technical contract.
 
+Each Advanced room also exposes one native **Operating profile** Select. **Automatic** follows the configured seasonal calendar, **Protection only** disables thermally driven daytime shading, and **Year-round** ignores seasonal months and weekdays while retaining a configured daily time window. Safety, Night, calculated Glare Protection, input fail-safe holds, and hard device limits remain active in every profile. The same choice can be changed by a voice assistant or automation through the single `smart_shading.set_operating_profile` service; individual protection functions do not need to be toggled.
+
 ### Calculated glare protection
 
 An Advanced protected zone belongs to one physical cover and measures the clear window plus the table, seat, screen, or other area that should remain out of direct sun. Sideways curtains can be configured as symmetric, closing left to right, or closing right to left. For a one-sided curtain, Smart Shading clips the calculated sun footprint to the real window opening and follows its moving edge, so the current 3D sun geometry maps directly to the current percentage target. If a presence condition becomes true only after the sun has crossed farther into the protected area, the cover immediately receives the geometrically required target, for example 45% or 30%, instead of an artificial intermediate step. Stricter ordinary Solar or Safety targets retain priority.
@@ -197,7 +199,7 @@ Home Assistant cover position semantics are `0%` closed and `100%` open. Smart S
 - Exactly one sun source per sector. Sources are not combined and there is no hidden fallback.
 - Without an outdoor-temperature sensor, outdoor temperature is ignored. If a selected sensor is unavailable, its configured condition is not treated as satisfied.
 - Easy/Advanced is fixed per config entry.
-- The general Advanced shading schedule permits ordinary shading, Comfort, Solar and the start of Heat Protection. Glare Protection is evaluated all year; Night has its own independent source or Sun-relative period.
+- The general Advanced shading schedule permits ordinary shading, Comfort, Solar and the start of Heat Protection. The room operating profile can follow that calendar, disable those thermal modes as one bundle, or extend them across all months and weekdays. Safety, Glare Protection and Night remain year-round.
 - Calculated object-glare geometry is available only for compatible Advanced profiles; exterior Venetian blinds and awnings are not offered by that calculator, and vertical-slat results are approximate.
 - Software automation cannot replace physical end stops, actuator protections, or appropriate wind/frost safeguards. Validate targets and fail-safe behavior for your installation.
 

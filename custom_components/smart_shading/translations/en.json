@@ -373,6 +373,7 @@
             "description": "The general shading schedule enables the thermally driven daytime functions: adaptive shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night Mode uses its own independent period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
+              "operating_profile": "Operating profile",
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
               "active_weekdays": "Active weekdays",
@@ -383,6 +384,7 @@
             },
             "data_description": {
               "schedule_enabled": "When off, the thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
+              "operating_profile": "Automatic follows the configured calendar. Protection only disables thermal shading while Safety, Night and Glare remain active. Year-round ignores seasonal months and weekdays but keeps the daily time window.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
@@ -1855,6 +1857,7 @@
             "description": "The general shading schedule is the master permission for thermally driven daytime functions: normal shading, Comfort, Solar and starting heat protection. Glare protection is evaluated all year and all day. Night uses its own period.",
             "data": {
               "schedule_enabled": "Use a shading schedule",
+              "operating_profile": "Operating profile",
               "schedule_profile": "Activity profile",
               "active_months": "Active months",
               "active_weekdays": "Active weekdays",
@@ -1865,6 +1868,7 @@
             },
             "data_description": {
               "schedule_enabled": "When off, thermally driven daytime functions are available all year and all day. Glare protection and Night remain independent.",
+              "operating_profile": "Automatic follows the configured calendar. Protection only disables thermal shading while Safety, Night and Glare remain active. Year-round ignores seasonal months and weekdays but keeps the daily time window.",
               "schedule_profile": "All year, summer months, or a custom calendar.",
               "active_months": "Used only by the custom profile.",
               "active_weekdays": "Used only by the custom profile.",
@@ -2679,6 +2683,13 @@
         "binary_cover": "Simple open/close cover"
       }
     },
+    "operating_profile": {
+      "options": {
+        "automatic": "Automatic",
+        "protection_only": "Protection only",
+        "year_round": "Year-round"
+      }
+    },
     "schedule_profile": {
       "options": {
         "year_round": "Automatic all year",
@@ -2793,6 +2804,24 @@
     }
   },
   "services": {
+    "set_operating_profile": {
+      "name": "Set operating profile",
+      "description": "Changes the complete room operating profile with one call. Safety, Night, Glare protection and hard device limits remain active in every profile.",
+      "fields": {
+        "room_id": {
+          "name": "Room ID",
+          "description": "Stable Smart Shading room ID from the room status entity."
+        },
+        "profile": {
+          "name": "Operating profile",
+          "description": "Automatic follows the configured calendar, Protection only disables thermal shading, and Year-round ignores seasonal months and weekdays."
+        },
+        "entry_id": {
+          "name": "Configuration entry ID",
+          "description": "Optional Smart Shading configuration entry identifier."
+        }
+      }
+    },
     "preview_day": {
       "name": "Preview a shading day",
       "description": "Creates a non-actuating shading preview for a selected local date. It evaluates the production decision pipeline but never calls a cover service or command executor.",

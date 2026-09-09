@@ -82,6 +82,8 @@ from .const import (
     OUTDOOR_MINIMUM_MIN_C,
     OUTDOOR_MINIMUM_STEP_C,
     OPENING_ORDER_OPTIONS,
+    OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_OPTIONS,
     PAUSE_NEXT_NIGHT_END,
     PAUSE_NEXT_SUNRISE,
     PAUSE_DURATION_MAX_HOURS,
@@ -287,6 +289,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "binary_cover": "Einfacher Auf/Zu-Behang",
     },
     "schedule_profile": {"year_round": "Ganzjährig automatisch", "summer": "Sommersaison (Mai–September)", "custom": "Benutzerdefinierter Zeitplan"},
+    "operating_profile": {"automatic": "Automatisch", "protection_only": "Nur Schutz", "year_round": "Ganzjährig"},
     "day_window": {"fixed_time": "Feste Uhrzeit", "all_day": "Ganztägig"},
     "outside_schedule_behavior": {"open": "In Ruheposition fahren", "hold": "Position unverändert lassen"},
     "feedback_policy": {"send": "Befehl senden", "skip": "Ohne Rückmeldung nicht senden"},
@@ -310,6 +313,7 @@ SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
     "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–September)", "custom": "Custom schedule"},
+    "operating_profile": {"automatic": "Automatic", "protection_only": "Protection only", "year_round": "Year-round"},
     "day_window": {"fixed_time": "Fixed time", "all_day": "All day"},
     "outside_schedule_behavior": {"open": "Move to neutral/open position", "hold": "Keep current position"},
     "feedback_policy": {"send": "Send command", "skip": "Do not send without feedback"},
@@ -3536,6 +3540,14 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             else DEFAULT_SAFETY_BYPASSES_STAGGER
         )
         current_schedule_enabled = bool(room.get("schedule_enabled", False))
+        stored_operating_profile = str(
+            room.get("operating_profile", OPERATING_PROFILE_AUTOMATIC)
+        )
+        current_operating_profile = (
+            stored_operating_profile
+            if stored_operating_profile in OPERATING_PROFILE_OPTIONS
+            else OPERATING_PROFILE_AUTOMATIC
+        )
         if user_input is not None:
             values = _flatten_sections(user_input)
             selected_schedule_enabled = (
@@ -3544,6 +3556,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
             submitted_values = values
             selected_profile = str(
                 values.get("schedule_profile", current_profile) if configure_schedule else current_profile
+            )
+            selected_operating_profile = str(
+                values.get("operating_profile", current_operating_profile)
+                if configure_schedule
+                else current_operating_profile
             )
             selected_window = str(values.get("day_window", current_window) if configure_schedule else current_window)
             selected_stagger_scope = str(
@@ -3556,6 +3573,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 (configure_schedule and (
                     selected_profile not in SCHEDULE_OPTIONS
                     or selected_window not in DAY_WINDOW_OPTIONS
+                    or selected_operating_profile not in OPERATING_PROFILE_OPTIONS
                 ))
                 or (configure_execution and selected_stagger_scope not in STAGGER_SCOPE_OPTIONS)
             ):
@@ -3621,6 +3639,11 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
         if current_schedule_enabled:
             schedule.update(
                 {
+                    vol.Required(
+                        "operating_profile", default=current_operating_profile
+                    ): self._choice(
+                        OPERATING_PROFILE_OPTIONS, "operating_profile"
+                    ),
                     vol.Required(
                         "schedule_profile", default=current_profile
                     ): self._choice(SCHEDULE_OPTIONS, "schedule_profile"),
