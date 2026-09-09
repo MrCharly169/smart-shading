@@ -290,6 +290,10 @@ function localizedReason(value, language, fallback = "") {
     "Inside fixed shading time": "Innerhalb der festen Beschattungszeit",
     "Outside fixed shading time": "Außerhalb der festen Beschattungszeit",
     "Schedule permits normal shading": "Zeitplan erlaubt normale Beschattung",
+    "Protection-only profile; thermal shading inactive": "Betriebsprofil Nur Schutz; thermische Beschattung ist inaktiv",
+    "Year-round profile inside fixed shading time": "Ganzjähriges Betriebsprofil innerhalb der festen Beschattungszeit",
+    "Year-round profile outside fixed shading time": "Ganzjähriges Betriebsprofil außerhalb der festen Beschattungszeit",
+    "Year-round thermal profile": "Ganzjähriges thermisches Betriebsprofil",
     "Night function is not available in this setup": "Für diese Einrichtung ist keine Nachtfunktion verfügbar",
     "Night Mode disabled": "Nachtfunktion deaktiviert",
     "Night source is unknown or unavailable; positions held": "Nachtquelle ist unbekannt oder nicht verfügbar; Positionen werden gehalten",
@@ -448,6 +452,10 @@ class SmartShadingV4Dialog extends HTMLElement {
       mode: "Modus",
       reason: "Grund",
       schedule: "Zeitplan",
+      operatingProfile: "Betriebsprofil",
+      profileAutomatic: "Automatisch",
+      profileProtectionOnly: "Nur Schutz",
+      profileYearRound: "Ganzjährig",
       active: "aktiv",
       inactive: "inaktiv",
       pauseUntil: "Pausiert bis",
@@ -532,6 +540,10 @@ class SmartShadingV4Dialog extends HTMLElement {
       mode: "Mode",
       reason: "Reason",
       schedule: "Schedule",
+      operatingProfile: "Operating profile",
+      profileAutomatic: "Automatic",
+      profileProtectionOnly: "Protection only",
+      profileYearRound: "Year-round",
       active: "active",
       inactive: "inactive",
       pauseUntil: "Paused until",
@@ -1256,6 +1268,12 @@ class SmartShadingV4Dialog extends HTMLElement {
     const evaluate = this._control("evaluate");
     const exportLog = this._control("export_room_diagnostics") || this._control("export_diagnostics");
     const master = this._control("manual_master");
+    const operatingProfileControl = this._control("operating_profile");
+    const operatingProfileLabel = ({
+      automatic: L.profileAutomatic,
+      protection_only: L.profileProtectionOnly,
+      year_round: L.profileYearRound,
+    })[attrs.operating_profile] || L.profileAutomatic;
     const configuredNightSource = attrs.night_source === "entity" ? attrs.night_entity : "";
     const nightSource = configuredNightSource && this._hass?.states?.[configuredNightSource]
       ? configuredNightSource
@@ -1329,6 +1347,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.mode)}</small><strong>${htmlEscape(this._modeText(this._roomState.state))}</strong></div>
         <div><small>${htmlEscape(L.reason)}</small><strong>${htmlEscape(localizedReason(attrs.reason, this._hass?.language, L.noReason))}</strong></div>
         <div><small>${htmlEscape(L.schedule)}</small><strong>${attrs.schedule_active === false ? L.inactive : L.active}</strong></div>
+        <div><small>${htmlEscape(L.operatingProfile)}</small><strong>${htmlEscape(operatingProfileLabel)}</strong></div>
         <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
       </div></section>
       ${decisionHtml}
@@ -1338,6 +1357,7 @@ class SmartShadingV4Dialog extends HTMLElement {
           ? (resume?.entity_id ? `<button data-press="${htmlEscape(resume.entity_id)}">${iconBox("mdi:play", "action-icon")}${htmlEscape(L.resume)}</button>` : "")
           : (pause?.entity_id ? `<button data-press="${htmlEscape(pause.entity_id)}">${iconBox("mdi:pause", "action-icon")}${htmlEscape(L.pause)}</button>` : "")}
         ${master?.entity_id ? `<button data-press="${htmlEscape(master.entity_id)}">${iconBox("mdi:hand-back-right", "action-icon")}${htmlEscape(L.master)}</button>` : ""}
+        ${operatingProfileControl?.entity_id ? `<button data-more="${htmlEscape(operatingProfileControl.entity_id)}">${iconBox("mdi:home-switch", "action-icon")}${htmlEscape(`${L.operatingProfile}: ${operatingProfileControl.state}`)}</button>` : ""}
       </div></section>
       <section><h3>${htmlEscape(L.sectors)}</h3><div class="grid">${sectorHtml || `<div class="empty">–</div>`}</div></section>
       <section><h3>${htmlEscape(L.covers)}</h3><div class="grid">${coverHtml || `<div class="empty">–</div>`}</div></section>
@@ -1579,6 +1599,7 @@ class SmartShadingV4Card extends HTMLElement {
       confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", sourceUnavailable: "Gewählte Sonnenquelle nicht verfügbar", temperatureBlocked: "Temperatur zu niedrig",
       sunUnavailable: "Sonnenstatus nicht verfügbar",
       roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
+      operatingProfile: "Betriebsprofil",
       decision: "Entscheidung", winner: "Gewinner", command: "Befehl", quality: "Datenqualität", protectedZones: "Schutzzonen",
       simulation: "Simulation", runSimulation: "Simulation ausführen", previewDay: "Tagvorschau berechnen", simulationActive: "Simulation aktiv",
     } : {
@@ -1596,6 +1617,7 @@ class SmartShadingV4Card extends HTMLElement {
       confirmed: "Sun confirmed", confirmationBlocked: "Sun not confirmed", geometryFallback: "Sun position only", inactiveSignal: "Inactive", sourceUnavailable: "Selected sun source unavailable", temperatureBlocked: "Temperature too low",
       sunUnavailable: "Sun status unavailable",
       roomContext: "Room", scheduleContext: "Schedule", overrideContext: "Override",
+      operatingProfile: "Operating profile",
       decision: "Decision", winner: "Winner", command: "Command", quality: "Input quality", protectedZones: "Protected zones",
       simulation: "Simulation", runSimulation: "Run simulation", previewDay: "Calculate day preview", simulationActive: "Simulation active",
     };
@@ -1971,6 +1993,7 @@ class SmartShadingV4Card extends HTMLElement {
     const simulateButton = this._control(controls, "simulate");
     const previewButton = this._control(controls, "preview_day");
     const masterButton = this._control(controls, "manual_master");
+    const operatingProfileButton = this._control(controls, "operating_profile");
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
     const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
 
@@ -2013,6 +2036,7 @@ class SmartShadingV4Card extends HTMLElement {
             ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}">${iconBox("mdi:window-closed-variant", "chip-icon")}<span class="parts">${windowParts}</span></span>` : ""}
             ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
+            ${operatingProfileButton?.entity_id ? `<button class="chip" data-more="${htmlEscape(operatingProfileButton.entity_id)}">${iconBox("mdi:home-switch", "chip-icon")}${htmlEscape(operatingProfileButton.state || L.operatingProfile)}</button>` : ""}
           </div>
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</span><span>${sunAvailable ? `Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°` : htmlEscape(L.sunUnavailable)}</span></div><div class="track">${sectorBars}${sunAvailable ? `<span class="sun-dot ${effectiveSunActive ? "calm-pulse" : ""}"></span>` : ""}</div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
           ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}

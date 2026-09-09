@@ -1432,6 +1432,41 @@ class PackageTests(unittest.TestCase):
                 self.assertTrue(field["name"])
                 self.assertTrue(field["description"])
 
+    def test_operating_profile_is_one_native_bundled_control(self):
+        integration = (COMP / "__init__.py").read_text(encoding="utf-8")
+        engine = (COMP / "engine.py").read_text(encoding="utf-8")
+        select = (COMP / "select.py").read_text(encoding="utf-8")
+        service_schema = (COMP / "services.yaml").read_text(encoding="utf-8")
+        self.assertEqual(
+            const.OPERATING_PROFILE_OPTIONS,
+            ["automatic", "protection_only", "year_round"],
+        )
+        self.assertIn("RoomOperatingProfileSelect", select)
+        self.assertIn('"operating_profile"', select)
+        self.assertIn("async_set_operating_profile", engine)
+        self.assertIn("async_handle_set_operating_profile", integration)
+        self.assertIn("set_operating_profile:", service_schema)
+        for language in ("en", "de"):
+            data = json.loads(
+                (COMP / "translations" / f"{language}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                set(data["selector"]["operating_profile"]["options"]),
+                set(const.OPERATING_PROFILE_OPTIONS),
+            )
+            service = data["services"]["set_operating_profile"]
+            self.assertEqual(
+                set(service["fields"]), {"room_id", "profile", "entry_id"}
+            )
+            for section in ("config", "options"):
+                schedule = data[section]["step"]["manage_automation"][
+                    "sections"
+                ]["schedule_settings"]
+                self.assertIn("operating_profile", schedule["data"])
+                self.assertIn("operating_profile", schedule["data_description"])
+
     def test_sun_sensitivity_is_inverse_threshold(self):
         self.assertGreater(
             const.SUN_PRESETS["low"]["sun_on_lux"],

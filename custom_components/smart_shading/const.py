@@ -492,6 +492,19 @@ SCHEDULE_SUMMER = "summer"
 SCHEDULE_CUSTOM = "custom"
 SCHEDULE_OPTIONS = [SCHEDULE_YEAR_ROUND, SCHEDULE_SUMMER, SCHEDULE_CUSTOM]
 
+# One bundled room-level operating choice keeps voice assistants and dashboards
+# from having to toggle Safety, Night, Glare, Comfort, Solar and Heat separately.
+# Safety, Night, Glare and hard device limits remain year-round in every profile;
+# only the thermally driven daytime schedule is changed.
+OPERATING_PROFILE_AUTOMATIC = "automatic"
+OPERATING_PROFILE_PROTECTION_ONLY = "protection_only"
+OPERATING_PROFILE_YEAR_ROUND = "year_round"
+OPERATING_PROFILE_OPTIONS = [
+    OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_PROTECTION_ONLY,
+    OPERATING_PROFILE_YEAR_ROUND,
+]
+
 DAY_WINDOW_FIXED = "fixed_time"
 DAY_WINDOW_ALL_DAY = "all_day"
 DAY_WINDOW_OPTIONS = [DAY_WINDOW_ALL_DAY, DAY_WINDOW_FIXED]
@@ -552,6 +565,7 @@ ROOM_DEFAULTS = {
     "comfort_requires_occupancy": False,
     "safety_behavior": "move_safe",
     "schedule_enabled": False,
+    "operating_profile": OPERATING_PROFILE_AUTOMATIC,
     "schedule_profile": SCHEDULE_YEAR_ROUND,
     "active_months": list(range(1, 13)),
     "active_weekdays": list(range(7)),

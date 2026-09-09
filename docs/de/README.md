@@ -165,6 +165,8 @@ Für Advanced-Entscheidungen ist die durch Code und Tests verifizierte, unverän
 
 Jeder passende und abgelehnte Kandidat bleibt im Advanced-Trace mit stabilem Grund und normalisierter Eingangsqualität erhalten. Die Befehlsplanung folgt erst danach. Ein neueres Ziel mit höherer Priorität verwirft veraltete verzögerte Arbeit. Die vollständigen technischen Verträge stehen unter [Advanced behavior](../ADVANCED_MODE.md) und [Mode architecture](../MODE_ARCHITECTURE.md).
 
+Jeder Advanced-Raum erhält außerdem einen nativen Select **Betriebsprofil**. **Automatisch** folgt dem eingestellten Saisonkalender, **Nur Schutz** deaktiviert die thermisch gesteuerte Tagesbeschattung und **Ganzjährig** ignoriert Saisonmonate und Wochentage, behält aber ein eingestelltes tägliches Zeitfenster bei. Safety, Night, berechneter Blendschutz, Fail-safe-Holds bei ungültigen Quellen und harte Gerätegrenzen bleiben in jedem Profil aktiv. Ein Sprachassistent oder eine Automation kann dieselbe Auswahl mit dem einzelnen Service `smart_shading.set_operating_profile` ändern; die Schutzfunktionen müssen nicht einzeln geschaltet werden.
+
 ### Berechneter Blendschutz
 
 Eine Advanced-Schutzzone gehört zu genau einem physischen Behang und beschreibt das lichte Fenster sowie den Tisch, Sitzplatz, Bildschirm oder anderen Bereich, der nicht direkt von der Sonne getroffen werden soll. Seitlich laufende Vorhänge können mittig, von links nach rechts oder von rechts nach links schließen. Bei einem einseitigen Vorhang begrenzt Smart Shading den berechneten Sonnenkorridor auf die echte Fensteröffnung und folgt dessen wandernder Kante. Die aktuelle 3D-Sonnengeometrie bestimmt direkt das aktuelle Prozentziel. Wird eine Anwesenheitsbedingung erst erfüllt, nachdem die Sonne weiter in den Schutzbereich gewandert ist, erhält der Behang deshalb sofort das geometrisch erforderliche Ziel, zum Beispiel 45% oder 30%, statt einer künstlichen Zwischenstufe. Ein strengeres normales Solar- oder Safety-Ziel behält seinen Vorrang.
@@ -197,7 +199,7 @@ Für die Cover-Position gilt die Home-Assistant-Semantik: `0%` geschlossen und `
 - Genau eine Sonnenquelle pro Sektor. Quellen werden nicht kombiniert und es gibt keinen versteckten Fallback.
 - Ohne Außentemperatursensor wird die Außentemperatur ignoriert. Ist ein ausgewählter Sensor nicht verfügbar, gilt seine Bedingung nicht als erfüllt.
 - Easy/Advanced ist pro Konfigurationseintrag fest.
-- Der allgemeine Advanced-Beschattungszeitplan erlaubt normale Beschattung, Comfort, Solar und den Start von Heat Protection. Glare Protection wird ganzjährig ausgewertet; Night besitzt eine unabhängige Quelle oder einen sonnenbezogenen Zeitraum.
+- Der allgemeine Advanced-Beschattungszeitplan erlaubt normale Beschattung, Comfort, Solar und den Start von Heat Protection. Das Betriebsprofil kann diesem Kalender folgen, diese thermischen Funktionen gemeinsam deaktivieren oder sie auf alle Monate und Wochentage erweitern. Safety, Glare Protection und Night bleiben ganzjährig aktiv.
 - Berechnete Objekt-Blendschutzgeometrie gibt es nur für kompatible Advanced-Profile; Außenjalousien und Markisen werden vom Rechner nicht angeboten, Ergebnisse für Vertikallamellen sind Näherungen.
 - Softwareautomation ersetzt keine physischen Endlagen, Aktorschutzfunktionen oder geeignete Wind-/Frostsicherung. Prüfe Ziele und Fail-safe-Verhalten für deine Anlage.
 

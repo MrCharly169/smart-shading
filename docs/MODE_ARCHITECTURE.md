@@ -34,17 +34,22 @@ order. Easy stores none of these controls.
 
 Calculated protected zones produce an explicit Advanced glare mode for one
 physical cover. A zone can trigger independently of the temperature stages
-when direct Sun reaches the measured object, but only inside the general
+when direct Sun reaches the measured object, including outside the general
 shading schedule. It starts from the active Solar or Comfort target, otherwise
 from Open, and may only make that target more protective. Simultaneous valid
 intersections choose the most protective axis values. Every hit, miss, invalid
 calculation, ordinary target and final target remains in the per-cover trace.
 
-The general shading schedule is the master permission for every daytime mode:
-Comfort, Solar, glare and Heat Protection. Night is the sole independent
-automatic mode and uses its own entity or Sun-relative period. Heat Protection
-is latched to one cycle per calendar day and releases at the earliest of the
-schedule end, sunset plus offset, or the absolute latest configured time.
+The general shading schedule is the master permission for thermally driven
+daytime modes: ordinary shading, Comfort, Solar and starting Heat Protection.
+Safety, Night and calculated Glare Protection remain independent and operate
+year-round. One native room Operating profile groups the thermal policy:
+Automatic follows the configured calendar, Protection only disables thermal
+daytime shading, and Year-round ignores seasonal months and weekdays while
+retaining the daily time window. The same profile is available through one
+service for automations and voice assistants. Heat Protection is latched to one
+cycle per calendar day and releases at the earliest of the schedule end,
+sunset plus offset, or the absolute latest configured time.
 
 Maximum opening is an Advanced per-cover execution constraint, not another
 decision mode. For opted-in position covers, the executor uses the lower of

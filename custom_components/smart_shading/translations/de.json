@@ -358,6 +358,7 @@
             "description": "Der allgemeine Beschattungszeitplan gibt die thermisch gesteuerten Tagesfunktionen frei: adaptive Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
+              "operating_profile": "Betriebsprofil",
               "schedule_profile": "Aktivitätsprofil",
               "active_months": "Aktive Monate",
               "active_weekdays": "Aktive Wochentage",
@@ -368,6 +369,7 @@
             },
             "data_description": {
               "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben unabhängig.",
+              "operating_profile": "Automatisch folgt dem eingestellten Kalender. Nur Schutz deaktiviert die thermische Beschattung; Safety, Nacht und Blendschutz bleiben aktiv. Ganzjährig ignoriert Saisonmonate und Wochentage, behält aber das tägliche Zeitfenster bei.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
@@ -1840,6 +1842,7 @@
             "description": "Der allgemeine Beschattungszeitplan ist die Hauptfreigabe für thermisch gesteuerte Tagesfunktionen: normale Beschattung, Komfort, Sonnenschutz und den Start des Hitzeschutzes. Blendschutz wird ganzjährig und ganztägig ausgewertet. Die Nachtfunktion verwendet ihren eigenen Zeitraum.",
             "data": {
               "schedule_enabled": "Beschattungszeitplan verwenden",
+              "operating_profile": "Betriebsprofil",
               "schedule_profile": "Aktivitätsprofil",
               "active_months": "Aktive Monate",
               "active_weekdays": "Aktive Wochentage",
@@ -1850,6 +1853,7 @@
             },
             "data_description": {
               "schedule_enabled": "Aus bedeutet, dass die thermisch gesteuerten Tagesfunktionen ganzjährig und ganztägig verfügbar sind. Blendschutz und Nachtfunktion bleiben davon unabhängig.",
+              "operating_profile": "Automatisch folgt dem eingestellten Kalender. Nur Schutz deaktiviert die thermische Beschattung; Safety, Nacht und Blendschutz bleiben aktiv. Ganzjährig ignoriert Saisonmonate und Wochentage, behält aber das tägliche Zeitfenster bei.",
               "schedule_profile": "Ganzjährig, Sommermonate oder ein eigener Kalender.",
               "active_months": "Nur für das eigene Profil.",
               "active_weekdays": "Nur für das eigene Profil.",
@@ -2679,6 +2683,13 @@
         "binary_cover": "Einfacher Auf/Zu-Behang"
       }
     },
+    "operating_profile": {
+      "options": {
+        "automatic": "Automatisch",
+        "protection_only": "Nur Schutz",
+        "year_round": "Ganzjährig"
+      }
+    },
     "schedule_profile": {
       "options": {
         "year_round": "Ganzjährig automatisch",
@@ -2793,6 +2804,24 @@
     }
   },
   "services": {
+    "set_operating_profile": {
+      "name": "Betriebsprofil setzen",
+      "description": "Ändert mit einem Aufruf das vollständige Betriebsprofil des Raums. Safety, Nacht, Blendschutz und harte Gerätegrenzen bleiben in jedem Profil aktiv.",
+      "fields": {
+        "room_id": {
+          "name": "Raum-ID",
+          "description": "Stabile Smart-Shading-Raum-ID aus der Raumstatus-Entität."
+        },
+        "profile": {
+          "name": "Betriebsprofil",
+          "description": "Automatisch folgt dem Kalender, Nur Schutz deaktiviert thermische Beschattung und Ganzjährig ignoriert Saisonmonate und Wochentage."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionale Kennung des Smart-Shading-Konfigurationseintrags."
+        }
+      }
+    },
     "preview_day": {
       "name": "Tagvorschau erstellen",
       "description": "Erstellt für ein gewähltes lokales Datum eine nicht ausführende Beschattungsvorschau. Sie wertet die produktive Entscheidungslogik aus, ruft jedoch niemals einen Behang-Service oder Befehlsausführer auf.",

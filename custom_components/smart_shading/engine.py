@@ -64,6 +64,10 @@ from .const import (
     MODE_PAUSED,
     MODE_SAFETY,
     MODE_SOLAR,
+    OPERATING_PROFILE_AUTOMATIC,
+    OPERATING_PROFILE_OPTIONS,
+    OPERATING_PROFILE_PROTECTION_ONLY,
+    OPERATING_PROFILE_YEAR_ROUND,
     OUTSIDE_OPEN,
     PAUSE_AUTO,
     PAUSE_DURATION_MAX_HOURS,
@@ -2786,6 +2790,18 @@ class SmartShadingEngine:
         await self.store.async_set_override("room", room_id, key, value)
         await self.async_evaluate_all(f"room_setting:{key}")
 
+    async def async_set_operating_profile(
+        self, room_id: str, profile: str
+    ) -> None:
+        """Persist and immediately apply one bundled room operating profile."""
+        if room_id not in self.rooms:
+            raise ValueError(f"Unknown Smart Shading room: {room_id}")
+        if profile not in OPERATING_PROFILE_OPTIONS:
+            raise ValueError(
+                f"Unsupported Smart Shading operating profile: {profile}"
+            )
+        await self.async_set_room_value(room_id, "operating_profile", profile)
+
     async def async_set_sector_value(
         self, sector_id: str, key: str, value: Any, *, custom: bool = True
     ) -> None:
@@ -3501,8 +3517,33 @@ class SmartShadingEngine:
             return start <= current <= end
         return current >= start or current <= end
 
-    @staticmethod
-    def _schedule_active_at(room: dict[str, Any], when: datetime) -> bool:
+    def _operating_profile(self, room: dict[str, Any]) -> str:
+        profile = str(
+            self.room_value(
+                room["id"],
+                "operating_profile",
+                OPERATING_PROFILE_AUTOMATIC,
+            )
+        )
+        return (
+            profile
+            if profile in OPERATING_PROFILE_OPTIONS
+            else OPERATING_PROFILE_AUTOMATIC
+        )
+
+    def _schedule_active_at(self, room: dict[str, Any], when: datetime) -> bool:
+        operating_profile = self._operating_profile(room)
+        if operating_profile == OPERATING_PROFILE_PROTECTION_ONLY:
+            return False
+        if operating_profile == OPERATING_PROFILE_YEAR_ROUND:
+            window = room.get("day_window", DAY_WINDOW_ALL_DAY)
+            if window == DAY_WINDOW_FIXED:
+                return self._time_inside(
+                    when,
+                    room.get("start_time", "00:00:00"),
+                    room.get("end_time", "23:59:59"),
+                )
+            return True
         if not bool(room.get("schedule_enabled", False)):
             return True
         months = {int(value) for value in room.get("active_months", range(1, 13))}
@@ -3513,7 +3554,7 @@ class SmartShadingEngine:
         if window in {DAY_WINDOW_ALL_DAY, "sector_sun"}:
             return True
         if window == DAY_WINDOW_FIXED:
-            return SmartShadingEngine._time_inside(
+            return self._time_inside(
                 when,
                 room.get("start_time", "00:00:00"),
                 room.get("end_time", "23:59:59"),
@@ -3565,6 +3606,19 @@ class SmartShadingEngine:
     def _schedule_status(
         self, room: dict[str, Any], now: datetime
     ) -> tuple[bool, str, datetime | None]:
+        operating_profile = self._operating_profile(room)
+        if operating_profile == OPERATING_PROFILE_PROTECTION_ONLY:
+            return False, "Protection-only profile; thermal shading inactive", None
+        if operating_profile == OPERATING_PROFILE_YEAR_ROUND:
+            active = self._schedule_active_at(room, now)
+            if room.get("day_window", DAY_WINDOW_ALL_DAY) == DAY_WINDOW_FIXED:
+                reason = (
+                    "Year-round profile inside fixed shading time"
+                    if active
+                    else "Year-round profile outside fixed shading time"
+                )
+                return active, reason, self._next_schedule_change(room, now, active)
+            return True, "Year-round thermal profile", None
         if not bool(room.get("schedule_enabled", False)):
             return True, "Schedule not enabled", None
         months = {int(value) for value in room.get("active_months", range(1, 13))}
@@ -6476,6 +6530,12 @@ class SmartShadingEngine:
         runtime.schedule_active = schedule_active
         runtime.schedule_reason = schedule_reason
         runtime.next_schedule_change = next_change
+        if self._operating_profile(room) == OPERATING_PROFILE_PROTECTION_ONLY:
+            # A deliberate switch to protection-only mode must release a
+            # latched daytime Heat cycle immediately. Safety, Night and Glare
+            # are resolved independently below and remain available.
+            runtime.heat_active = False
+            runtime.heat_phase = "inactive"
         self._schedule_schedule_timer(room["id"], next_change)
         await self._async_update_night_state(room, now)
         self._schedule_heat_release_timer(room, runtime, now)

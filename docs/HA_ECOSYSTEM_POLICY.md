@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.9.0
+Policy-Version: 1.16.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -21,20 +21,66 @@ every affected project mirror before it is considered complete.
 
 ## Home Assistant language contract
 
-All technical Home Assistant artifacts are authored in English,
-regardless of the conversation language used to request or discuss the work.
+Technical source artifacts remain English, regardless of the conversation language.
+Customer-visible presentation follows a separately verified language contract.
 
-- This includes entity and helper names, automation and script aliases and
-  descriptions, Dashboard titles and labels, notification copy and action
-  labels, source comments, logs, diagnostics, service descriptions, errors,
-  setup and options flows, and default status text.
-- Stable identifiers, entity IDs, translation keys and code-facing values use
-  English `snake_case` or the native convention required by Home Assistant.
-- Proper names and established physical area names may remain unchanged.
-- Home Assistant translation files may localize user-facing strings, but their
-  source keys and complete English default remain authoritative.
-- The living customer documentation remains multilingual where its own
-  contract requires Luxembourgish, German, French and English.
+- The active Home Assistant app/frontend user language is the customer-visible
+  language source, independently on each phone, tablet and browser. The
+  installation/system language must never override that selection. English and
+  regional English tags select English; German and unsupported or absent app
+  languages select German. Explicit card overrides remain opt-in only.
+- Shared stored dashboard text cannot represent concurrent user languages.
+  Do not rewrite shared dashboards or notification sources periodically according
+  to one global language. Stored text and per-recipient notifications require
+  separate localized rendering/delivery before claiming complete app parity.
+- Owned shared dashboards retain the native visual dashboard editor. Store
+  canonical views without a dashboard-level strategy, with authenticated
+  `meyershaff_localization` metadata for reviewed English/German presentation.
+  A strategy is not an acceptable localization mechanism when it disables the
+  native editor. Maintenance rebuilds must preserve this editor contract.
+- Home Assistant has no supported hook for translating arbitrary native labels
+  while retaining its full editor. The owned-dashboard presentation adapter is
+  a narrow compatibility exception: it may adapt only the Lovelace panel's
+  configuration presentation for explicitly marked storage dashboards. Keep
+  rawConfig, native save/undo, actions, visibility, user profiles and global DOM
+  untouched. In visual and YAML editing, use the canonical original text;
+  translate only the normal display according to each client's app language.
+  New user labels remain intact and untranslated until their copy is reviewed.
+- Test the adapter against the exact installed native frontend, including
+  visual edit entry, save/rejection, both language directions, concurrent apps,
+  untouched dashboards and stable config identity during state refreshes.
+  Unknown HA versions fail safely to original labels with a usable editor;
+  update maintenance must revalidate compatibility before accepting a release.
+  Missing resources must never prevent native editing or dashboard use.
+- Multiple windows in one room use evidence-backed physical labels consistently
+  across room cards, security and disclosure lists. Use left/middle/right only
+  with a known reference or named areas such as Vincenzo, MaxPoint and Kitchen.
+  Never infer physical position from a numeric entity suffix. Unknown mappings
+  require a documented finding; entity IDs and control semantics remain stable.
+- Keep complete English source text and stable translation keys. Never translate
+  entity IDs, action IDs, service names, state values, routes or template logic.
+  Proper names and established physical area names may remain unchanged.
+- Use native Home Assistant translations for integration setup, entities and
+  services. Native frontend controls retain Home Assistant's user-language
+  behavior. Only the scoped presentation exception above is allowed; never
+  intercept native controls or silently change user profiles.
+- Owned custom cards must document their language source and explicit overrides.
+  Existing cards using the system language are migration findings until adapted
+  and tested; translation files alone do not prove app-language parity.
+- Automatic reconciliation must retain stable source bindings, preserve concurrent
+  edits, and verify language changes in both directions without guessing a source
+  from ambiguous translated text. New text must have reviewed English and German
+  catalog entries before installation; unknown text is an audit failure.
+- Static dashboard copy and notification text require a reviewed shared catalog
+  or native translation mechanism. Audit missing keys, placeholders, fallback,
+  navigation and actions. A repair or rebuild must preserve reviewed translations.
+- New or changed customer-visible features include English and German together.
+  Audit all three public integrations and local sources before claiming complete
+  coverage. Migrate existing surfaces in measured, explicitly named batches;
+  distinguish generated previews, installed changes and device-tested behavior.
+- The living customer documentation retains its separate five-language and
+  explicit/browser/profile language selection contract. Do not regress it while
+  changing the installation-language presentation of Home Assistant.
 
 ## Native-first Home Assistant contract
 
@@ -75,6 +121,47 @@ Visibility conditions whenever they can express the required behavior.
 - Ecosystem migrations must update live dashboards, onboarding snippets,
   examples, E2E fixtures, tests, and release documentation together.
 
+## Responsive embedded view contract
+
+- Every new or changed embedded app, iframe, full-screen card and Subview must
+  fit the available visible viewport on small phones, tablets and desktops.
+  Fixed device-specific minimum heights and width-based aspect ratios alone
+  are not acceptable for full application navigation. Native content cards
+  such as a map may retain their aspect ratio when their controls and the
+  surrounding page remain reachable; document and test that distinction.
+- Full-panel applications use the measured card top, native panel bounds and
+  visualViewport where available. Use dynamic viewport CSS as a fallback.
+  Account for the actual HA header and safe-area insets on the bottom and both
+  sides. Do not assume one phone model, one orientation or a constant browser
+  toolbar height. Missing measurement APIs must leave a usable layout.
+- Explicitly distinguish viewport-filling panels from cards in a scrolling
+  dashboard. A flow card below other content must not collapse or change its
+  height as the surrounding dashboard scrolls. The embedded application owns
+  its content scrolling; surrounding headings and fallback links remain
+  reachable with normal dashboard scrolling. Do not hide inaccessible controls
+  behind overflow clipping or add nested Home Assistant dashboards.
+- Recalculate on viewport, keyboard and container resize without reloading
+  the iframe, losing input, focus, internal scroll or application session.
+  Observe only the owned card and its composed ancestors; never modify global
+  Home Assistant layout or third-party application DOM. Disconnect observers
+  and event listeners when the card is removed.
+- Prefer native cards where sufficient. The authenticated Ingress wrapper is
+  a scoped exception because a native URL iframe cannot establish and renew
+  the required Supervisor session. Preserve native back_path, editor,
+  visibility, actions, app language and existing access boundaries.
+- Before installation run browser regressions at small and large phone sizes,
+  portrait and landscape, tablet/desktop, non-zero safe-area padding and a
+  keyboard-sized visual viewport. Verify that the bottom menu can be clicked,
+  a flow card remains usable after scrolling and the iframe/input survive
+  resizing and HA refreshes. Test native embedded content and its fallback
+  separately. Browser emulation is not physical iOS/Android acceptance;
+  record any device acceptance still outstanding explicitly.
+- Keep source, every owning installer/rebuilder, content-hashed resource URL,
+  regression tests, documentation and existing maintenance prompts in sync.
+  After installation verify exact served source and saved configuration, and
+  run the read-only drift check. Updates must not restore fixed-height clipping.
+  See architecture/embedded-mobile-views-2026-09-09.md in the HA workspace.
+
 ## Notification navigation contract
 
 Mobile notification navigation and Dashboard return navigation are separate
@@ -108,6 +195,32 @@ native Home Assistant concerns.
   comparable stores, integration-generated notifications, and known YAML-only
   sources. Inaccessible or dynamically templated sources remain explicit audit
   findings rather than being reported as verified.
+
+## Per-device notification language
+
+- Dashboard language and delivered push language have separate sources. The
+  operator can select Deutsch or English for each Mobile App target in the
+  existing Notification Route Administration. Native input_select helpers named
+  notify_language_<mobile_app_service> persist this choice without an initial
+  value. Never reset an existing choice during installation or maintenance.
+- Resolve a logical route before reading its target's language. Multiple routes
+  to one device share one language; reassignment uses the new device's choice.
+  Do not infer a device language from the system language, another device or
+  an account-wide frontend preference. App language changes do not change this
+  explicit delivery setting. Renamed/replaced notify services require a reviewed
+  mapping; never transfer a choice to a guessed identity.
+- Central delivery and direct notification-generating integrations preserve the
+  same explicit helper choice. Clock Advanced builds both language versions and
+  chooses per target, including reminders, feedback and action titles. When used
+  elsewhere without these optional helpers, its existing default remains valid.
+- The central compatibility renderer accepts only reviewed exact text and
+  anchored template patterns, preserving variable values. Ambiguous or unknown
+  text is delivered unchanged and remains a coverage finding. New source copy
+  must extend the English/German catalog and its rendering tests before release.
+- Translate only visible title/message/subtitle/action titles. Never change
+  action identifiers, destinations, tags, attachments, critical flags or sounds.
+  Invisible pushes bypass localization. Tests render without sending messages;
+  distinguish these checks from physical-device push acceptance.
 
 ## Notification presentation contract
 

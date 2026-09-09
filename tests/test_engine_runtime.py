@@ -2266,6 +2266,88 @@ class EngineRuntimeTests(unittest.IsolatedAsyncioTestCase):
             any(call[0] == "cover" for call in self.hass.services.calls)
         )
 
+    async def test_protection_only_profile_disables_thermal_shading(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "operating_profile": "protection_only",
+                "schedule_enabled": False,
+                "outside_schedule_behavior": "hold",
+            }
+        )
+        self.engine.sun_runtime["south"].is_on = True
+        self.engine.sun_runtime["south"].current_lux = 36000
+        self.hass.services.calls.clear()
+
+        await self.engine._evaluate_room(
+            room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        )
+
+        runtime = self.engine.rooms["room"]
+        self.assertFalse(runtime.schedule_active)
+        self.assertEqual(runtime.mode, "idle")
+        self.assertIn("Protection-only", runtime.schedule_reason)
+        self.assertFalse(
+            any(call[0] == "cover" for call in self.hass.services.calls)
+        )
+
+    async def test_protection_only_profile_keeps_safety_active(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "operating_profile": "protection_only",
+                "schedule_enabled": False,
+                "safety_blockers": ["binary_sensor.frost_alarm"],
+            }
+        )
+        self.hass.states.values["binary_sensor.frost_alarm"] = FakeState("on")
+
+        await self.engine._evaluate_room(
+            room, datetime(2026, 1, 20, 12, 0, tzinfo=timezone.utc)
+        )
+
+        self.assertEqual(self.engine.rooms["room"].mode, "safety")
+
+    async def test_year_round_profile_ignores_season_but_keeps_daily_window(self):
+        room = self.engine.room_config("room")
+        room.update(
+            {
+                "operating_profile": "year_round",
+                "schedule_enabled": True,
+                "active_months": [1],
+                "active_weekdays": [1],
+                "day_window": "fixed_time",
+                "start_time": "08:00:00",
+                "end_time": "18:00:00",
+            }
+        )
+
+        self.assertTrue(
+            self.engine._schedule_active_at(
+                room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+            )
+        )
+        self.assertFalse(
+            self.engine._schedule_active_at(
+                room, datetime(2026, 7, 20, 23, 0, tzinfo=timezone.utc)
+            )
+        )
+
+    async def test_operating_profile_override_is_persisted_and_applied(self):
+        room = self.engine.room_config("room")
+
+        await self.engine.async_set_operating_profile("room", "protection_only")
+
+        self.assertEqual(
+            self.engine.room_value("room", "operating_profile"),
+            "protection_only",
+        )
+        self.assertFalse(
+            self.engine._schedule_active_at(
+                room, datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+            )
+        )
+
     async def test_quality_hold_prevents_new_solar_cover_service(self):
         room = self.engine.room_config("room")
         room["source_stale_seconds"] = 1
