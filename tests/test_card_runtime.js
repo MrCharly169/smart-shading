@@ -146,10 +146,19 @@ global.navigator = { clipboard: { writeText: async () => {} } };
 
 const cardPath = path.join(__dirname, "..", "custom_components", "smart_shading", "frontend", "shading.js");
 const cardSource = fs.readFileSync(cardPath, "utf8");
+const languageDeclaration = cardSource.match(/const customerPresentationLanguage\s*=\s*[\s\S]*?;\s*(?:\r?\n|$)/)?.[0]?.trim();
+if (!languageDeclaration) throw new Error("Customer presentation language resolver is missing");
+const resolveCustomerLanguage = vm.runInNewContext(`${languageDeclaration}; customerPresentationLanguage;`);
+for (const [value, expected] of [["en", "en"], ["EN_us", "en"], ["de", "de"], ["fr", "de"], ["pl", "de"], ["enochian", "de"], [undefined, "de"], ["", "de"]]) {
+  if (resolveCustomerLanguage(value) !== expected) throw new Error(`Unexpected language fallback for ${String(value)}`);
+}
+if (/hass\??\.config\??\.language|navigator\??\.language|\.startsWith\(["']de["']\)/.test(cardSource)) throw new Error("Card language must come only from the active Home Assistant app/profile language");
 const badgeConstructorSource = cardSource.split("class SmartShadingBadge extends HTMLElement", 2)[1].split("static getStubConfig", 1)[0];
 const badgeEditorConstructorSource = cardSource.split("class SmartShadingBadgeEditor extends HTMLElement", 2)[1].split("this._handleFormChange", 1)[0];
 if (badgeConstructorSource.includes("this.style") || badgeEditorConstructorSource.includes("this.style")) throw new Error("Custom Badge constructors must not add host attributes before browser upgrade completes");
 vm.runInThisContext(cardSource, { filename: cardPath });
+const compoundReason = vm.runInThisContext('localizedReason("Not evaluated · Outside configured sun Night window", "en")');
+if (compoundReason !== "Not evaluated · Outside configured sun Night window") throw new Error("English compound reasons were duplicated or translated inconsistently");
 
 const Card = registry.get("smart-shading-card");
 const Editor = registry.get("smart-shading-card-editor");
@@ -556,7 +565,20 @@ safetyCard.setConfig({ entity: safetyStatus.entity_id });
 safetyCard.hass = hass;
 const safetyMarkup = safetyCard.shadowRoot.innerHTML.slice(safetyCard.shadowRoot.innerHTML.indexOf("</style>") + 8);
 if (safetyMarkup.includes("sector-card active") || safetyMarkup.includes('class="sun-dot calm-pulse"')) throw new Error("Geometry, Safety, or Heat falsely activated confirmed-sun visuals");
-if (!safetyMarkup.includes("Safety · Blockiert") || safetyMarkup.includes("Safety · stale sector")) throw new Error("Advanced mode label leaked stale active sectors");
+if (!safetyMarkup.includes("Sicherheit · Blockiert") || safetyMarkup.includes("Sicherheit · stale sector")) throw new Error("Advanced mode label leaked stale active sectors or mixed an English mode into German copy");
+
+const fallbackStatus = JSON.parse(JSON.stringify(roomStatus));
+fallbackStatus.entity_id = "sensor.fallback_language_status";
+fallbackStatus.state = "future_internal_mode";
+fallbackStatus.attributes.reason = "Future backend reason that has no customer translation";
+const fallbackHass = { ...hass, language: "fr", states: { ...hass.states, [fallbackStatus.entity_id]: fallbackStatus } };
+const fallbackCard = new Card();
+fallbackCard.setConfig({ entity: fallbackStatus.entity_id, advanced_mode: true });
+fallbackCard.hass = fallbackHass;
+const fallbackMarkup = fallbackCard.shadowRoot.innerHTML.slice(fallbackCard.shadowRoot.innerHTML.indexOf("</style>") + 8);
+if (!fallbackMarkup.includes("Unbekannt")
+  || fallbackMarkup.includes("future_internal_mode")
+  || fallbackMarkup.includes("Future backend reason")) throw new Error("Unsupported app languages or unknown backend values leaked English/internal copy into the German fallback UI");
 
 const glareStatus = JSON.parse(JSON.stringify(roomStatus));
 glareStatus.entity_id = "sensor.glare_room_status";

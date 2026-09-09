@@ -1,3 +1,8 @@
+// Customer-visible text follows the active Home Assistant app/profile language.
+// English variants are explicit; every missing or unsupported tag uses German.
+const customerPresentationLanguage = (value) =>
+  String(value ?? "de").trim().toLowerCase().split(/[-_]/)[0] === "en" ? "en" : "de";
+
 const htmlEscape = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
 }[char]));
@@ -258,20 +263,19 @@ function cleanDisplayName(value, fallback) {
 function localizedReason(value, language, fallback = "") {
   const text = String(value || "").trim();
   if (!text) return fallback;
-  const de = String(language || "en").toLowerCase().startsWith("de");
-  if (!de) return text;
+  const selected = customerPresentationLanguage(language);
   const translations = {
-    "Not evaluated": "Noch nicht ausgewertet",
+    "Not evaluated": ["Not evaluated", "Noch nicht ausgewertet"],
     "Evaluation started": "Auswertung gestartet",
     "Manual master override active": "Manuelle Sperre ist aktiv",
     "Manual Override is active": "Manuelle Sperre ist aktiv",
     "Room automation disabled": "Raumautomatik ist deaktiviert",
     "Automatic shading is paused": "Automatische Beschattung ist pausiert",
-    "Automatic shading is paused; heat protection is not active": "Automatische Beschattung ist pausiert; Heat Protection ist nicht aktiv",
+    "Automatic shading is paused; heat protection is not active": "Automatische Beschattung ist pausiert; der Hitzeschutz ist nicht aktiv",
     "Reset by user": "Vom Benutzer zurückgesetzt",
     "Evening release held for imminent Night Mode": "Abendfreigabe wartet auf die bevorstehende Nachtfunktion",
-    "Heat protection released for evening": "Heat Protection für den Abend aufgehoben",
-    "Heat threshold / hysteresis active": "Heat-Schwelle oder Hysterese ist aktiv",
+    "Heat protection released for evening": "Hitzeschutz für den Abend aufgehoben",
+    "Heat threshold / hysteresis active": "Hitzeschutz-Schwelle oder Hysterese ist aktiv",
     "Normal adaptive solar shading": "Normale adaptive Beschattung",
     "Solar heat reduction": "Solare Wärmereduktion",
     "Glare / comfort protection": "Blend- oder Komfortschutz",
@@ -306,12 +310,22 @@ function localizedReason(value, language, fallback = "") {
     "Sun source unavailable; positions held": "Sonnenquelle nicht verfügbar; Positionen werden gehalten",
     "Sun transitions unavailable; positions held": "Sonnenübergänge nicht verfügbar; Positionen werden gehalten",
     "Inside configured sun Night window": "Innerhalb des konfigurierten Sonnen-Nachtfensters",
-    "Outside configured sun Night window": "Außerhalb des konfigurierten Sonnen-Nachtfensters",
+    "Outside configured sun Night window": ["Outside configured sun Night window", "Außerhalb des konfigurierten Sonnen-Nachtfensters"],
   };
-  if (translations[text]) return translations[text];
-  if (text.startsWith("Safety active: ")) return `Safety aktiv: ${text.slice("Safety active: ".length)}`;
-  if (text.startsWith("Waiting: ")) return `Wartet auf: ${text.slice("Waiting: ".length)}`;
-  return text.split(" · ").map((part) => translations[part] || part).join(" · ");
+  const normalizeEntry = (entry, original = text) => Array.isArray(entry)
+    ? entry[selected === "de" ? 1 : 0]
+    : (selected === "de" ? entry : original);
+  if (translations[text]) return normalizeEntry(translations[text]);
+  if (selected === "de" && text.startsWith("Safety active: ")) {
+    return `Sicherheit aktiv: ${text.slice("Safety active: ".length)}`;
+  }
+  if (selected === "de" && text.startsWith("Waiting: ")) {
+    return `Wartet auf: ${text.slice("Waiting: ".length)}`;
+  }
+  if (selected === "en") return text;
+  const parts = text.split(" · ");
+  const translated = parts.map((part) => translations[part] ? normalizeEntry(translations[part], part) : "");
+  return translated.every(Boolean) ? translated.join(" · ") : (fallback || "Weitere Details sind in der Diagnose verfügbar");
 }
 
 class SmartShadingV4Dialog extends HTMLElement {
@@ -444,7 +458,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   _labels() {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     return de ? {
       title: "Smart Shading · Details",
       close: "Schließen",
@@ -627,12 +641,12 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   _modeText(mode, profile = "") {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     if (mode === "open" && profile === "awning") {
       return de ? "Eingefahren" : "Retracted";
     }
     const values = de ? {
-      safety: "Safety", heat: "Heat Protection", glare: "Blendschutz", solar: "Sonnenschutz",
+      safety: "Sicherheit", heat: "Hitzeschutz", glare: "Blendschutz", solar: "Sonnenschutz",
       comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
       disabled: "Master aktiv", finished: "Für heute beendet",
       night: "Nacht",
@@ -642,17 +656,17 @@ class SmartShadingV4Dialog extends HTMLElement {
       disabled: "Master active", finished: "Finished today",
       night: "Night",
     };
-    return values[mode] || String(mode || "–");
+    return values[mode] || (de ? "Unbekannter Status" : "Unknown status");
   }
 
   _statusText(status) {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const values = de ? {
       not_evaluated: "Noch nicht ausgewertet", outside_sun_sector: "Sonne außerhalb des Sektors",
-      waiting_for_lux: "Wartet auf Sun Presence", sun_detected: "Sonne erkannt",
+      waiting_for_lux: "Wartet auf Sonnenerkennung", sun_detected: "Sonne erkannt",
       shading_active: "Beschattung aktiv", waiting_conditions: "Wartet auf Bedingungen",
       sun_below_horizon: "Sonne unter Horizont", schedule_blocked: "Zeitplan blockiert", source_unavailable: "Quelle nicht verfügbar",
-      paused: "Pausiert", heat: "Heat Protection", safety: "Safety", disabled: "Deaktiviert",
+      paused: "Pausiert", heat: "Hitzeschutz", safety: "Sicherheit", disabled: "Deaktiviert",
       night: "Nacht", night_blocked: "Nachtquelle blockiert", night_transition_hold: "Nachtübergang hält",
     } : {
       not_evaluated: "Not evaluated", outside_sun_sector: "Sun outside sector",
@@ -662,11 +676,11 @@ class SmartShadingV4Dialog extends HTMLElement {
       paused: "Paused", heat: "Heat protection", safety: "Safety", disabled: "Disabled",
       night: "Night", night_blocked: "Night source blocked", night_transition_hold: "Night transition hold",
     };
-    return values[status] || String(status || "–");
+    return values[status] || (de ? "Unbekannter Status" : "Unknown status");
   }
 
   _suppressionText(reason) {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const values = de ? {
       cover_paused_until_morning: "Pausiert bis zum nächsten Morgen",
       automation_lock: "Manuell gesperrt", unsafe_window: "Fenster nicht sicher",
@@ -686,10 +700,10 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   _traceText(value) {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const labels = de ? {
-      safety: "Safety", manual_master_override: "Manuelle Sperre", room_pause: "Raumpause",
-      local_cover_pause: "Lokale Behangpause", night_source_hold: "Nachtquelle hält", schedule_hold: "Zeitplan hält", night: "Nachtfunktion", heat_protection: "Heat Protection",
+      safety: "Sicherheit", manual_master_override: "Manuelle Sperre", room_pause: "Raumpause",
+      local_cover_pause: "Lokale Behangpause", night_source_hold: "Nachtquelle hält", schedule_hold: "Zeitplan hält", night: "Nachtfunktion", heat_protection: "Hitzeschutz",
       input_quality_hold: "Halten wegen Eingabequalität", glare_protection: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", open: "Öffnen", idle: "Halten",
       planned: "Geplant", queued: "Warteschlange", sent: "Gesendet", suppressed: "Unterdrückt", blocked: "Blockiert",
       target_reached: "Ziel erreicht", target_not_reached: "Ziel nicht erreicht", failed: "Fehlgeschlagen", cancelled: "Abgebrochen",
@@ -701,13 +715,13 @@ class SmartShadingV4Dialog extends HTMLElement {
       same_priority_tiebreaker_rule_order: "Gleiche Priorität: feste Regelreihenfolge",
       same_priority_tiebreaker_stable_order: "Gleiche Priorität: stabile Reihenfolge",
       no_decision_rule_matched: "Keine Entscheidungsregel zutreffend", rule_mode_mismatch: "Regelmodus passt nicht",
-      safety_active: "Safety aktiv", safety_inactive: "Safety nicht aktiv",
+      safety_active: "Sicherheit aktiv", safety_inactive: "Sicherheit nicht aktiv",
       manual_master_override_active: "Manuelle Sperre aktiv", manual_master_override_inactive: "Manuelle Sperre nicht aktiv",
       room_pause_active: "Raumpause aktiv", room_pause_inactive: "Raumpause nicht aktiv",
       local_cover_pause_active: "Lokale Behangpause aktiv", local_cover_pause_inactive: "Lokale Behangpause nicht aktiv",
       night_source_unavailable_hold: "Nachtquelle nicht verfügbar – Position wird gehalten", night_source_available: "Nachtquelle verfügbar",
       night_active: "Nachtfunktion aktiv", night_inactive: "Nachtfunktion nicht aktiv",
-      heat_protection_active: "Heat Protection aktiv", heat_protection_inactive: "Heat Protection nicht aktiv",
+      heat_protection_active: "Hitzeschutz aktiv", heat_protection_inactive: "Hitzeschutz nicht aktiv",
       schedule_outside_hold: "Außerhalb des Zeitplans – Position wird gehalten", schedule_active: "Zeitplan aktiv",
       normal_input_quality_invalid_hold: "Normale Eingaben ungültig – Position wird gehalten", normal_input_quality_valid: "Normale Eingaben gültig",
       solar_glare_target_adjusted: "Sonnenschutzziel durch Blendschutz angepasst", solar_conditions_met: "Sonnenschutzbedingungen erfüllt",
@@ -730,7 +744,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       command_ownership_released: "Automatisierungsbesitz freigegeben", position_control_unsupported: "Positionssteuerung nicht unterstützt", tilt_control_unsupported: "Lamellensteuerung nicht unterstützt",
       target_already_active: "Ziel ist bereits aktiv", higher_priority_lifecycle_active: "Höherprioritärer Ablauf aktiv", authoritative_replacement: "Veraltetes Ziel durch aktuelle Auswertung ersetzt", safety_source_unavailable_hold: "Sicherheitssensor nicht verfügbar; automatische Fahrten angehalten",
       replaced_by_newer_target: "Durch neueres Ziel ersetzt", target_within_tolerance: "Ziel innerhalb der Toleranz",
-      automatic_reverse_not_allowed: "Automatische Rückfahrt nicht erlaubt", target_planned: "Ziel geplant", safety_replacement: "Safety ersetzt laufendes Ziel",
+      automatic_reverse_not_allowed: "Automatische Rückfahrt nicht erlaubt", target_planned: "Ziel geplant", safety_replacement: "Sicherheit ersetzt laufendes Ziel",
       target_confirmed_at_deadline: "Ziel zum Prüftermin bestätigt", feedback_not_at_target_after_retry_limit: "Ziel nach Wiederholungsgrenze nicht erreicht",
       target_confirmed_before_retry: "Ziel vor Wiederholung bestätigt", verification_retry_planned: "Prüfwiederholung geplant",
       no_cover_target: "Kein Behangziel", room_or_cover_pause_active: "Raum- oder Behangpause aktiv", night_mode_active: "Nachtfunktion aktiv",
@@ -855,11 +869,11 @@ class SmartShadingV4Dialog extends HTMLElement {
       const winner = this._traceText(key.slice("lower_priority_than_".length));
       return de ? `Niedrigere Priorität als ${winner}` : `Lower priority than ${winner}`;
     }
-    return labels[key] || humanizeToken(key);
+    return labels[key] || (de ? "Unbekanntes Diagnoseereignis" : "Unknown diagnostic event");
   }
 
   _diagnosticEventTitle(value) {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const labels = de ? {
       room_evaluated: "Raumstatus aktualisiert",
       room_mode_changed: "Raummodus geändert",
@@ -888,7 +902,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   }
 
   _diagnosticEventDetails(event) {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const eventName = String(event.event || event.type || "");
     const fieldLabels = de ? {
       room: "Raum", previous: "Vorher", mode: "Modus", reason: "Grund",
@@ -1516,10 +1530,10 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   _modeText(mode, profile = "") {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     if (mode === "open" && profile === "awning") return de ? "Eingefahren" : "Retracted";
     const values = de ? {
-      safety: "Safety", heat: "Heat Protection", glare: "Blendschutz", solar: "Sonnenschutz",
+      safety: "Sicherheit", heat: "Hitzeschutz", glare: "Blendschutz", solar: "Sonnenschutz",
       comfort: "Komfort", paused: "Pausiert", open: "Offen", idle: "Bereit",
       disabled: "Master aktiv", finished: "Für heute beendet", night: "Nacht",
     } : {
@@ -1535,7 +1549,7 @@ class SmartShadingV4Card extends HTMLElement {
     if (!roomState) {
       return JSON.stringify([
         this._config,
-        this._hass?.language || "en",
+        customerPresentationLanguage(this._hass?.language),
         Boolean(this._hass),
       ]);
     }
@@ -1566,7 +1580,7 @@ class SmartShadingV4Card extends HTMLElement {
     try {
       return JSON.stringify([
         this._config,
-        this._hass?.language || "en",
+        customerPresentationLanguage(this._hass?.language),
         roomState.state,
         cardRoomAttributes(attrs),
         states,
@@ -1596,22 +1610,22 @@ class SmartShadingV4Card extends HTMLElement {
   }
 
   _labels() {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     return de ? {
-      title: "Shading", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
+      title: "Beschattung", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
-      safety: "Safety", heat: "Heat", night: "Nacht", glare: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig",
+      safety: "Sicherheit", heat: "Hitzeschutz", night: "Nacht", glare: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig", unknown: "Unbekannt",
       retracted: "Eingefahren",
       normalTarget: "Normales Ziel", openingLimit: "Öffnungsgrenze", effectiveTarget: "Effektives Ziel",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
       blocked: "Blockiert", pauseUntil: "Pausiert bis", schedule: "Zeitplan inaktiv", sunMissing: "Sonnenentität fehlt", advanced: "Details",
-      pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Card-YAML kopieren", copied: "Kopiert",
+      pause: "Pausieren", resume: "Fortsetzen", evaluate: "Neu auswerten", copy: "Karten-YAML kopieren", copied: "Kopiert",
       belowHorizon: "Nacht", outsideSector: "Außerhalb", waitingLux: "Wartet auf Sonne", waiting: "Wartet", active: "Aktiv", detected: "Sonne erkannt",
       automatic: "Automatik", manualOverride: "Manuelle Sperre", sunInSector: "Sonne im Sektor", sunOutsideSector: "Sonne außerhalb", nightSchedule: "Nachtzeitplan bearbeiten",
       sourceGeometry: "Sonnenposition", sourceBinary: "Sonnensensor", sourceLux: "Luxsensor", sourceWeather: "Wetter", sourceMixed: "Verschiedene Quellen",
       confirmed: "Sonne bestätigt", confirmationBlocked: "Sonne nicht bestätigt", geometryFallback: "Nur Sonnenposition", inactiveSignal: "Nicht aktiv", sourceUnavailable: "Gewählte Sonnenquelle nicht verfügbar", temperatureBlocked: "Temperatur zu niedrig",
       sunUnavailable: "Sonnenstatus nicht verfügbar",
-      roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Override",
+      roomContext: "Raum", scheduleContext: "Zeitplan", overrideContext: "Ausnahme",
       operatingProfile: "Betriebsprofil",
       profileAutomatic: "Nach Saison und Zeitplan", profileProtectionOnly: "Nur Schutz", profileYearRound: "Ganzjährig", profileGlobal: "Global", safetyAlways: "Sicherheit immer aktiv",
       decision: "Entscheidung", winner: "Gewinner", command: "Befehl", quality: "Datenqualität", protectedZones: "Schutzzonen",
@@ -1619,7 +1633,7 @@ class SmartShadingV4Card extends HTMLElement {
     } : {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
-      safety: "Safety", heat: "Heat", night: "Night", glare: "Glare protection", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done",
+      safety: "Safety", heat: "Heat", night: "Night", glare: "Glare protection", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done", unknown: "Unknown",
       retracted: "Retracted",
       normalTarget: "Normal target", openingLimit: "Opening limit", effectiveTarget: "Effective target",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
@@ -1700,7 +1714,7 @@ class SmartShadingV4Card extends HTMLElement {
       paused: ["mdi:pause-circle", L.paused, "paused"], disabled: ["mdi:power", L.disabled, "disabled"],
       finished: ["mdi:calendar-check", L.finished, "done"], open: ["mdi:blinds-open", L.open, "open"],
       idle: ["mdi:blinds-horizontal", L.idle, "idle"],
-    })[mode] || ["mdi:blinds-horizontal", L.idle, "idle"];
+    })[mode] || ["mdi:help-circle-outline", L.unknown, "idle"];
   }
 
   _importantMessage(roomState, L) {
@@ -2141,7 +2155,7 @@ class SmartShadingBadge extends HTMLElement {
     const state = hass?.states?.[this._config.entity];
     let signature;
     try {
-      signature = JSON.stringify([this._config, hass?.language || "en", state?.state, state?.attributes]);
+      signature = JSON.stringify([this._config, customerPresentationLanguage(hass?.language), state?.state, state?.attributes]);
     } catch (_error) {
       signature = `${this._config.entity || ""}:${state?.state || ""}:${state?.last_changed || ""}`;
     }
@@ -2182,15 +2196,15 @@ class SmartShadingBadge extends HTMLElement {
   }
 
   _labels() {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const modes = de ? {
       safety: "Sicherheit", night: "Nachtmodus", heat: "Hitzeschutz", glare: "Blendschutz",
       solar: "Sonnenschutz", comfort: "Komfort", paused: "Pausiert", finished: "Tag beendet",
-      open: "Offen", idle: "Bereit", disabled: "Manuell", unavailable: "Nicht verfügbar",
+      open: "Offen", idle: "Bereit", disabled: "Manuell", unavailable: "Nicht verfügbar", unknown: "Unbekannt",
     } : {
       safety: "Safety", night: "Night mode", heat: "Heat protection", glare: "Glare protection",
       solar: "Solar shading", comfort: "Comfort", paused: "Paused", finished: "Day finished",
-      open: "Open", idle: "Ready", disabled: "Manual", unavailable: "Unavailable",
+      open: "Open", idle: "Ready", disabled: "Manual", unavailable: "Unavailable", unknown: "Unknown",
     };
     return de ? {
       modes, auto: "Auto", pauseUntil: "Pause bis", roomsPaused: "pausiert", roomsManual: "manuell",
@@ -2264,9 +2278,14 @@ class SmartShadingBadge extends HTMLElement {
       const label = mode === "paused" && pauseTime
         ? `${L.pauseUntil} ${pauseTime}`
         : ["idle", "open", "comfort", "solar", "glare", "heat", "finished"].includes(mode)
-          ? `${L.auto} · ${L.modes[mode] || humanizeToken(mode)}`
-          : L.modes[mode] || humanizeToken(mode);
-      return { mode, label, name: attrs.name || state?.attributes?.friendly_name || L.room, title: attrs.reason || label };
+          ? `${L.auto} · ${L.modes[mode] || L.modes.unknown}`
+          : L.modes[mode] || L.modes.unknown;
+      return {
+        mode,
+        label,
+        name: attrs.name || state?.attributes?.friendly_name || L.room,
+        title: localizedReason(attrs.reason, this._hass?.language, label),
+      };
     }
 
     const pausedRooms = rooms.filter((room) => room.pause_mode && room.pause_mode !== "auto");
@@ -2279,11 +2298,11 @@ class SmartShadingBadge extends HTMLElement {
     if (manualRooms.length) parts.push(`${manualRooms.length} ${L.roomsManual}`);
     const pauseTimes = [...new Set(pausedRooms.map((room) => this._formatPause(room.pause_until)).filter(Boolean))];
     let label = ["idle", "open", "comfort", "solar", "glare", "heat", "finished"].includes(mode)
-      ? `${L.auto} · ${L.modes[mode] || humanizeToken(mode)}`
-      : L.modes[mode] || humanizeToken(mode);
+      ? `${L.auto} · ${L.modes[mode] || L.modes.unknown}`
+      : L.modes[mode] || L.modes.unknown;
     if (mode === "paused" && pauseTimes.length === 1) label = `${L.pauseUntil} ${pauseTimes[0]}`;
     else if (parts.length) label = `${label} · ${parts.join(" · ")}`;
-    const roomDetails = rooms.map((room) => `${room.name || room.id}: ${L.modes[room.mode] || humanizeToken(room.mode)}`).join(" · ");
+    const roomDetails = rooms.map((room) => `${room.name || room.id}: ${L.modes[room.mode] || L.modes.unknown}`).join(" · ");
     return { mode, label, name: attrs.name || state?.attributes?.friendly_name || L.house, title: roomDetails || label };
   }
 
@@ -2380,8 +2399,8 @@ class SmartShadingBadgeEditor extends HTMLElement {
 
   _syncForm(dataChanged) {
     if (!this._form) return;
-    const language = String(this._hass?.language || "en").toLowerCase();
-    const de = language.startsWith("de");
+    const language = String(this._hass?.language || "de").toLowerCase();
+    const de = customerPresentationLanguage(language) === "de";
     if (this._form.hass !== this._hass) this._form.hass = this._hass;
     if (dataChanged || this._form.data == null) this._form.data = { ...this._config };
     if (this._formLanguage !== language) {
@@ -2391,8 +2410,8 @@ class SmartShadingBadgeEditor extends HTMLElement {
         name: de ? "Name im Tooltip (optional)" : "Tooltip name (optional)",
       }[schema.name] || schema.name);
       if (this._help) this._help.textContent = de
-        ? "Logo, Zusatzsymbol und Farbe folgen dem Status. Entität, Interaktion und Sichtbarkeit werden mit Home Assistants nativen Editoren konfiguriert; dieses Badge besitzt keine eigenen Navigate-, Hidden- oder Zustandslisten."
-        : "Logo, marker and color follow the status. Configure the entity, interaction and visibility with Home Assistant's native editors; this Badge has no separate Navigate, Hidden or state lists.";
+        ? "Logo, Zusatzsymbol und Farbe folgen dem Status. Entität, Interaktion und Sichtbarkeit werden mit Home Assistants nativen Editoren konfiguriert; dieses Badge besitzt keine eigenen Navigations-, Ausblend- oder Zustandslisten."
+        : "Logo, marker and color follow the status. Configure the entity, interaction and visibility with Home Assistant's native editors; this badge has no separate navigation, hiding, or state lists.";
     }
   }
 }
@@ -2409,7 +2428,7 @@ class SmartShadingV4CardEditor extends HTMLElement {
   setConfig(config = {}) { this._config = { ...this._config, ...(config && typeof config === "object" ? config : {}) }; this._render(); }
 
   _labels() {
-    const de = String(this._hass?.language || "en").toLowerCase().startsWith("de");
+    const de = (customerPresentationLanguage(this._hass?.language) === "de");
     return de ? {
       entity: "Raumstatus-Entität", title: "Überschrift", sun: "Sonnenverlauf anzeigen", covers: "Behänge anzeigen", actions: "Aktionsbuttons anzeigen",
     } : {

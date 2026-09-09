@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+
+## 2026.9.4b0 - 2026-09-09
+
+- Keep Card, Badge, editor and diagnostics copy in one language per Home
+  Assistant client. Explicit English uses English; German, unsupported and
+  missing app-language tags use German without leaking raw backend reasons.
+- Replace remaining English protection terms in the German Card and native
+  setup translations, and adopt ecosystem policy 1.18 language gates.
+
+
 ## 2026.9.3b0 - 2026-09-09
 
 - Add one initial Advanced **Operation and protection** page that combines the
