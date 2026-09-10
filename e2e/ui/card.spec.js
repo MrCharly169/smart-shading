@@ -127,8 +127,13 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   await expect(advancedCard).toBeVisible();
   await expect(detailsOnlyCard).toBeVisible();
   await expect(easyCard.locator("[data-advanced]")).toHaveCount(0);
-  await expect(advancedCard.locator("[data-advanced]")).toHaveCount(1);
-  await expect(detailsOnlyCard.locator("[data-advanced]")).toHaveCount(1);
+  // The compact status and the retained footer both open Advanced Details.
+  // Hiding operational actions must retain both read-only entry points.
+  for (const card of [advancedCard, detailsOnlyCard]) {
+    await expect(card.locator("[data-advanced]")).toHaveCount(2);
+    await expect(card.locator('[data-advanced="status"]')).toBeVisible();
+    await expect(card.locator(".advanced-button[data-advanced]")).toBeVisible();
+  }
   await expect(detailsOnlyCard.locator("[data-press]")).toHaveCount(0);
   await expect(easyCard.locator('.target-line')).toHaveCount(0);
   await expect(advancedCard.locator('.target-line')).not.toHaveCount(0);
@@ -145,7 +150,7 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
     page.viewportSize().width
   );
 
-  await advancedCard.locator("[data-advanced]").click();
+  await advancedCard.locator(".advanced-button[data-advanced]").click();
   const dialog = page.locator("smart-shading-dialog");
   await expect(dialog).toHaveCount(1);
   await expect(dialog.locator("[data-decision-trace]")).toBeVisible();
@@ -179,7 +184,8 @@ test("real HA card binds Easy and Advanced to their config entries", async ({ pa
   await dialog.locator("[data-close]").last().click();
   await expect(dialog).toHaveCount(0);
 
-  await detailsOnlyCard.locator("[data-advanced]").click();
+  await detailsOnlyCard.locator('[data-advanced="status"]').click();
+  await expect(dialog.locator("[data-safety-details]")).toBeVisible();
   await expect(dialog.locator("[data-decision-trace]")).toBeVisible();
   await dialog.locator("[data-close]").last().click();
   await expect(dialog).toHaveCount(0);

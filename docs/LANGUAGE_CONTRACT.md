@@ -8,8 +8,9 @@ German and unsupported or absent custom-card language tags use German.
 Config and options flows use native translation keys. Dynamic action lists
 use a native select control with translated action values and unchanged user
 names for objects. The chosen value dispatches to the existing stable route.
-Dynamic summaries supply both `__en` and `__de` placeholders from the same
-inputs; each native translation selects its own copy. This never changes the
+Dynamic summaries use identical language-neutral placeholders in EN and DE.
+All prose belongs to native catalogs; language-specific placeholder names fail
+Home Assistant's actual validation and must never be used. This never changes the
 user profile, server language, decision logic or stored integration settings.
 
 Home Assistant entity names are shared registry metadata generated in the
@@ -21,13 +22,13 @@ select values remain accepted so existing automations keep working.
 Regression owners:
 
 - `tests/test_flow_user_language.py`: conflicting server locale, bilingual
-  summaries, native route selection, multiple Glare sectors and entity names.
+  summaries, exact native placeholder validation, route selection, multiple Glare sectors and entity names.
 - `tests/test_card_runtime.js`: English app/German server and the inverse,
   including existing stable-DOM and scroll-preservation coverage.
 - `scripts/ha_e2e/run_scenarios.py`: actual native selector submissions, schema
   recording and traversal of the original semantic flow steps.
 - Central ecosystem translation audit: all registered public/local integration
-  catalogs, paired placeholders and zero backend-language flow references.
+  catalogs, identical placeholders and zero backend-language flow references.
 
 Native behavior references:
 

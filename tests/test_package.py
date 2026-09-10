@@ -736,6 +736,11 @@ class PackageTests(unittest.TestCase):
             "zone_name", "calculation_status", "geometry_summary",
             "current_sun", "calculated_target", "calculation_reason",
             "new_features", "temperature_behavior", "scope", "navigation_context",
+            "feature_index", "feature_count", "calculation_marker", "window_width", "window_height", "window_sill",
+            "object_distance", "object_width", "object_height", "condition_count", "sun_azimuth", "sun_elevation",
+            "sun_confirmation", "target_position", "target_tilt", "geometry_source_count", "lux_source_count",
+            "external_source_count", "temperature_room_count", "night_room_count", "safety_source_count",
+            "review_issue_count", "review_issue_objects",
         }
         pattern = re.compile(r"\{([a-zA-Z0-9_]+)\}")
         for language in ("de", "en"):
