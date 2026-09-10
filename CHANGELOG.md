@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 2026.9.5b0 - 2026-09-10
+
+- Consolidate active wind/frost/rain protection, open-window and unavailable
+  sensor observations in the top-right room status. Tap it to open Details.
+- Move permanent Safety, window/source shortcuts and operating-profile controls
+  out of the main toolbar into Details. Keep schedule state, profile selection
+  and all safety inputs available there without changing automation behavior.
+- Cover concurrent and cleared alerts, unknown contacts, EN/DE presentation and
+  repeated sensor updates with card runtime regressions.
+
+- Correct native Home Assistant placeholder validation: English and German now
+  use exactly identical language-neutral names, counts and measurements.
+  Explanations remain in native catalogs instead of language-suffixed values.
+- Retain geometry checks, targets, setup progress and final validation summaries
+  without server-language prose. Add the actual HA placeholder validation
+  contract to regression tests and ecosystem policy 1.19.1.
+
 ## 2026.9.4b1 - 2026-09-09
 
 - Use native per-user Home Assistant translations for setup and options actions,

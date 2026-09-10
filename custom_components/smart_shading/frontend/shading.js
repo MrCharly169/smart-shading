@@ -22,6 +22,47 @@ const localDateKey = (value = new Date()) => {
 const isRawEntityId = (value) => /^(?:cover|switch|binary_sensor|sensor|number|select|button)\.[a-z0-9_]+$/i.test(String(value || "").trim());
 const iconBox = (icon, className = "") => `<span class="icon-box ${htmlEscape(className)}" aria-hidden="true"><ha-icon icon="${htmlEscape(icon)}"></ha-icon></span>`;
 const profileSupportsTilt = (profile) => ["venetian", "vertical_blind"].includes(String(profile || ""));
+// Presentation only: never infer or issue a movement from these observations.
+const roomSafetyPresentation = (hass, room) => {
+  const de = customerPresentationLanguage(hass?.language) === "de";
+  const copy = de ? {
+    title: "Sicherheit", explanation: "Konfigurierte Sicherheitsfunktionen behalten Vorrang, auch außerhalb des Beschattungszeitplans.",
+    clear: "Kein aktiver Sicherheitshinweis", inactive: "Nicht ausgelöst", unavailable: "Sicherheitssensor nicht verfügbar",
+    wind: "Windschutz aktiv", frost: "Frostschutz aktiv", rain: "Regenschutz aktiv", safety: "Sicherheit aktiv",
+    window: "Fenster offen", windowUnknown: "Fensterstatus unbekannt", windowSafe: "Fenster freigegeben",
+  } : {
+    title: "Safety", explanation: "Configured safety protections retain priority, including outside the shading schedule.",
+    clear: "No active safety alert", inactive: "Not triggered", unavailable: "Safety sensor unavailable",
+    wind: "Wind protection active", frost: "Frost protection active", rain: "Rain protection active", safety: "Safety active",
+    window: "Window open", windowUnknown: "Window status unknown", windowSafe: "Window cleared",
+  };
+  const sources = asArray(room?.safety_blockers).map(entity => {
+    const state = hass?.states?.[entity];
+    const token = `${state?.attributes?.friendly_name || ""} ${state?.attributes?.device_class || ""}`.toLowerCase();
+    const kind = /wind/.test(token) ? "wind" : /frost|cold/.test(token) ? "frost" : /rain|regen|moist/.test(token) ? "rain" : "safety";
+    const unavailable = !state || ["unknown", "unavailable"].includes(state.state);
+    return { entity, name: cleanDisplayName(state?.attributes?.friendly_name, copy.title),
+      active: unavailable || state.state === "on", label: unavailable ? copy.unavailable : state.state === "on" ? copy[kind] : copy.inactive,
+      icon: unavailable ? "mdi:shield-alert-outline" : ({wind:"mdi:weather-windy",frost:"mdi:snowflake-alert",rain:"mdi:weather-pouring",safety:"mdi:shield-alert"})[kind] };
+  });
+  const seen = new Set();
+  for (const sector of asArray(room?.sectors)) for (const layer of asArray(sector.layers)) for (const cover of asArray(layer.covers)) {
+    if (!cover.window) continue;
+    const key = `${cover.window}:${cover.window_safe_state || "on"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const state = hass?.states?.[cover.window];
+    const unavailable = !state || ["unknown", "unavailable"].includes(state.state);
+    const unsafe = unavailable || state.state !== (cover.window_safe_state || "on");
+    sources.push({entity:cover.window, name:cleanDisplayName(state?.attributes?.friendly_name, copy.window), active:unsafe,
+      label:unavailable ? copy.windowUnknown : unsafe ? copy.window : copy.windowSafe,
+      icon:unavailable ? "mdi:window-closed-variant" : unsafe ? "mdi:window-open-variant" : "mdi:window-closed-variant"});
+  }
+  const active = sources.filter(source => source.active);
+  const labels = [...new Set(active.map(source => source.label))];
+  return {copy, sources, active, label:labels.slice(0, 2).join(" · ") + (labels.length > 2 ? ` +${labels.length - 2}` : ""),
+    title:active.map(source => `${source.name}: ${source.label}`).join(" · "), icon:active[0]?.icon};
+};
 const visibleStateAttributes = (state) => {
   const attrs = asRecord(state?.attributes);
   return {
@@ -1368,6 +1409,11 @@ class SmartShadingV4Dialog extends HTMLElement {
       return `<div class="event"><time>${htmlEscape(this._formatDate(time))}</time><strong>${htmlEscape(this._diagnosticEventTitle(eventName))}</strong><span>${htmlEscape(this._diagnosticEventDetails(event))}</span></div>`;
     }).join("") : `<div class="empty">${htmlEscape(L.noEvents)}</div>`;
     const decisionHtml = this._decisionTraceHtml(attrs, L);
+    const safety = roomSafetyPresentation(this._hass, configuration);
+    const safetyHtml = `<section data-safety-details><h3>${htmlEscape(safety.copy.title)}</h3>
+      <div class="muted">${htmlEscape(safety.copy.explanation)}</div>
+      ${!safety.active.length ? `<div>${htmlEscape(safety.copy.clear)}</div>` : ""}
+      <div class="actions">${safety.sources.map(source => `<button data-more="${htmlEscape(source.entity)}">${iconBox(source.icon, "action-icon")}${htmlEscape(source.name)} · ${htmlEscape(source.label)}</button>`).join("")}</div></section>`;
 
     const mainHtml = `
       <section><h3>${htmlEscape(L.overview)}</h3><div class="summary">
@@ -1378,6 +1424,7 @@ class SmartShadingV4Dialog extends HTMLElement {
         <div><small>${htmlEscape(L.last)}</small><strong>${htmlEscape(this._formatDate(attrs.last_evaluation))}</strong></div>
       </div></section>
       ${decisionHtml}
+      ${safetyHtml}
       ${nightHtml}
       <section><h3>${htmlEscape(L.controls)}</h3><div class="actions">
         ${attrs.pause_mode && attrs.pause_mode !== "auto"
@@ -1720,11 +1767,11 @@ class SmartShadingV4Card extends HTMLElement {
   _importantMessage(roomState, L) {
     const attrs = roomState.attributes || {};
     const mode = roomState.state;
-    if (mode === "safety") return localizedReason(attrs.reason, this._hass?.language, L.safety);
+    if (mode === "safety") return ""; // One status surface; full reasons stay in Details.
     if (mode === "heat") return localizedReason(attrs.reason, this._hass?.language, L.heat);
     if (mode === "paused") return attrs.pause_until ? `${L.pauseUntil} ${this._formatDate(attrs.pause_until)}` : L.paused;
     if (mode === "disabled") return L.disabled;
-    if (attrs.schedule_active === false) return localizedReason(attrs.schedule_reason, this._hass?.language, L.schedule);
+    if (attrs.schedule_active === false) return "";
     const sunState = this._state(attrs.sun_entity || "sun.sun");
     if (!sunState || ["unknown", "unavailable"].includes(sunState.state)) return L.sunMissing;
     return "";
@@ -1863,7 +1910,7 @@ class SmartShadingV4Card extends HTMLElement {
       modeLabel = L.retracted;
     }
     const activeSectorNames = asArray(attrs.active_sectors).filter(Boolean);
-    const detailedModeLabel = attrs.manual_master_active
+    let detailedModeLabel = attrs.manual_master_active
       ? `${L.manual} · ${L.overrideContext}`
       : mode === "paused"
         ? `${L.paused} · ${L.roomContext}`
@@ -1874,6 +1921,13 @@ class SmartShadingV4Card extends HTMLElement {
             : advancedMode && ["glare", "solar", "comfort"].includes(mode) && activeSectorNames.length
               ? `${modeLabel} · ${activeSectorNames.join(", ")}`
               : modeLabel;
+    const safety = roomSafetyPresentation(this._hass, room);
+    if (safety.active.length) {
+      modeIcon = safety.icon;
+      modeClass = "danger";
+      detailedModeLabel = safety.label;
+      modeLabel = safety.label;
+    }
     const roomName = cleanDisplayName(attrs.name || room.name, L.room);
     const temperatureState = this._state(room.indoor_temperature);
     const temperature = asNumber(temperatureState?.state, null);
@@ -1888,7 +1942,7 @@ class SmartShadingV4Card extends HTMLElement {
     const sunState = this._state(sunEntity);
     const azimuth = asNumber(sunState?.attributes?.azimuth, 0);
     const elevation = asNumber(sunState?.attributes?.elevation, 0);
-    const important = this._importantMessage(roomState, L);
+    const important = safety.active.length ? "" : this._importantMessage(roomState, L);
     const targets = asArray(attrs.targets);
     const targetByEntity = new Map(targets.map((target) => [target.entity_id, target]));
     const coverPauseByEntity = new Map(asArray(attrs.cover_pauses).map((item) => [item.entity_id, item]));
@@ -1901,23 +1955,6 @@ class SmartShadingV4Card extends HTMLElement {
       const runtime = sectorStatuses.get(sector.id) || {};
       const active = this._effectiveSectorActive(runtime);
       return `<button class="mini-part ${active ? "sunny" : "neutral"}" data-more="${htmlEscape(runtime.sun_presence_entity_id || sunEntity)}" title="${htmlEscape(cleanDisplayName(sector.name, `${L.sector} ${index + 1}`))}">${htmlEscape(this._short(sector.short, String(index + 1)))}</button>`;
-    }).join("");
-
-    const safetyBlockers = asArray(room.safety_blockers);
-    const safetyActive = safetyBlockers.some((entity) => this._state(entity)?.state === "on");
-    const safetyChips = safetyBlockers.map((entity) => {
-      const state = this._state(entity);
-      const friendly = cleanDisplayName(state?.attributes?.friendly_name, L.safety);
-      const token = `${friendly} ${state?.attributes?.device_class || ""}`.toLowerCase();
-      const icon = token.includes("wind") ? "mdi:weather-windy" : token.includes("frost") || token.includes("cold") ? "mdi:snowflake-alert" : token.includes("rain") || token.includes("moist") ? "mdi:weather-pouring" : "mdi:shield-alert";
-      const active = state?.state === "on";
-      return `<button class="chip icon-only ${active ? "alert" : ""}" data-more="${htmlEscape(entity)}" title="${htmlEscape(friendly)}">${iconBox(icon, "chip-icon")}</button>`;
-    }).join("");
-    const windows = covers.filter((cover) => cover.window);
-    const unsafeWindows = windows.filter((cover) => this._state(cover.window)?.state !== (cover.window_safe_state || "on"));
-    const windowParts = windows.map((cover, index) => {
-      const safe = this._state(cover.window)?.state === (cover.window_safe_state || "on");
-      return `<button class="mini-part ${safe ? "good" : "bad"}" data-more="${htmlEscape(cover.window)}" title="${htmlEscape(this._displayName(cover.entity, cover.name, `${L.cover} ${index + 1}`))}">${htmlEscape(this._short(cover.short, String(index + 1)))}</button>`;
     }).join("");
 
     const sectorBars = sectors.map((sector, index) => {
@@ -2025,20 +2062,6 @@ class SmartShadingV4Card extends HTMLElement {
     const simulateButton = this._control(controls, "simulate");
     const previewButton = this._control(controls, "preview_day");
     const masterButton = this._control(controls, "manual_master");
-    const operatingProfileButton = this._control(
-      controls,
-      attrs.operating_profile_source === "house"
-        ? "house_operating_profile"
-        : "operating_profile",
-    );
-    const operatingProfileLabel = ({
-      automatic: L.profileAutomatic,
-      protection_only: L.profileProtectionOnly,
-      year_round: L.profileYearRound,
-    })[attrs.operating_profile] || L.profileAutomatic;
-    const operatingProfileDisplay = attrs.operating_profile_source === "house"
-      ? `${operatingProfileLabel} · ${L.profileGlobal}`
-      : operatingProfileLabel;
     const paused = attrs.pause_mode && attrs.pause_mode !== "auto";
     const cardClass = htmlEscape(`${modeClass} ${temperatureClass} ${(advancedMode ? manualIntervention : attrs.manual_master_active) ? "manual" : ""} ${attrs.manual_master_active ? "master" : ""}`);
 
@@ -2073,16 +2096,12 @@ class SmartShadingV4Card extends HTMLElement {
         <div class="wrap" data-advanced-layout>
           <div class="header">
             <div class="heading"><div class="title">${htmlEscape(this._config.title || L.title)}</div><div class="room-name">${htmlEscape(roomName)}</div>${important ? `<div class="important">${htmlEscape(important)}</div>` : ""}</div>
-            <div class="mode">${iconBox(modeIcon, "mode-icon")}<span>${htmlEscape(detailedModeLabel)}</span></div>
+            <button class="mode" data-advanced="status" title="${htmlEscape(safety.title || L.advanced)}" style="border:0;color:inherit;font-family:inherit;cursor:pointer">${iconBox(modeIcon, "mode-icon")}<span>${htmlEscape(detailedModeLabel)}</span></button>
           </div>
           <div class="chips">
             ${covers.length ? `<span class="chip">${iconBox("mdi:autorenew", "chip-icon")}<span class="parts">${coverChips}</span></span>` : ""}
-            ${safetyChips}
-            <span class="chip" title="${htmlEscape(L.safetyAlways)}">${iconBox("mdi:shield-check-outline", "chip-icon")}${htmlEscape(L.safety)}</span>
-            ${windows.length ? `<span class="chip ${unsafeWindows.length ? "alert" : ""}">${iconBox("mdi:window-closed-variant", "chip-icon")}<span class="parts">${windowParts}</span></span>` : ""}
             ${sectors.length ? `<span class="chip">${iconBox("mdi:white-balance-sunny", "chip-icon")}<span class="parts">${sectorChips}</span></span>` : ""}
             ${temperature != null ? `<button class="chip" data-more="${htmlEscape(room.indoor_temperature || "")}">${iconBox("mdi:thermometer", "chip-icon")}${temperature.toFixed(1)}°</button>` : ""}
-            ${operatingProfileButton?.entity_id ? `<button class="chip" data-more="${htmlEscape(operatingProfileButton.entity_id)}">${iconBox("mdi:home-switch", "chip-icon")}${htmlEscape(operatingProfileDisplay)}</button>` : ""}
           </div>
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="sunbox" data-more="${htmlEscape(sunEntity)}" style="border:0;color:inherit;text-align:left;width:100%;cursor:pointer"><div class="sun-title"><span>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</span><span>${sunAvailable ? `Az ${Math.round(azimuth)}° · El ${Math.round(elevation)}°` : htmlEscape(L.sunUnavailable)}</span></div><div class="track">${sectorBars}${sunAvailable ? `<span class="sun-dot ${effectiveSunActive ? "calm-pulse" : ""}"></span>` : ""}</div><div class="track-labels"><span>0°</span><span>180°</span><span>360°</span></div></button>` : ""}
           ${sectors.length ? `<div class="sectors" data-advanced-sectors>${sectorCards}</div>` : ""}
@@ -2100,7 +2119,7 @@ class SmartShadingV4Card extends HTMLElement {
         <div class="easy-wrap" data-easy-layout>
           <div class="easy-header">
             <div class="heading"><div class="easy-brand">${htmlEscape(this._config.title || L.title)}</div><div class="easy-room">${htmlEscape(roomName)}</div></div>
-            <div class="easy-status">${iconBox(attrs.manual_master_active ? "mdi:hand-back-right" : modeIcon, "easy-status-icon")}<span>${htmlEscape(attrs.manual_master_active ? L.manualOverride : modeLabel)}</span></div>
+            <div class="easy-status" title="${htmlEscape(safety.title)}">${iconBox(safety.active.length ? modeIcon : attrs.manual_master_active ? "mdi:hand-back-right" : modeIcon, "easy-status-icon")}<span>${htmlEscape(safety.active.length ? modeLabel : attrs.manual_master_active ? L.manualOverride : modeLabel)}</span></div>
           </div>
           ${this._config.show_sun_track !== false && sectors.length ? `<button class="easy-sun" data-easy-sun data-more="${htmlEscape(sunEntity)}">
             <span class="easy-sun-head">${iconBox(easySunIcon, `easy-sun-icon ${easySunActive ? "calm-pulse" : ""}`)}<span class="easy-sun-copy"><small>${htmlEscape(`${L.sun} · ${effectiveSourceLabel}`)}</small><strong>${htmlEscape(easySunLabel)}</strong></span></span>

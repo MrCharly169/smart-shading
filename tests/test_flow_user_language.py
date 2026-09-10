@@ -5,6 +5,7 @@ import ast
 import asyncio
 import importlib.util
 import json
+import string
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -67,6 +68,22 @@ def wizard_class():
 
 
 class UserLanguageTests(unittest.TestCase):
+    def test_catalogs_match_real_ha_placeholder_validation(self):
+        def flatten(value, prefix=""):
+            for key, child in value.items():
+                if isinstance(child, dict):
+                    yield from flatten(child, prefix + key + ".")
+                elif isinstance(child, str):
+                    yield prefix + key, child
+        en = dict(flatten(self.catalogs["en"]))
+        de = dict(flatten(self.catalogs["de"]))
+        self.assertEqual(en.keys(), de.keys())
+        for key in en:
+            # This is HA's actual validation contract, not semantic suffix matching.
+            fields = lambda value: {part[1] for part in string.Formatter().parse(value) if part[1] is not None}
+            self.assertEqual(fields(en[key]), fields(de[key]), key)
+            self.assertFalse(any(field.endswith(("__en", "__de")) for field in fields(en[key])), key)
+
     def setUp(self):
         self.wizard = wizard_class()()
         self.catalogs = {lang: json.loads((COMP / "translations" / f"{lang}.json").read_text()) for lang in ("en", "de")}

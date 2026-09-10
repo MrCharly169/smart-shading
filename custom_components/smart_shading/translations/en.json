@@ -157,7 +157,7 @@
       },
       "new_optional_feature_available": {
         "title": "New optional feature for {room_name}",
-        "description": "The newly added cover makes this optional feature available: {new_features__en}. You can configure it now or continue with the room structure.",
+        "description": "Additional optional features are now available because a compatible cover was added. Open the feature selection to review and configure them, or continue with the room structure.",
         "data": {
           "open_optional_features": "Open optional features now"
         },
@@ -184,8 +184,8 @@
         }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
-        "description": "{feature_description__en}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature__en}"
+        "title": "{room_name} · Dashboard badges · {feature_index}/{feature_count}",
+        "description": "The small round Home Assistant badges show house or room status through a cover symbol, state marker and color. After saving Smart Shading, the setup notification provides the badge choices. Add a badge through Dashboard editor → Add badge → Smart Shading status. Existing dashboards are never changed without your confirmation."
       },
       "glare_protection_hub": {
         "title": "Glare protection",
@@ -195,8 +195,8 @@
         }
       },
       "initial_glare_protection": {
-        "title": "{feature_context__en} · Glare protection · Choose facade",
-        "description": "{feature_description__en} Choose the facade containing the window in front of the first protected area. {next_feature__en}",
+        "title": "{room_name} · Glare protection · Choose facade · {feature_index}/{feature_count}",
+        "description": "Glare protection calculates the most open safe target for one cover and one measured protected area. Choose the facade containing the window in front of the protected area. The next steps guide you through the cover, window dimensions, object measurements and calculation check.",
         "data": {
           "sector_id": "Facade"
         },
@@ -424,8 +424,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name__en}",
-        "description": "{feature_context__en}. {feature_description__en} {next_feature__en}",
+        "title": "{room_name} · Daytime automation · {feature_index}/{feature_count}",
+        "description": "Configure the selected daytime feature in the sections below. The general shading schedule enables automatic daytime shading; Night works independently. Temperature stages operate only inside that schedule. Heat protection starts at most once per day and ends at the earliest evening release. Execution settings control command spacing and target verification, not feature activation.",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
@@ -457,7 +457,7 @@
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior__en} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
+            "description": "Temperature-based daytime shading operates only inside the general shading schedule. Horizontal slats use adaptive normal shading and stronger heat protection. Other cover types use their configured Comfort, Solar and Heat positions; the stages available below depend on the room’s cover types. Heat protection starts at most once per calendar day and ends at the earliest evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
@@ -506,8 +506,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name__en}",
-        "description": "{feature_context__en}. {feature_description__en} Choose a dedicated time source or sunset-to-sunrise offsets. Night positions belong to each cover group's profile settings. {next_feature__en}",
+        "title": "{room_name} · Night mode · {feature_index}/{feature_count}",
+        "description": "Night has its own time source and active period, independent of the daytime shading schedule. Choose a dedicated time source or sunset-to-sunrise offsets. Each cover group uses the Night position stored in its profile settings.",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -546,8 +546,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name__en}",
-        "description": "{feature_context__en}. {feature_description__en} {next_feature__en}",
+        "title": "{room_name} · Weather, occupancy and safety · {feature_index}/{feature_count}",
+        "description": "Configure the selected inputs below. Weather and occupancy sources qualify daytime automation; empty optional sources have no effect. Wind, frost and window safety sources prevent unsafe movement or request the configured safe position. Safety retains priority.",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -584,8 +584,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context__en} · {feature_name__en} · Target position · {group_name}",
-        "description": "{feature_description__en} Set the safety position for this cover group now. {next_feature__en}",
+        "title": "{room_name} · Safety · Target position · {group_name} · {feature_index}/{feature_count}",
+        "description": "Set the safe position for this cover group. This target is used when an enabled safety source requests movement to safety. Other cover groups can have different targets.",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -850,7 +850,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
-        "description": "{calculation_status__en}\n\n{geometry_summary__en}\n\nCurrent sun position: {current_sun__en}\n\nCurrently calculated target: {calculated_target__en}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "description": "Calculation: {calculation_marker}\n✓ Valid geometry and current direct hit · ○ Valid geometry, no current hit · ⚠ Invalid measurements\n\nWindow: {window_width} × {window_height} m; sill height: {window_sill} m. Object: {object_width} × {object_height} m; distance: {object_distance} m. Activation conditions: {condition_count}.\n\nCurrent sun: azimuth {sun_azimuth}° · elevation {sun_elevation}° · direct sun confirmed: {sun_confirmation} (✓ yes, ○ no).\n\nCalculated position: {target_position} · tilt: {target_tilt}. A dash means no current target or unavailable value, not an opening command.\n\nTechnical reason: {calculation_reason}.\n\nSave only after the window, cover and protected object are correctly assigned. Turning confirmation off returns to measurement without saving.",
         "data": {
           "confirm_protected_zone": "Save protected zone"
         },
@@ -859,8 +859,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context__en} · Maximum opening · {cover_name}",
-        "description": "{feature_description__en} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature__en}",
+        "title": "{room_name} · Maximum opening · {cover_name} · {feature_index}/{feature_count}",
+        "description": "Cover {current} of {count}. This hard opening limit also corrects external movement above the limit; safety movement retains priority. Enable it only where the cover must not remain more open than the selected value. The normal open target may remain 100%; the effective target uses the lower limit.",
         "data": {
           "enforce_max_open_position": "Enforce a maximum opening",
           "max_open_position": "Maximum opening"
@@ -1309,7 +1309,7 @@
       },
       "finish": {
         "title": "Review and start",
-        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources__en}\n\nActive functions: {active_functions__en}\n\n{review_warnings__en}",
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources — geometry: {geometry_source_count}, lux: {lux_source_count}, external confirmation: {external_source_count}.\nTemperature-controlled rooms: {temperature_room_count} · Night rooms: {night_room_count} · Safety sources: {safety_source_count}.\n\nOpen validation items: {review_issue_count}. Affected objects: {review_issue_objects}. If nonzero, check missing sectors, cover assignments, sun sensors and Night sources before saving.",
         "data": {
           "confirm_start": "Start Smart Shading"
         },
@@ -1449,7 +1449,7 @@
       },
       "new_optional_feature_available": {
         "title": "New optional feature for {room_name}",
-        "description": "The newly added cover makes this optional feature available: {new_features__en}. You can configure it now or continue with the room structure.",
+        "description": "Additional optional features are now available because a compatible cover was added. Open the feature selection to review and configure them, or continue with the room structure.",
         "data": {
           "open_optional_features": "Open optional features now"
         },
@@ -1476,8 +1476,8 @@
         }
       },
       "manage_dashboard_badges": {
-        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
-        "description": "{feature_description__en}\n\nAfter Smart Shading is saved, Home Assistant provides a setup notification with the house and room badge choices. You then add the native round badge through Dashboard editor → Add badge → Smart Shading status. Smart Shading never changes an existing dashboard without your confirmation. {next_feature__en}"
+        "title": "{room_name} · Dashboard badges · {feature_index}/{feature_count}",
+        "description": "The small round Home Assistant badges show house or room status through a cover symbol, state marker and color. After saving Smart Shading, the setup notification provides the badge choices. Add a badge through Dashboard editor → Add badge → Smart Shading status. Existing dashboards are never changed without your confirmation."
       },
       "glare_protection_hub": {
         "title": "Glare protection",
@@ -1487,8 +1487,8 @@
         }
       },
       "initial_glare_protection": {
-        "title": "{feature_context__en} · Glare protection · Choose facade",
-        "description": "{feature_description__en} Choose the facade containing the window in front of the first protected area. {next_feature__en}",
+        "title": "{room_name} · Glare protection · Choose facade · {feature_index}/{feature_count}",
+        "description": "Glare protection calculates the most open safe target for one cover and one measured protected area. Choose the facade containing the window in front of the protected area. The next steps guide you through the cover, window dimensions, object measurements and calculation check.",
         "data": {
           "sector_id": "Facade"
         },
@@ -1497,8 +1497,8 @@
         }
       },
       "initial_safety_targets": {
-        "title": "{feature_context__en} · {feature_name__en} · Target position · {group_name}",
-        "description": "{feature_description__en} Set the safety position for this cover group now. {next_feature__en}",
+        "title": "{room_name} · Safety · Target position · {group_name} · {feature_index}/{feature_count}",
+        "description": "Set the safe position for this cover group. This target is used when an enabled safety source requests movement to safety. Other cover groups can have different targets.",
         "data": {
           "safety_position": "Safety position",
           "safety_tilt": "Safety slat position"
@@ -1986,8 +1986,8 @@
         }
       },
       "manage_automation": {
-        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
-        "description": "{feature_description__en}\n\nYou are now editing {feature_name__en} for {room_name}. {next_feature__en}",
+        "title": "{room_name} · Daytime automation · {feature_index}/{feature_count}",
+        "description": "Configure the selected daytime feature in the sections below. The general shading schedule enables automatic daytime shading; Night works independently. Temperature stages operate only inside that schedule. Heat protection starts at most once per day and ends at the earliest evening release. Execution settings control command spacing and target verification, not feature activation.",
         "sections": {
           "schedule_settings": {
             "name": "Schedule",
@@ -2019,7 +2019,7 @@
           },
           "temperature_settings": {
             "name": "Temperatures and heat protection",
-            "description": "Temperature-based daytime shading is active only inside the general shading schedule. {temperature_behavior__en} Heat protection can start at most once per calendar day and ends at the earliest configured evening boundary.",
+            "description": "Temperature-based daytime shading operates only inside the general shading schedule. Horizontal slats use adaptive normal shading and stronger heat protection. Other cover types use their configured Comfort, Solar and Heat positions; the stages available below depend on the room’s cover types. Heat protection starts at most once per calendar day and ends at the earliest evening boundary.",
             "data": {
               "indoor_temperature": "Indoor temperature sensor",
               "normal_shading_temperature": "Normal shading from",
@@ -2068,8 +2068,8 @@
         }
       },
       "manage_night": {
-        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
-        "description": "{feature_description__en}\n\nNight has its own period and remains available outside the general shading schedule. Each cover group uses the Night position stored in its profile settings. {next_feature__en}",
+        "title": "{room_name} · Night mode · {feature_index}/{feature_count}",
+        "description": "Night has its own time source and active period, independent of the daytime shading schedule. Choose a dedicated time source or sunset-to-sunrise offsets. Each cover group uses the Night position stored in its profile settings.",
         "data": {
           "night_enabled": "Enable night function",
           "night_source": "Night source",
@@ -2108,8 +2108,8 @@
         }
       },
       "manage_conditions": {
-        "title": "{room_name} · {feature_name__en} · {feature_progress__en}",
-        "description": "{feature_description__en}\n\nYou are now editing the inputs for {feature_name__en}. Optional empty sources are ignored. {next_feature__en}",
+        "title": "{room_name} · Weather, occupancy and safety · {feature_index}/{feature_count}",
+        "description": "Configure the selected inputs below. Weather and occupancy sources qualify daytime automation; empty optional sources have no effect. Wind, frost and window safety sources prevent unsafe movement or request the configured safe position. Safety retains priority.",
         "data": {
           "safety_blockers": "Safety sensors (optional)",
           "irradiance_sensor": "Irradiance sensor",
@@ -2195,7 +2195,7 @@
       },
       "finish": {
         "title": "Configuration incomplete",
-        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources: {sun_sources__en}\n\nActive functions: {active_functions__en}\n\n{review_warnings__en}"
+        "description": "Rooms: {room_count} · Sun sectors: {sector_count} · Cover groups: {group_count} · Covers: {cover_count}\n\nSun sources — geometry: {geometry_source_count}, lux: {lux_source_count}, external confirmation: {external_source_count}.\nTemperature-controlled rooms: {temperature_room_count} · Night rooms: {night_room_count} · Safety sources: {safety_source_count}.\n\nOpen validation items: {review_issue_count}. Affected objects: {review_issue_objects}. If nonzero, check missing sectors, cover assignments, sun sensors and Night sources before saving."
       },
       "room_setup": {
         "title": "Set up the first room",
@@ -2465,7 +2465,7 @@
       },
       "confirm_protected_zone": {
         "title": "{sector_name} · Glare protection · Check calculation · {zone_name}",
-        "description": "{calculation_status__en}\n\n{geometry_summary__en}\n\nCurrent sun position: {current_sun__en}\n\nCurrently calculated target: {calculated_target__en}\n\nTechnical reason: {calculation_reason}\n\nSave only after the window, cover and protected object are assigned correctly. Turning this off returns to measurement without saving the zone.",
+        "description": "Calculation: {calculation_marker}\n✓ Valid geometry and current direct hit · ○ Valid geometry, no current hit · ⚠ Invalid measurements\n\nWindow: {window_width} × {window_height} m; sill height: {window_sill} m. Object: {object_width} × {object_height} m; distance: {object_distance} m. Activation conditions: {condition_count}.\n\nCurrent sun: azimuth {sun_azimuth}° · elevation {sun_elevation}° · direct sun confirmed: {sun_confirmation} (✓ yes, ○ no).\n\nCalculated position: {target_position} · tilt: {target_tilt}. A dash means no current target or unavailable value, not an opening command.\n\nTechnical reason: {calculation_reason}.\n\nSave only after the window, cover and protected object are correctly assigned. Turning confirmation off returns to measurement without saving.",
         "data": {
           "confirm_protected_zone": "Save protected zone"
         },
@@ -2474,8 +2474,8 @@
         }
       },
       "initial_maximum_opening": {
-        "title": "{feature_context__en} · Maximum opening · {cover_name}",
-        "description": "{feature_description__en} Cover {current} of {count}. Enable the hard limit only where the cover must not remain more open than the selected value. The normal open target may remain 100%; Smart Shading derives the effective target from the lower value. {next_feature__en}",
+        "title": "{room_name} · Maximum opening · {cover_name} · {feature_index}/{feature_count}",
+        "description": "Cover {current} of {count}. This hard opening limit also corrects external movement above the limit; safety movement retains priority. Enable it only where the cover must not remain more open than the selected value. The normal open target may remain 100%; the effective target uses the lower limit.",
         "data": {
           "enforce_max_open_position": "Enforce a maximum opening",
           "max_open_position": "Maximum opening"

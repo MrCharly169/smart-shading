@@ -479,14 +479,45 @@ if (!html.includes("sunbox") || !html.includes("sector-card") || !html.includes(
 if (!html.includes("Pausiert")) throw new Error("Local cover pause was not rendered");
 if (!html.includes(".icon-box") || !html.includes("place-items:center;align-content:center;justify-content:center") || !html.includes("--icon-size:12px") || !html.includes("--icon-size:15px")) throw new Error("Shared mathematical icon centering is missing");
 if (!html.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced card did not expose the Night schedule shortcut");
-if (!html.includes('data-more="select.house_operating_profile"') || !html.includes("Nach Saison und Zeitplan · Global")) throw new Error("Advanced card did not expose the inherited house operating policy");
-if (!html.includes("Sicherheit immer aktiv")) throw new Error("Advanced card did not show the subtle always-on safety marker");
+if (html.includes('data-more="select.house_operating_profile"') || html.includes("Nach Saison und Zeitplan · Global") || html.includes("Sicherheit immer aktiv")) throw new Error("Permanent policy/Safety chips must remain in Details only");
+if (html.includes('data-more="binary_sensor.window_contact"')) throw new Error("Window contact shortcuts must remain in Details only");
 if (!html.includes("@keyframes calmPulse") || html.includes("@keyframes cardGlow") || html.includes("@keyframes sunPulse") || html.includes("filter:brightness")) throw new Error("Card did not use the single calm opacity/transform pulse");
 if (!html.includes("@media(prefers-reduced-motion:reduce)") || !html.includes("@container shading-card")) throw new Error("Reduced-motion or container-query fallback is missing");
 if (!html.includes("Sonne · Sonnensensor")) throw new Error("Advanced sun feedback did not name its effective source");
 const cardMarkup = html.slice(html.indexOf("</style>") + 8);
 if (/<button[^>]*>\s*<ha-icon/i.test(cardMarkup)) throw new Error("A card button bypassed the shared icon box");
 const detailsOnlyCard = new Card();
+// Safety observations share the status corner, never permanent toolbar chips.
+const safetyCard = new Card();
+safetyCard.setConfig({entity:"sensor.room_status", advanced_mode:true});
+const safetyRoom = JSON.parse(JSON.stringify(roomStatus));
+safetyRoom.attributes.configuration.safety_blockers = ["binary_sensor.wind"];
+const safetyHass = {...hass, language:"en", states:{...hass.states,
+  "sensor.room_status":safetyRoom,
+  "binary_sensor.wind":{state:"off",attributes:{friendly_name:"Wind"}},
+  "binary_sensor.window_contact":{state:"on",attributes:{friendly_name:"Window"}},
+}};
+const safetyStatus = () => {
+  safetyCard.hass = {...safetyHass,states:{...safetyHass.states}};
+  safetyCard._render();
+  return safetyCard.shadowRoot.innerHTML.match(/<button class="mode"[^>]*>([\s\S]*?)<\/button>/)?.[1] || "";
+};
+if (/Wind protection|Window open/.test(safetyStatus())) throw new Error("Inactive safety sources produced a header alert");
+safetyHass.states["binary_sensor.wind"] = {state:"on",attributes:{friendly_name:"Wind"}};
+if (!safetyStatus().includes("Wind protection active")) throw new Error("Wind event did not update the room status corner");
+safetyHass.states["binary_sensor.window_contact"] = {state:"off",attributes:{friendly_name:"Window"}};
+if (!safetyStatus().includes("Window open") || !safetyStatus().includes("Wind protection active")) throw new Error("Concurrent safety alerts were lost");
+safetyRoom.attributes.manual_master_active = true;
+if (!safetyStatus().includes("Wind protection active")) throw new Error("Manual override concealed a safety observation");
+safetyHass.language = "de";
+if (!safetyStatus().includes("Windschutz aktiv") || !safetyStatus().includes("Fenster offen")) throw new Error("Safety header did not follow the viewer language");
+safetyHass.states["binary_sensor.window_contact"] = {state:"unavailable",attributes:{friendly_name:"Window"}};
+if (!safetyStatus().includes("Fensterstatus unbekannt") || safetyStatus().includes("Fenster offen")) throw new Error("Unavailable contact was presented as an open window");
+safetyHass.states["binary_sensor.wind"] = {state:"off",attributes:{friendly_name:"Wind"}};
+safetyHass.states["binary_sensor.window_contact"] = {state:"on",attributes:{friendly_name:"Window"}};
+safetyRoom.attributes.manual_master_active = false;
+for (let i=0;i<20;i++) if (/Windschutz aktiv|Fenster offen|Fensterstatus unbekannt/.test(safetyStatus())) throw new Error("Resolved safety alert remained stale during update burst");
+if (safetyCard.shadowRoot.innerHTML.includes('data-more="binary_sensor.wind"')) throw new Error("Safety source shortcut leaked back into the main toolbar");
 detailsOnlyCard.setConfig({ entity: "sensor.room_status", advanced_mode: true, show_actions: false });
 detailsOnlyCard.hass = hass;
 const detailsOnlyHtml = detailsOnlyCard.shadowRoot.innerHTML;
@@ -708,6 +739,7 @@ if (!dialog.shadowRoot.innerHTML.includes('data-tool-press="button.simulate"') |
 if (!dialog.shadowRoot.innerHTML.includes("data-preview-date") || !dialog.shadowRoot.innerHTML.includes("data-simulation-cover-targets")) throw new Error("Advanced dialog missed selected-date preview or per-cover simulation details");
 if (!dialog.shadowRoot.innerHTML.includes('data-night-source="schedule.room_night"')) throw new Error("Advanced dialog did not expose the Night schedule editor shortcut");
 if (!dialog.shadowRoot.innerHTML.includes("Betriebsprofil") || !dialog.shadowRoot.innerHTML.includes("Nach Saison und Zeitplan · Global")) throw new Error("Advanced dialog did not explain the inherited house operating policy");
+if (!dialog.shadowRoot.innerHTML.includes("data-safety-details") || !dialog.shadowRoot.innerHTML.includes('data-more="binary_sensor.window_contact"') || !dialog.shadowRoot.innerHTML.includes('data-more="select.house_operating_profile"')) throw new Error("Details lost Safety contacts or operating-profile interaction");
 if (!dialog.shadowRoot.innerHTML.includes("100dvh") || !dialog.shadowRoot.innerHTML.includes("button[data-close]{display:grid;place-items:center")) throw new Error("Advanced dialog mobile viewport or close-icon centering hardening is missing");
 if (!dialog.shadowRoot.innerHTML.includes("overflow:auto;overflow-anchor:none")) throw new Error("Advanced dialog did not disable native scroll anchoring during live content replacement");
 if (!dialog.shadowRoot.innerHTML.includes("Raumstatus aktualisiert") || !dialog.shadowRoot.innerHTML.includes("Modus: Sonnenschutz") || !dialog.shadowRoot.innerHTML.includes("Behangziele: 1") || dialog.shadowRoot.innerHTML.includes("room_evaluated")) throw new Error("Diagnostic journal did not present room evaluation events in customer-friendly language");
