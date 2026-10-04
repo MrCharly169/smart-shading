@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 2026.10.0b0 - 2026-10-04
+
 ### Seasonal schedule feedback
 
 - Extend the summer preset through October in house and room setup, with English/German labels. Existing stored month selections are preserved until explicitly edited.
@@ -34,6 +37,7 @@ Adopt policy 1.21.0: shared product identity, Simple/Advanced presentation, opti
   separate installation and activation, and configuration-free hashed bundles.
 - Standalone domain behavior remains unchanged. The new Smart Solutions Home
   pilot owns the presentation adapters; this is not a deployed integration release.
+
 
 ## 2026.9.5b0 - 2026-09-10
 
