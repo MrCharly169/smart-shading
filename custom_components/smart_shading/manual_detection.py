@@ -691,6 +691,33 @@ class ManualOverrideDetectionMixin:
             )
         )
 
+    def _external_movement_pending(self, entity_id: str) -> bool:
+        observation = self.cover_motion.get(entity_id)
+        match = self._find_cover_by_entity(entity_id)
+        return bool(
+            match is not None
+            and self._external_movement_detection_enabled(match[0])
+            and observation is not None
+            and observation.phase == "possible_external"
+            and observation.candidate_started_at is not None
+            and 0 <= (dt_util.now() - observation.candidate_started_at).total_seconds()
+            <= EXTERNAL_CONFIRMATION_WINDOW_SECONDS
+        )
+
+    async def _dispatch_due_command_steps(self) -> bool:
+        # A queued axis/retry must not steal an unconfirmed physical movement
+        # either. Cancel only this cover's non-safety work through the existing
+        # durable planner path; confirmed movement still owns the pause action.
+        for entity_id in tuple(self.cover_motion):
+            if not self._external_movement_pending(entity_id):
+                continue
+            room, cover = self._find_cover_by_entity(entity_id)
+            await self._cancel_pending_normal_lifecycles(
+                room["id"], "manual_movement_confirmation_pending",
+                cover_id=self._cover_id(cover), include_non_safety=True,
+            )
+        return await super()._dispatch_due_command_steps()
+
     def _own_command_session_active(
         self,
         entity_id: str,

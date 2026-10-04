@@ -1714,6 +1714,7 @@ class SmartShadingEngine:
         sector_id: str | None = None,
         layer_id: str | None = None,
         include_non_safety: bool = False,
+        cover_id: str | None = None,
     ) -> tuple[str, ...]:
         """Cancel obsolete normal automation work for one affected scope.
 
@@ -1746,6 +1747,8 @@ class SmartShadingEngine:
         # Work from a snapshot: ``cancel_cover`` mutates the ledger and queue.
         for entry in tuple(self.command_planner.ledger.values()):
             context = entry.context
+            if cover_id is not None and entry.cover_id != cover_id:
+                continue
             if str(context.room_id) != str(room_id):
                 continue
             if sector_id is not None and str(context.sector_id or "") != str(sector_id):
@@ -8247,6 +8250,10 @@ class SmartShadingEngine:
             )
         return projections
 
+    def _external_movement_pending(self, entity_id: str) -> bool:
+        """Base runtimes have no external movement confirmation window."""
+        return False
+
     async def _apply_cover(
         self,
         room: dict[str, Any],
@@ -8306,6 +8313,8 @@ class SmartShadingEngine:
             else None
         )
         suppressions: list[str] = []
+        if mode != MODE_SAFETY and self._external_movement_pending(entity_id):
+            suppressions.append("manual_movement_confirmation_pending")
 
         pause_info = self.cover_pause_info(cover) if self.advanced_mode else {
             "active": False, "until": None, "reason": "", "pause_mode": PAUSE_AUTO,

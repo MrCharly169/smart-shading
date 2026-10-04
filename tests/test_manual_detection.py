@@ -93,6 +93,96 @@ class ManualDetectionRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.engine.cover_pauses["cover_one"].active)
         self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
 
+    async def test_manual_movement_pauses_outside_schedule_after_own_command_expires(self):
+        self.engine.config.update(
+            schedule_enabled=True, active_months=[], outside_schedule_behavior="open"
+        )
+        await self.engine.async_evaluate_all("outside_schedule")
+        for session in self.engine.own_command_sessions.values():
+            session.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        states = [
+            FakeState("open", current_position=100, current_tilt_position=0),
+            FakeState("closing", current_position=70, current_tilt_position=0),
+            FakeState("closing", current_position=40, current_tilt_position=0),
+            FakeState("open", current_position=40, current_tilt_position=0),
+        ]
+        for before, after in zip(states, states[1:]):
+            self.hass.states.values["cover.one"] = after
+            await self.engine._async_state_changed(FakeEvent("cover.one", before, after))
+        self.assertFalse(self.engine.rooms["room"].schedule_active)
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def _start_outside_schedule_candidate(self):
+        self.engine.config.update(
+            schedule_enabled=True, active_months=[], outside_schedule_behavior="open"
+        )
+        before = FakeState("open", current_position=100, current_tilt_position=0)
+        self.hass.states.values["cover.one"] = before
+        self.engine._seed_cover_motion_baselines()
+        await self.engine.async_evaluate_all("outside_schedule_initial")
+        self.hass.services.calls.clear()
+        after = FakeState("closing", current_position=70, current_tilt_position=0)
+        self.hass.states.values["cover.one"] = after
+        await self.engine._async_state_changed(FakeEvent("cover.one", before, after))
+        self.assertEqual(self.engine.cover_motion["cover.one"].phase, "possible_external")
+
+    async def test_schedule_open_cannot_steal_pending_wall_button_movement(self):
+        await self._start_outside_schedule_candidate()
+        await self.engine.async_evaluate_all("sun_update_during_manual_motion")
+        self.assertFalse([c for c in self.hass.services.calls if c[0] == "cover"])
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+        self.assertTrue(self.engine.cover_pauses["cover_one"].active)
+        self.assertEqual(self.hass.states.get("switch.cover_lock").state, "on")
+
+    async def test_pending_wall_button_movement_does_not_block_safety(self):
+        await self._start_outside_schedule_candidate()
+        self.engine.config["rooms"][0]["safety_blockers"] = ["binary_sensor.wind"]
+        self.hass.states.values["binary_sensor.wind"] = FakeState("on")
+        await self.engine.async_evaluate_all("wind_during_manual_motion")
+        self.assertEqual(self.engine.rooms["room"].mode, "safety")
+        self.assertTrue([c for c in self.hass.services.calls if c[0] == "cover"])
+
+    async def test_expired_candidate_does_not_hold_schedule_open_forever(self):
+        await self._start_outside_schedule_candidate()
+        self.engine.cover_motion["cover.one"].candidate_started_at -= timedelta(seconds=61)
+        await self.engine.async_evaluate_all("expired_external_candidate")
+        self.assertTrue([c for c in self.hass.services.calls if c[0] == "cover"])
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+
+    async def test_pending_movement_cancels_only_its_queued_cover_command(self):
+        covers = self.engine.config["rooms"][0]["sectors"][0]["layers"][0]["covers"]
+        covers.append({**covers[0], "id": "cover_two", "entity": "cover.two", "lock": ""})
+        self.hass.states.values["cover.two"] = FakeState("open", current_position=100, current_tilt_position=0)
+        self.engine._rebuild_runtime()
+        await self._start_outside_schedule_candidate()
+        execution = sys.modules["custom_components.smart_shading.execution"]
+        for cover_id in ("cover_one", "cover_two"):
+            self.engine.command_planner.plan(execution.CommandRequest(
+                cover_id=cover_id, profile="venetian",
+                target=execution.CommandTarget(position=100), rule="open",
+                reason_code="queued_open", current_position=70,
+                context=execution.CommandContext(room_id="room", sector_id="south", group_id="layer"),
+                authoritative_replacement=True,
+            ), now=datetime.now(timezone.utc))
+        await self.engine._dispatch_due_command_steps()
+        sent = [c[2]["entity_id"] for c in self.hass.services.calls if c[0] == "cover"]
+        self.assertEqual(sent, ["cover.two"])
+        self.assertEqual(self.engine.command_planner.ledger_entry("cover_one").result.value, "cancelled")
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+
+    async def test_candidate_return_to_baseline_does_not_create_pause(self):
+        await self._start_outside_schedule_candidate()
+        await self.engine.async_evaluate_all("sun_update_during_candidate")
+        previous = self.hass.states.get("cover.one")
+        baseline = FakeState("open", current_position=100, current_tilt_position=0)
+        self.hass.states.values["cover.one"] = baseline
+        await self.engine._async_state_changed(FakeEvent("cover.one", previous, baseline))
+        self.assertFalse(self.engine._external_movement_pending("cover.one"))
+        await self.engine._async_confirm_stable_external_candidate("cover.one")
+        self.assertFalse(self.engine.cover_pauses["cover_one"].active)
+
     async def test_external_cover_movement_pauses_shared_manual_group(self):
         covers = self.engine.config["rooms"][0]["sectors"][0]["layers"][0][
             "covers"

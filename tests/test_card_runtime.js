@@ -876,6 +876,36 @@ if (Number(card.dataset.renderCount || 0) !== renderCountBeforeUnrelated) throw 
 if (dialog.isConnected || documentListeners.has("keydown")) throw new Error("Detached card did not clean up its dialog and document listener");
 }
 
+for (const [language, expected] of [["de", "Manuelle Bewegung wird geprüft"], ["en", "Checking manual movement"]]) {
+  const pendingDialog = new Dialog();
+  pendingDialog._hass = { language };
+  if (pendingDialog._suppressionText("manual_movement_confirmation_pending") !== expected) throw new Error("Pending manual movement reason is not localized");
+}
+
+// The inactive schedule is a reason, not the physical cover position.
+for (const [language, outside, protection] of [
+  ["en", "Outside schedule", "Configured protection remains active"],
+  ["de", "Außerhalb des Zeitplans", "Eingerichtete Schutzfunktionen bleiben aktiv"],
+]) {
+  for (const mode of ["open", "idle", "finished", "paused", "safety", "night", "glare", "disabled"]) {
+    const candidate = new Card();
+    candidate.setConfig({ entity: "sensor.season_test" });
+    const fixture = { entity_id: "sensor.season_test", state: mode, attributes: {
+      smart_shading_entry_id: "season_test", smart_shading_room_id: "season_test",
+      smart_shading_layout: "detailed", configuration: { name: "Season test", sectors: [] },
+      schedule_active: false, reason: "Month outside shading season",
+    } };
+    candidate.hass = { ...hass, language, states: { "sensor.season_test": fixture } };
+    const markup = candidate.shadowRoot.innerHTML;
+    const inactive = ["open", "idle", "finished"].includes(mode);
+    if (markup.includes(outside) !== inactive) throw new Error(`Inactive schedule replaced an active mode or was hidden: ${language}/${mode}`);
+    if (inactive && !markup.includes(protection)) throw new Error("Inactive schedule omitted continued protection");
+    fixture.attributes.schedule_active = true;
+    candidate._render();
+    if (candidate.shadowRoot.innerHTML.includes(outside)) throw new Error("Schedule reason survived schedule activation");
+  }
+}
+
 runAsyncChecks()
   .then(() => console.log("Card and advanced dialog runtime smoke test passed"))
   .catch((error) => { console.error(error); process.exitCode = 1; });

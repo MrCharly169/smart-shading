@@ -3266,7 +3266,7 @@
     "schedule_profile_advanced": {
       "options": {
         "year_round": "All year · January–December · Monday–Sunday",
-        "summer": "Summer season · May–September · Monday–Sunday",
+        "summer": "Summer season · May–October · Monday–Sunday",
         "custom": "Custom schedule"
       }
     },

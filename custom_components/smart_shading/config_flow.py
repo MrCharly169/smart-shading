@@ -299,7 +299,7 @@ SELECT_LABELS_DE: dict[str, dict[str, str]] = {
         "vertical_blind": "Vertikale Innenjalousie", "awning": "Markise",
         "binary_cover": "Einfacher Auf/Zu-Behang",
     },
-    "schedule_profile": {"year_round": "Ganzjährig automatisch", "summer": "Sommersaison (Mai–September)", "custom": "Benutzerdefinierter Zeitplan"},
+    "schedule_profile": {"year_round": "Ganzjährig automatisch", "summer": "Sommersaison (Mai–Oktober)", "custom": "Benutzerdefinierter Zeitplan"},
     "operating_profile": {"inherit": "Globale Einstellung", "automatic": "Nach Saison und Zeitplan", "protection_only": "Nur Schutz", "year_round": "Ganzjährig"},
     "schedule_scope": {"inherit": "Globalen Haus-Zeitplan verwenden", "custom": "Eigener Raum-Zeitplan"},
     "day_window": {"fixed_time": "Feste Uhrzeit", "all_day": "Ganztägig"},
@@ -324,7 +324,7 @@ SELECT_LABELS_EN: dict[str, dict[str, str]] = {
     "sun_source": {"geometry": "Sun position only", "lux": "Facade-related outdoor sensor (recommended)", "external": "External on/off sensor"},
     "tilt_preset": {"glare": "More glare protection", "balanced": "Balanced", "daylight": "More daylight", "custom": "Custom"},
     "device_type": {"venetian": "Exterior venetian blind", "roller_shutter": "Roller shutter", "exterior_screen": "Exterior / zip screen", "curtain": "Interior curtain", "vertical_blind": "Vertical blind", "awning": "Awning", "binary_cover": "Simple open/close cover"},
-    "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–September)", "custom": "Custom schedule"},
+    "schedule_profile": {"year_round": "Automatic all year", "summer": "Summer season (May–October)", "custom": "Custom schedule"},
     "operating_profile": {"inherit": "Global setting", "automatic": "By season and schedule", "protection_only": "Protection only", "year_round": "Year-round"},
     "schedule_scope": {"inherit": "Use global house schedule", "custom": "Custom room schedule"},
     "day_window": {"fixed_time": "Fixed time", "all_day": "All day"},
@@ -1132,9 +1132,9 @@ class _SmartShadingWizardMixin:
                 else "All year · January–December · Monday–Sunday"
             )
             labels[SCHEDULE_SUMMER] = (
-                "Sommersaison · Mai–September · Montag–Sonntag"
+                "Sommersaison · Mai–Oktober · Montag–Sonntag"
                 if german
-                else "Summer season · May–September · Monday–Sunday"
+                else "Summer season · May–October · Monday–Sunday"
             )
             return labels
         return {}
@@ -1208,7 +1208,7 @@ class _SmartShadingWizardMixin:
             if not errors:
                 self._working.update(values)
                 if schedule_profile == SCHEDULE_SUMMER:
-                    self._working["active_months"] = [5, 6, 7, 8, 9]
+                    self._working["active_months"] = [5, 6, 7, 8, 9, 10]
                     self._working["active_weekdays"] = list(range(7))
                 elif schedule_profile != SCHEDULE_CUSTOM:
                     self._working["active_months"] = list(range(1, 13))
@@ -3889,7 +3889,7 @@ class SmartShadingOptionsFlow(_SmartShadingWizardMixin, OptionsFlowWithReload):
                 if configure_schedule:
                     profile = room.get("schedule_profile", SCHEDULE_YEAR_ROUND)
                     if profile == SCHEDULE_SUMMER:
-                        room["active_months"] = [5, 6, 7, 8, 9]
+                        room["active_months"] = [5, 6, 7, 8, 9, 10]
                         room["active_weekdays"] = list(range(7))
                     elif profile != SCHEDULE_CUSTOM:
                         room["active_months"] = list(range(1, 13))
