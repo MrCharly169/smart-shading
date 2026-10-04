@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Seasonal schedule feedback
+
+- Extend the summer preset through October in house and room setup, with English/German labels. Existing stored month selections are preserved until explicitly edited.
+- Show Outside schedule instead of Open/Ready/Done when the shading schedule is inactive; configured protection remains available. Safety, manual pause and active operation retain priority.
+- Fix a race that let an automatic reevaluation claim an unconfirmed physical movement as its own command. Temporarily defer non-safety commands only for the affected cover, including queued axes/retries. Confirmed movement still activates the existing pause; safety retains priority.
+
+### Native-first maintenance
+
+Adopt policy 1.25.0: native workflows and documented extension points first, explicit custom-code exceptions and candidate HA upgrade verification. Policy-only change; no runtime migration or live update claimed.
+
+### Optional assistant contract
+
+Policy 1.24.0 permits explicitly configured local/cloud AI inference while building automation stays local. Assistant access is scoped, native and independently authorized; no provider is connected by this change.
+
+### Local-only product boundary
+
+Adopt policy 1.23.0: cloud-independent setup/operation/recovery and extensible energy/heating domains. Existing cloud-dependent installations are migration findings, not silently disabled or accepted into the product.
+
+### Equipment architecture
+
+Adopt policy 1.22.0: KNX foundation, capability-based adapters, evidence-backed equipment support and controlled replacement. No live device migration or physical acceptance is claimed.
+
+### Smart Solutions experience rules
+
+Adopt policy 1.21.0: shared product identity, Simple/Advanced presentation, optional badges and evidence-based conformity checks. This is a contract update; legacy UI migration is not claimed.
+
+### optional Smart Solutions product contract
+
+- Adopt ecosystem policy 1.20.0: optional shared module discovery/disclosure,
+  separate installation and activation, and configuration-free hashed bundles.
+- Standalone domain behavior remains unchanged. The new Smart Solutions Home
+  pilot owns the presentation adapters; this is not a deployed integration release.
+
 ## 2026.9.5b0 - 2026-09-10
 
 - Consolidate active wind/frost/rain protection, open-window and unavailable

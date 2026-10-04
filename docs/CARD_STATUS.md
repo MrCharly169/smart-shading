@@ -19,3 +19,30 @@ English and German are maintained together using the active HA app language.
 
 Regression owner: `tests/test_card_runtime.js`; real browser/scroll ownership
 remains in `e2e/ui/card.spec.js`. Physical phone acceptance remains a user check.
+
+
+## Seasonal schedule feedback
+
+An inactive shading schedule replaces the passive Open/Ready/Done headline with
+Outside schedule (Außerhalb des Zeitplans). The secondary message explains that
+configured protection remains active. Safety, room pause, disabled, Night and
+actively running shading modes retain their existing priority. This presentation
+does not claim that every room has Glare configured or that protection is
+currently actuating equipment. The summer preset becomes May–October in both
+house and room flows; existing saved schedules are not silently migrated.
+
+Card runtime tests cover English/German, inactive/active transitions and
+active-mode priority.
+
+A physical-movement race was reproduced on the unmodified production source:
+with an inactive schedule and open behavior, a cover movement starts the normal
+confirmation window. An intervening sun update sends an Open target. Its own
+command session then hides the candidate and prevents pause activation. The fix
+adds a temporary per-cover planner constraint and cancels that cover's pending
+non-safety work through the existing durable cancellation path. It does not
+lower movement thresholds, disable command-feedback ownership, publish an
+unconfirmed pause, or block safety commands. The hold expires with the existing
+candidate window. Regression tests cover the original failing sequence, expiry,
+return to baseline, safety priority, and another cover's queued work.
+
+Physical wall-switch acceptance requires a separate installation-specific test.

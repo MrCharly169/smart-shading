@@ -3266,7 +3266,7 @@
     "schedule_profile_advanced": {
       "options": {
         "year_round": "Ganzjährig · Januar–Dezember · Montag–Sonntag",
-        "summer": "Sommersaison · Mai–September · Montag–Sonntag",
+        "summer": "Sommersaison · Mai–Oktober · Montag–Sonntag",
         "custom": "Benutzerdefinierter Zeitplan"
       }
     },

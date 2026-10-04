@@ -1,7 +1,7 @@
 # Home Assistant Ecosystem Policy
 
 Policy-ID: meyershaff-ha-ecosystem
-Policy-Version: 1.19.1
+Policy-Version: 1.25.0
 Adopted: 2026-08-20
 
 ## Scope and automatic classification
@@ -154,6 +154,240 @@ Visibility conditions whenever they can express the required behavior.
   compatibility fallback must be explicit.
 - Ecosystem migrations must update live dashboards, onboarding snippets,
   examples, E2E fixtures, tests, and release documentation together.
+
+## Native-first maintenance and upstream compatibility
+
+Operator refinement, 2026-09-28: Smart Solutions is an additive Home Assistant
+product, not a core/frontend fork or a replacement administration platform.
+
+- Prefer native configuration and options dialogs, entities, devices, areas,
+  services/actions, dashboards, selectors, authentication and supported Assist
+  extension points. A consistent product entry can launch a native workflow;
+  branding alone does not justify rebuilding that workflow.
+- Documented extension points first. Reusing an internal HA web component or
+  frontend endpoint does not make it a stable public extension API. Record such
+  dependencies explicitly; no core patches, monkey-patching, private storage
+  writes or global DOM interception as a new product foundation. Existing narrow
+  policy exceptions are not permission to spread them to the product shell.
+- Keep custom code bounded to demonstrated product gaps. Each exception records
+  the native option evaluated, concrete missing capability, smallest extension,
+  affected consumers, owner, fallback, tested HA Core/frontend versions and a
+  review/removal condition. Prefer replacing it when upstream fills the gap.
+- Review current official HA documentation, release notes, deprecations and
+  breaking changes before implementation and each affected upgrade. Current
+  supported APIs are the target; neither automatic latest-version deployment nor
+  indefinite version pinning substitutes for compatibility maintenance.
+- Before accepting an HA upgrade, test the candidate Core/frontend combination
+  locally: fresh setup, existing configuration migration, editing/save, actions,
+  reload/restart, languages, refresh stability and relevant Assist behavior.
+  Record exact versions and results. Keep native management usable when optional
+  presentation fails; define and verify recovery without assuming config downgrade
+  is safe. One passing version cannot guarantee compatibility with future updates.
+- Future assistants reuse native Assist/conversation/intents/exposure where
+  suitable, plus explicitly documented missing capabilities. Do not build a
+  parallel user, permission, device registry or AI-only command engine.
+- Existing prototypes are assessed honestly: native-backed custom setup wrappers
+  remain compatibility work until justified or replaced by native dialogs.
+  Policy adoption does not itself establish runtime compliance.
+
+## Optional Smart Solutions product contract
+
+The Smart Solutions product layer is additive. Standalone integrations retain
+native setup, entity identities, actions and their existing independent use.
+Adoption is explicit and versioned; an unadapted module is not falsely reported
+as standardized. The first presentation adapters cover Smart Shading and Clock.
+
+- Installed, configured, disabled, running and failed are separate catalog facts.
+  A stored state, version string or visible card alone does not prove a running
+  integration or accepted device behavior. Mixed instance failures remain visible.
+- Shared compact presentation has one implementation. Disclosure never actuates
+  equipment. Keep current faults, active operation and manual overrides readable
+  when collapsed. Future schedules remain planning context. Unknown state values
+  use localized fallback; technical exception text belongs in diagnostics.
+- Discovery uses stable versioned capabilities and native metadata, not entity
+  naming conventions or customer-specific IDs. Unsupported contracts fail visibly.
+  Native configuration, Interactions and Visibility remain authoritative.
+- Details are loaded on demand, preserve stable keyed DOM, focus and scroll, and
+  retain a native management route when a module card cannot load. Domain behavior
+  remains in its owning integration; presentation reuse does not merge lifecycles.
+- Product bundles contain reviewed executable source and exact per-file hashes,
+  never household configuration, sessions, credentials or customer identities.
+  Installation, activation and updates are separate, reviewable operations.
+  Source version parity is not customer installation or live admission.
+- Test common behavior against every adopted adapter. A source snapshot lab is
+  regression evidence; a fresh installation, migration, rollback and appropriate
+  physical tests are separate customer release gates. No universal compatibility
+  claim from a single Home Assistant version or a successful screenshot run.
+
+## Smart Solutions identity, experience levels and drift prevention
+
+Adopted product direction, 2026-09-28. Applies to new or changed Smart Solutions
+product surfaces; it does not claim legacy integrations have already migrated.
+Smart Shading is the interaction reference. Exact layout, colors and screen
+compositions remain reviewable prototypes until visually accepted.
+
+- One recognizable Smart Solutions identity and interaction vocabulary spans
+  adopted modules: consistent navigation, control placement, save/cancel,
+  setup/reconfiguration, manual intervention and error recovery. Reusing a shell
+  around incompatible menus does not establish product conformity.
+- Simple mode is the default: automation-led daily use with concise outcomes,
+  meaningful normal controls and actionable problems, without raw telemetry.
+  Advanced mode is opt-in: additional reasons, measurements, history and expert
+  preferences inside the same product structure. These are presentation levels,
+  not separate product forks, duplicated domain engines or permission grants.
+- Changing presentation level preserves automation configuration and behavior.
+  Advanced mode is not installer authorization. Privileged settings/actions need
+  effective backend permission checks; hidden UI is not a security boundary.
+  Neither mode hides safety-critical faults, manual overrides or required action.
+- Badges are optional and user-selected. Their availability, semantic states,
+  navigation and editing follow the existing native badge contract. Disabling
+  badges affects presentation only and never disables a function or its safety
+  indications in the main overview. Badge display is distinct from batch execution.
+- Users add functions through a consistent setup entry, assign equipment and
+  choose their presentation. Enabled functions populate the configured aggregate
+  overview; do not silently append individual cards or rewrite user dashboards.
+  Standalone cards remain optional and preserve native dashboard editing.
+- Shared visual and interaction behavior has one canonical implementation with
+  versioned compatibility. Adopted modules consume it rather than copying CSS,
+  menus or badge state mapping. Functional differences stay in the owning module.
+  Optional consumers retain documented behavior when a shared service is absent.
+- Every new module or changed product surface includes a conformity record:
+  reference design, shared component version, Simple/Advanced applicability,
+  badges enabled/disabled, native editor/actions, setup/cancel/reconfigure,
+  manual/error/offline states, language and small/large viewport evidence.
+  Mark pending evidence explicitly; do not label untested legacy code conformant.
+- A change to shared behavior must test every adopted consumer. Mechanical audits
+  enforce policy parity and required contracts; rendered interaction tests and
+  human design review establish UX conformity. Text-presence checks alone cannot
+  prove a consistent experience or guarantee the absence of AI drift.
+- Record intentional departures and rationale in the canonical product decision
+  record before implementation. A temporary exception names its owner, affected
+  modules, limits and review/removal condition. Do not invent a new per-module
+  design or silently redefine the reference to make a failing check pass.
+
+## Smart Solutions equipment strategy and replaceable adapters
+
+Adopted architectural direction, 2026-09-28. This is a design requirement, not
+proof of outage resilience or hardware compatibility in existing installations.
+
+- KNX is the preferred building-automation foundation. Define per installation
+  which basic functions remain available without Home Assistant, its host,
+  internet or optional providers. Keep required basic operation and protective
+  interlocks in the appropriate KNX/device/controller layer. Home Assistant adds
+  comfort, optimization and cross-system orchestration; it must not silently
+  become the only path for a required basic function. Test actual failure modes.
+- Select supported equipment by exact model, firmware, transport and proven
+  capability, not brand name alone. Maintain a reviewed equipment support matrix
+  with preferred/validated, limited/compatible, experimental and retiring states,
+  evidence dates, dependencies, known limits and maintenance ownership. Price
+  alone neither qualifies nor disqualifies a component. Installed is not validated.
+- Additional affordable or third-party equipment remains possible through native
+  supported integrations and explicit capability mapping. Do not imply equal
+  service guarantees for unvalidated combinations. Unknown heating brands or
+  device models remain unselected until actually chosen and tested.
+- Separate presentation, domain behavior and equipment adapters. Modules target
+  capabilities such as cover position/stop, temperature/setpoint or confirmed
+  on/off, not vendor-specific entities hard-coded into common cards or algorithms.
+  Reuse native Home Assistant integrations/entities first. Add a small adapter only
+  for a demonstrated semantic/protocol gap; do not invent a second device bus,
+  registry or general driver framework when native facilities suffice.
+- Version capability contracts and describe required/optional features, units,
+  ranges, command semantics, feedback, availability and failure behavior. Missing
+  capabilities remain explicit; never fabricate position, acknowledgement or
+  success. Optional vendor features fit the common presentation and degrade
+  clearly; they do not create a different menu architecture for each brand.
+- Equipment replacement requires an explicit migration mapping: old/new device,
+  supported capabilities, identifiers, units/direction, settings and affected
+  automations. Preserve logical room/function identity and user preferences where
+  compatible; do not promise unchanged HA device/entity identity without testing.
+  Verify command ownership, no duplicate control, manual operation, feedback,
+  interlocks, restart/offline behavior and rollback before retiring the old path.
+- A new brand or protocol is evaluated through the same adapter acceptance and
+  support matrix. Record incompatibilities and lifecycle changes; do not silently
+  weaken the baseline, broaden credentials or rewrite the user experience. A
+  changed capability contract requires impact review across all affected modules.
+- The conformity record includes equipment support tier, tested versions,
+  basic-operation fallback and replacement evidence when applicable. Simulated
+  UI/adapters do not establish physical operation, protective behavior or actual
+  KNX/controller independence. Existing gaps remain visible until tested.
+
+## Smart Solutions local-only operation and extensible energy scope
+
+Adopted product boundary, 2026-09-28. This supersedes earlier proposals allowing
+cloud-dependent product providers. It does not authorize disabling or deleting
+existing customer integrations, accounts or data.
+
+- Local-only is mandatory for the Smart Solutions package. Reject mandatory
+  vendor-cloud accounts, activation, authentication, token renewal, licensing
+  checks, remote computation, telemetry and cloud relay dependencies for setup,
+  normal operation, restart, reconfiguration and recovery. A local UI over a cloud
+  API is not local operation. Optional cloud features are excluded from the package,
+  not offered as an equivalent supported mode. Price or brand does not override
+  this boundary. Prefer documented, supported local protocols and controllers.
+- Review the entire dependency chain, including gateways, bridges, speech/AI,
+  notifications, remote access and device commissioning. Native HA compatibility
+  or a local transport label does not establish cloud independence. Unknown
+  dependencies remain unverified and block local-only acceptance. User data and
+  diagnostics remain locally controlled; no automatic external reporting.
+- Separate software acquisition from operational dependence. Reviewed artifacts
+  may be acquired from an approved source and transferred for offline installation
+  and update; never require continuous internet or automatic cloud fallback.
+  Document a local recovery path including required executable dependencies.
+  Existing publication approval boundaries remain unchanged.
+- Prove the applicable workflows with WAN/vendor-cloud access absent: fresh setup,
+  normal control, feedback, restart, reauthentication where relevant, recovery and
+  loss of optional inputs. Observe actual dependencies and expiry behavior; a
+  short successful offline test does not prove indefinite independence. No live
+  network/security changes are implied by this test requirement.
+- Reclassify existing cloud-dependent candidates as excluded or replacement-needed
+  in the product portfolio; preserve current installations until a separately
+  scoped migration. Previously observed or preferred equipment is not exempt.
+  Third-party remote weather/tariff/notification services cannot become hidden
+  prerequisites; specify local inputs or an explicit unavailable capability.
+- Energy management and heating are first-class future product domains alongside
+  building automation. Model metering, generation, storage, charging, controllable
+  loads and heating/cooling capabilities independently of selected vendors or
+  transports. KNX is a preferred foundation, not the exclusive device protocol.
+- Separate energy observation from optimization and equipment control. Define
+  authoritative controller, units, measurement freshness, limits, priorities,
+  manual override and degraded operation. Native heating/electrical protection
+  remains with its responsible controller; conflicting module command paths must
+  not independently control the same output. Physical acceptance is mandatory.
+- New energy/heating or other modules use the same versioned capability, local-only,
+  UI and lifecycle contracts. Unknown future modules do not justify speculative
+  drivers or a second generic automation engine. Select known systems only after
+  model/protocol/source review and actual local acceptance; no unsupported brand
+  recommendation or claim that current meters already form a complete EMS.
+
+## Optional assistant interface and explicit AI provider exception
+
+Operator refinement, 2026-09-28: a separately developed AI assistant may use local
+or explicitly selected cloud inference. This narrow exception supersedes blanket
+cloud exclusions above only for optional AI inference, not equipment control,
+commissioning or the availability of building automation.
+
+- Automation remains operational without an assistant, its provider or internet.
+  Do not add a cloud AI provider or transfer data merely because this architecture
+  permits one. Provider selection, data scope, retention and credentials require
+  an explicit configured authorization. No automatic local-to-cloud fallback.
+- Every adopted module has a versioned assistant-facing capability description:
+  scoped native status sources, supported read queries, allowed native actions,
+  preconditions, feedback and failure meanings. Reuse the same domain logic and
+  authorization as direct operation; no separate AI-only control engine.
+- Read access, action permission and installer privileges are distinct. Exposure
+  is explicit per scope/entity/action, never all household entities by default.
+  Preserve user context and enforce permissions at the backend. Untrusted device
+  names, sensor text and model output do not become executable instructions.
+- A model-proposed action is not execution or device success. Validate target,
+  permissions, current interlocks, stale data and any required confirmation before
+  invocation; read back results. Log a redacted attributable action outcome.
+  Monitoring does not grant autonomous remediation or unlock privileges.
+- The common product UI exposes assistant connection/exposure state and a
+  consistent contextual entry point. A disconnected prototype says so; no fake
+  conversation, microphone capture, monitoring or device-success claims.
+- Assistant development remains separate. Prototype capability metadata and
+  UI tests do not prove voice recognition, provider privacy, end-to-end backend
+  authorization or physical control. Record these pending tests explicitly.
 
 ## Responsive embedded view contract
 

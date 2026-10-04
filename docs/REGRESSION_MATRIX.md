@@ -11,6 +11,8 @@ The following behaviors must remain covered when Smart Shading is changed.
 | Own movement | Feedback moving toward a recent Smart Shading target is not manual | `tests/test_logic.py` |
 | Local override | Confirmed external movement pauses the affected cover or its room-local shared Manual group | `tests/test_manual_detection.py` and `tests/test_manual_service_detection.py` |
 | External-move trace | A confirmed external cover movement triggers an immediate normal or Safety evaluation after its local ownership pause is active | `tests/test_manual_detection.py` and `tests/test_engine_runtime.py` |
+| Manual confirmation race | Automatic reevaluation and queued non-safety work cannot take ownership of an unconfirmed external movement; candidate expiry, return to baseline, Safety and unrelated covers remain functional | `tests/test_manual_detection.py` |
+| Outside-schedule status | Inactive passive modes show the schedule reason and configured-protection message in EN/DE; active modes and safety keep priority | `tests/test_card_runtime.js` |
 | Locks | Releasing one cover lock must not unlock unrelated covers | `tests/test_engine_runtime.py` |
 | Safety | Safety remains higher priority than normal automation pauses | engine/package tests |
 | Scheduling | Periodic room evaluation defaults to the documented interval | package tests |

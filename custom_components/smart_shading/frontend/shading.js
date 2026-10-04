@@ -743,6 +743,7 @@ class SmartShadingV4Dialog extends HTMLElement {
   _traceText(value) {
     const de = (customerPresentationLanguage(this._hass?.language) === "de");
     const labels = de ? {
+      manual_movement_confirmation_pending: "Manuelle Bewegung wird geprüft",
       safety: "Sicherheit", manual_master_override: "Manuelle Sperre", room_pause: "Raumpause",
       local_cover_pause: "Lokale Behangpause", night_source_hold: "Nachtquelle hält", schedule_hold: "Zeitplan hält", night: "Nachtfunktion", heat_protection: "Hitzeschutz",
       input_quality_hold: "Halten wegen Eingabequalität", glare_protection: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", open: "Öffnen", idle: "Halten",
@@ -818,6 +819,7 @@ class SmartShadingV4Dialog extends HTMLElement {
       protected_zone_inactive: "Keine aktive Schutzzone",
       glare_blocked_by_input_quality: "Blendschutz wegen fehlender Sonnenwerte gehalten",
     } : {
+      manual_movement_confirmation_pending: "Checking manual movement",
       safety: "Safety", manual_master_override: "Manual Override", room_pause: "Room pause",
       local_cover_pause: "Local cover pause", night_source_hold: "Night source hold", schedule_hold: "Schedule hold", night: "Night Mode", heat_protection: "Heat protection",
       input_quality_hold: "Hold for input quality", glare_protection: "Glare protection", solar: "Solar shading", comfort: "Comfort", open: "Open", idle: "Hold",
@@ -1662,6 +1664,7 @@ class SmartShadingV4Card extends HTMLElement {
       title: "Beschattung", room: "Raum", noEntity: "Smart-Shading-Raum auswählen", unavailable: "Smart-Shading-Status nicht verfügbar",
       noRoom: "Noch kein Raum eingerichtet", noCovers: "Noch keine Behänge zugeordnet", cover: "Behang", sector: "Sektor",
       safety: "Sicherheit", heat: "Hitzeschutz", night: "Nacht", glare: "Blendschutz", solar: "Sonnenschutz", comfort: "Komfort", paused: "Pause", open: "Offen", idle: "Bereit", disabled: "Aus", finished: "Fertig", unknown: "Unbekannt",
+      outsideSchedule: "Außerhalb des Zeitplans", protectionContinues: "Eingerichtete Schutzfunktionen bleiben aktiv",
       retracted: "Eingefahren",
       normalTarget: "Normales Ziel", openingLimit: "Öffnungsgrenze", effectiveTarget: "Effektives Ziel",
       wind: "Wind", frost: "Frost", windows: "Fenster", sun: "Sonne", temp: "Temperatur", position: "Position", tilt: "Lamelle", manual: "Manuell", master: "Master",
@@ -1681,6 +1684,7 @@ class SmartShadingV4Card extends HTMLElement {
       title: "Shading", room: "Room", noEntity: "Select a Smart Shading room", unavailable: "Smart Shading status unavailable",
       noRoom: "No room configured", noCovers: "No covers assigned", cover: "Cover", sector: "Sector",
       safety: "Safety", heat: "Heat", night: "Night", glare: "Glare protection", solar: "Solar", comfort: "Comfort", paused: "Paused", open: "Open", idle: "Ready", disabled: "Off", finished: "Done", unknown: "Unknown",
+      outsideSchedule: "Outside schedule", protectionContinues: "Configured protection remains active",
       retracted: "Retracted",
       normalTarget: "Normal target", openingLimit: "Opening limit", effectiveTarget: "Effective target",
       wind: "Wind", frost: "Frost", windows: "Windows", sun: "Sun", temp: "Temperature", position: "Position", tilt: "Tilt", manual: "Manual", master: "Master",
@@ -1771,7 +1775,7 @@ class SmartShadingV4Card extends HTMLElement {
     if (mode === "heat") return localizedReason(attrs.reason, this._hass?.language, L.heat);
     if (mode === "paused") return attrs.pause_until ? `${L.pauseUntil} ${this._formatDate(attrs.pause_until)}` : L.paused;
     if (mode === "disabled") return L.disabled;
-    if (attrs.schedule_active === false) return "";
+    if (attrs.schedule_active === false) return L.protectionContinues;
     const sunState = this._state(attrs.sun_entity || "sun.sun");
     if (!sunState || ["unknown", "unavailable"].includes(sunState.state)) return L.sunMissing;
     return "";
@@ -1908,6 +1912,10 @@ class SmartShadingV4Card extends HTMLElement {
     ) {
       modeIcon = "mdi:storefront-outline";
       modeLabel = L.retracted;
+    }
+    if (attrs.schedule_active === false && ["open", "idle", "finished"].includes(mode)) {
+      modeIcon = "mdi:calendar-blank-outline";
+      modeLabel = L.outsideSchedule;
     }
     const activeSectorNames = asArray(attrs.active_sectors).filter(Boolean);
     let detailedModeLabel = attrs.manual_master_active
